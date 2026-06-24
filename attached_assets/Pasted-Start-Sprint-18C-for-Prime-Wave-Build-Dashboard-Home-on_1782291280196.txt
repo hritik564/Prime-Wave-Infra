@@ -1,0 +1,244 @@
+Start Sprint 18C for Prime Wave.
+
+Build Dashboard Home only.
+
+Do not build Wallet pages yet.
+
+Do not build Binary Tree yet.
+
+Do not build Admin pages.
+
+Use all components and themes created in Sprint 18A and 18B.
+
+Prime Wave is MOBILE-FIRST.
+
+========================================
+TYPOGRAPHY
+========================================
+
+Use:
+
+Headings:
+Cormorant Garamond
+
+Body:
+Inter
+
+Keep typography consistent across the entire dashboard.
+
+========================================
+GREETING SECTION
+========================================
+
+Display:
+
+Good Morning, John 👋
+
+Beyond Limits. Beyond Growth.
+
+Replace John dynamically later from authenticated user.
+
+Top right:
+
+Notification Bell
+
+Profile Avatar
+
+Theme Toggle
+
+========================================
+HERO CARD (OPTION C)
+========================================
+
+Large premium card showing:
+
+Total Active Investment
+
+Today's Earnings
+
+Current Rank
+
+Next Salary Target
+
+Use gold accents.
+
+Responsive on all devices.
+
+========================================
+RANK PROGRESS CARD
+========================================
+
+Add a separate progress card.
+
+Example:
+
+Current Rank:
+Silver
+
+Progress to Gold
+
+████████░░░░ 68%
+
+$8,500 remaining
+
+Progress bar must be visually beautiful.
+
+Use gold progress colors.
+
+This card should become one of the most important visual elements.
+
+========================================
+WALLET SUMMARY
+========================================
+
+Show:
+
+Deposit Wallet
+
+Income Wallet
+
+Withdrawal Wallet
+
+Today's ROI
+
+Mobile:
+
+2x2 grid
+
+Desktop:
+
+4 cards in one row
+
+========================================
+EARNINGS OVERVIEW
+========================================
+
+Cards:
+
+Binary Income
+
+Orbit Income
+
+Level Income
+
+Salary Income
+
+Use icons.
+
+Responsive layout.
+
+========================================
+CHARTS
+========================================
+
+Use Recharts.
+
+Chart 1:
+
+Portfolio Growth
+
+Chart 2:
+
+Earnings Trend
+
+Use Prime Wave colors.
+
+Do not use bright colors.
+
+========================================
+RECENT ACTIVITY
+========================================
+
+Show:
+
+Deposit Approved
+
+Binary Income Received
+
+Leadership Salary Received
+
+Display timestamps.
+
+Card style only.
+
+No tables.
+
+========================================
+QUICK ACTIONS
+========================================
+
+Buttons:
+
+New Deposit
+
+Withdraw Funds
+
+View Binary Tree
+
+Notifications
+
+Large touch targets.
+
+========================================
+MOBILE NAVIGATION
+========================================
+
+Bottom navigation:
+
+Home
+
+Wallets
+
+Network
+
+Notifications
+
+Profile
+
+Desktop keeps sidebar.
+
+========================================
+IMPORTANT
+========================================
+
+No horizontal scrolling.
+
+No giant tables.
+
+No fake stock market widgets.
+
+No excessive animations.
+
+Prime Wave should feel:
+
+Calm
+
+Premium
+
+Luxurious
+
+Easy to understand
+
+Similar quality to:
+
+Revolut
+
+Stripe
+
+Binance
+
+Vercel
+
+========================================
+RETURN
+========================================
+
+1. Components created.
+
+2. Pages modified.
+
+3. Mobile screenshots.
+
+4. Desktop screenshots.
+
+5. Completion report.

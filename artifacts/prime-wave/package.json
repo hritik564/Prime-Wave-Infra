@@ -36,5 +36,8 @@
     "vite": "catalog:",
     "wouter": "catalog:",
     "zod": "catalog:"
+  },
+  "dependencies": {
+    "recharts": "^2.15.4"
   }
 }

@@ -433,6 +433,10 @@ importers:
         version: 3.25.76
 
   artifacts/prime-wave:
+    dependencies:
+      recharts:
+        specifier: ^2.15.4
+        version: 2.15.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
     devDependencies:
       '@hookform/resolvers':
         specifier: ^3.10.0

@@ -1,11 +1,5 @@
 import { useLocation, Link } from "wouter";
-import {
-  LayoutDashboard,
-  Wallet,
-  GitFork,
-  Users,
-  User,
-} from "lucide-react";
+import { Home, Wallet, Network, Bell, User } from "lucide-react";
 
 interface NavItem {
   label: string;
@@ -16,9 +10,9 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   {
-    label: "Dashboard",
+    label: "Home",
     href: "/dashboard",
-    icon: LayoutDashboard,
+    icon: Home,
     matches: ["/dashboard", "/"],
   },
   {
@@ -28,22 +22,22 @@ const NAV_ITEMS: NavItem[] = [
     matches: ["/wallets"],
   },
   {
-    label: "Binary",
+    label: "Network",
     href: "/binary-tree",
-    icon: GitFork,
-    matches: ["/binary-tree"],
+    icon: Network,
+    matches: ["/binary-tree", "/team"],
   },
   {
-    label: "Team",
-    href: "/team",
-    icon: Users,
-    matches: ["/team"],
+    label: "Alerts",
+    href: "/notifications",
+    icon: Bell,
+    matches: ["/notifications"],
   },
   {
     label: "Profile",
     href: "/settings",
     icon: User,
-    matches: ["/settings", "/notifications"],
+    matches: ["/settings"],
   },
 ];
 
