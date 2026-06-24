@@ -158,7 +158,7 @@ function InvestmentCard({ inv }: { inv: Investment }) {
                 Auto Compound
               </p>
               <p className="text-[10px] leading-snug" style={{ color: "rgba(170,179,197,0.45)" }}>
-                {autoCompound ? "ROI added to principal every 12h" : "ROI sent to Income Wallet every 12h"}
+                {autoCompound ? "ROI compounds automatically every 12 hours" : "ROI can be claimed manually"}
               </p>
             </div>
           </div>
@@ -181,8 +181,14 @@ function InvestmentCard({ inv }: { inv: Investment }) {
         <div className="flex gap-3">
           <ClaimBtn
             label="Claim ROI"
-            available={inv.accumulatedRoi > 0}
-            hint={inv.accumulatedRoi > 0 ? `${fmt(inv.accumulatedRoi)} available` : "No ROI to claim"}
+            available={!autoCompound && inv.accumulatedRoi > 0}
+            hint={
+              autoCompound
+                ? "ROI compounds automatically every 12 hours"
+                : inv.accumulatedRoi > 0
+                ? `${fmt(inv.accumulatedRoi)} available`
+                : "No ROI to claim"
+            }
             onClaim={() => {}}
           />
           <ClaimBtn
@@ -434,19 +440,24 @@ export default function InvestmentsPage() {
       <PageContainer>
         <InvestmentTabs />
 
-        {/* ── New Investment CTA ── */}
-        <button
-          onClick={() => setModalOpen(true)}
-          className="w-full flex items-center justify-center gap-2.5 rounded-2xl font-semibold text-sm mb-5 lg:mb-6 min-h-[52px] transition-all duration-200 active:scale-[0.98]"
-          style={{
-            background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)",
-            color: "#0E1B37",
-            boxShadow: "0 4px 20px rgba(212,175,55,0.35)",
-          }}
+        {/* ── New Investment CTA — sticky on mobile ── */}
+        <div
+          className="sticky top-0 z-10 -mx-4 px-4 pt-2 pb-3 mb-5 lg:static lg:mx-0 lg:px-0 lg:pt-0 lg:pb-0 lg:mb-6"
+          style={{ background: "#050B1A" }}
         >
-          <Plus className="h-4 w-4" />
-          New Investment
-        </button>
+          <button
+            onClick={() => setModalOpen(true)}
+            className="w-full flex items-center justify-center gap-2.5 rounded-2xl font-semibold text-sm min-h-[52px] transition-all duration-200 active:scale-[0.98]"
+            style={{
+              background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)",
+              color: "#0E1B37",
+              boxShadow: "0 4px 20px rgba(212,175,55,0.35)",
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            New Investment
+          </button>
+        </div>
 
         {!hasInvestments ? (
           /* Empty state */
