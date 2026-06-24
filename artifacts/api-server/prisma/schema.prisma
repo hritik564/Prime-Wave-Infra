@@ -40,6 +40,19 @@ enum TransactionStatus {
   FAILED
 }
 
+enum PlanType {
+  PLAN_90
+  PLAN_180
+  PLAN_270
+  PLAN_360
+}
+
+enum InvestmentStatus {
+  ACTIVE
+  MATURED
+  COMPLETED
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -71,6 +84,7 @@ model User {
   wallet       Wallet?
   adminLogs    AdminLog[]
   transactions WalletTransaction[]
+  investments  Investment[]
 
   @@map("users")
 }
@@ -145,4 +159,31 @@ model WalletTransaction {
   @@index([status])
   @@index([createdAt])
   @@map("wallet_transactions")
+}
+
+model Investment {
+  id                 String           @id @default(cuid())
+  userId             String
+  amount             Decimal          @db.Decimal(18, 8)
+  currentPrincipal   Decimal          @db.Decimal(18, 8)
+  planType           PlanType
+  dailyROI           Decimal          @db.Decimal(6, 4)
+  durationDays       Int
+  autoCompound       Boolean          @default(false)
+  claimableROI       Decimal          @default(0) @db.Decimal(18, 8)
+  claimablePrincipal Decimal          @default(0) @db.Decimal(18, 8)
+  status             InvestmentStatus @default(ACTIVE)
+  startedAt          DateTime         @default(now())
+  maturesAt          DateTime
+  completedAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([status])
+  @@index([planType])
+  @@index([maturesAt])
+  @@map("investments")
 }
