@@ -1,0 +1,71 @@
+import type { Request, Response, NextFunction } from "express";
+import { placeUser, getBinaryTree, getBinaryParent, getBinaryChildren } from "./binary.service";
+import { sendSuccess } from "../shared/response";
+import { getParsed } from "../middleware/validate.middleware";
+import type { AuthenticatedRequest } from "../shared/types";
+import type { PlaceUserInput, TreeQuery, NodeQuery } from "./binary.schema";
+
+// POST /api/binary/place
+export async function placeUserHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const input    = req.body as PlaceUserInput;
+    await placeUser(user.sub, input);
+    sendSuccess(res, { placed: true }, "User placed in binary tree successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/binary/tree
+export async function getBinaryTreeHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const query    = getParsed<TreeQuery>(res, "query");
+    const rootId   = query.userId ?? user.sub;
+    const tree     = await getBinaryTree(rootId, query.depth);
+    sendSuccess(res, tree, "Binary tree fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/binary/parent
+export async function getBinaryParentHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const query    = getParsed<NodeQuery>(res, "query");
+    const result   = await getBinaryParent(query.userId ?? user.sub);
+    sendSuccess(res, result, "Binary parent fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/binary/children
+export async function getBinaryChildrenHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const query    = getParsed<NodeQuery>(res, "query");
+    const result   = await getBinaryChildren(query.userId ?? user.sub);
+    sendSuccess(res, result, "Binary children fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}

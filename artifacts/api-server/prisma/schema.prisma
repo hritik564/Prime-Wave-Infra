@@ -53,6 +53,11 @@ enum InvestmentStatus {
   COMPLETED
 }
 
+enum BinaryPosition {
+  LEFT
+  RIGHT
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -66,6 +71,18 @@ model User {
 
   referredBy          String?
   directReferralCount Int     @default(0)
+
+  // ── Binary tree ───────────────────────────────────────────────────────────
+  // binaryParentId / binaryParent / binaryChildren: the tree edges
+  // position: LEFT or RIGHT within the parent node (null if not yet placed)
+  // leftDeepestNodeId / rightDeepestNodeId: O(1) placement cache (plain strings,
+  //   no FK to avoid Prisma circular-relation issues; always reference a user id)
+  // leftBV / rightBV: business volume accumulators (propagation in a later sprint)
+  position              BinaryPosition?
+  leftDeepestNodeId     String?
+  rightDeepestNodeId    String?
+  leftBV                Decimal         @default(0) @db.Decimal(18, 8)
+  rightBV               Decimal         @default(0) @db.Decimal(18, 8)
 
   walletAddress String?
   telegramId    String?

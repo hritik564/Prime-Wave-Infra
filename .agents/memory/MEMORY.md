@@ -1,3 +1,4 @@
 - [Prisma migration in Replit](prisma-migrations.md) — `migrate dev` always fails (non-interactive); use resolve+deploy pattern instead
 - [Express 5 read-only req.query](express5-readonly-query.md) — `req.query` and `req.params` are getter-only in Express 5; validate middleware stores parsed data in `res.locals`, controllers use `getParsed(res, "query")`.
 - [Trust proxy for rate limiter](trust-proxy.md) — Replit reverse proxy sets X-Forwarded-For; must set `app.set("trust proxy", 1)` or express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+- [Auth rate limiter in tests](auth-rate-limit-tests.md) — authLimiter is 10 req/15 min in-memory; repeated login calls in test scripts exhaust it fast; restart workflow to reset, or use one token per user across all assertions.
