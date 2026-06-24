@@ -110,6 +110,10 @@ model User {
   // Level income — records where this user's investment TRIGGERED income for upline
   levelIncomeSource   LevelIncome[] @relation("LevelIncomeSource")
 
+  // Salary
+  salaryAchievements SalaryAchievement[]
+  salaryIncome       SalaryIncome[]
+
   // BV ledger relations (as ancestor — BV flows into this user's legs)
   matchBvEntries   MatchBvLedger[]  @relation("MatchBvAncestor")
   orbitBvEntries   OrbitBvLedger[]  @relation("OrbitBvAncestor")
@@ -482,4 +486,79 @@ model LevelIncome {
   @@index([level])
   @@index([createdAt])
   @@map("level_income")
+}
+
+// ── Salary Rank Configuration ─────────────────────────────────────────────────
+//
+// Seeded once; updated by admins. Controls qualification thresholds and payouts.
+//
+//   requiresDualDirects  = must have ≥1 personally-sponsored member on each leg
+//   allowSpill           = spill BV counts toward requiredBusiness
+//   powerLegRequired     = minimum BV the weaker leg must hold (Platinum+)
+//   weakLegRequired      = minimum BV the stronger leg must hold (Platinum+)
+
+model SalaryRankConfig {
+  id               String   @id @default(cuid())
+  rankName         String   @unique
+  requiredBusiness Decimal  @db.Decimal(18, 2)
+  monthlySalary    Decimal  @db.Decimal(18, 2)
+  durationMonths   Int
+  requiresDualDirects Boolean @default(false)
+  allowSpill          Boolean @default(false)
+  powerLegRequired Decimal? @db.Decimal(18, 2)
+  weakLegRequired  Decimal? @db.Decimal(18, 2)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  achievements SalaryAchievement[]
+
+  @@map("salary_rank_config")
+}
+
+// ── Salary Achievement ────────────────────────────────────────────────────────
+//
+// Created once per user per rank when qualification is first met.
+// Never revoked — isActive turns false when expiresAt passes.
+
+model SalaryAchievement {
+  id            String   @id @default(cuid())
+  userId        String
+  rankName      String
+  achievedAt    DateTime @default(now())
+  expiresAt     DateTime
+  monthlyAmount Decimal  @db.Decimal(18, 2)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  user   User             @relation(fields: [userId],   references: [id], onDelete: Restrict)
+  config SalaryRankConfig @relation(fields: [rankName], references: [rankName], onDelete: Restrict)
+
+  @@unique([userId, rankName])
+  @@index([userId])
+  @@index([isActive])
+  @@index([expiresAt])
+  @@map("salary_achievement")
+}
+
+// ── Salary Income ─────────────────────────────────────────────────────────────
+//
+// One record per user per rank per month.
+// Idempotency key: (userId, rankName, month, year).
+
+model SalaryIncome {
+  id       String   @id @default(cuid())
+  userId   String
+  rankName String
+  month    Int
+  year     Int
+  amount   Decimal  @db.Decimal(18, 2)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, rankName, month, year])
+  @@index([userId])
+  @@index([year, month])
+  @@index([createdAt])
+  @@map("salary_income")
 }

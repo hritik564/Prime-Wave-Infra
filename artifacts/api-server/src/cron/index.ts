@@ -2,6 +2,7 @@ import { logger } from "../lib/logger";
 import { processRoiCycle } from "./roi.engine";
 import { runMatchingCycle } from "../binary/matching.engine";
 import { runOrbitCycle } from "../binary/orbit.engine";
+import { runSalaryCycle } from "../salary";
 import { APP_TIMEZONE } from "../config/timezone";
 
 const CYCLE_MS = 12 * 60 * 60 * 1000; // 12 hours in ms
@@ -30,6 +31,7 @@ export function startScheduler(): void {
   if (started) return;
   started = true;
 
+  // ── 12-hour cycle (ROI + matching + orbit) ─────────────────────────────────
   const delayMs = msUntilNextLondonBoundary();
   const nextRun = new Date(Date.now() + delayMs);
 
@@ -42,6 +44,24 @@ export function startScheduler(): void {
     void runCycle();
     setInterval(() => void runCycle(), CYCLE_MS);
   }, delayMs);
+
+  // ── Monthly salary cron (1st of month, 00:00 London) ──────────────────────
+  const salaryDelay = msUntilNextMonthStart();
+  const nextSalary  = new Date(Date.now() + salaryDelay);
+
+  logger.info(
+    { nextRunAt: nextSalary.toISOString(), timezone: APP_TIMEZONE },
+    "Salary scheduler: armed (1st of month)",
+  );
+
+  // Recursively re-arm itself after each run to compute the next month boundary.
+  const scheduleSalaryCycle = () => {
+    void runSalaryMonth();
+    const nextDelay = msUntilNextMonthStart();
+    setTimeout(scheduleSalaryCycle, nextDelay);
+  };
+
+  setTimeout(scheduleSalaryCycle, salaryDelay);
 }
 
 // ── Internal ──────────────────────────────────────────────────────────────────
@@ -64,6 +84,85 @@ async function runCycle(): Promise<void> {
   } catch (err) {
     logger.error({ err }, "Scheduler: unhandled error in binary orbit cycle");
   }
+}
+
+async function runSalaryMonth(): Promise<void> {
+  try {
+    await runSalaryCycle();
+  } catch (err) {
+    logger.error({ err }, "Scheduler: unhandled error in salary cron");
+  }
+}
+
+/**
+ * Returns milliseconds until the next 1st-of-month midnight in APP_TIMEZONE
+ * (Europe/London). Used to schedule the monthly salary cron.
+ *
+ * Minimum return value is 1 000 ms to avoid a near-zero delay edge case.
+ */
+function msUntilNextMonthStart(): number {
+  const now    = new Date();
+  const london = new Intl.DateTimeFormat("en-GB", {
+    timeZone: APP_TIMEZONE,
+    year:     "numeric",
+    month:    "numeric",
+    day:      "numeric",
+    hour:     "2-digit",
+    minute:   "2-digit",
+    second:   "2-digit",
+    hour12:   false,
+  });
+
+  const parts  = london.formatToParts(now);
+  const get    = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+
+  const year   = get("year");
+  const month  = get("month"); // 1-based
+  const day    = get("day");
+  const hour   = get("hour");
+  const minute = get("minute");
+  const second = get("second");
+
+  if (day === 1 && hour === 0 && minute === 0) {
+    // Right at the boundary — fire immediately (1 s delay)
+    return 1_000;
+  }
+
+  // Compute the UTC timestamp of the next 1st-of-month midnight in London
+  // Strategy: increment month, construct midnight, then convert back to UTC.
+  let targetYear  = year;
+  let targetMonth = month + 1; // move to next month's 1st
+  if (targetMonth > 12) { targetMonth = 1; targetYear++; }
+
+  // Build an ISO string that represents midnight on the 1st in London.
+  // We approximate using UTC offset — but since we want DST-aware precision,
+  // we binary-search the actual UTC instant where London reads 00:00 on the 1st.
+  const approxTarget = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0));
+
+  // Adjust for London offset at that approximate instant
+  const offsetMs   = londonOffsetMs(approxTarget);
+  const targetUtc  = new Date(approxTarget.getTime() - offsetMs);
+
+  return Math.max(targetUtc.getTime() - now.getTime(), 1_000);
+}
+
+/**
+ * Returns the UTC offset of Europe/London at the given instant (in ms).
+ * Positive = London is ahead of UTC (BST summer); negative = behind (not applicable here).
+ */
+function londonOffsetMs(date: Date): number {
+  const utcStr    = date.toLocaleString("en-GB", { timeZone: "UTC" });
+  const londonStr = date.toLocaleString("en-GB", { timeZone: APP_TIMEZONE });
+
+  const parse = (s: string): Date => {
+    // en-GB format: "DD/MM/YYYY, HH:MM:SS"
+    const [datePart, timePart] = s.split(", ");
+    const [day, month, year]   = (datePart ?? "").split("/").map(Number);
+    const [hour, minute, second] = (timePart ?? "").split(":").map(Number);
+    return new Date(Date.UTC(year!, month! - 1, day!, hour!, minute!, second!));
+  };
+
+  return parse(londonStr).getTime() - parse(utcStr).getTime();
 }
 
 /**

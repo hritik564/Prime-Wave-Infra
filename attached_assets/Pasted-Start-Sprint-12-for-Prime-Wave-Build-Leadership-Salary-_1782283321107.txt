@@ -1,0 +1,271 @@
+Start Sprint 12 for Prime Wave.
+
+Build Leadership Salary Engine only.
+
+Do NOT build:
+
+- Deposit system
+- Withdrawal system
+- Admin dashboard
+- Frontend
+
+========================================
+CREATE SalaryRankConfig MODEL
+========================================
+
+Fields:
+
+id
+rankName (unique)
+
+requiredBusiness
+
+monthlySalary
+
+durationMonths
+
+requiresDualDirects
+
+allowSpill
+
+powerLegRequired (nullable)
+weakLegRequired (nullable)
+
+isActive
+
+createdAt
+
+Seed the following ranks:
+
+Bronze
+Business: 2000
+Salary: 40
+Duration: 6 months
+requiresDualDirects = false
+allowSpill = false
+
+Silver
+Business: 5000
+Salary: 75
+Duration: 6 months
+requiresDualDirects = false
+allowSpill = false
+
+Gold
+Business: 12500
+Salary: 125
+Duration: 6 months
+requiresDualDirects = false
+allowSpill = false
+
+Platinum
+Business: 25000
+Salary: 250
+Duration: 8 months
+requiresDualDirects = true
+allowSpill = true
+powerLegRequired = 10000
+weakLegRequired = 15000
+
+Sapphire
+Business: 60000
+Salary: 500
+Duration: 8 months
+requiresDualDirects = true
+allowSpill = true
+powerLegRequired = 24000
+weakLegRequired = 36000
+
+Ruby
+Business: 100000
+Salary: 750
+Duration: 10 months
+requiresDualDirects = true
+allowSpill = true
+powerLegRequired = 40000
+weakLegRequired = 60000
+
+Emerald
+Business: 150000
+Salary: 1250
+Duration: 10 months
+requiresDualDirects = true
+allowSpill = true
+powerLegRequired = 60000
+weakLegRequired = 90000
+
+Diamond
+Business: 300000
+Salary: 2000
+Duration: 12 months
+requiresDualDirects = true
+allowSpill = true
+powerLegRequired = 120000
+weakLegRequired = 180000
+
+Ambassador
+Business: 500000
+Salary: 5000
+Duration: 12 months
+requiresDualDirects = true
+allowSpill = true
+powerLegRequired = 200000
+weakLegRequired = 300000
+
+Sovereign Crown
+Business: 1000000
+Salary: 10000
+Duration: 18 months
+requiresDualDirects = true
+allowSpill = true
+powerLegRequired = 400000
+weakLegRequired = 600000
+
+========================================
+CREATE SalaryAchievement MODEL
+========================================
+
+Fields:
+
+id
+userId
+rankName
+
+achievedAt
+expiresAt
+
+monthlyAmount
+
+isActive
+
+createdAt
+
+Rules:
+
+- A rank can only be achieved once.
+- Prevent duplicate achievements.
+- Once achieved, never revoke it.
+- Salary remains active until expiresAt.
+
+========================================
+CREATE SalaryIncome MODEL
+========================================
+
+Fields:
+
+id
+userId
+
+rankName
+
+month
+year
+
+amount
+
+createdAt
+
+========================================
+QUALIFICATION RULES
+========================================
+
+Bronze, Silver, Gold:
+
+- Direct business only.
+- Single leg allowed.
+- Spill business ignored.
+- No direct requirement.
+
+Platinum and above:
+
+Require:
+
+1 personally sponsored member placed LEFT.
+1 personally sponsored member placed RIGHT.
+
+Not just two directs anywhere.
+
+Spill business counts.
+
+Power leg and weaker leg requirements must be validated.
+
+========================================
+STACKING RULE
+========================================
+
+Salaries stack.
+
+Example:
+
+Bronze = $40
+Silver = $75
+Gold = $125
+
+Monthly payout = $240
+
+Each achievement expires independently.
+
+========================================
+MONTHLY CRON
+========================================
+
+Run on:
+
+1st day of month
+Europe/London timezone
+
+Process:
+
+1. Find active SalaryAchievements.
+2. Credit Withdrawal Wallet.
+3. Create WalletTransaction.
+4. Create SalaryIncome record.
+5. Automatically deactivate expired achievements.
+
+========================================
+CREATE ENDPOINTS
+========================================
+
+GET /api/salary/history
+
+GET /api/salary/summary
+
+Response example:
+
+{
+  "activeMonthlySalary": 240,
+  "lifetimeSalaryIncome": 1850,
+  "activeRanks": [
+    "Bronze",
+    "Silver",
+    "Gold"
+  ]
+}
+
+GET /api/salary/achievements
+
+Return:
+
+rankName
+achievedAt
+expiresAt
+monthlyAmount
+isActive
+
+========================================
+TECHNICAL REQUIREMENTS
+========================================
+
+- Use Prisma transactions everywhere.
+- TypeScript only.
+- Production-ready architecture.
+- Prevent duplicate achievements.
+- Credit all salary income to Withdrawal Wallet.
+
+Return:
+
+1. Schema changes.
+2. Seed data added.
+3. Cron schedule created.
+4. Endpoint list.
+5. Final Sprint 12 completion report.
