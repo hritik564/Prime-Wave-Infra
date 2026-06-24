@@ -1,3 +1,5 @@
+import { useState, useCallback } from "react";
+import { CheckCircle2 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import HeroCard from "@/components/dashboard/HeroCard";
@@ -5,6 +7,7 @@ import RankProgressCard from "@/components/dashboard/RankProgressCard";
 import { PortfolioGrowthChart, EarningsTrendChart } from "@/components/dashboard/DashboardCharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import DepositModal from "@/components/deposits/DepositModal";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -21,6 +24,26 @@ import {
   CheckCircle,
   DollarSign,
 } from "lucide-react";
+
+/* ── Inline toast ── */
+interface ToastItem { id: number; message: string }
+function Toast({ toasts }: { toasts: ToastItem[] }) {
+  if (!toasts.length) return null;
+  return (
+    <div className="fixed bottom-20 left-4 right-4 z-50 flex flex-col gap-2 pointer-events-none lg:bottom-6 lg:left-auto lg:right-6 lg:w-80">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-xl"
+          style={{ background: "#0E1B37", border: "1px solid rgba(52,211,153,0.35)", color: "#34d399" }}
+        >
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span>{t.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -191,6 +214,14 @@ const quickActions = [
 
 export default function DashboardPage() {
   const greeting = getGreeting();
+  const [depositOpen, setDepositOpen] = useState(false);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const showToast = useCallback((message: string) => {
+    const id = Date.now();
+    setToasts((t) => [...t, { id, message }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
+  }, []);
 
   return (
     <AppLayout notificationCount={3}>
@@ -269,9 +300,11 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {quickActions.map((action) => {
               const Icon = action.icon;
+              const isNewDeposit = action.label === "New Deposit";
               return (
                 <button
                   key={action.label}
+                  onClick={isNewDeposit ? () => setDepositOpen(true) : undefined}
                   className="flex items-center justify-center gap-2.5 rounded-xl font-semibold text-sm transition-all duration-200 active:scale-[0.97] min-h-[52px]"
                   style={
                     action.primary
@@ -410,6 +443,15 @@ export default function DashboardPage() {
           </div>
         </Section>
       </PageContainer>
+
+      {depositOpen && (
+        <DepositModal
+          onClose={() => setDepositOpen(false)}
+          onSuccess={(msg) => { setDepositOpen(false); showToast(msg); }}
+        />
+      )}
+
+      <Toast toasts={toasts} />
     </AppLayout>
   );
 }

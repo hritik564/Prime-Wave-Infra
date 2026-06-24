@@ -3,6 +3,10 @@ import {
   TrendingUp, RefreshCw, Zap, Lock, ChevronRight,
   Plus, X, Wallet, CheckCircle2,
 } from "lucide-react";
+import {
+  getClaimedRoiMap,
+  claimRoi as walletClaimRoi,
+} from "@/lib/walletStore";
 import { Link } from "wouter";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
@@ -143,11 +147,13 @@ function ClaimBtn({
 /* ─── Investment Card ─── */
 function InvestmentCard({
   inv,
+  displayRoi,
   autoCompound,
   onToggleAutoCompound,
   onClaimRoi,
 }: {
   inv: Investment;
+  displayRoi: number;
   autoCompound: boolean;
   onToggleAutoCompound: () => void;
   onClaimRoi: () => void;
@@ -183,8 +189,8 @@ function InvestmentCard({
         {/* Stat row */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: "Invested",   value: fmt(inv.amount),         color: "rgba(255,255,255,0.9)" },
-            { label: "Accum. ROI", value: fmt(inv.accumulatedRoi), color: "#34d399" },
+            { label: "Invested",   value: fmt(inv.amount),  color: "rgba(255,255,255,0.9)" },
+            { label: "Accum. ROI", value: fmt(displayRoi), color: "#34d399" },
             { label: "Days Left",  value: isCompleted ? "Done" : `${daysRemaining}d`, color: isCompleted ? "#34d399" : "#D4AF37" },
           ].map((s) => (
             <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
@@ -245,14 +251,14 @@ function InvestmentCard({
         <div className="flex gap-3">
           <ClaimBtn
             label="Claim ROI"
-            available={!autoCompound && inv.accumulatedRoi > 0 && !isCompleted}
+            available={!autoCompound && displayRoi > 0 && !isCompleted}
             hint={
               isCompleted
                 ? "Plan completed"
                 : autoCompound
                 ? "ROI compounds automatically every 12 hours"
-                : inv.accumulatedRoi > 0
-                ? `${fmt(inv.accumulatedRoi)} available`
+                : displayRoi > 0
+                ? `${fmt(displayRoi)} available`
                 : "Available after next ROI cycle"
             }
             onClaim={onClaimRoi}
@@ -437,6 +443,15 @@ export default function InvestmentsPage() {
   const [depositBalance, setDepositBalance] = useState(INITIAL_DEPOSIT_BALANCE);
   const [modalOpen, setModalOpen] = useState(false);
 
+  /* ── Claimed ROI — localStorage-backed, survives reload & navigation ── */
+  const [claimedMap, setClaimedMap] = useState<Record<number, number>>(getClaimedRoiMap);
+
+  /** Returns the unclaimed ROI for an investment, accounting for prior claims. */
+  const getDisplayRoi = useCallback(
+    (inv: Investment): number => Math.max(0, inv.accumulatedRoi - (claimedMap[inv.id] ?? 0)),
+    [claimedMap],
+  );
+
   /* ── Auto Compound — localStorage-backed, survives reload & navigation ── */
   const [acMap, setAcMap] = useState<Record<number, boolean>>(loadAcMap);
 
@@ -461,13 +476,12 @@ export default function InvestmentsPage() {
 
   /* ── Claim ROI ── */
   const handleClaimRoi = useCallback((inv: Investment) => {
-    if (inv.accumulatedRoi <= 0) return;
-    const amount = inv.accumulatedRoi;
-    setInvestments((prev) =>
-      prev.map((i) => i.id === inv.id ? { ...i, accumulatedRoi: 0 } : i)
-    );
+    const amount = getDisplayRoi(inv);
+    if (amount <= 0) return;
+    const updated = walletClaimRoi(inv.id, amount);
+    setClaimedMap(updated);
     addToast(`${fmt(amount)} ROI credited to Income Wallet`);
-  }, [addToast]);
+  }, [getDisplayRoi, addToast]);
 
   /* ── Create investment ── */
   const handleCreate = useCallback((plan: Plan, amount: number) => {
@@ -624,6 +638,7 @@ export default function InvestmentsPage() {
                 <InvestmentCard
                   key={inv.id}
                   inv={inv}
+                  displayRoi={getDisplayRoi(inv)}
                   autoCompound={getAc(inv.id)}
                   onToggleAutoCompound={() => toggleAc(inv.id)}
                   onClaimRoi={() => handleClaimRoi(inv)}

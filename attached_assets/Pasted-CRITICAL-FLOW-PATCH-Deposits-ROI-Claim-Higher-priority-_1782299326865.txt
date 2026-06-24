@@ -1,0 +1,164 @@
+CRITICAL FLOW PATCH — Deposits + ROI Claim
+
+Higher priority than Network pages.
+
+========================================
+ISSUE #1
+NEW DEPOSIT FLOW MISSING
+========================================
+
+Users can see Deposit Wallet address but cannot create deposits.
+
+The "New Deposit" button currently does nothing.
+
+Fix the complete deposit flow.
+
+----------------------------------------
+
+All "New Deposit" buttons throughout the app must open the same Deposit Modal.
+
+Buttons exist on:
+
+Dashboard
+
+Wallet pages
+
+Investments page (optional shortcut)
+
+----------------------------------------
+
+Deposit Modal should show:
+
+USDT BEP20 Deposit Address
+
+Copy Address button
+
+Network:
+
+BEP20 (BSC)
+
+----------------------------------------
+
+User inputs:
+
+Amount
+
+Transaction Hash
+
+Both required.
+
+----------------------------------------
+
+Validation:
+
+First deposit minimum:
+
+$100
+
+Subsequent deposits:
+
+Must be at least previous deposit + $100
+
+Amounts must be multiples of $100.
+
+Transaction Hash required.
+
+----------------------------------------
+
+Submit:
+
+Create deposit request.
+
+Status:
+
+Pending
+
+Admin reviews manually.
+
+----------------------------------------
+
+Success toast:
+
+"Deposit submitted successfully. Awaiting admin approval."
+
+========================================
+ISSUE #2
+ROI CLAIM BUG
+========================================
+
+Current behavior:
+
+Claim ROI button shows success.
+
+But:
+
+Income Wallet balance does not increase.
+
+Claimable ROI remains unchanged.
+
+Refreshing the page shows ROI still available.
+
+This is incorrect.
+
+----------------------------------------
+
+Correct behavior:
+
+User clicks Claim ROI
+↓
+Claimable ROI amount credited to Income Wallet
+↓
+claimableROI resets to 0
+↓
+Investment card refreshes
+↓
+Income Wallet refreshes
+↓
+Success toast appears
+
+Example:
+
+Claimable ROI = $360
+
+Income Wallet:
+$120 → $480
+
+Claimable ROI:
+$360 → $0
+
+----------------------------------------
+
+After claim:
+
+Claim ROI button should become disabled.
+
+Display:
+
+"Available after next ROI cycle"
+
+----------------------------------------
+
+Verify:
+
+Page refresh.
+
+Browser refresh.
+
+Data remains correct.
+
+========================================
+IMPORTANT
+========================================
+
+No fake success toasts.
+
+Backend must remain source of truth.
+
+Refetch queries after successful mutations.
+
+Return:
+
+1. Files modified.
+2. APIs used.
+3. Root cause of ROI bug.
+4. Completion report.

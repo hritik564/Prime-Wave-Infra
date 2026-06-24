@@ -1,10 +1,12 @@
-import { useState } from "react";
-import { Copy, CheckCheck, ArrowDownToLine } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Copy, CheckCheck, ArrowDownToLine, Plus, CheckCircle2 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import WalletTabs from "@/components/wallet/WalletTabs";
 import WalletHero from "@/components/wallet/WalletHero";
 import { Badge } from "@/components/ui/badge";
+import DepositModal from "@/components/deposits/DepositModal";
+import { getPendingDeposits, type PendingDeposit } from "@/lib/walletStore";
 
 interface DepositItem {
   id: number;
@@ -54,7 +56,24 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+interface ToastItem { id: number; message: string }
+
 export default function DepositWalletPage() {
+  const [depositOpen, setDepositOpen] = useState(false);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [pendingDeposits, setPendingDeposits] = useState<PendingDeposit[]>(getPendingDeposits);
+
+  const showToast = useCallback((message: string) => {
+    const id = Date.now();
+    setToasts((t) => [...t, { id, message }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
+  }, []);
+
+  const handleDepositSuccess = useCallback((message: string) => {
+    setPendingDeposits(getPendingDeposits());
+    showToast(message);
+  }, [showToast]);
+
   return (
     <AppLayout pageTitle="Wallets" notificationCount={3}>
       <PageContainer>
@@ -65,6 +84,20 @@ export default function DepositWalletPage() {
           balance="$15,000.00"
           description="Your principal investment balance across all active plans"
         />
+
+        {/* New Deposit CTA */}
+        <button
+          onClick={() => setDepositOpen(true)}
+          className="w-full flex items-center justify-center gap-2 rounded-2xl py-4 mb-5 lg:mb-6 font-semibold text-sm transition-all duration-200 active:scale-[0.98]"
+          style={{
+            background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)",
+            color: "#0E1B37",
+            boxShadow: "0 4px 20px rgba(212,175,55,0.35)",
+          }}
+        >
+          <Plus className="h-4 w-4" />
+          New Deposit
+        </button>
 
         {/* Deposit Address Card */}
         <div
@@ -105,6 +138,37 @@ export default function DepositWalletPage() {
 
           {/* Mobile: Cards */}
           <div className="md:hidden space-y-3">
+            {/* Pending deposits from localStorage */}
+            {pendingDeposits.map((dep) => (
+              <div
+                key={dep.id}
+                className="rounded-xl p-4"
+                style={{
+                  background: "hsl(var(--card))",
+                  border: "1px solid rgba(251,191,36,0.2)",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.25)",
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-lg font-bold font-heading" style={{ color: "#34d399" }}>
+                    +${dep.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  </span>
+                  <Badge variant="warning">Pending</Badge>
+                </div>
+                <div className="flex items-center justify-between text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
+                  <span className="font-medium" style={{ color: "hsl(var(--foreground))" }}>{dep.network}</span>
+                  <span>{dep.date}</span>
+                </div>
+                <div className="flex items-center justify-between mt-1.5">
+                  <span className="text-xs font-mono truncate max-w-[160px]" style={{ color: "rgba(170,179,197,0.55)" }}>
+                    Tx: {dep.txHash}
+                  </span>
+                  <CopyButton text={dep.txHash} />
+                </div>
+              </div>
+            ))}
+
+            {/* Static seed history */}
             {history.map((item) => {
               const s = statusConfig[item.status];
               return (
@@ -162,6 +226,44 @@ export default function DepositWalletPage() {
                 </tr>
               </thead>
               <tbody>
+                {/* Pending deposits from localStorage */}
+                {pendingDeposits.map((dep, i) => {
+                  const isLast = i === pendingDeposits.length - 1 && history.length === 0;
+                  return (
+                    <tr
+                      key={dep.id}
+                      className="transition-colors hover:bg-white/[0.02]"
+                      style={{ borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.04)" }}
+                    >
+                      <td className="px-5 py-4">
+                        <span className="font-semibold font-mono" style={{ color: "#34d399" }}>
+                          +${dep.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="text-xs font-semibold px-2 py-1 rounded-md" style={{ background: "rgba(212,175,55,0.1)", color: "#D4AF37" }}>
+                          {dep.network}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <Badge variant="warning">Pending</Badge>
+                      </td>
+                      <td className="px-5 py-4 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
+                        {dep.date}
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs truncate max-w-[140px]" style={{ color: "rgba(170,179,197,0.55)" }}>
+                            {dep.txHash}
+                          </span>
+                          <CopyButton text={dep.txHash} />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {/* Static seed history */}
                 {history.map((item, i) => {
                   const s = statusConfig[item.status];
                   return (
@@ -205,6 +307,29 @@ export default function DepositWalletPage() {
           </div>
         </div>
       </PageContainer>
+
+      {depositOpen && (
+        <DepositModal
+          onClose={() => setDepositOpen(false)}
+          onSuccess={handleDepositSuccess}
+        />
+      )}
+
+      {/* Toast */}
+      {toasts.length > 0 && (
+        <div className="fixed bottom-20 left-4 right-4 z-50 flex flex-col gap-2 pointer-events-none lg:bottom-6 lg:left-auto lg:right-6 lg:w-80">
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-xl"
+              style={{ background: "#0E1B37", border: "1px solid rgba(52,211,153,0.35)", color: "#34d399" }}
+            >
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span>{t.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </AppLayout>
   );
 }

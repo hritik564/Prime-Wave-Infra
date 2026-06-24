@@ -5,8 +5,7 @@ import PageContainer from "@/components/shared/PageContainer";
 import WalletTabs from "@/components/wallet/WalletTabs";
 import WalletHero from "@/components/wallet/WalletHero";
 import TransferModule from "@/components/wallet/TransferModule";
-
-const BALANCE = 1280.75;
+import { getIncomeBalance } from "@/lib/walletStore";
 
 interface ClaimItem {
   type: "roi" | "principal";
@@ -25,6 +24,7 @@ const claims: ClaimItem[] = [
 
 export default function IncomeWalletPage() {
   const [autoCompound, setAutoCompound] = useState(true);
+  const balance = getIncomeBalance();
 
   return (
     <AppLayout pageTitle="Wallets" notificationCount={3}>
@@ -33,7 +33,7 @@ export default function IncomeWalletPage() {
 
         <WalletHero
           walletName="Income Wallet"
-          balance={`$${BALANCE.toFixed(2)}`}
+          balance={`$${balance.toFixed(2)}`}
           description="Accumulated ROI, bonuses, and matured principal"
           subMetrics={[
             { label: "ROI Claims",       value: "$836.50",  color: "#34d399" },
@@ -69,7 +69,6 @@ export default function IncomeWalletPage() {
                     Reinvest daily ROI automatically
                   </p>
                 </div>
-                {/* Toggle */}
                 <button
                   onClick={() => setAutoCompound((v) => !v)}
                   className="relative shrink-0 h-7 w-12 rounded-full transition-all duration-300"
@@ -100,7 +99,7 @@ export default function IncomeWalletPage() {
         </div>
 
         {/* Transfer Module */}
-        <TransferModule availableBalance={BALANCE} />
+        <TransferModule availableBalance={balance} />
 
         {/* Claims History */}
         <div>
