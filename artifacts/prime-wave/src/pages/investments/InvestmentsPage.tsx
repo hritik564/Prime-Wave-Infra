@@ -96,6 +96,7 @@ function InvestmentCard({ inv }: { inv: Investment }) {
   const pct = Math.round((inv.daysCompleted / inv.duration) * 100);
   const daysRemaining = inv.duration - inv.daysCompleted;
   const isCompleted = inv.status === "completed";
+  const [autoCompound, setAutoCompound] = useState(true);
 
   return (
     <div
@@ -139,6 +140,42 @@ function InvestmentCard({ inv }: { inv: Investment }) {
             <span className="text-xs font-semibold" style={{ color: "#D4AF37" }}>{inv.daysCompleted}/{inv.duration} days · {pct}%</span>
           </div>
           <ProgressBar pct={pct} />
+        </div>
+
+        {/* Per-investment Auto Compound */}
+        <div
+          className="flex items-center justify-between px-3 py-2.5 rounded-xl"
+          style={{
+            background: autoCompound ? "rgba(212,175,55,0.06)" : "rgba(255,255,255,0.03)",
+            border: `1px solid ${autoCompound ? "rgba(212,175,55,0.2)" : "rgba(255,255,255,0.05)"}`,
+            transition: "background 0.25s, border-color 0.25s",
+          }}
+        >
+          <div className="flex items-center gap-2.5">
+            <RefreshCw className="h-3.5 w-3.5 shrink-0" style={{ color: autoCompound ? "#D4AF37" : "rgba(170,179,197,0.4)" }} />
+            <div>
+              <p className="text-xs font-semibold" style={{ color: autoCompound ? "#F3D37A" : "hsl(var(--muted-foreground))" }}>
+                Auto Compound
+              </p>
+              <p className="text-[10px] leading-snug" style={{ color: "rgba(170,179,197,0.45)" }}>
+                {autoCompound ? "ROI added to principal every 12h" : "ROI sent to Income Wallet every 12h"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setAutoCompound((v) => !v)}
+            className="relative shrink-0 h-6 w-10 rounded-full transition-all duration-300 ml-3"
+            style={{
+              background: autoCompound ? "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)" : "rgba(255,255,255,0.1)",
+              boxShadow: autoCompound ? "0 0 8px rgba(212,175,55,0.35)" : "none",
+            }}
+            aria-label={`Toggle auto compound for ${inv.plan}`}
+          >
+            <span
+              className="absolute top-0.5 h-5 w-5 rounded-full shadow-sm transition-all duration-300"
+              style={{ background: "#fff", left: autoCompound ? "calc(100% - 22px)" : "2px" }}
+            />
+          </button>
         </div>
 
         <div className="flex gap-3">
@@ -366,7 +403,6 @@ function CreateInvestmentModal({
 export default function InvestmentsPage() {
   const [investments, setInvestments] = useState<Investment[]>(SEED);
   const [depositBalance, setDepositBalance] = useState(INITIAL_DEPOSIT_BALANCE);
-  const [autoCompound, setAutoCompound] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
 
   const totalActiveInvested = useMemo(() => investments.reduce((s, i) => s + i.amount, 0), [investments]);
@@ -488,42 +524,6 @@ export default function InvestmentsPage() {
                     <p className="text-sm font-bold font-heading" style={{ color: s.color }}>{s.value}</p>
                   </div>
                 ))}
-              </div>
-            </div>
-
-            {/* Auto Compound Toggle */}
-            <div
-              className="rounded-2xl p-5 mb-5 lg:mb-6"
-              style={{
-                background: "hsl(var(--card))",
-                border: `1px solid ${autoCompound ? "rgba(212,175,55,0.25)" : "hsl(var(--border))"}`,
-                boxShadow: autoCompound ? "0 0 0 1px rgba(212,175,55,0.08), 0 4px 24px rgba(0,0,0,0.3)" : "0 4px 24px rgba(0,0,0,0.3)",
-                transition: "border-color 0.3s, box-shadow 0.3s",
-              }}
-            >
-              <div className="flex items-start gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300" style={{ background: autoCompound ? "rgba(212,175,55,0.12)" : "rgba(255,255,255,0.05)" }}>
-                  <RefreshCw className="h-5 w-5" style={{ color: autoCompound ? "#D4AF37" : "rgba(170,179,197,0.5)" }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-base font-semibold font-heading text-foreground">Auto Compound</p>
-                      <p className="text-sm mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>Reinvest ROI claims automatically</p>
-                    </div>
-                    <button
-                      onClick={() => setAutoCompound((v) => !v)}
-                      className="relative shrink-0 h-7 w-12 rounded-full transition-all duration-300"
-                      style={{ background: autoCompound ? "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)" : "rgba(255,255,255,0.1)", boxShadow: autoCompound ? "0 0 12px rgba(212,175,55,0.4)" : "none" }}
-                      aria-label="Toggle auto compound"
-                    >
-                      <span className="absolute top-0.5 h-6 w-6 rounded-full shadow-sm transition-all duration-300" style={{ background: "#fff", left: autoCompound ? "calc(100% - 26px)" : "2px" }} />
-                    </button>
-                  </div>
-                  <p className="text-xs mt-2" style={{ color: "rgba(170,179,197,0.55)" }}>
-                    {autoCompound ? "Claimed ROI is automatically reinvested, increasing your daily earnings." : "ROI claims land in your Income Wallet. Toggle ON to compound returns."}
-                  </p>
-                </div>
               </div>
             </div>
 
