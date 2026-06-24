@@ -1,0 +1,193 @@
+Start Sprint 15 for Prime Wave.
+
+Build Admin Dashboard APIs only.
+
+Do not build frontend.
+
+Do not modify compensation engines.
+
+========================================
+DASHBOARD OVERVIEW
+========================================
+
+Create:
+
+GET /api/admin/dashboard
+
+Return:
+
+{
+  totalUsers,
+  activeUsers,
+  blockedUsers,
+  suspendedUsers,
+
+  totalDeposits,
+  pendingDeposits,
+
+  totalWithdrawals,
+  pendingWithdrawals,
+
+  totalInvestments,
+
+  totalRoiPaid,
+  totalBinaryIncome,
+  totalOrbitIncome,
+  totalLevelIncome,
+  totalSalaryIncome,
+
+  todayNewUsers,
+  todayDeposits,
+  todayWithdrawals
+}
+
+========================================
+ADMIN USER SEARCH
+========================================
+
+Create:
+
+GET /api/admin/users/search
+
+Support:
+
+username
+email
+phone
+referralCode
+
+Pagination required.
+
+========================================
+USER DETAILS PAGE API
+========================================
+
+Create:
+
+GET /api/admin/users/:id
+
+Return:
+
+Profile
+Wallet balances
+Investment history
+Deposit history
+Withdrawal history
+Sponsor info
+Direct referrals
+Binary stats
+Salary achievements
+
+========================================
+USER STATUS CONTROLS
+========================================
+
+Create:
+
+POST /api/admin/users/:id/block
+
+POST /api/admin/users/:id/suspend
+
+POST /api/admin/users/:id/activate
+
+Rules:
+
+BLOCKED:
+Cannot login.
+
+SUSPENDED:
+Can login but cannot perform business actions.
+
+ACTIVE:
+Normal access.
+
+All actions must create AdminLog entries.
+
+========================================
+MANUAL WALLET ADJUSTMENTS
+========================================
+
+Create:
+
+POST /api/admin/wallet-adjustments
+
+Request:
+
+{
+  userId,
+  walletType,
+  amount,
+  reason
+}
+
+walletType:
+
+DEPOSIT
+INCOME
+WITHDRAWAL
+
+Require reason.
+
+Use Prisma transactions.
+
+Create WalletTransaction entry.
+
+Create AdminLog entry.
+
+========================================
+SYSTEM HEALTH ENDPOINT
+========================================
+
+Create:
+
+GET /api/admin/system-health
+
+Return:
+
+lastRoiCronExecution
+
+lastBinaryMatchingExecution
+
+lastOrbitExecution
+
+lastSalaryExecution
+
+lastMonthlySalaryExecution
+
+failedJobsCount
+
+pendingDeposits
+
+pendingWithdrawals
+
+========================================
+ADMIN RESTRICTIONS
+========================================
+
+SUPER_ADMIN:
+Full access.
+
+FINANCE_ADMIN:
+Deposits, withdrawals, wallet adjustments.
+
+SUPPORT_ADMIN:
+User search and user details.
+
+REWARD_ADMIN:
+Compensation reports only.
+
+========================================
+REQUIREMENTS
+========================================
+
+- TypeScript only.
+- Prisma transactions where required.
+- Pagination everywhere.
+- Do not touch existing business logic.
+- Create AdminLogs for all admin actions.
+
+Return:
+
+1. New endpoints created.
+2. Files modified.
+3. Completion report.

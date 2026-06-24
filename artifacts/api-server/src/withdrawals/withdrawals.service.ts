@@ -111,14 +111,16 @@ export async function createWithdrawal(
       },
     });
 
-    // 2. Create request
+    // 2. Create request — snapshot the wallet address at submission time so
+    //    future profile edits cannot change where this payout is sent.
     return tx.withdrawalRequest.create({
       data: {
         userId,
-        amount:        decimalAmount,
-        walletAddress: input.walletAddress,
-        network:       input.network,
-        status:        "PENDING",
+        amount:                 decimalAmount,
+        walletAddress:          input.walletAddress,
+        walletAddressSnapshot:  input.walletAddress,
+        network:                input.network,
+        status:                 "PENDING",
       },
       select: withdrawalSelect,
     });
@@ -224,17 +226,18 @@ export async function getWithdrawalById(userId: string, withdrawalId: string) {
 // ── Selects ───────────────────────────────────────────────────────────────────
 
 const withdrawalSelect = {
-  id:            true,
-  amount:        true,
-  walletAddress: true,
-  network:       true,
-  status:        true,
-  rejectedReason: true,
-  cancelledAt:   true,
-  approvedAt:    true,
-  completedAt:   true,
-  txHash:        true,
-  createdAt:     true,
+  id:                    true,
+  amount:                true,
+  walletAddress:         true,
+  walletAddressSnapshot: true,
+  network:               true,
+  status:                true,
+  rejectedReason:        true,
+  cancelledAt:           true,
+  approvedAt:            true,
+  completedAt:           true,
+  txHash:                true,
+  createdAt:             true,
 } as const;
 
 const withdrawalDetailSelect = {

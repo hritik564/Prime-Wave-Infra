@@ -29,6 +29,7 @@ import {
 } from "../deposits/deposits.schema";
 import {
   adminWithdrawalListQuerySchema,
+  approveWithdrawalSchema,
   completeWithdrawalSchema,
   rejectWithdrawalSchema,
 } from "../withdrawals/withdrawals.schema";
@@ -97,6 +98,7 @@ router.post(
   "/withdrawals/:id/approve",
   adminLimiter,
   withdrawalAdminGuard,
+  validate(approveWithdrawalSchema),
   approveWithdrawalHandler,
 );
 

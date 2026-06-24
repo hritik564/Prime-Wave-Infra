@@ -8,7 +8,7 @@ import {
   completeWithdrawal,
   rejectWithdrawal,
 } from "./admin-withdrawals.service";
-import type { AdminWithdrawalListQuery, CompleteWithdrawalInput, RejectWithdrawalInput } from "../withdrawals/withdrawals.schema";
+import type { AdminWithdrawalListQuery, ApproveWithdrawalInput, CompleteWithdrawalInput, RejectWithdrawalInput } from "../withdrawals/withdrawals.schema";
 
 export async function getAdminWithdrawalsHandler(
   req: Request, res: Response, next: NextFunction,
@@ -26,7 +26,8 @@ export async function approveWithdrawalHandler(
   try {
     const { user }     = req as AuthenticatedRequest;
     const withdrawalId = String(req.params["id"] ?? "");
-    const result       = await approveWithdrawal(user.sub, withdrawalId);
+    const input        = req.body as ApproveWithdrawalInput;
+    const result       = await approveWithdrawal(user.sub, withdrawalId, input);
     sendSuccess(res, result, "Withdrawal approved");
   } catch (err) { next(err); }
 }

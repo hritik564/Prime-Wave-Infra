@@ -680,21 +680,23 @@ model WithdrawalSettings {
 //        PENDING/APPROVED → REJECTED  (admin, auto-refund)
 
 model WithdrawalRequest {
-  id                  String            @id @default(cuid())
-  userId              String
-  amount              Decimal           @db.Decimal(18, 8)
-  walletAddress       String
-  network             WithdrawalNetwork
-  status              WithdrawalStatus  @default(PENDING)
-  approvedByAdminId   String?
-  completedByAdminId  String?
-  txHash              String?           @unique
-  rejectedReason      String?
-  cancelledAt         DateTime?
-  approvedAt          DateTime?
-  completedAt         DateTime?
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  id                      String            @id @default(cuid())
+  userId                  String
+  amount                  Decimal           @db.Decimal(18, 8)
+  walletAddress           String
+  walletAddressSnapshot   String
+  network                 WithdrawalNetwork
+  status                  WithdrawalStatus  @default(PENDING)
+  approvedByAdminId       String?
+  completedByAdminId      String?
+  txHash                  String?           @unique
+  rejectedReason          String?
+  adminNotes              String?
+  cancelledAt             DateTime?
+  approvedAt              DateTime?
+  completedAt             DateTime?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
 
   user      User   @relation(fields: [userId],             references: [id], onDelete: Restrict)
   approver  Admin? @relation("WithdrawalApprover",  fields: [approvedByAdminId],  references: [id], onDelete: SetNull)

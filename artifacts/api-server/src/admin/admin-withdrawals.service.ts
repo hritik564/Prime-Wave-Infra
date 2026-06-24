@@ -2,18 +2,20 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
-import type { AdminWithdrawalListQuery, CompleteWithdrawalInput, RejectWithdrawalInput } from "../withdrawals/withdrawals.schema";
+import type { AdminWithdrawalListQuery, ApproveWithdrawalInput, CompleteWithdrawalInput, RejectWithdrawalInput } from "../withdrawals/withdrawals.schema";
 
 // ── List pending / filtered withdrawals ───────────────────────────────────────
 
 const pendingSelect = {
-  id:            true,
-  amount:        true,
-  walletAddress: true,
-  network:       true,
-  status:        true,
-  createdAt:     true,
-  approvedAt:    true,
+  id:                    true,
+  amount:                true,
+  walletAddress:         true,
+  walletAddressSnapshot: true,
+  network:               true,
+  status:                true,
+  adminNotes:            true,
+  createdAt:             true,
+  approvedAt:            true,
   user: {
     select: { id: true, username: true, email: true, firstName: true, lastName: true },
   },
@@ -53,7 +55,11 @@ export async function getAdminWithdrawals(query: AdminWithdrawalListQuery) {
  * No balance movement — funds remain locked until COMPLETE.
  * Creates an AdminLog.
  */
-export async function approveWithdrawal(adminId: string, withdrawalId: string) {
+export async function approveWithdrawal(
+  adminId:      string,
+  withdrawalId: string,
+  input:        ApproveWithdrawalInput,
+) {
   const withdrawal = await prisma.withdrawalRequest.findUnique({
     where:  { id: withdrawalId },
     select: { id: true, userId: true, amount: true, status: true, network: true, walletAddress: true },
@@ -75,7 +81,12 @@ export async function approveWithdrawal(adminId: string, withdrawalId: string) {
   await prisma.$transaction(async (tx) => {
     await tx.withdrawalRequest.update({
       where: { id: withdrawalId },
-      data:  { status: "APPROVED", approvedByAdminId: adminId, approvedAt },
+      data:  {
+        status:            "APPROVED",
+        approvedByAdminId: adminId,
+        approvedAt,
+        ...(input.adminNotes !== undefined && { adminNotes: input.adminNotes }),
+      },
     });
 
     await tx.adminLog.create({
@@ -88,6 +99,7 @@ export async function approveWithdrawal(adminId: string, withdrawalId: string) {
           amount:        withdrawal.amount.toString(),
           network:       withdrawal.network,
           walletAddress: withdrawal.walletAddress,
+          ...(input.adminNotes && { adminNotes: input.adminNotes }),
         },
       },
     });
@@ -137,10 +149,11 @@ export async function completeWithdrawal(
       await tx.withdrawalRequest.update({
         where: { id: withdrawalId },
         data:  {
-          status:            "COMPLETED",
+          status:             "COMPLETED",
           completedByAdminId: adminId,
           completedAt,
           txHash:             input.txHash,
+          ...(input.adminNotes !== undefined && { adminNotes: input.adminNotes }),
         },
       });
 
@@ -241,7 +254,11 @@ export async function rejectWithdrawal(
     // 1. Mark rejected
     await tx.withdrawalRequest.update({
       where: { id: withdrawalId },
-      data:  { status: "REJECTED", rejectedReason: input.rejectedReason },
+      data:  {
+        status:         "REJECTED",
+        rejectedReason: input.rejectedReason,
+        ...(input.adminNotes !== undefined && { adminNotes: input.adminNotes }),
+      },
     });
 
     // 2. Refund wallet

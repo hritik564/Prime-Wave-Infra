@@ -25,12 +25,18 @@ export const adminWithdrawalListQuerySchema = z.object({
   limit:   z.coerce.number().int().min(1).max(100).default(20),
 });
 
+export const approveWithdrawalSchema = z.object({
+  adminNotes: z.string().trim().max(1000).optional(),
+});
+
 export const completeWithdrawalSchema = z.object({
-  txHash: z.string().trim().min(1, "Transaction hash is required"),
+  txHash:     z.string().trim().min(1, "Transaction hash is required"),
+  adminNotes: z.string().trim().max(1000).optional(),
 });
 
 export const rejectWithdrawalSchema = z.object({
   rejectedReason: z.string().trim().min(1, "Rejection reason is required").max(500),
+  adminNotes:     z.string().trim().max(1000).optional(),
 });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -38,5 +44,6 @@ export const rejectWithdrawalSchema = z.object({
 export type CreateWithdrawalInput       = z.infer<typeof createWithdrawalSchema>;
 export type WithdrawalHistoryQuery      = z.infer<typeof withdrawalHistoryQuerySchema>;
 export type AdminWithdrawalListQuery    = z.infer<typeof adminWithdrawalListQuerySchema>;
+export type ApproveWithdrawalInput      = z.infer<typeof approveWithdrawalSchema>;
 export type CompleteWithdrawalInput     = z.infer<typeof completeWithdrawalSchema>;
 export type RejectWithdrawalInput       = z.infer<typeof rejectWithdrawalSchema>;
