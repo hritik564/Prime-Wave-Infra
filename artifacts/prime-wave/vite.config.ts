@@ -8,7 +8,7 @@ export default defineConfig({
   server: {
     port: parseInt(process.env["PORT"] ?? "3000"),
     host: "0.0.0.0",
-    allowedHosts: "all",
+    allowedHosts: true,
   },
   preview: {
     host: "0.0.0.0",
