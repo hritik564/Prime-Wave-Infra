@@ -4,6 +4,7 @@ import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import { PLAN_CONFIG } from "./investments.schema";
 import type { CreateInvestmentInput, ListInvestmentsQuery } from "./investments.schema";
+import { propagateBV } from "../binary/bv.service";
 
 // ── Create investment ─────────────────────────────────────────────────────────
 
@@ -82,6 +83,9 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
         metadata:    { investmentId: investment.id, planType, durationDays: plan.durationDays },
       },
     });
+
+    // ── BV propagation — same transaction, atomic with investment creation ──
+    await propagateBV(tx, userId, investment.id, decimalAmount);
 
     return investment;
   });

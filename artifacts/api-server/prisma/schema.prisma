@@ -73,11 +73,6 @@ model User {
   directReferralCount Int     @default(0)
 
   // ── Binary tree ───────────────────────────────────────────────────────────
-  // binaryParentId / binaryParent / binaryChildren: the tree edges
-  // position: LEFT or RIGHT within the parent node (null if not yet placed)
-  // leftDeepestNodeId / rightDeepestNodeId: O(1) placement cache (plain strings,
-  //   no FK to avoid Prisma circular-relation issues; always reference a user id)
-  // leftBV / rightBV: business volume accumulators (propagation in a later sprint)
   position              BinaryPosition?
   leftDeepestNodeId     String?
   rightDeepestNodeId    String?
@@ -106,6 +101,18 @@ model User {
   roiLedger        RoiLedger[]
   referralHistory  ReferralHistory?  @relation("ReferralHistoryUser")
   givenReferrals   ReferralHistory[] @relation("ReferralHistorySponsor")
+
+  // BV ledger relations (as ancestor — BV flows into this user's legs)
+  matchBvEntries   MatchBvLedger[]  @relation("MatchBvAncestor")
+  orbitBvEntries   OrbitBvLedger[]  @relation("OrbitBvAncestor")
+  salaryBvEntries  SalaryBvLedger[] @relation("SalaryBvAncestor")
+  bvHistory        BvHistory[]      @relation("BvHistoryAncestor")
+
+  // BV ledger relations (as investor — this user's investments generate BV)
+  matchBvInvested   MatchBvLedger[]  @relation("MatchBvInvestor")
+  orbitBvInvested   OrbitBvLedger[]  @relation("OrbitBvInvestor")
+  salaryBvInvested  SalaryBvLedger[] @relation("SalaryBvInvestor")
+  bvHistoryInvested BvHistory[]      @relation("BvHistoryInvestor")
 
   @@map("users")
 }
@@ -203,6 +210,11 @@ model Investment {
   user      User        @relation(fields: [userId], references: [id], onDelete: Restrict)
   roiLedger RoiLedger[]
 
+  matchBvLedger  MatchBvLedger[]
+  orbitBvLedger  OrbitBvLedger[]
+  salaryBvLedger SalaryBvLedger[]
+  bvHistory      BvHistory[]
+
   @@index([userId])
   @@index([status])
   @@index([planType])
@@ -241,4 +253,103 @@ model ReferralHistory {
 
   @@index([sponsorId])
   @@map("referral_history")
+}
+
+// ── BV Ledgers ────────────────────────────────────────────────────────────────
+//
+// One entry per ancestor per investment.
+//   userId       = ancestor whose leg BV is credited to
+//   investorId   = the user whose investment triggered the BV
+//   investmentId = the specific investment
+//   bv           = whole BV units credited (1 BV = $100)
+//   side         = which leg of userId received the BV
+//   depth        = 1 for direct parent, 2 for grandparent, etc.
+//
+// Three separate tables let income engines consume them independently
+// (matching, orbit, salary may diverge in future sprint rules).
+
+model MatchBvLedger {
+  id           String         @id @default(cuid())
+  userId       String
+  investorId   String
+  investmentId String
+  bv           Decimal        @db.Decimal(18, 8)
+  side         BinaryPosition
+  depth        Int
+  createdAt    DateTime       @default(now())
+
+  user       User       @relation("MatchBvAncestor", fields: [userId],       references: [id], onDelete: Restrict)
+  investor   User       @relation("MatchBvInvestor", fields: [investorId],   references: [id], onDelete: Restrict)
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([investorId])
+  @@index([investmentId])
+  @@index([createdAt])
+  @@map("match_bv_ledger")
+}
+
+model OrbitBvLedger {
+  id           String         @id @default(cuid())
+  userId       String
+  investorId   String
+  investmentId String
+  bv           Decimal        @db.Decimal(18, 8)
+  side         BinaryPosition
+  depth        Int
+  createdAt    DateTime       @default(now())
+
+  user       User       @relation("OrbitBvAncestor", fields: [userId],       references: [id], onDelete: Restrict)
+  investor   User       @relation("OrbitBvInvestor", fields: [investorId],   references: [id], onDelete: Restrict)
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([investorId])
+  @@index([investmentId])
+  @@index([createdAt])
+  @@map("orbit_bv_ledger")
+}
+
+model SalaryBvLedger {
+  id           String         @id @default(cuid())
+  userId       String
+  investorId   String
+  investmentId String
+  bv           Decimal        @db.Decimal(18, 8)
+  side         BinaryPosition
+  depth        Int
+  createdAt    DateTime       @default(now())
+
+  user       User       @relation("SalaryBvAncestor", fields: [userId],       references: [id], onDelete: Restrict)
+  investor   User       @relation("SalaryBvInvestor", fields: [investorId],   references: [id], onDelete: Restrict)
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([investorId])
+  @@index([investmentId])
+  @@index([createdAt])
+  @@map("salary_bv_ledger")
+}
+
+// ── Unified BV audit trail ────────────────────────────────────────────────────
+
+model BvHistory {
+  id           String         @id @default(cuid())
+  userId       String
+  investorId   String
+  investmentId String
+  bv           Decimal        @db.Decimal(18, 8)
+  side         BinaryPosition
+  depth        Int
+  createdAt    DateTime       @default(now())
+
+  user       User       @relation("BvHistoryAncestor", fields: [userId],       references: [id], onDelete: Restrict)
+  investor   User       @relation("BvHistoryInvestor", fields: [investorId],   references: [id], onDelete: Restrict)
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([investorId])
+  @@index([investmentId])
+  @@index([createdAt])
+  @@map("bv_history")
 }
