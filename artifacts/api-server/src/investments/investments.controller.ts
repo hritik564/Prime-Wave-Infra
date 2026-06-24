@@ -5,6 +5,7 @@ import {
   getInvestmentById,
   claimPrincipal,
 } from "./investments.service";
+import { claimRoi, getEarnings } from "./roi.service";
 import { sendSuccess, sendCreated } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
 import type { AuthenticatedRequest } from "../shared/types";
@@ -62,6 +63,34 @@ export async function claimPrincipalHandler(
     const { user } = req as AuthenticatedRequest;
     const result = await claimPrincipal(user.sub, req.params.id as string);
     sendSuccess(res, result, "Principal claimed successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function claimRoiHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const result = await claimRoi(user.sub, req.params.id as string);
+    sendSuccess(res, result, "ROI claimed successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getEarningsHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const result = await getEarnings(user.sub, req.params.id as string);
+    sendSuccess(res, result, "Earnings fetched successfully");
   } catch (err) {
     next(err);
   }

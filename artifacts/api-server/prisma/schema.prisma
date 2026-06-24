@@ -85,6 +85,7 @@ model User {
   adminLogs    AdminLog[]
   transactions WalletTransaction[]
   investments  Investment[]
+  roiLedger    RoiLedger[]
 
   @@map("users")
 }
@@ -179,11 +180,32 @@ model Investment {
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  roiLedger RoiLedger[]
 
   @@index([userId])
   @@index([status])
   @@index([planType])
   @@index([maturesAt])
   @@map("investments")
+}
+
+model RoiLedger {
+  id            String   @id @default(cuid())
+  userId        String
+  investmentId  String
+  amount        Decimal  @db.Decimal(18, 8)
+  cycleNumber   Int
+  wasCompounded Boolean  @default(false)
+  wasClaimed    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Restrict)
+
+  @@index([investmentId])
+  @@index([userId])
+  @@index([wasCompounded])
+  @@index([wasClaimed])
+  @@map("roi_ledger")
 }
