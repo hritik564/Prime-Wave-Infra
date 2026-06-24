@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { AuthHeader } from "@/components/auth/AuthHeader";
@@ -36,11 +36,12 @@ export default function LoginPage() {
   });
 
   const rememberMe = watch("rememberMe");
+  const [, navigate] = useLocation();
 
   const onSubmit = async (_data: LoginData) => {
     setFormError(undefined);
-    await new Promise((r) => setTimeout(r, 1500));
-    setFormError("Invalid credentials. Please check your details and try again.");
+    await new Promise((r) => setTimeout(r, 800));
+    navigate("/dashboard");
   };
 
   return (
