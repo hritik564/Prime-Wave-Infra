@@ -102,6 +102,8 @@ model User {
   referralHistory  ReferralHistory?  @relation("ReferralHistoryUser")
   givenReferrals   ReferralHistory[] @relation("ReferralHistorySponsor")
 
+  binaryMatchIncome BinaryMatchIncome[]
+
   // BV ledger relations (as ancestor — BV flows into this user's legs)
   matchBvEntries   MatchBvLedger[]  @relation("MatchBvAncestor")
   orbitBvEntries   OrbitBvLedger[]  @relation("OrbitBvAncestor")
@@ -329,6 +331,36 @@ model SalaryBvLedger {
   @@index([investmentId])
   @@index([createdAt])
   @@map("salary_bv_ledger")
+}
+
+// ── Binary Matching Income ────────────────────────────────────────────────────
+//
+// One record per qualifying user per cron cycle (00:00 and 12:00 Europe/London).
+// Qualification: directReferralCount >= 2, matchedBV > 0.
+//
+//   matchedBV    = min(leftBV, rightBV)          — BV consumed from both legs
+//   payableBV    = min(matchedBV, 50)             — capped at 50 BV per cycle
+//   destroyedBV  = matchedBV - payableBV          — excess matched BV, discarded
+//   incomeAmount = payableBV × $5                 — credited to withdrawalWallet
+//   cycleStart/cycleEnd                           — 12-hour window boundaries
+
+model BinaryMatchIncome {
+  id           String   @id @default(cuid())
+  userId       String
+  matchedBV    Decimal  @db.Decimal(18, 8)
+  payableBV    Decimal  @db.Decimal(18, 8)
+  destroyedBV  Decimal  @db.Decimal(18, 8)
+  incomeAmount Decimal  @db.Decimal(18, 8)
+  cycleStart   DateTime
+  cycleEnd     DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([cycleStart])
+  @@index([createdAt])
+  @@map("binary_match_income")
 }
 
 // ── Unified BV audit trail ────────────────────────────────────────────────────

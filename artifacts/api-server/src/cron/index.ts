@@ -1,5 +1,6 @@
 import { logger } from "../lib/logger";
 import { processRoiCycle } from "./roi.engine";
+import { runMatchingCycle } from "../binary/matching.engine";
 import { APP_TIMEZONE } from "../config/timezone";
 
 const CYCLE_MS = 12 * 60 * 60 * 1000; // 12 hours in ms
@@ -7,10 +8,14 @@ const CYCLE_MS = 12 * 60 * 60 * 1000; // 12 hours in ms
 // ── Scheduler ─────────────────────────────────────────────────────────────────
 
 /**
- * Starts the global ROI scheduler.
+ * Starts the global 12-hour scheduler.
  *
  * Fires at the next 00:00 or 12:00 in Europe/London time (BST/GMT aware),
  * then every 12 hours from that point.
+ *
+ * Each cycle runs:
+ *  1. ROI engine     — compounds/accrues ROI for all ACTIVE investments
+ *  2. Binary matching — pays matching income to all qualified users
  *
  * Safe to call multiple times — idempotent.
  */
@@ -25,7 +30,7 @@ export function startScheduler(): void {
 
   logger.info(
     { nextRunAt: nextRun.toISOString(), timezone: APP_TIMEZONE },
-    "ROI scheduler: armed",
+    "Scheduler: armed (ROI + binary matching)",
   );
 
   setTimeout(() => {
@@ -37,10 +42,18 @@ export function startScheduler(): void {
 // ── Internal ──────────────────────────────────────────────────────────────────
 
 async function runCycle(): Promise<void> {
+  // Run ROI and matching in series (matching reads BV written by investments,
+  // but ROI does not touch BV — so parallel would be safe; series is cleaner).
   try {
     await processRoiCycle();
   } catch (err) {
-    logger.error({ err }, "ROI scheduler: unhandled error in cycle");
+    logger.error({ err }, "Scheduler: unhandled error in ROI cycle");
+  }
+
+  try {
+    await runMatchingCycle();
+  } catch (err) {
+    logger.error({ err }, "Scheduler: unhandled error in binary matching cycle");
   }
 }
 
@@ -58,11 +71,11 @@ function msUntilNextLondonBoundary(): number {
   const now = new Date();
 
   const fmt = new Intl.DateTimeFormat("en-GB", {
-    timeZone:    APP_TIMEZONE,
-    hour:        "2-digit",
-    minute:      "2-digit",
-    second:      "2-digit",
-    hour12:      false,
+    timeZone: APP_TIMEZONE,
+    hour:     "2-digit",
+    minute:   "2-digit",
+    second:   "2-digit",
+    hour12:   false,
   });
 
   const parts = fmt.formatToParts(now);
@@ -79,8 +92,8 @@ function msUntilNextLondonBoundary(): number {
   // Noon or after → next boundary is 00:00:00 London tomorrow (86 400 s into the day)
   const secondsUntilBoundary =
     londonHour < 12
-      ? 12 * 3_600 - secondsIntoDay   // seconds until noon
-      : 24 * 3_600 - secondsIntoDay;  // seconds until midnight
+      ? 12 * 3_600 - secondsIntoDay
+      : 24 * 3_600 - secondsIntoDay;
 
   return Math.max(secondsUntilBoundary * 1_000, 1_000);
 }

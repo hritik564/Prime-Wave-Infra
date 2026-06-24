@@ -1,11 +1,13 @@
 import type { Request, Response, NextFunction } from "express";
 import { placeUser, getBinaryTree, getBinaryParent, getBinaryChildren } from "./binary.service";
 import { getBvSummary, getBvHistory } from "./bv.service";
+import { getMatchingHistory, getMatchingSummary } from "./matching.service";
 import { sendSuccess } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
 import type { AuthenticatedRequest } from "../shared/types";
 import type { PlaceUserInput, TreeQuery, NodeQuery } from "./binary.schema";
 import type { BvSummaryQuery, BvHistoryQuery } from "./bv.schema";
+import type { MatchingHistoryQuery, MatchingSummaryQuery } from "./matching.schema";
 
 // ── Placement ─────────────────────────────────────────────────────────────────
 
@@ -99,6 +101,38 @@ export async function getBvHistoryHandler(
     const query    = getParsed<BvHistoryQuery>(res, "query");
     const result   = await getBvHistory(query.userId ?? user.sub, query);
     sendSuccess(res, result, "BV history fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── Matching income queries ───────────────────────────────────────────────────
+
+export async function getMatchingHistoryHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const query    = getParsed<MatchingHistoryQuery>(res, "query");
+    const result   = await getMatchingHistory(query.userId ?? user.sub, query);
+    sendSuccess(res, result, "Matching history fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getMatchingSummaryHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const query    = getParsed<MatchingSummaryQuery>(res, "query");
+    const result   = await getMatchingSummary(query.userId ?? user.sub);
+    sendSuccess(res, result, "Matching summary fetched successfully");
   } catch (err) {
     next(err);
   }

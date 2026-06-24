@@ -6,11 +6,14 @@ import {
   getBinaryChildrenHandler,
   getBvSummaryHandler,
   getBvHistoryHandler,
+  getMatchingHistoryHandler,
+  getMatchingSummaryHandler,
 } from "./binary.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 import { validate } from "../middleware/validate.middleware";
 import { placeUserSchema, treeQuerySchema, nodeQuerySchema } from "./binary.schema";
 import { bvSummaryQuerySchema, bvHistoryQuerySchema } from "./bv.schema";
+import { matchingHistoryQuerySchema, matchingSummaryQuerySchema } from "./matching.schema";
 
 const router = Router();
 
@@ -18,16 +21,16 @@ router.use(requireAuth);
 
 // ── Placement ─────────────────────────────────────────────────────────────────
 
-// POST /api/binary/place — sponsor places a referred user LEFT or RIGHT
+// POST /api/binary/place
 router.post("/place", validate(placeUserSchema, "body"), placeUserHandler);
 
 // ── Tree queries ──────────────────────────────────────────────────────────────
 
 // GET /api/binary/tree[?userId=xxx&depth=N]
-router.get("/tree", validate(treeQuerySchema, "query"), getBinaryTreeHandler);
+router.get("/tree",     validate(treeQuerySchema, "query"), getBinaryTreeHandler);
 
 // GET /api/binary/parent[?userId=xxx]
-router.get("/parent", validate(nodeQuerySchema, "query"), getBinaryParentHandler);
+router.get("/parent",   validate(nodeQuerySchema, "query"), getBinaryParentHandler);
 
 // GET /api/binary/children[?userId=xxx]
 router.get("/children", validate(nodeQuerySchema, "query"), getBinaryChildrenHandler);
@@ -39,5 +42,13 @@ router.get("/bv-summary", validate(bvSummaryQuerySchema, "query"), getBvSummaryH
 
 // GET /api/binary/bv-history[?userId=xxx&investmentId=xxx&page=N&limit=N]
 router.get("/bv-history", validate(bvHistoryQuerySchema, "query"), getBvHistoryHandler);
+
+// ── Matching income queries ───────────────────────────────────────────────────
+
+// GET /api/binary/matching-history[?userId=xxx&page=N&limit=N]
+router.get("/matching-history", validate(matchingHistoryQuerySchema, "query"), getMatchingHistoryHandler);
+
+// GET /api/binary/matching-summary[?userId=xxx]
+router.get("/matching-summary", validate(matchingSummaryQuerySchema, "query"), getMatchingSummaryHandler);
 
 export default router;
