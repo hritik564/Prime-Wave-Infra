@@ -1,6 +1,4 @@
-"use client";
-
-import { Menu, Bell, Sun, Moon, ChevronDown, LogOut, User, Settings } from "lucide-react";
+import { Bell, Sun, Moon, ChevronDown, LogOut, User, Settings } from "lucide-react";
 import { useTheme } from "@/providers/ThemeProvider";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,48 +10,38 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 
 interface TopNavbarProps {
-  onMenuClick: () => void;
   pageTitle?: string;
   notificationCount?: number;
 }
 
 export default function TopNavbar({
-  onMenuClick,
   pageTitle,
-  notificationCount = 3,
+  notificationCount = 0,
 }: TopNavbarProps) {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-background/95 backdrop-blur-sm px-4 lg:px-6">
-      {/* Left: Hamburger + Page Title */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onMenuClick}
-          className="lg:hidden rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-          aria-label="Open menu"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
+    <header className="flex h-14 lg:h-16 shrink-0 items-center justify-between border-b border-border bg-background/95 backdrop-blur-sm px-4 lg:px-6">
+      {/* Left: Page title */}
+      <div className="flex items-center min-w-0">
         {pageTitle && (
-          <h1 className="text-lg font-semibold text-foreground font-heading">
+          <h1 className="text-base lg:text-lg font-semibold text-foreground font-heading truncate">
             {pageTitle}
           </h1>
         )}
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 lg:gap-2 shrink-0">
         {/* Theme Toggle */}
         <Button
           variant="ghost"
           size="icon"
           onClick={toggleTheme}
           aria-label="Toggle theme"
-          className="relative text-muted-foreground hover:text-foreground"
+          className="h-9 w-9 text-muted-foreground hover:text-foreground"
         >
           {theme === "dark" ? (
             <Sun className="h-4 w-4" />
@@ -66,13 +54,13 @@ export default function TopNavbar({
         <Button
           variant="ghost"
           size="icon"
-          className="relative text-muted-foreground hover:text-foreground"
+          className="relative h-9 w-9 text-muted-foreground hover:text-foreground"
           aria-label="Notifications"
         >
           <Bell className="h-4 w-4" />
           {notificationCount > 0 && (
             <span
-              className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white"
+              className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold"
               style={{ background: "#D4AF37", color: "#0E1B37" }}
             >
               {notificationCount > 9 ? "9+" : notificationCount}
@@ -83,11 +71,16 @@ export default function TopNavbar({
         {/* Profile Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-secondary transition-colors outline-none">
+            <button className="flex items-center gap-2 rounded-lg px-1.5 lg:px-2 py-1.5 hover:bg-secondary transition-colors outline-none">
               <Avatar className="h-8 w-8">
                 <AvatarImage src="" alt="User" />
-                <AvatarFallback className="text-xs font-bold"
-                  style={{ background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)", color: "#0E1B37" }}>
+                <AvatarFallback
+                  className="text-xs font-bold"
+                  style={{
+                    background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)",
+                    color: "#0E1B37",
+                  }}
+                >
                   JD
                 </AvatarFallback>
               </Avatar>

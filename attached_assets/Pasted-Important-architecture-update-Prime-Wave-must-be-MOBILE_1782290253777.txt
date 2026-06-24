@@ -1,0 +1,131 @@
+Important architecture update.
+
+Prime Wave must be MOBILE-FIRST.
+
+Approximately 90% of users will use mobile devices.
+
+Do not design desktop first and then shrink components.
+
+Instead:
+
+1. Build for mobile first.
+2. Expand for tablet.
+3. Enhance for desktop.
+
+Requirements:
+
+========================================
+MOBILE UX PRIORITY
+========================================
+
+Target width:
+
+375px–430px
+
+Design for:
+
+iPhone
+Android
+Safari
+Chrome
+
+========================================
+BOTTOM NAVIGATION
+========================================
+
+For mobile devices, replace sidebar with a bottom navigation.
+
+Items:
+
+Dashboard
+Wallets
+Binary
+Team
+Profile
+
+Desktop can continue using sidebar.
+
+========================================
+CARDS
+========================================
+
+Stack vertically on mobile.
+
+No horizontal overflow.
+
+========================================
+TABLES
+========================================
+
+Never show wide desktop tables on mobile.
+
+Convert them into cards.
+
+Example:
+
+Deposit history:
+Desktop → table
+Mobile → cards
+
+========================================
+METRIC CARDS
+========================================
+
+2 columns maximum on mobile.
+
+Example:
+
+Portfolio | ROI Today
+Wallet | Team Size
+
+========================================
+BUTTONS
+========================================
+
+Minimum touch height:
+
+48px
+
+Large tap areas.
+
+========================================
+TYPOGRAPHY
+========================================
+
+Readable on mobile.
+
+Avoid tiny fonts.
+
+========================================
+NO HORIZONTAL SCROLLING
+========================================
+
+Pages must fit entirely inside mobile width.
+
+========================================
+RESPONSIVE TESTING
+========================================
+
+Verify:
+
+375px
+390px
+430px
+768px
+1024px
+1440px
+
+========================================
+DESIGN PHILOSOPHY
+========================================
+
+Prime Wave is a mobile-first wealth platform.
+
+Think:
+
+Binance App
+Trust Wallet
+Revolut
+Bybit
+
+Not desktop admin panels.

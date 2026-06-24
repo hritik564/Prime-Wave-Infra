@@ -7,14 +7,14 @@ interface Column<T> {
   render: (row: T) => React.ReactNode;
 }
 
-interface TableWrapperProps<T extends Record<string, unknown>> {
+interface TableWrapperProps<T extends object> {
   columns: Column<T>[];
   data: T[];
   className?: string;
   emptyState?: React.ReactNode;
 }
 
-export default function TableWrapper<T extends Record<string, unknown>>({
+export default function TableWrapper<T extends object>({
   columns,
   data,
   className,

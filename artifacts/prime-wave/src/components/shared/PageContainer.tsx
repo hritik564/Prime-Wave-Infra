@@ -10,7 +10,7 @@ export default function PageContainer({
   className,
 }: PageContainerProps) {
   return (
-    <div className={cn("p-6 lg:p-8 max-w-screen-2xl mx-auto w-full", className)}>
+    <div className={cn("p-4 lg:p-8 max-w-screen-2xl mx-auto w-full", className)}>
       {children}
     </div>
   );

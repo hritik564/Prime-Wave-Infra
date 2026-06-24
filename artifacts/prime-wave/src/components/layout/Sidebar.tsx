@@ -23,7 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 interface NavItem {
   label: string;
   href: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
 }
 
 interface NavGroup {
