@@ -105,6 +105,11 @@ model User {
   binaryMatchIncome BinaryMatchIncome[]
   binaryOrbitIncome BinaryOrbitIncome[]
 
+  // Level income — records where this user RECEIVES income from downline investments
+  levelIncomeReceived LevelIncome[] @relation("LevelIncomeReceiver")
+  // Level income — records where this user's investment TRIGGERED income for upline
+  levelIncomeSource   LevelIncome[] @relation("LevelIncomeSource")
+
   // BV ledger relations (as ancestor — BV flows into this user's legs)
   matchBvEntries   MatchBvLedger[]  @relation("MatchBvAncestor")
   orbitBvEntries   OrbitBvLedger[]  @relation("OrbitBvAncestor")
@@ -217,6 +222,7 @@ model Investment {
   orbitBvLedger  OrbitBvLedger[]
   salaryBvLedger SalaryBvLedger[]
   bvHistory      BvHistory[]
+  levelIncome    LevelIncome[]
 
   @@index([userId])
   @@index([status])
@@ -440,4 +446,40 @@ model SystemSettings {
   updatedAt   DateTime @updatedAt
 
   @@map("system_settings")
+}
+
+// ── Level Income ──────────────────────────────────────────────────────────────
+//
+// Created inline when an investment is made — one record per ancestor level
+// that receives a payout (up to 5 levels up the sponsor chain).
+//
+//   receiverUserId   = sponsor ancestor who receives the income
+//   sourceUserId     = investor whose investment triggered the payout
+//   level            = 1 (direct sponsor) through 5
+//   investmentAmount = gross investment amount used as the percentage base
+//   percentage       = percentage applied (stored as 1 = 1%, 2 = 2%, etc.)
+//   incomeAmount     = investmentAmount × (percentage / 100)
+//   — credited to receiverUser.withdrawalWallet
+
+model LevelIncome {
+  id               String   @id @default(cuid())
+  receiverUserId   String
+  sourceUserId     String
+  level            Int
+  investmentId     String
+  investmentAmount Decimal  @db.Decimal(18, 8)
+  percentage       Decimal  @db.Decimal(6, 4)
+  incomeAmount     Decimal  @db.Decimal(18, 8)
+  createdAt        DateTime @default(now())
+
+  receiver   User       @relation("LevelIncomeReceiver", fields: [receiverUserId], references: [id], onDelete: Restrict)
+  source     User       @relation("LevelIncomeSource",   fields: [sourceUserId],   references: [id], onDelete: Restrict)
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Restrict)
+
+  @@index([receiverUserId])
+  @@index([sourceUserId])
+  @@index([investmentId])
+  @@index([level])
+  @@index([createdAt])
+  @@map("level_income")
 }

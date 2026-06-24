@@ -1,2 +1,2 @@
-// Sprint 3: Level income distribution, upline commission calculations
-export {};
+export { processLevelIncome } from "./level-income.service";
+export { default as levelIncomeRouter } from "./level-income.routes";

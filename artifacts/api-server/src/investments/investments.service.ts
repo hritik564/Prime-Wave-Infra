@@ -5,6 +5,7 @@ import { HTTP_STATUS } from "../shared/constants";
 import { PLAN_CONFIG } from "./investments.schema";
 import type { CreateInvestmentInput, ListInvestmentsQuery } from "./investments.schema";
 import { propagateBV } from "../binary/bv.service";
+import { processLevelIncome } from "../levelIncome";
 
 // ── Create investment ─────────────────────────────────────────────────────────
 
@@ -86,6 +87,9 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
 
     // ── BV propagation — same transaction, atomic with investment creation ──
     await propagateBV(tx, userId, investment.id, decimalAmount);
+
+    // ── Level income — walk sponsor chain, pay 5 levels at 1% each ──────────
+    await processLevelIncome(tx, userId, investment.id, decimalAmount);
 
     return investment;
   });
