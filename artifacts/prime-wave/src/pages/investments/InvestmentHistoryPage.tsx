@@ -16,11 +16,11 @@ interface HistoryItem {
 }
 
 const history: HistoryItem[] = [
-  { id: 1, plan: "Elite Growth",  amount: 5000, startDate: "Feb 15, 2026", endDate: "Aug 14, 2026", dailyRoi: 0.85, totalRoi: 518.70, status: "active" },
-  { id: 2, plan: "Prime Orbit",   amount: 7500, startDate: "Mar 25, 2026", endDate: "Jul 23, 2026",  dailyRoi: 1.00, totalRoi: 615.00, status: "active" },
-  { id: 3, plan: "Starter Pack",  amount: 2500, startDate: "Mar 25, 2026", endDate: "Jun 23, 2026",  dailyRoi: 0.75, totalRoi: 168.75, status: "completed" },
-  { id: 4, plan: "Apex Binary",   amount: 1000, startDate: "Jan 15, 2026", endDate: "Apr 15, 2026",  dailyRoi: 0.90, totalRoi:  81.00, status: "completed" },
-  { id: 5, plan: "Starter Pack",  amount: 500,  startDate: "Mar 01, 2026", endDate: "May 30, 2026",  dailyRoi: 0.75, totalRoi:  33.75, status: "completed" },
+  { id: 1, plan: "Prime Wave 90",  amount: 500,  startDate: "Mar 26, 2026", endDate: "Jun 24, 2026",  dailyRoi: 0.5, totalRoi: 112.50,  status: "active" },
+  { id: 2, plan: "Prime Wave 180", amount: 1000, startDate: "Apr 24, 2026", endDate: "Oct 21, 2026",  dailyRoi: 0.6, totalRoi: 360.00,  status: "active" },
+  { id: 3, plan: "Prime Wave 270", amount: 2000, startDate: "Sep 27, 2025", endDate: "Jun 24, 2026",  dailyRoi: 0.7, totalRoi: 3780.00, status: "completed" },
+  { id: 4, plan: "Prime Wave 360", amount: 1500, startDate: "May 25, 2026", endDate: "May 20, 2027",  dailyRoi: 0.8, totalRoi: 360.00,  status: "active" },
+  { id: 5, plan: "Prime Wave 90",  amount: 300,  startDate: "Jan 15, 2026", endDate: "Apr 15, 2026",  dailyRoi: 0.5, totalRoi: 135.00,  status: "completed" },
 ];
 
 function fmt(n: number) {
