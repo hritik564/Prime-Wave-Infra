@@ -1,0 +1,1 @@
+- [Prisma migration in Replit](prisma-migrations.md) — `migrate dev` always fails (non-interactive); use resolve+deploy pattern instead

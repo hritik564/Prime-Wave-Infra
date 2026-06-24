@@ -30,9 +30,29 @@ model User {
   lastName     String
   status       UserStatus @default(ACTIVE)
   referralCode String     @unique
-  referredBy   String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+
+  // Kept for backward compatibility (raw string from Sprint 1)
+  referredBy String?
+
+  // --- New optional fields ---
+  walletAddress String?
+  telegramId    String?
+  profileImage  String?
+
+  // --- Sponsor / upline self-relation ---
+  // A user has one sponsor (upline) and many direct referrals (downline)
+  sponsorId       String?
+  sponsor         User?  @relation("UserSponsorRelation", fields: [sponsorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  directReferrals User[] @relation("UserSponsorRelation")
+
+  // --- Binary tree self-relation ---
+  // A user has one binary parent and up to many binary children
+  binaryParentId String?
+  binaryParent   User?  @relation("UserBinaryRelation", fields: [binaryParentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  binaryChildren User[] @relation("UserBinaryRelation")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   wallet Wallet?
 
