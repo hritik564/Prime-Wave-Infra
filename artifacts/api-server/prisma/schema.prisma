@@ -34,6 +34,18 @@ enum DepositStatus {
   REJECTED
 }
 
+enum WithdrawalNetwork {
+  BEP20
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
 enum TransactionType {
   DEPOSIT
   INVESTMENT
@@ -128,7 +140,10 @@ model User {
   salaryIncome       SalaryIncome[]
 
   // Deposits
-  depositRequests DepositRequest[]
+  depositRequests    DepositRequest[]
+
+  // Withdrawals
+  withdrawalRequests WithdrawalRequest[]
 
   // BV ledger relations (as ancestor — BV flows into this user's legs)
   matchBvEntries   MatchBvLedger[]  @relation("MatchBvAncestor")
@@ -156,8 +171,11 @@ model Admin {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  logs            AdminLog[]
+  logs             AdminLog[]
   approvedDeposits DepositRequest[]
+
+  approvedWithdrawals  WithdrawalRequest[] @relation("WithdrawalApprover")
+  completedWithdrawals WithdrawalRequest[] @relation("WithdrawalCompleter")
 
   @@map("admins")
 }
@@ -165,9 +183,10 @@ model Admin {
 model Wallet {
   id               String   @id @default(cuid())
   userId           String   @unique
-  depositWallet    Decimal  @default(0) @db.Decimal(18, 8)
-  incomeWallet     Decimal  @default(0) @db.Decimal(18, 8)
-  withdrawalWallet Decimal  @default(0) @db.Decimal(18, 8)
+  depositWallet           Decimal  @default(0) @db.Decimal(18, 8)
+  incomeWallet            Decimal  @default(0) @db.Decimal(18, 8)
+  withdrawalWallet        Decimal  @default(0) @db.Decimal(18, 8)
+  lockedWithdrawalBalance Decimal  @default(0) @db.Decimal(18, 8)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -632,4 +651,58 @@ model DepositRequest {
   @@index([txHash])
   @@index([createdAt])
   @@map("deposit_requests")
+}
+
+// ── Withdrawal Settings ───────────────────────────────────────────────────────
+//
+// One row per network; configurable via DB without a code deploy.
+// Seeded with BEP20 defaults: min=$10, max=$2500, enabled=true.
+
+model WithdrawalSettings {
+  id            String            @id @default(cuid())
+  network       WithdrawalNetwork @unique
+  minimumAmount Decimal           @db.Decimal(18, 8)
+  maximumAmount Decimal           @db.Decimal(18, 8)
+  isEnabled     Boolean           @default(true)
+  updatedAt     DateTime          @updatedAt
+
+  @@map("withdrawal_settings")
+}
+
+// ── Withdrawal Requests ───────────────────────────────────────────────────────
+//
+// User submits a request to withdraw from withdrawalWallet.
+// Funds are locked immediately (wallets.lockedWithdrawalBalance += amount,
+//   wallets.withdrawalWallet -= amount).
+//
+// Flow:  PENDING → APPROVED → COMPLETED (txHash required)
+//        PENDING → CANCELLED  (user-initiated, auto-refund)
+//        PENDING/APPROVED → REJECTED  (admin, auto-refund)
+
+model WithdrawalRequest {
+  id                  String            @id @default(cuid())
+  userId              String
+  amount              Decimal           @db.Decimal(18, 8)
+  walletAddress       String
+  network             WithdrawalNetwork
+  status              WithdrawalStatus  @default(PENDING)
+  approvedByAdminId   String?
+  completedByAdminId  String?
+  txHash              String?           @unique
+  rejectedReason      String?
+  cancelledAt         DateTime?
+  approvedAt          DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  user      User   @relation(fields: [userId],             references: [id], onDelete: Restrict)
+  approver  Admin? @relation("WithdrawalApprover",  fields: [approvedByAdminId],  references: [id], onDelete: SetNull)
+  completer Admin? @relation("WithdrawalCompleter", fields: [completedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([network])
+  @@index([createdAt])
+  @@map("withdrawal_requests")
 }

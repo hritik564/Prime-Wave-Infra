@@ -9,6 +9,7 @@ import binaryRouter from "../binary/binary.routes";
 import { levelIncomeRouter } from "../levelIncome";
 import { salaryRouter } from "../salary";
 import { depositsRouter } from "../deposits";
+import { withdrawalsRouter } from "../withdrawals";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use("/binary",       binaryRouter);
 router.use("/level-income", levelIncomeRouter);
 router.use("/salary",       salaryRouter);
 router.use("/deposits",     depositsRouter);
+router.use("/withdrawals",  withdrawalsRouter);
 
 export default router;

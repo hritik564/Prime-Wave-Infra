@@ -13,6 +13,12 @@ import {
   approveDepositHandler,
   rejectDepositHandler,
 } from "./admin-deposits.controller";
+import {
+  getAdminWithdrawalsHandler,
+  approveWithdrawalHandler,
+  completeWithdrawalHandler,
+  rejectWithdrawalHandler,
+} from "./admin-withdrawals.controller";
 import { validate } from "../middleware/validate.middleware";
 import { requireAdminAuth, requireAdminRoles } from "../middleware/auth.middleware";
 import { authLimiter, adminLimiter } from "../middleware/rateLimiter.middleware";
@@ -21,6 +27,11 @@ import {
   adminDepositListQuerySchema,
   rejectDepositSchema,
 } from "../deposits/deposits.schema";
+import {
+  adminWithdrawalListQuerySchema,
+  completeWithdrawalSchema,
+  rejectWithdrawalSchema,
+} from "../withdrawals/withdrawals.schema";
 
 const router = Router();
 
@@ -69,6 +80,40 @@ router.post(
   financeAdminGuard,
   validate(rejectDepositSchema, "body"),
   rejectDepositHandler,
+);
+
+// ── Withdrawal admin — SUPER_ADMIN and FINANCE_ADMIN only ─────────────────────
+const withdrawalAdminGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN");
+
+router.get(
+  "/withdrawals/pending",
+  adminLimiter,
+  withdrawalAdminGuard,
+  validate(adminWithdrawalListQuerySchema, "query"),
+  getAdminWithdrawalsHandler,
+);
+
+router.post(
+  "/withdrawals/:id/approve",
+  adminLimiter,
+  withdrawalAdminGuard,
+  approveWithdrawalHandler,
+);
+
+router.post(
+  "/withdrawals/:id/complete",
+  adminLimiter,
+  withdrawalAdminGuard,
+  validate(completeWithdrawalSchema),
+  completeWithdrawalHandler,
+);
+
+router.post(
+  "/withdrawals/:id/reject",
+  adminLimiter,
+  withdrawalAdminGuard,
+  validate(rejectWithdrawalSchema),
+  rejectWithdrawalHandler,
 );
 
 export default router;
