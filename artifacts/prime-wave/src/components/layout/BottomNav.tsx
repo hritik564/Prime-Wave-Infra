@@ -29,9 +29,9 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     label: "Network",
-    href: "/binary-tree",
+    href: "/team",
     icon: Network,
-    matches: ["/binary-tree", "/team"],
+    matches: ["/team", "/network", "/binary-tree"],
   },
   {
     label: "Alerts",

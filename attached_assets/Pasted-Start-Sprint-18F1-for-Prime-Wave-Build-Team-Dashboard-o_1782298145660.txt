@@ -1,0 +1,207 @@
+Start Sprint 18F1 for Prime Wave.
+
+Build Team Dashboard only.
+
+Do NOT build Binary Tree yet.
+
+Do NOT build React Flow yet.
+
+Reuse all design language from Sprint 18A–18E.
+
+Prime Wave remains MOBILE-FIRST.
+
+========================================
+PAGES
+========================================
+
+Create:
+
+/network
+
+/team
+
+========================================
+TEAM OVERVIEW HERO
+========================================
+
+Large hero section showing:
+
+Total Team Size
+
+Direct Referrals
+
+Total Team Business
+
+Use premium hero styling.
+
+========================================
+TEAM STAT CARDS
+========================================
+
+Display:
+
+Left Team Size
+
+Right Team Size
+
+Left BV
+
+Right BV
+
+Total Team Size
+
+Total Team Business
+
+Active Team Members
+
+Inactive Team Members
+
+Mobile:
+
+2-column grid
+
+Desktop:
+
+4-column grid
+
+========================================
+REFERRAL SECTION
+========================================
+
+Show:
+
+Referral Code
+
+Referral Link
+
+Copy Link button
+
+Copy Code button
+
+Large premium card.
+
+QR code support can be added later.
+
+========================================
+DIRECT REFERRALS SECTION
+========================================
+
+Show:
+
+Profile Avatar
+
+Username
+
+Join Date
+
+Investment Status
+
+Current Rank
+
+Business Volume
+
+Mobile:
+
+Card layout only.
+
+Desktop:
+
+Table allowed.
+
+========================================
+SEARCH
+========================================
+
+Allow searching direct team members by:
+
+Username
+
+Referral Code
+
+========================================
+TEAM ACTIVITY
+========================================
+
+Recent team joins.
+
+Recent investments from team.
+
+Recent rank achievements.
+
+Use cards only.
+
+No tables on mobile.
+
+========================================
+EMPTY STATES
+========================================
+
+If user has no referrals:
+
+Show:
+
+"No team members yet."
+
+Display a large CTA:
+
+Invite Your First Member
+
+========================================
+DESIGN RULES
+========================================
+
+Reuse:
+
+Typography
+
+Spacing
+
+Card styles
+
+Gold accents
+
+Shadows
+
+No new colors.
+
+No Bootstrap.
+
+========================================
+MOBILE
+========================================
+
+390px
+
+430px
+
+No horizontal scrolling.
+
+Touch targets >= 48px.
+
+Bottom navigation remains.
+
+========================================
+IMPORTANT
+========================================
+
+Do NOT build Binary Tree.
+
+Do NOT add React Flow.
+
+Do NOT build network visualization yet.
+
+This sprint is only for Team Dashboard.
+
+========================================
+RETURN
+========================================
+
+1. Pages created.
+
+2. Components created.
+
+3. Mobile screenshots.
+
+4. Desktop screenshots.
+
+5. Completion report.

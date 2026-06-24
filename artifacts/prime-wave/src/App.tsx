@@ -10,6 +10,7 @@ import IncomeWalletPage from "@/pages/wallet/IncomeWalletPage";
 import WithdrawalWalletPage from "@/pages/wallet/WithdrawalWalletPage";
 import InvestmentsPage from "@/pages/investments/InvestmentsPage";
 import InvestmentHistoryPage from "@/pages/investments/InvestmentHistoryPage";
+import TeamPage from "@/pages/network/TeamPage";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
@@ -88,8 +89,11 @@ export default function App() {
         <Route path="/binary-tree">
           <ComingSoon title="Binary Tree" />
         </Route>
+        <Route path="/network">
+          <TeamPage />
+        </Route>
         <Route path="/team">
-          <ComingSoon title="Team" />
+          <TeamPage />
         </Route>
         <Route path="/income/binary">
           <ComingSoon title="Binary Income" />
