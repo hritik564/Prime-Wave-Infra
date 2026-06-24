@@ -32,14 +32,21 @@ const MAX_LEVELS = 5;
  *   - If the chain ends before MAX_LEVELS (no sponsor), stop early.
  *   - No qualification gate — pay every ancestor that exists.
  */
+export interface LevelIncomeTarget {
+  receiverUserId: string;
+  incomeAmount:   Prisma.Decimal;
+  level:          number;
+}
+
 export async function processLevelIncome(
   tx: Prisma.TransactionClient,
   sourceUserId:     string,
   investmentId:     string,
   investmentAmount: Prisma.Decimal,
-): Promise<void> {
+): Promise<LevelIncomeTarget[]> {
   // Walk up the sponsor chain, fetching one level at a time.
   // We only need sponsorId and the wallet, so keep the select minimal.
+  const targets: LevelIncomeTarget[] = [];
   let currentUserId = sourceUserId;
 
   for (let level = 1; level <= MAX_LEVELS; level++) {
@@ -89,9 +96,13 @@ export async function processLevelIncome(
       },
     });
 
+    targets.push({ receiverUserId: ancestorId, incomeAmount, level });
+
     // Move up to the next ancestor
     currentUserId = ancestorId;
   }
+
+  return targets;
 }
 
 // ── History query ─────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { prisma } from "../config/prisma";
 import { logger } from "../lib/logger";
+import { notificationService } from "../notifications/notifications.service";
 
 // ── Monthly salary payout engine ──────────────────────────────────────────────
 
@@ -110,6 +111,14 @@ export async function runSalaryCycle(now?: Date): Promise<void> {
             amount:   ach.monthlyAmount,
           },
         });
+      });
+
+      void notificationService.create({
+        userId:  ach.userId,
+        type:    "SALARY_RECEIVED",
+        title:   "Leadership Salary Received",
+        message: `Your ${ach.rankName} leadership salary of $${ach.monthlyAmount.toFixed(2)} for ${monthName(month)} ${year} has been credited to your withdrawal wallet.`,
+        metadata: { rankName: ach.rankName, amount: ach.monthlyAmount.toString(), month, year },
       });
 
       paid++;

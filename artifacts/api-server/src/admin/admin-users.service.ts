@@ -3,6 +3,7 @@ import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { UserSearchQuery } from "./admin-dashboard.schema";
+import { notificationService } from "../notifications/notifications.service";
 
 // ── User search ───────────────────────────────────────────────────────────────
 
@@ -240,6 +241,24 @@ export async function setUserStatus(
       },
     });
   });
+
+  if (action === "block") {
+    void notificationService.create({
+      userId,
+      type:    "ACCOUNT_BLOCKED",
+      title:   "Account Blocked",
+      message: "Your account has been blocked. Please contact support for assistance.",
+      metadata: { previousStatus: user.status },
+    });
+  } else if (action === "suspend") {
+    void notificationService.create({
+      userId,
+      type:    "ACCOUNT_SUSPENDED",
+      title:   "Account Suspended",
+      message: "Your account has been temporarily suspended. Please contact support for assistance.",
+      metadata: { previousStatus: user.status },
+    });
+  }
 
   return { userId, username: user.username, previousStatus: user.status, newStatus: targetStatus };
 }

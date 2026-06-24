@@ -2,13 +2,14 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
+import { notificationService } from "../notifications/notifications.service";
 
 const ZERO = new Prisma.Decimal("0");
 
 // ── Claim ROI ─────────────────────────────────────────────────────────────────
 
 export async function claimRoi(userId: string, investmentId: string) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const investment = await tx.investment.findUnique({
       where: { id: investmentId },
       select: {
@@ -86,6 +87,16 @@ export async function claimRoi(userId: string, investmentId: string) {
       incomeWalletBalance:  wallet.incomeWallet,
     };
   });
+
+  void notificationService.create({
+    userId,
+    type:    "ROI_CLAIMED",
+    title:   "ROI Claimed",
+    message: `You claimed $${result.amountClaimed.toFixed(2)} in ROI earnings, now credited to your income wallet.`,
+    metadata: { investmentId, amountClaimed: result.amountClaimed.toString() },
+  });
+
+  return result;
 }
 
 // ── Earnings summary ──────────────────────────────────────────────────────────

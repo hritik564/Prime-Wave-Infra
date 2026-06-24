@@ -1,0 +1,213 @@
+Start Sprint 18A for Prime Wave.
+
+Build Frontend Design System only.
+
+Do NOT build dashboard pages yet.
+
+Do NOT connect APIs yet.
+
+Use:
+
+- Next.js 15
+- TypeScript
+- TailwindCSS
+- Shadcn UI
+
+========================================
+DESIGN LANGUAGE
+========================================
+
+Use Prime Wave brochure as visual inspiration.
+
+Theme style:
+
+Premium wealth platform.
+
+Think:
+
+Stripe
+Ramp
+Revolut
+Binance
+Vercel
+
+Avoid:
+
+Bootstrap admin templates.
+Generic MLM layouts.
+
+========================================
+TYPOGRAPHY
+========================================
+
+Headings:
+
+Cormorant Garamond
+
+Body:
+
+Inter
+
+========================================
+CREATE DARK THEME
+========================================
+
+Background:
+
+#050B1A
+
+Secondary background:
+
+#091E45
+
+Cards:
+
+#0E1B37
+
+Primary gold:
+
+#D4AF37
+
+Secondary gold:
+
+#F3D37A
+
+Primary text:
+
+#FFFFFF
+
+Secondary text:
+
+#AAB3C5
+
+========================================
+CREATE LIGHT THEME
+========================================
+
+Background:
+
+#F7F8FC
+
+Cards:
+
+#FFFFFF
+
+Borders:
+
+#E5E7EB
+
+Text:
+
+#111827
+
+Keep gold accents.
+
+========================================
+THEME TOGGLE
+========================================
+
+Implement:
+
+Light Theme
+Dark Theme
+
+Persist using localStorage.
+
+Dark theme is default.
+
+========================================
+LAYOUT SYSTEM
+========================================
+
+Create reusable:
+
+AppLayout
+
+Sidebar
+
+TopNavbar
+
+PageContainer
+
+Card
+
+MetricCard
+
+SectionHeader
+
+TableWrapper
+
+EmptyState
+
+LoadingState
+
+========================================
+TOP NAVBAR
+========================================
+
+Right side:
+
+Notification Bell
+
+Theme Toggle
+
+Profile Dropdown
+
+========================================
+SIDEBAR ITEMS
+========================================
+
+Dashboard
+
+Investments
+
+Deposit Wallet
+
+Income Wallet
+
+Withdrawal Wallet
+
+Binary Tree
+
+Team
+
+Binary Income
+
+Orbit Income
+
+Level Income
+
+Salary Income
+
+Notifications
+
+Settings
+
+========================================
+RESPONSIVE DESIGN
+========================================
+
+Desktop
+
+Tablet
+
+Mobile
+
+========================================
+REQUIREMENTS
+========================================
+
+No API calls yet.
+
+No fake MLM data.
+
+No business logic.
+
+Only reusable components.
+
+Return:
+
+1. Folder structure.
+2. Components created.
+3. Theme implementation details.
+4. Completion report.

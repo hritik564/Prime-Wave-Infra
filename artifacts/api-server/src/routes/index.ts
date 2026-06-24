@@ -10,19 +10,21 @@ import { levelIncomeRouter } from "../levelIncome";
 import { salaryRouter } from "../salary";
 import { depositsRouter } from "../deposits";
 import { withdrawalsRouter } from "../withdrawals";
+import notificationsRouter from "../notifications/notifications.routes";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
-router.use("/auth",         authRouter);
-router.use("/users",        usersRouter);
-router.use("/admin",        adminRouter);
-router.use("/wallets",      walletsRouter);
-router.use("/investments",  investmentsRouter);
-router.use("/binary",       binaryRouter);
-router.use("/level-income", levelIncomeRouter);
-router.use("/salary",       salaryRouter);
-router.use("/deposits",     depositsRouter);
-router.use("/withdrawals",  withdrawalsRouter);
+router.use("/auth",          authRouter);
+router.use("/users",         usersRouter);
+router.use("/admin",         adminRouter);
+router.use("/wallets",       walletsRouter);
+router.use("/investments",   investmentsRouter);
+router.use("/binary",        binaryRouter);
+router.use("/level-income",  levelIncomeRouter);
+router.use("/salary",        salaryRouter);
+router.use("/deposits",      depositsRouter);
+router.use("/withdrawals",   withdrawalsRouter);
+router.use("/notifications", notificationsRouter);
 
 export default router;

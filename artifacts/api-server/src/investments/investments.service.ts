@@ -6,6 +6,7 @@ import { PLAN_CONFIG } from "./investments.schema";
 import type { CreateInvestmentInput, ListInvestmentsQuery } from "./investments.schema";
 import { propagateBV } from "../binary/bv.service";
 import { processLevelIncome } from "../levelIncome";
+import { notificationService } from "../notifications/notifications.service";
 
 // ── Create investment ─────────────────────────────────────────────────────────
 
@@ -14,7 +15,7 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
   const plan = PLAN_CONFIG[planType];
   const decimalAmount = new Prisma.Decimal(amount.toString());
 
-  return prisma.$transaction(async (tx) => {
+  const { investment, levelIncomeTargets } = await prisma.$transaction(async (tx) => {
     // Count ALL existing investments for this user (any status)
     const existingCount = await tx.investment.count({ where: { userId } });
 
@@ -57,7 +58,7 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
     const maturesAt = new Date(startedAt.getTime() + plan.durationDays * 86_400_000);
 
     // Create investment record
-    const investment = await tx.investment.create({
+    const inv = await tx.investment.create({
       data: {
         userId,
         amount:           decimalAmount,
@@ -81,18 +82,38 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
         status:      "SUCCESS",
         amount:      decimalAmount,
         description: `Investment created — ${planType} (${plan.durationDays} days @ ${plan.dailyROI}%/day)`,
-        metadata:    { investmentId: investment.id, planType, durationDays: plan.durationDays },
+        metadata:    { investmentId: inv.id, planType, durationDays: plan.durationDays },
       },
     });
 
     // ── BV propagation — same transaction, atomic with investment creation ──
-    await propagateBV(tx, userId, investment.id, decimalAmount);
+    await propagateBV(tx, userId, inv.id, decimalAmount);
 
     // ── Level income — walk sponsor chain, pay 5 levels at 1% each ──────────
-    await processLevelIncome(tx, userId, investment.id, decimalAmount);
+    const levelTargets = await processLevelIncome(tx, userId, inv.id, decimalAmount);
 
-    return investment;
+    return { investment: inv, levelIncomeTargets: levelTargets };
   });
+
+  void notificationService.create({
+    userId,
+    type:    "INVESTMENT_CREATED",
+    title:   "Investment Created",
+    message: `Your ${planType} investment of $${decimalAmount.toFixed(2)} has been activated and will grow for ${plan.durationDays} days.`,
+    metadata: { investmentId: investment.id, planType, amount: decimalAmount.toString() },
+  });
+
+  for (const target of levelIncomeTargets) {
+    void notificationService.create({
+      userId:  target.receiverUserId,
+      type:    "LEVEL_INCOME",
+      title:   "Level Income Received",
+      message: `You earned $${target.incomeAmount.toFixed(2)} level ${target.level} income from a downline investment.`,
+      metadata: { level: target.level, incomeAmount: target.incomeAmount.toString(), sourceUserId: userId },
+    });
+  }
+
+  return investment;
 }
 
 // ── List investments ──────────────────────────────────────────────────────────
@@ -155,7 +176,7 @@ export async function getInvestmentById(userId: string, investmentId: string) {
 // ── Claim principal ───────────────────────────────────────────────────────────
 
 export async function claimPrincipal(userId: string, investmentId: string) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const investment = await tx.investment.findUnique({
       where: { id: investmentId },
       select: {
@@ -226,6 +247,16 @@ export async function claimPrincipal(userId: string, investmentId: string) {
       incomeWalletBalance: wallet.incomeWallet,
     };
   });
+
+  void notificationService.create({
+    userId,
+    type:    "PRINCIPAL_RELEASED",
+    title:   "Principal Released",
+    message: `Your principal of $${result.principalCredited.toFixed(2)} from your ${result.investment.planType} investment has been credited to your income wallet.`,
+    metadata: { investmentId, principalCredited: result.principalCredited.toString() },
+  });
+
+  return result;
 }
 
 // ── Shared select ─────────────────────────────────────────────────────────────

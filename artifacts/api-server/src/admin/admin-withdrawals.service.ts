@@ -3,6 +3,7 @@ import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { AdminWithdrawalListQuery, ApproveWithdrawalInput, CompleteWithdrawalInput, RejectWithdrawalInput } from "../withdrawals/withdrawals.schema";
+import { notificationService } from "../notifications/notifications.service";
 
 // ── List pending / filtered withdrawals ───────────────────────────────────────
 
@@ -103,6 +104,14 @@ export async function approveWithdrawal(
         },
       },
     });
+  });
+
+  void notificationService.create({
+    userId:  withdrawal.userId,
+    type:    "WITHDRAWAL_APPROVED",
+    title:   "Withdrawal Approved",
+    message: `Your withdrawal of $${withdrawal.amount.toFixed(2)} (${withdrawal.network}) has been approved and is being processed.`,
+    metadata: { withdrawalId, amount: withdrawal.amount.toString(), network: withdrawal.network },
   });
 
   return { withdrawalId, status: "APPROVED", approvedAt };
@@ -213,6 +222,14 @@ export async function completeWithdrawal(
     throw err;
   }
 
+  void notificationService.create({
+    userId:  withdrawal.userId,
+    type:    "WITHDRAWAL_COMPLETED",
+    title:   "Withdrawal Completed",
+    message: `Your withdrawal of $${withdrawal.amount.toFixed(2)} (${withdrawal.network}) has been sent on-chain. Tx: ${input.txHash.slice(0, 12)}…`,
+    metadata: { withdrawalId, amount: withdrawal.amount.toString(), network: withdrawal.network, txHash: input.txHash },
+  });
+
   return { withdrawalId, status: "COMPLETED", completedAt, txHash: input.txHash };
 }
 
@@ -305,6 +322,14 @@ export async function rejectWithdrawal(
         },
       },
     });
+  });
+
+  void notificationService.create({
+    userId:  withdrawal.userId,
+    type:    "WITHDRAWAL_REJECTED",
+    title:   "Withdrawal Rejected",
+    message: `Your withdrawal of $${withdrawal.amount.toFixed(2)} (${withdrawal.network}) was rejected and refunded. Reason: ${input.rejectedReason}`,
+    metadata: { withdrawalId, amount: withdrawal.amount.toString(), network: withdrawal.network, reason: input.rejectedReason },
   });
 
   return { withdrawalId, status: "REJECTED" };

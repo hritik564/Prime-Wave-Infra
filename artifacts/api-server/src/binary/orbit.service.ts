@@ -4,6 +4,7 @@ import { getNumericSetting } from "../config/settings";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { OrbitHistoryQuery } from "./orbit.schema";
+import { notificationService } from "../notifications/notifications.service";
 
 // ── Settings keys ─────────────────────────────────────────────────────────────
 
@@ -148,6 +149,14 @@ export async function processOrbitCycle(
             },
           },
         });
+      });
+
+      void notificationService.create({
+        userId:  user.id,
+        type:    "BINARY_ORBIT_INCOME",
+        title:   "Binary Orbit Income Received",
+        message: `You earned $${incomeAmount.toFixed(2)} binary orbit income (${payableRewardCount} orbit reward${payableRewardCount === 1 ? "" : "s"}).`,
+        metadata: { incomeAmount: incomeAmount.toString(), rewardCount, payableRewardCount },
       });
 
       totalIncome = totalIncome.plus(incomeAmount);

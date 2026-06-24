@@ -3,6 +3,7 @@ import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { AdminDepositListQuery, RejectDepositInput } from "../deposits/deposits.schema";
+import { notificationService } from "../notifications/notifications.service";
 
 // ── Pending deposits list ─────────────────────────────────────────────────────
 
@@ -150,6 +151,14 @@ export async function approveDeposit(adminId: string, depositId: string) {
     });
   });
 
+  void notificationService.create({
+    userId:  deposit.userId,
+    type:    "DEPOSIT_APPROVED",
+    title:   "Deposit Approved",
+    message: `Your deposit of $${deposit.amount.toFixed(2)} (${deposit.network}) has been approved and credited to your account.`,
+    metadata: { depositId, amount: deposit.amount.toString(), network: deposit.network },
+  });
+
   return { depositId, status: "APPROVED", approvedAt };
 }
 
@@ -203,6 +212,14 @@ export async function rejectDeposit(
         },
       },
     });
+  });
+
+  void notificationService.create({
+    userId:  deposit.userId,
+    type:    "DEPOSIT_REJECTED",
+    title:   "Deposit Rejected",
+    message: `Your deposit of $${deposit.amount.toFixed(2)} (${deposit.network}) was rejected. Reason: ${input.rejectedReason}`,
+    metadata: { depositId, amount: deposit.amount.toString(), network: deposit.network, reason: input.rejectedReason },
   });
 
   return { depositId, status: "REJECTED" };

@@ -157,6 +157,8 @@ model User {
   salaryBvInvested  SalaryBvLedger[] @relation("SalaryBvInvestor")
   bvHistoryInvested BvHistory[]      @relation("BvHistoryInvestor")
 
+  notifications     Notification[]
+
   @@map("users")
 }
 
@@ -731,4 +733,44 @@ model JobExecutionLog {
   @@index([status])
   @@index([createdAt])
   @@map("job_execution_logs")
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+enum NotificationType {
+  DEPOSIT_APPROVED
+  DEPOSIT_REJECTED
+  WITHDRAWAL_APPROVED
+  WITHDRAWAL_COMPLETED
+  WITHDRAWAL_REJECTED
+  INVESTMENT_CREATED
+  ROI_CLAIMED
+  PRINCIPAL_RELEASED
+  BINARY_MATCH_INCOME
+  BINARY_ORBIT_INCOME
+  LEVEL_INCOME
+  SALARY_RECEIVED
+  RANK_ACHIEVED
+  PASSWORD_CHANGED
+  WALLET_CHANGED
+  ACCOUNT_BLOCKED
+  ACCOUNT_SUSPENDED
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
 }

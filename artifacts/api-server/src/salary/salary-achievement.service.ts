@@ -1,6 +1,7 @@
 import { prisma } from "../config/prisma";
 import { logger } from "../lib/logger";
 import { checkUserQualifications } from "./salary-qualification.engine";
+import { notificationService } from "../notifications/notifications.service";
 
 // ── Process achievements for a single user ────────────────────────────────────
 
@@ -41,6 +42,14 @@ export async function processUserAchievements(userId: string): Promise<number> {
           isActive:      true,
         },
       });
+      void notificationService.create({
+        userId,
+        type:    "RANK_ACHIEVED",
+        title:   "New Rank Achieved",
+        message: `Congratulations! You have achieved the ${q.rankName} rank and unlocked a monthly leadership salary.`,
+        metadata: { rankName: q.rankName, monthlySalary: config.monthlySalary.toString(), expiresAt: expiresAt.toISOString() },
+      });
+
       granted++;
       logger.info(
         { userId, rankName: q.rankName, expiresAt },

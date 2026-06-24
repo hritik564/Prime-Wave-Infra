@@ -3,6 +3,7 @@ import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { MatchingHistoryQuery } from "./matching.schema";
+import { notificationService } from "../notifications/notifications.service";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,14 @@ export async function processMatchingCycle(
             metadata:    { matchedBV: matchedBV.toFixed(8), payableBV: payableBV.toFixed(8), destroyedBV: destroyedBV.toFixed(8), cycleStart, cycleEnd },
           },
         });
+      });
+
+      void notificationService.create({
+        userId:  user.id,
+        type:    "BINARY_MATCH_INCOME",
+        title:   "Binary Match Income Received",
+        message: `You earned $${incomeAmount.toFixed(2)} binary match income from ${payableBV.toFixed(0)} matched BV.`,
+        metadata: { incomeAmount: incomeAmount.toString(), matchedBV: matchedBV.toFixed(8), payableBV: payableBV.toFixed(8) },
       });
 
       totalIncome = totalIncome.plus(incomeAmount);

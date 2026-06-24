@@ -6,6 +6,7 @@ import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { RegisterInput, LoginInput, ChangePasswordInput } from "./auth.schema";
 import type { AuthPayload } from "../shared/types";
+import { notificationService } from "../notifications/notifications.service";
 
 function generateReferralCode(): string {
   return Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -182,4 +183,11 @@ export async function changePassword(userId: string, input: ChangePasswordInput)
   const passwordHash = await bcrypt.hash(input.newPassword, rounds);
 
   await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+
+  void notificationService.create({
+    userId,
+    type:    "PASSWORD_CHANGED",
+    title:   "Password Changed",
+    message: "Your account password has been changed successfully. If you did not make this change, contact support immediately.",
+  });
 }
