@@ -103,6 +103,7 @@ model User {
   givenReferrals   ReferralHistory[] @relation("ReferralHistorySponsor")
 
   binaryMatchIncome BinaryMatchIncome[]
+  binaryOrbitIncome BinaryOrbitIncome[]
 
   // BV ledger relations (as ancestor — BV flows into this user's legs)
   matchBvEntries   MatchBvLedger[]  @relation("MatchBvAncestor")
@@ -384,4 +385,59 @@ model BvHistory {
   @@index([investmentId])
   @@index([createdAt])
   @@map("bv_history")
+}
+
+// ── Binary Orbit Income ───────────────────────────────────────────────────────
+//
+// One record per qualifying user per cron cycle (00:00 and 12:00 Europe/London).
+// Qualification: directReferralCount >= 2, rewardCount > 0.
+//
+//   matchedBV           = min(leftBV, rightBV)
+//   rewardCount         = floor(matchedBV / bvPerReward)   — full orbit rewards earned
+//   payableRewardCount  = min(rewardCount, maxPerCycle)    — capped at 1 per cycle (from SystemSettings)
+//   destroyedRewardCount= rewardCount - payableRewardCount — excess orbits, discarded
+//   incomeAmount        = payableRewardCount × $500        — credited to withdrawalWallet
+//   consumedBV          = rewardCount × bvPerReward        — removed from each leg
+
+model BinaryOrbitIncome {
+  id                   String   @id @default(cuid())
+  userId               String
+  matchedBV            Decimal  @db.Decimal(18, 8)
+  rewardCount          Int
+  destroyedRewardCount Int
+  incomeAmount         Decimal  @db.Decimal(18, 8)
+  cycleStart           DateTime
+  cycleEnd             DateTime
+  createdAt            DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([cycleStart])
+  @@index([createdAt])
+  @@map("binary_orbit_income")
+}
+
+// ── System Settings ───────────────────────────────────────────────────────────
+//
+// Key-value store for runtime-configurable payout parameters.
+// Admins can update values via the database without a code deployment.
+//
+// Canonical keys (seeded in migration):
+//   orbit.bv_per_reward          — BV required per orbit reward unit   (default: 150)
+//   orbit.max_rewards_per_cycle  — Max orbit rewards paid per cycle     (default: 1)
+//   orbit.income_per_reward      — USD payout per orbit reward          (default: 500)
+//   orbit.min_referrals          — Minimum direct referrals to qualify  (default: 2)
+//   matching.max_payable_bv      — Max BV cap per matching cycle        (default: 50)
+//   matching.income_per_bv       — USD payout per BV unit matched       (default: 5)
+//   matching.min_referrals       — Minimum direct referrals to qualify  (default: 2)
+
+model SystemSettings {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
 }

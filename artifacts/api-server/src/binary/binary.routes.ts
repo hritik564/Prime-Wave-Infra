@@ -8,12 +8,15 @@ import {
   getBvHistoryHandler,
   getMatchingHistoryHandler,
   getMatchingSummaryHandler,
+  getOrbitHistoryHandler,
+  getOrbitSummaryHandler,
 } from "./binary.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 import { validate } from "../middleware/validate.middleware";
 import { placeUserSchema, treeQuerySchema, nodeQuerySchema } from "./binary.schema";
 import { bvSummaryQuerySchema, bvHistoryQuerySchema } from "./bv.schema";
 import { matchingHistoryQuerySchema, matchingSummaryQuerySchema } from "./matching.schema";
+import { orbitHistoryQuerySchema, orbitSummaryQuerySchema } from "./orbit.schema";
 
 const router = Router();
 
@@ -50,5 +53,13 @@ router.get("/matching-history", validate(matchingHistoryQuerySchema, "query"), g
 
 // GET /api/binary/matching-summary[?userId=xxx]
 router.get("/matching-summary", validate(matchingSummaryQuerySchema, "query"), getMatchingSummaryHandler);
+
+// ── Orbit income queries ──────────────────────────────────────────────────────
+
+// GET /api/binary/orbit-history[?userId=xxx&page=N&limit=N]
+router.get("/orbit-history", validate(orbitHistoryQuerySchema, "query"), getOrbitHistoryHandler);
+
+// GET /api/binary/orbit-summary[?userId=xxx]
+router.get("/orbit-summary", validate(orbitSummaryQuerySchema, "query"), getOrbitSummaryHandler);
 
 export default router;

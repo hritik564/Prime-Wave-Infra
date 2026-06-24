@@ -1,6 +1,7 @@
 import { logger } from "../lib/logger";
 import { processRoiCycle } from "./roi.engine";
 import { runMatchingCycle } from "../binary/matching.engine";
+import { runOrbitCycle } from "../binary/orbit.engine";
 import { APP_TIMEZONE } from "../config/timezone";
 
 const CYCLE_MS = 12 * 60 * 60 * 1000; // 12 hours in ms
@@ -13,9 +14,13 @@ const CYCLE_MS = 12 * 60 * 60 * 1000; // 12 hours in ms
  * Fires at the next 00:00 or 12:00 in Europe/London time (BST/GMT aware),
  * then every 12 hours from that point.
  *
- * Each cycle runs:
- *  1. ROI engine     — compounds/accrues ROI for all ACTIVE investments
+ * Each cycle runs in series:
+ *  1. ROI engine      — compounds/accrues ROI for all ACTIVE investments
  *  2. Binary matching — pays matching income to all qualified users
+ *  3. Binary orbit    — pays orbit income to all qualified users
+ *
+ * Series ordering ensures matching runs before orbit; both run after ROI has
+ * accrued for the cycle.
  *
  * Safe to call multiple times — idempotent.
  */
@@ -30,7 +35,7 @@ export function startScheduler(): void {
 
   logger.info(
     { nextRunAt: nextRun.toISOString(), timezone: APP_TIMEZONE },
-    "Scheduler: armed (ROI + binary matching)",
+    "Scheduler: armed (ROI + binary matching + binary orbit)",
   );
 
   setTimeout(() => {
@@ -42,8 +47,6 @@ export function startScheduler(): void {
 // ── Internal ──────────────────────────────────────────────────────────────────
 
 async function runCycle(): Promise<void> {
-  // Run ROI and matching in series (matching reads BV written by investments,
-  // but ROI does not touch BV — so parallel would be safe; series is cleaner).
   try {
     await processRoiCycle();
   } catch (err) {
@@ -54,6 +57,12 @@ async function runCycle(): Promise<void> {
     await runMatchingCycle();
   } catch (err) {
     logger.error({ err }, "Scheduler: unhandled error in binary matching cycle");
+  }
+
+  try {
+    await runOrbitCycle();
+  } catch (err) {
+    logger.error({ err }, "Scheduler: unhandled error in binary orbit cycle");
   }
 }
 

@@ -2,12 +2,14 @@ import type { Request, Response, NextFunction } from "express";
 import { placeUser, getBinaryTree, getBinaryParent, getBinaryChildren } from "./binary.service";
 import { getBvSummary, getBvHistory } from "./bv.service";
 import { getMatchingHistory, getMatchingSummary } from "./matching.service";
+import { getOrbitHistory, getOrbitSummary } from "./orbit.service";
 import { sendSuccess } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
 import type { AuthenticatedRequest } from "../shared/types";
 import type { PlaceUserInput, TreeQuery, NodeQuery } from "./binary.schema";
 import type { BvSummaryQuery, BvHistoryQuery } from "./bv.schema";
 import type { MatchingHistoryQuery, MatchingSummaryQuery } from "./matching.schema";
+import type { OrbitHistoryQuery, OrbitSummaryQuery } from "./orbit.schema";
 
 // ── Placement ─────────────────────────────────────────────────────────────────
 
@@ -133,6 +135,38 @@ export async function getMatchingSummaryHandler(
     const query    = getParsed<MatchingSummaryQuery>(res, "query");
     const result   = await getMatchingSummary(query.userId ?? user.sub);
     sendSuccess(res, result, "Matching summary fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── Orbit income queries ──────────────────────────────────────────────────────
+
+export async function getOrbitHistoryHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const query    = getParsed<OrbitHistoryQuery>(res, "query");
+    const result   = await getOrbitHistory(query.userId ?? user.sub, query);
+    sendSuccess(res, result, "Orbit history fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getOrbitSummaryHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const query    = getParsed<OrbitSummaryQuery>(res, "query");
+    const result   = await getOrbitSummary(query.userId ?? user.sub);
+    sendSuccess(res, result, "Orbit summary fetched successfully");
   } catch (err) {
     next(err);
   }

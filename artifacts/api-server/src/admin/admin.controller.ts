@@ -1,7 +1,11 @@
 import type { Request, Response, NextFunction } from "express";
 import { loginAdmin, getAdminProfile } from "./admin.service";
 import { runMatchingCycle } from "../binary/matching.engine";
+import { runOrbitCycle } from "../binary/orbit.engine";
+import { getAllSettings, setSetting } from "../config/settings";
 import { sendSuccess } from "../shared/response";
+import { AppError } from "../middleware/error.middleware";
+import { HTTP_STATUS } from "../shared/constants";
 import type { AdminLoginInput } from "./admin.schema";
 import type { AuthenticatedRequest } from "../shared/types";
 
@@ -32,14 +36,11 @@ export async function adminGetProfile(
   }
 }
 
+// ── Manual cycle triggers ─────────────────────────────────────────────────────
+
 /**
  * POST /api/admin/trigger/matching
- *
- * Manually fires one binary matching cycle.
- * Intended for error recovery when the cron scheduler missed a boundary
- * (e.g. server was down at 00:00 or 12:00).
- *
- * Requires SUPER_ADMIN or FINANCE_ADMIN role (enforced in router).
+ * Manually fires one binary matching cycle (error recovery).
  */
 export async function triggerMatchingCycle(
   _req: Request,
@@ -49,6 +50,66 @@ export async function triggerMatchingCycle(
   try {
     await runMatchingCycle();
     sendSuccess(res, { triggered: true }, "Binary matching cycle triggered successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/admin/trigger/orbit
+ * Manually fires one binary orbit cycle (error recovery).
+ */
+export async function triggerOrbitCycle(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    await runOrbitCycle();
+    sendSuccess(res, { triggered: true }, "Binary orbit cycle triggered successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── System settings ───────────────────────────────────────────────────────────
+
+/**
+ * GET /api/admin/settings
+ * Returns all system settings.
+ */
+export async function listSettings(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const settings = await getAllSettings();
+    sendSuccess(res, settings, "Settings fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PATCH /api/admin/settings/:key
+ * Updates a single setting value.
+ */
+export async function updateSetting(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { key } = req.params as { key: string };
+    const { value } = req.body as { value?: unknown };
+
+    if (value === undefined || value === null || String(value).trim() === "") {
+      throw new AppError("value is required", HTTP_STATUS.BAD_REQUEST, "VALIDATION_ERROR");
+    }
+
+    await setSetting(key, String(value));
+    sendSuccess(res, { key, value: String(value) }, "Setting updated successfully");
   } catch (err) {
     next(err);
   }
