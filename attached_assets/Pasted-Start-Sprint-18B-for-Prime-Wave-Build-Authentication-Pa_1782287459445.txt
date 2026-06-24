@@ -1,0 +1,216 @@
+Start Sprint 18B for Prime Wave.
+
+Build Authentication Pages only.
+
+Do NOT build Dashboard yet.
+
+Do NOT connect business APIs yet.
+
+Use:
+
+- Next.js 15
+- TypeScript
+- TailwindCSS
+- Shadcn UI
+- React Hook Form
+- Zod
+
+Use Prime Wave design language from Sprint 18A.
+
+========================================
+PAGES TO BUILD
+========================================
+
+/login
+
+/register
+
+/forgot-password
+
+/reset-password
+
+========================================
+DESIGN STYLE
+========================================
+
+Premium wealth platform.
+
+Use:
+
+Cormorant Garamond → headings
+
+Inter → body text
+
+Dark theme default.
+
+Support light theme automatically from Sprint 18A.
+
+Use the Prime Wave logo already available inside the project.
+
+Tagline:
+
+"Beyond Limits. Beyond Growth."
+
+========================================
+LOGIN PAGE
+========================================
+
+Fields:
+
+Email OR Username
+
+Password
+
+Remember Me checkbox
+
+Forgot Password link
+
+Login button
+
+Footer:
+
+"Don't have an account? Register"
+
+Show password toggle.
+
+Loading states required.
+
+Responsive design required.
+
+========================================
+REGISTER PAGE
+========================================
+
+Step-based layout.
+
+Fields:
+
+First Name
+
+Last Name
+
+Username
+
+Email
+
+Phone Number
+
+Password
+
+Confirm Password
+
+Referral Code (optional)
+
+Binary Placement Side
+
+LEFT
+
+RIGHT
+
+Checkbox:
+
+I agree to Terms & Conditions
+
+Register button
+
+Footer:
+
+"Already have an account? Login"
+
+========================================
+FORGOT PASSWORD PAGE
+========================================
+
+Field:
+
+Email
+
+Button:
+
+Send Reset Link
+
+Success state UI.
+
+========================================
+RESET PASSWORD PAGE
+========================================
+
+Fields:
+
+New Password
+
+Confirm Password
+
+Button:
+
+Reset Password
+
+Success state UI.
+
+========================================
+FORM VALIDATION
+========================================
+
+Use Zod.
+
+Show inline validation errors.
+
+Disable submit button while loading.
+
+========================================
+UI COMPONENTS
+========================================
+
+Create reusable:
+
+AuthCard
+
+AuthHeader
+
+PasswordInput
+
+ThemeToggle
+
+FormError
+
+FormSuccess
+
+========================================
+RESPONSIVE DESIGN
+========================================
+
+Desktop
+
+Tablet
+
+Mobile
+
+========================================
+ANIMATIONS
+========================================
+
+Subtle fade transitions only.
+
+No excessive motion.
+
+========================================
+DO NOT
+========================================
+
+Do not connect backend yet.
+
+Do not use mock MLM statistics.
+
+Do not build dashboard pages.
+
+========================================
+RETURN
+========================================
+
+1. Folder structure.
+
+2. Components created.
+
+3. Pages created.
+
+4. Completion report.

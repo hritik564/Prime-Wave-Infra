@@ -1,0 +1,171 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* Dark theme — Prime Wave default */
+    --background: 223 68% 6%;
+    --foreground: 0 0% 100%;
+    --card: 221 59% 14%;
+    --card-foreground: 0 0% 100%;
+    --popover: 221 59% 14%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 46 65% 52%;
+    --primary-foreground: 221 39% 11%;
+    --secondary: 219 77% 15%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 219 77% 15%;
+    --muted-foreground: 220 19% 72%;
+    --accent: 46 65% 52%;
+    --accent-foreground: 221 39% 11%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 40% 20%;
+    --input: 220 40% 18%;
+    --ring: 46 65% 52%;
+    --radius: 0.625rem;
+
+    --sidebar-bg: #0E1B37;
+    --sidebar-border: rgba(212, 175, 55, 0.15);
+    --sidebar-width: 256px;
+  }
+
+  .light {
+    /* Light theme */
+    --background: 227 45% 98%;
+    --foreground: 221 39% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 221 39% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 221 39% 11%;
+    --primary: 46 62% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 13% 91%;
+    --secondary-foreground: 221 39% 11%;
+    --muted: 220 13% 94%;
+    --muted-foreground: 220 10% 46%;
+    --accent: 46 62% 42%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 88%;
+    --input: 220 13% 91%;
+    --ring: 46 62% 42%;
+
+    --sidebar-bg: #152240;
+    --sidebar-border: rgba(212, 175, 55, 0.2);
+  }
+}
+
+@theme inline {
+  /* Semantic colors via CSS variables */
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  /* Prime Wave brand palette */
+  --color-gold: #D4AF37;
+  --color-gold-light: #F3D37A;
+  --color-navy-950: #050B1A;
+  --color-navy-900: #091E45;
+  --color-navy-800: #0E1B37;
+
+  /* Semantic additional colors */
+  --color-emerald-400: #34d399;
+  --color-blue-400: #60a5fa;
+  --color-purple-400: #c084fc;
+  --color-cyan-400: #22d3ee;
+  --color-amber-400: #fbbf24;
+  --color-red-400: #f87171;
+
+  /* Fonts */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-heading: 'Cormorant Garamond', Georgia, serif;
+
+  /* Border radius */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  /* Shadows */
+  --shadow-card-dark: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --shadow-card-gold: 0 0 0 1px rgba(212, 175, 55, 0.2);
+  --shadow-glow-gold: 0 0 20px rgba(212, 175, 55, 0.15);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }
+}
+
+@layer utilities {
+  .font-heading {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .gold-text {
+    color: #D4AF37;
+  }
+
+  .gold-gradient {
+    background: linear-gradient(135deg, #D4AF37 0%, #F3D37A 50%, #D4AF37 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .sidebar-active {
+    background: rgba(212, 175, 55, 0.08) !important;
+    border-left: 2px solid #D4AF37 !important;
+    color: #D4AF37 !important;
+  }
+
+  .card-glow {
+    box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.12), 0 4px 24px rgba(0, 0, 0, 0.3);
+  }
+}
