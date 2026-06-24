@@ -5,6 +5,9 @@ import LoginPage from "@/pages/auth/LoginPage";
 import RegisterPage from "@/pages/auth/RegisterPage";
 import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/auth/ResetPasswordPage";
+import DepositWalletPage from "@/pages/wallet/DepositWalletPage";
+import IncomeWalletPage from "@/pages/wallet/IncomeWalletPage";
+import WithdrawalWalletPage from "@/pages/wallet/WithdrawalWalletPage";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
@@ -55,21 +58,25 @@ export default function App() {
           <ResetPasswordPage />
         </Route>
 
-        {/* ── App Routes (with AppLayout via DashboardPage) ── */}
+        {/* ── Dashboard ── */}
         <Route path="/dashboard">
           <DashboardPage />
         </Route>
-        <Route path="/investments">
-          <ComingSoon title="Investments" />
-        </Route>
+
+        {/* ── Wallet Pages ── */}
         <Route path="/wallets/deposit">
-          <ComingSoon title="Deposit Wallet" />
+          <DepositWalletPage />
         </Route>
         <Route path="/wallets/income">
-          <ComingSoon title="Income Wallet" />
+          <IncomeWalletPage />
         </Route>
         <Route path="/wallets/withdrawal">
-          <ComingSoon title="Withdrawal Wallet" />
+          <WithdrawalWalletPage />
+        </Route>
+
+        {/* ── Coming Soon ── */}
+        <Route path="/investments">
+          <ComingSoon title="Investments" />
         </Route>
         <Route path="/binary-tree">
           <ComingSoon title="Binary Tree" />

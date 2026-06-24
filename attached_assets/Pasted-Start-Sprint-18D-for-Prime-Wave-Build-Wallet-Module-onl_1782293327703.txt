@@ -1,0 +1,237 @@
+Start Sprint 18D for Prime Wave.
+
+Build Wallet Module only.
+
+Do not build Investment pages.
+
+Do not build Binary Tree.
+
+Use all existing components and design language from Sprint 18A–18C.
+
+Prime Wave remains MOBILE-FIRST.
+
+========================================
+PAGES
+========================================
+
+Create:
+
+/wallets/deposit
+
+/wallets/income
+
+/wallets/withdrawal
+
+========================================
+DEPOSIT WALLET PAGE
+========================================
+
+Hero Card:
+
+Current Deposit Wallet Balance
+
+Deposit Wallet description
+
+Deposit History section.
+
+Status badges:
+
+Pending
+
+Approved
+
+Rejected
+
+Mobile:
+
+Card layout only.
+
+Desktop:
+
+Table allowed.
+
+Each history item should show:
+
+Amount
+
+Network
+
+Status
+
+Date
+
+Tx Hash (shortened)
+
+========================================
+INCOME WALLET PAGE
+========================================
+
+Hero Card:
+
+Current Income Wallet Balance
+
+Show:
+
+ROI Claims
+
+Principal Claims
+
+Auto Compound status
+
+Large toggle:
+
+Auto Compound ON/OFF
+
+Use existing premium card design.
+
+========================================
+TRANSFER MODULE
+========================================
+
+Income Wallet → Withdrawal Wallet
+
+Very important.
+
+User enters amount.
+
+Display:
+
+Transfer Amount
+
+15% Management Fee
+
+Net Amount User Will Receive
+
+Example:
+
+Transfer: $1000
+
+Fee: $150
+
+Net Amount: $850
+
+Update preview in real time.
+
+Use a premium calculator card.
+
+========================================
+WITHDRAWAL WALLET PAGE
+========================================
+
+Hero Card:
+
+Available Balance
+
+Locked Balance
+
+Total Withdrawal Wallet Balance
+
+Withdrawal History section.
+
+Statuses:
+
+Pending
+
+Approved
+
+Completed
+
+Rejected
+
+Cancelled
+
+Mobile:
+
+Card layout only.
+
+Desktop:
+
+Table allowed.
+
+========================================
+WITHDRAWAL REQUEST MODAL
+========================================
+
+Display:
+
+Read-only BEP20 Wallet Address
+
+Amount field
+
+Minimum Withdrawal
+
+Maximum Withdrawal
+
+Large submit button.
+
+Premium modal design.
+
+========================================
+HISTORY ITEMS
+========================================
+
+Cards on mobile.
+
+Example:
+
++$500
+
+Approved
+
+BEP20
+
+Yesterday
+
+No horizontal scrolling.
+
+========================================
+DESIGN REQUIREMENTS
+========================================
+
+Reuse all existing card styles.
+
+Reuse typography.
+
+Reuse spacing.
+
+Reuse shadows.
+
+No new color palettes.
+
+No Bootstrap styles.
+
+No tables on mobile.
+
+========================================
+MOBILE
+========================================
+
+390px
+
+430px
+
+No overflow.
+
+Touch targets minimum 48px.
+
+========================================
+DESKTOP
+========================================
+
+1440px
+
+Sidebar remains.
+
+========================================
+RETURN
+========================================
+
+1. Pages created.
+
+2. Components created.
+
+3. Mobile screenshots.
+
+4. Desktop screenshots.
+
+5. Completion report.
