@@ -1,0 +1,219 @@
+Start Sprint 18E for Prime Wave.
+
+Build Investment Module only.
+
+Do not build Binary Tree.
+
+Do not build Team pages.
+
+Reuse all existing design language from Sprint 18A–18D.
+
+Prime Wave remains MOBILE-FIRST.
+
+========================================
+PAGES
+========================================
+
+Create:
+
+/investments
+
+/investments/history
+
+========================================
+ACTIVE INVESTMENTS PAGE
+========================================
+
+Hero section:
+
+Total Active Investment
+
+Number of Active Plans
+
+Estimated Daily Earnings
+
+Premium hero card design.
+
+========================================
+INVESTMENT CARDS
+========================================
+
+Each active investment card shows:
+
+Investment Amount
+
+Plan Duration
+
+Daily ROI %
+
+Current Principal
+
+Accumulated ROI
+
+Days Remaining
+
+Status Badge
+
+Active / Completed
+
+Progress Bar
+
+Example:
+
+████████░░░░ 68%
+
+Gold progress styling.
+
+========================================
+AUTO COMPOUND
+========================================
+
+Display Auto Compound status.
+
+Large toggle:
+
+ON / OFF
+
+Premium switch component.
+
+========================================
+CLAIM ACTIONS
+========================================
+
+Buttons:
+
+Claim ROI
+
+Claim Principal
+
+Buttons should automatically disable if unavailable.
+
+Show explanations:
+
+"ROI available to claim"
+
+"Principal unlocks after plan completion"
+
+========================================
+ESTIMATED RETURNS CARD
+========================================
+
+Show:
+
+Daily Earnings
+
+Monthly Projection
+
+Current Total ROI
+
+Beautiful stat card.
+
+========================================
+INVESTMENT HISTORY PAGE
+========================================
+
+Mobile:
+
+Card layout only.
+
+Desktop:
+
+Table allowed.
+
+Each record:
+
+Amount
+
+Plan
+
+Start Date
+
+End Date
+
+Status
+
+Completed / Active
+
+========================================
+PROGRESS VISUALS
+========================================
+
+Every investment should visually show:
+
+Days completed
+
+Days remaining
+
+Completion percentage
+
+Use elegant progress bars.
+
+========================================
+EMPTY STATE
+========================================
+
+If user has no investments:
+
+Show premium empty state.
+
+Message:
+
+"No active investments yet."
+
+Large CTA:
+
+Start First Investment
+
+========================================
+MOBILE REQUIREMENTS
+========================================
+
+390px
+
+430px
+
+No horizontal scrolling.
+
+Large touch targets.
+
+========================================
+DESKTOP
+========================================
+
+Sidebar remains.
+
+Grid layouts allowed.
+
+========================================
+DESIGN REQUIREMENTS
+========================================
+
+Reuse:
+
+Typography
+
+Cards
+
+Spacing
+
+Gold accents
+
+Shadows
+
+No new design language.
+
+No Bootstrap styles.
+
+========================================
+RETURN
+========================================
+
+1. Pages created.
+
+2. Components created.
+
+3. Mobile screenshots.
+
+4. Desktop screenshots.
+
+5. Completion report.

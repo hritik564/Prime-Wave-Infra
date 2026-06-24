@@ -8,6 +8,8 @@ import ResetPasswordPage from "@/pages/auth/ResetPasswordPage";
 import DepositWalletPage from "@/pages/wallet/DepositWalletPage";
 import IncomeWalletPage from "@/pages/wallet/IncomeWalletPage";
 import WithdrawalWalletPage from "@/pages/wallet/WithdrawalWalletPage";
+import InvestmentsPage from "@/pages/investments/InvestmentsPage";
+import InvestmentHistoryPage from "@/pages/investments/InvestmentHistoryPage";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
@@ -63,6 +65,14 @@ export default function App() {
           <DashboardPage />
         </Route>
 
+        {/* ── Investment Pages ── */}
+        <Route path="/investments/history">
+          <InvestmentHistoryPage />
+        </Route>
+        <Route path="/investments">
+          <InvestmentsPage />
+        </Route>
+
         {/* ── Wallet Pages ── */}
         <Route path="/wallets/deposit">
           <DepositWalletPage />
@@ -75,9 +85,6 @@ export default function App() {
         </Route>
 
         {/* ── Coming Soon ── */}
-        <Route path="/investments">
-          <ComingSoon title="Investments" />
-        </Route>
         <Route path="/binary-tree">
           <ComingSoon title="Binary Tree" />
         </Route>
