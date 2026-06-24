@@ -11,6 +11,11 @@ import router from "./routes";
 
 const app: Express = express();
 
+// ── Trust proxy ───────────────────────────────────────────────────────────────
+// Replit runs behind a reverse proxy that sets X-Forwarded-For.
+// This lets express-rate-limit and req.ip identify clients correctly.
+app.set("trust proxy", 1);
+
 // ── Security headers ─────────────────────────────────────────────────────────
 app.use(helmet());
 
