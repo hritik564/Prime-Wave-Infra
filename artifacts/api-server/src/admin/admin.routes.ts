@@ -7,25 +7,68 @@ import {
   listSettings,
   updateSetting,
 } from "./admin.controller";
+import {
+  getPendingDepositsHandler,
+  getDepositStatsHandler,
+  approveDepositHandler,
+  rejectDepositHandler,
+} from "./admin-deposits.controller";
 import { validate } from "../middleware/validate.middleware";
-import { requireAdminAuth } from "../middleware/auth.middleware";
+import { requireAdminAuth, requireAdminRoles } from "../middleware/auth.middleware";
 import { authLimiter, adminLimiter } from "../middleware/rateLimiter.middleware";
 import { adminLoginSchema } from "./admin.schema";
+import {
+  adminDepositListQuerySchema,
+  rejectDepositSchema,
+} from "../deposits/deposits.schema";
 
 const router = Router();
 
-// Public
+// ── Public ────────────────────────────────────────────────────────────────────
 router.post("/login", authLimiter, validate(adminLoginSchema), adminLogin);
 
-// Protected — any authenticated admin
+// ── Protected — any authenticated admin ───────────────────────────────────────
 router.get("/profile", adminLimiter, requireAdminAuth, adminGetProfile);
 
-// Manual cycle triggers — any authenticated admin (error recovery)
+// Manual cycle triggers
 router.post("/trigger/matching", adminLimiter, requireAdminAuth, triggerMatchingCycle);
 router.post("/trigger/orbit",    adminLimiter, requireAdminAuth, triggerOrbitCycle);
 
 // System settings
-router.get("/settings",      adminLimiter, requireAdminAuth, listSettings);
+router.get("/settings",        adminLimiter, requireAdminAuth, listSettings);
 router.patch("/settings/:key", adminLimiter, requireAdminAuth, updateSetting);
+
+// ── Deposit admin — SUPER_ADMIN and FINANCE_ADMIN only ────────────────────────
+const financeAdminGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN");
+
+router.get(
+  "/deposits/pending",
+  adminLimiter,
+  financeAdminGuard,
+  validate(adminDepositListQuerySchema, "query"),
+  getPendingDepositsHandler,
+);
+
+router.get(
+  "/deposits/stats",
+  adminLimiter,
+  financeAdminGuard,
+  getDepositStatsHandler,
+);
+
+router.post(
+  "/deposits/:id/approve",
+  adminLimiter,
+  financeAdminGuard,
+  approveDepositHandler,
+);
+
+router.post(
+  "/deposits/:id/reject",
+  adminLimiter,
+  financeAdminGuard,
+  validate(rejectDepositSchema, "body"),
+  rejectDepositHandler,
+);
 
 export default router;

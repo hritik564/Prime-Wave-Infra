@@ -1,0 +1,53 @@
+import type { Request, Response, NextFunction } from "express";
+import {
+  getPendingDeposits,
+  getDepositStats,
+  approveDeposit,
+  rejectDeposit,
+} from "./admin-deposits.service";
+import { sendSuccess } from "../shared/response";
+import { getParsed } from "../middleware/validate.middleware";
+import type { AuthenticatedRequest } from "../shared/types";
+import type { AdminDepositListQuery, RejectDepositInput } from "../deposits/deposits.schema";
+
+export async function getPendingDepositsHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const query  = getParsed<AdminDepositListQuery>(res, "query");
+    const result = await getPendingDeposits(query);
+    sendSuccess(res, result, "Pending deposits fetched successfully");
+  } catch (err) { next(err); }
+}
+
+export async function getDepositStatsHandler(
+  _req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const stats = await getDepositStats();
+    sendSuccess(res, stats, "Deposit stats fetched successfully");
+  } catch (err) { next(err); }
+}
+
+export async function approveDepositHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const depositId = String(req.params["id"] ?? "");
+    const result    = await approveDeposit(user.sub, depositId);
+    sendSuccess(res, result, "Deposit approved successfully");
+  } catch (err) { next(err); }
+}
+
+export async function rejectDepositHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const depositId = String(req.params["id"] ?? "");
+    const input     = req.body as RejectDepositInput;
+    const result    = await rejectDeposit(user.sub, depositId, input);
+    sendSuccess(res, result, "Deposit rejected successfully");
+  } catch (err) { next(err); }
+}

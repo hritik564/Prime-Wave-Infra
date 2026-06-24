@@ -38,3 +38,28 @@ export function requireAdminAuth(req: Request, res: Response, next: NextFunction
     next();
   });
 }
+
+/**
+ * Role-restricted admin middleware factory.
+ *
+ * Usage: requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN")
+ *
+ * Ensures the request carries a valid admin JWT AND the admin's role
+ * is in the provided allow-list.
+ */
+export function requireAdminRoles(...roles: string[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    requireAdminAuth(req, res, (err?: unknown) => {
+      if (err) {
+        next(err);
+        return;
+      }
+      const authedReq = req as AuthenticatedRequest;
+      if (!roles.includes(authedReq.user.role ?? "")) {
+        next(new AppError("Insufficient admin role", HTTP_STATUS.FORBIDDEN, "FORBIDDEN"));
+        return;
+      }
+      next();
+    });
+  };
+}

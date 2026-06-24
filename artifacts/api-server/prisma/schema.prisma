@@ -21,6 +21,19 @@ enum UserStatus {
   SUSPENDED
 }
 
+enum DepositNetwork {
+  BEP20
+  ERC20
+  TRC20
+  SOL
+}
+
+enum DepositStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum TransactionType {
   DEPOSIT
   INVESTMENT
@@ -114,6 +127,9 @@ model User {
   salaryAchievements SalaryAchievement[]
   salaryIncome       SalaryIncome[]
 
+  // Deposits
+  depositRequests DepositRequest[]
+
   // BV ledger relations (as ancestor — BV flows into this user's legs)
   matchBvEntries   MatchBvLedger[]  @relation("MatchBvAncestor")
   orbitBvEntries   OrbitBvLedger[]  @relation("OrbitBvAncestor")
@@ -140,7 +156,8 @@ model Admin {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  logs AdminLog[]
+  logs            AdminLog[]
+  approvedDeposits DepositRequest[]
 
   @@map("admins")
 }
@@ -561,4 +578,58 @@ model SalaryIncome {
   @@index([year, month])
   @@index([createdAt])
   @@map("salary_income")
+}
+
+// ── Company Wallets ───────────────────────────────────────────────────────────
+//
+// Managed by admins. Shown to users during deposit submission so they know
+// which on-chain address to send funds to for each network.
+
+model CompanyWallet {
+  id            String         @id @default(cuid())
+  network       DepositNetwork
+  walletAddress String
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+
+  @@unique([network, walletAddress])
+  @@index([network])
+  @@index([isActive])
+  @@map("company_wallets")
+}
+
+// ── Deposit Requests ──────────────────────────────────────────────────────────
+//
+// Submitted by users after sending crypto manually.
+// Admin approves → credit depositWallet; or rejects with a reason.
+//
+//   minimumDeposit   = (approvedDepositCount + 1) × 100
+//   amount           = must be a multiple of $100, ≥ minimumDeposit
+//   txHash           = on-chain transaction hash (unique)
+//   companyWallet    = address the user was shown / sent funds to
+//   screenshotUrl    = optional proof of payment screenshot
+
+model DepositRequest {
+  id               String         @id @default(cuid())
+  userId           String
+  amount           Decimal        @db.Decimal(18, 2)
+  network          DepositNetwork
+  txHash           String         @unique
+  screenshotUrl    String?
+  companyWallet    String
+  status           DepositStatus  @default(PENDING)
+  approvedByAdminId String?
+  approvedAt       DateTime?
+  rejectedReason   String?
+  createdAt        DateTime       @default(now())
+
+  user     User   @relation(fields: [userId],            references: [id], onDelete: Restrict)
+  approver Admin? @relation(fields: [approvedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([network])
+  @@index([txHash])
+  @@index([createdAt])
+  @@map("deposit_requests")
 }

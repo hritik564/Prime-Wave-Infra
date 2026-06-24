@@ -1,2 +1,1 @@
-// Sprint 2: Deposit requests, payment gateway integration, confirmation
-export {};
+export { default as depositsRouter } from "./deposits.routes";
