@@ -1,0 +1,235 @@
+Start Sprint 16 for Prime Wave.
+
+Build Reports & Analytics APIs only.
+
+Do not build frontend.
+
+Do not modify existing compensation engines.
+
+========================================
+REVENUE REPORT
+========================================
+
+Create:
+
+GET /api/admin/reports/revenue
+
+Return:
+
+totalDeposits
+
+totalWithdrawals
+
+netCashflow
+
+roiPaid
+
+binaryPaid
+
+orbitPaid
+
+levelPaid
+
+salaryPaid
+
+========================================
+DAILY BUSINESS REPORT
+========================================
+
+Create:
+
+GET /api/admin/reports/daily-business
+
+Return daily statistics:
+
+newUsers
+
+deposits
+
+investments
+
+withdrawals
+
+Support date filtering.
+
+========================================
+TOP EARNERS
+========================================
+
+Create:
+
+GET /api/admin/reports/top-earners
+
+Return:
+
+username
+
+totalIncome
+
+Sort descending.
+
+========================================
+TOP SPONSORS
+========================================
+
+Create:
+
+GET /api/admin/reports/top-sponsors
+
+Return:
+
+username
+
+directReferrals
+
+teamSize
+
+totalTeamBusiness
+
+========================================
+RANK DISTRIBUTION
+========================================
+
+Create:
+
+GET /api/admin/reports/rank-distribution
+
+Return:
+
+rankName
+
+userCount
+
+========================================
+NETWORK DISTRIBUTION
+========================================
+
+Create:
+
+GET /api/admin/reports/network-distribution
+
+Return deposit percentages for:
+
+BEP20
+
+ERC20
+
+TRC20
+
+SOL
+
+========================================
+PENDING OPERATIONS REPORT
+========================================
+
+Create:
+
+GET /api/admin/reports/pending
+
+Return:
+
+pendingDeposits
+
+pendingWithdrawals
+
+failedJobs
+
+========================================
+USER INCOME SUMMARY
+========================================
+
+Create:
+
+GET /api/admin/users/:id/income-summary
+
+Return:
+
+roiIncome
+
+binaryIncome
+
+orbitIncome
+
+levelIncome
+
+salaryIncome
+
+totalIncome
+
+========================================
+CSV EXPORTS
+========================================
+
+Create export endpoints for:
+
+Users
+
+Deposits
+
+Withdrawals
+
+SalaryIncome
+
+BinaryIncome
+
+Support CSV downloads.
+
+========================================
+CREATE JobExecutionLog MODEL
+========================================
+
+Fields:
+
+id
+
+jobName
+
+startedAt
+
+completedAt
+
+status
+
+recordsProcessed
+
+errorMessage
+
+createdAt
+
+========================================
+SYSTEM RISK REPORT
+========================================
+
+Create:
+
+GET /api/admin/reports/risk
+
+Return:
+
+cashIn
+
+cashOut
+
+netReserve
+
+pendingLiabilities
+
+========================================
+REQUIREMENTS
+========================================
+
+SUPER_ADMIN only.
+
+Pagination where needed.
+
+Use TypeScript only.
+
+Do not change existing business logic.
+
+Create AdminLogs where appropriate.
+
+Return:
+
+1. Schema changes.
+2. New endpoints.
+3. Completion report.

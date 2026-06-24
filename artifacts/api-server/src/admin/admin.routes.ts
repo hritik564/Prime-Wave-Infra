@@ -19,6 +19,18 @@ import {
   completeWithdrawalHandler,
   rejectWithdrawalHandler,
 } from "./admin-withdrawals.controller";
+import {
+  getDashboardHandler,
+  getSystemHealthHandler,
+} from "./admin-dashboard.controller";
+import {
+  searchUsersHandler,
+  getUserDetailHandler,
+  blockUserHandler,
+  suspendUserHandler,
+  activateUserHandler,
+} from "./admin-users.controller";
+import { walletAdjustmentHandler } from "./admin-wallet-adjustments.controller";
 import { validate } from "../middleware/validate.middleware";
 import { requireAdminAuth, requireAdminRoles } from "../middleware/auth.middleware";
 import { authLimiter, adminLimiter } from "../middleware/rateLimiter.middleware";
@@ -33,6 +45,10 @@ import {
   completeWithdrawalSchema,
   rejectWithdrawalSchema,
 } from "../withdrawals/withdrawals.schema";
+import {
+  userSearchQuerySchema,
+  walletAdjustmentSchema,
+} from "./admin-dashboard.schema";
 
 const router = Router();
 
@@ -81,6 +97,60 @@ router.post(
   financeAdminGuard,
   validate(rejectDepositSchema, "body"),
   rejectDepositHandler,
+);
+
+// ── Dashboard — SUPER_ADMIN only ──────────────────────────────────────────────
+const superAdminGuard = requireAdminRoles("SUPER_ADMIN");
+
+router.get("/dashboard",     adminLimiter, superAdminGuard, getDashboardHandler);
+router.get("/system-health", adminLimiter, superAdminGuard, getSystemHealthHandler);
+
+// ── User management — SUPER_ADMIN + SUPPORT_ADMIN ─────────────────────────────
+const supportAdminGuard = requireAdminRoles("SUPER_ADMIN", "SUPPORT_ADMIN");
+
+router.get(
+  "/users/search",
+  adminLimiter,
+  supportAdminGuard,
+  validate(userSearchQuerySchema, "query"),
+  searchUsersHandler,
+);
+
+router.get(
+  "/users/:id",
+  adminLimiter,
+  supportAdminGuard,
+  getUserDetailHandler,
+);
+
+router.post(
+  "/users/:id/block",
+  adminLimiter,
+  supportAdminGuard,
+  blockUserHandler,
+);
+
+router.post(
+  "/users/:id/suspend",
+  adminLimiter,
+  supportAdminGuard,
+  suspendUserHandler,
+);
+
+router.post(
+  "/users/:id/activate",
+  adminLimiter,
+  supportAdminGuard,
+  activateUserHandler,
+);
+
+// ── Wallet adjustments — SUPER_ADMIN + FINANCE_ADMIN ─────────────────────────
+router.post(
+  "/wallet-adjustments",
+  adminLimiter,
+  financeAdminGuard,
+  validate(walletAdjustmentSchema),
+  walletAdjustmentHandler,
 );
 
 // ── Withdrawal admin — SUPER_ADMIN and FINANCE_ADMIN only ─────────────────────
