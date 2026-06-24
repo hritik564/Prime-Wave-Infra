@@ -20,9 +20,10 @@ function signToken(payload: AuthPayload): string {
 export async function registerUser(input: RegisterInput) {
   const { email, username, password, firstName, lastName, phone, referralCode } = input;
 
-  const emailLower = email.toLowerCase();
+  const emailLower    = email.toLowerCase();
   const usernameLower = username.toLowerCase();
 
+  // ── Duplicate check (outside tx — CPU work follows, tx held open minimally) ──
   const existing = await prisma.user.findFirst({
     where: {
       OR: [
@@ -31,62 +32,82 @@ export async function registerUser(input: RegisterInput) {
         ...(phone ? [{ phone }] : []),
       ],
     },
+    select: { email: true, username: true, phone: true },
   });
 
   if (existing) {
-    if (existing.email === emailLower) {
+    if (existing.email === emailLower)
       throw new AppError("Email already registered", HTTP_STATUS.CONFLICT, "EMAIL_TAKEN");
-    }
-    if (existing.username === usernameLower) {
+    if (existing.username === usernameLower)
       throw new AppError("Username already taken", HTTP_STATUS.CONFLICT, "USERNAME_TAKEN");
-    }
-    throw new AppError(
-      "Phone number already registered",
-      HTTP_STATUS.CONFLICT,
-      "PHONE_TAKEN",
-    );
+    throw new AppError("Phone number already registered", HTTP_STATUS.CONFLICT, "PHONE_TAKEN");
   }
 
-  let referredById: string | undefined;
-  if (referralCode) {
-    const referrer = await prisma.user.findUnique({ where: { referralCode } });
-    if (!referrer) {
-      throw new AppError("Invalid referral code", HTTP_STATUS.BAD_REQUEST, "INVALID_REFERRAL");
-    }
-    referredById = referrer.id;
-  }
-
-  const rounds = parseInt(env.BCRYPT_ROUNDS, 10);
+  // ── Password hash outside the transaction (CPU-intensive, must not block DB) ──
+  const rounds       = parseInt(env.BCRYPT_ROUNDS, 10);
   const passwordHash = await bcrypt.hash(password, rounds);
   const userReferralCode = generateReferralCode();
 
-  const user = await prisma.user.create({
-    data: {
-      email: emailLower,
-      username: usernameLower,
-      passwordHash,
-      firstName,
-      lastName,
-      phone,
-      referralCode: userReferralCode,
-      referredBy: referredById,
-      wallet: {
-        create: {
-          depositWallet: 0,
-          incomeWallet: 0,
-          withdrawalWallet: 0,
+  // ── Atomic: validate sponsor + create user + update sponsor + history ─────────
+  const user = await prisma.$transaction(async (tx) => {
+    // Resolve referral code inside the transaction for full consistency
+    let sponsorId: string | undefined;
+    if (referralCode) {
+      const sponsor = await tx.user.findUnique({
+        where: { referralCode },
+        select: { id: true },
+      });
+      if (!sponsor) {
+        throw new AppError("Invalid referral code", HTTP_STATUS.BAD_REQUEST, "INVALID_REFERRAL");
+      }
+      sponsorId = sponsor.id;
+    }
+
+    // Create the new user (wallet nested)
+    const newUser = await tx.user.create({
+      data: {
+        email:        emailLower,
+        username:     usernameLower,
+        passwordHash,
+        firstName,
+        lastName,
+        phone,
+        referralCode: userReferralCode,
+        referredBy:   sponsorId,   // loose string reference (kept for compatibility)
+        sponsorId,                 // proper FK for tree queries
+        wallet: {
+          create: {
+            depositWallet:    0,
+            incomeWallet:     0,
+            withdrawalWallet: 0,
+          },
         },
       },
-    },
-    select: {
-      id: true,
-      email: true,
-      username: true,
-      firstName: true,
-      lastName: true,
-      referralCode: true,
-      status: true,
-    },
+      select: {
+        id:           true,
+        email:        true,
+        username:     true,
+        firstName:    true,
+        lastName:     true,
+        referralCode: true,
+        status:       true,
+      },
+    });
+
+    if (sponsorId) {
+      // Increment sponsor's directReferralCount atomically
+      await tx.user.update({
+        where: { id: sponsorId },
+        data:  { directReferralCount: { increment: 1 } },
+      });
+
+      // Create permanent referral history record
+      await tx.referralHistory.create({
+        data: { sponsorId, userId: newUser.id },
+      });
+    }
+
+    return newUser;
   });
 
   const token = signToken({ sub: user.id, email: user.email, type: "user" });
@@ -102,11 +123,9 @@ export async function loginUser(input: LoginInput) {
   });
 
   if (!user) {
-    // Use a generic message to prevent email enumeration
     throw new AppError("Invalid credentials", HTTP_STATUS.UNAUTHORIZED, "INVALID_CREDENTIALS");
   }
 
-  // BLOCKED users cannot log in under any circumstances
   if (user.status === "BLOCKED") {
     throw new AppError(
       "Your account has been blocked. Please contact support.",
@@ -115,32 +134,30 @@ export async function loginUser(input: LoginInput) {
     );
   }
 
-  // Verify password before revealing any other status info
   const isValid = await bcrypt.compare(password, user.passwordHash);
   if (!isValid) {
     throw new AppError("Invalid credentials", HTTP_STATUS.UNAUTHORIZED, "INVALID_CREDENTIALS");
   }
 
-  // SUSPENDED and INACTIVE users CAN log in (restrictions enforced per-route)
   const token = signToken({ sub: user.id, email: user.email, type: "user" });
 
   return {
     token,
     user: {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      firstName: user.firstName,
-      lastName: user.lastName,
+      id:           user.id,
+      email:        user.email,
+      username:     user.username,
+      firstName:    user.firstName,
+      lastName:     user.lastName,
       referralCode: user.referralCode,
-      status: user.status,
+      status:       user.status,
     },
   };
 }
 
 export async function changePassword(userId: string, input: ChangePasswordInput) {
   const user = await prisma.user.findUnique({
-    where: { id: userId },
+    where:  { id: userId },
     select: { id: true, passwordHash: true, status: true },
   });
 
@@ -149,11 +166,7 @@ export async function changePassword(userId: string, input: ChangePasswordInput)
   }
 
   if (user.status === "BLOCKED") {
-    throw new AppError(
-      "Your account has been blocked",
-      HTTP_STATUS.FORBIDDEN,
-      "ACCOUNT_BLOCKED",
-    );
+    throw new AppError("Your account has been blocked", HTTP_STATUS.FORBIDDEN, "ACCOUNT_BLOCKED");
   }
 
   const isValid = await bcrypt.compare(input.currentPassword, user.passwordHash);
@@ -165,11 +178,8 @@ export async function changePassword(userId: string, input: ChangePasswordInput)
     );
   }
 
-  const rounds = parseInt(env.BCRYPT_ROUNDS, 10);
+  const rounds       = parseInt(env.BCRYPT_ROUNDS, 10);
   const passwordHash = await bcrypt.hash(input.newPassword, rounds);
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: { passwordHash },
-  });
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
 }

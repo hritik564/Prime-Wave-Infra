@@ -64,7 +64,8 @@ model User {
   status       UserStatus @default(ACTIVE)
   referralCode String     @unique
 
-  referredBy String?
+  referredBy          String?
+  directReferralCount Int     @default(0)
 
   walletAddress String?
   telegramId    String?
@@ -81,11 +82,13 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  wallet       Wallet?
-  adminLogs    AdminLog[]
-  transactions WalletTransaction[]
-  investments  Investment[]
-  roiLedger    RoiLedger[]
+  wallet           Wallet?
+  adminLogs        AdminLog[]
+  transactions     WalletTransaction[]
+  investments      Investment[]
+  roiLedger        RoiLedger[]
+  referralHistory  ReferralHistory?  @relation("ReferralHistoryUser")
+  givenReferrals   ReferralHistory[] @relation("ReferralHistorySponsor")
 
   @@map("users")
 }
@@ -208,4 +211,17 @@ model RoiLedger {
   @@index([wasCompounded])
   @@index([wasClaimed])
   @@map("roi_ledger")
+}
+
+model ReferralHistory {
+  id        String   @id @default(cuid())
+  sponsorId String
+  userId    String   @unique
+  createdAt DateTime @default(now())
+
+  sponsor User @relation("ReferralHistorySponsor", fields: [sponsorId], references: [id], onDelete: Restrict)
+  user    User @relation("ReferralHistoryUser",    fields: [userId],    references: [id], onDelete: Restrict)
+
+  @@index([sponsorId])
+  @@map("referral_history")
 }
