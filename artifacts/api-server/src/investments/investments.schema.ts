@@ -36,5 +36,10 @@ export const listInvestmentsQuerySchema = z.object({
   status: z.enum(INVESTMENT_STATUSES).optional(),
 });
 
-export type CreateInvestmentInput  = z.infer<typeof createInvestmentSchema>;
-export type ListInvestmentsQuery   = z.infer<typeof listInvestmentsQuerySchema>;
+export const toggleAutoCompoundSchema = z.object({
+  autoCompound: z.boolean({ required_error: "autoCompound (boolean) is required" }),
+});
+
+export type CreateInvestmentInput    = z.infer<typeof createInvestmentSchema>;
+export type ListInvestmentsQuery     = z.infer<typeof listInvestmentsQuerySchema>;
+export type ToggleAutoCompoundInput  = z.infer<typeof toggleAutoCompoundSchema>;

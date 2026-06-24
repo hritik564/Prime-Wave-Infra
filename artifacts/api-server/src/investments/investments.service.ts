@@ -259,6 +259,33 @@ export async function claimPrincipal(userId: string, investmentId: string) {
   return result;
 }
 
+// ── Toggle auto-compound ──────────────────────────────────────────────────────
+
+export async function updateAutoCompound(userId: string, investmentId: string, autoCompound: boolean) {
+  const investment = await prisma.investment.findUnique({
+    where: { id: investmentId },
+    select: { id: true, userId: true, status: true },
+  });
+
+  if (!investment || investment.userId !== userId) {
+    throw new AppError("Investment not found", HTTP_STATUS.NOT_FOUND, "INVESTMENT_NOT_FOUND");
+  }
+
+  if (investment.status === "COMPLETED") {
+    throw new AppError(
+      "Cannot modify a completed investment",
+      HTTP_STATUS.BAD_REQUEST,
+      "INVESTMENT_COMPLETED",
+    );
+  }
+
+  return prisma.investment.update({
+    where: { id: investmentId },
+    data: { autoCompound },
+    select: investmentSelect,
+  });
+}
+
 // ── Shared select ─────────────────────────────────────────────────────────────
 
 const investmentSelect = {

@@ -4,6 +4,7 @@ import {
   listInvestments,
   getInvestmentById,
   claimPrincipal,
+  updateAutoCompound,
 } from "./investments.service";
 import { claimRoi, getEarnings } from "./roi.service";
 import { sendSuccess, sendCreated } from "../shared/response";
@@ -77,6 +78,21 @@ export async function claimRoiHandler(
     const { user } = req as AuthenticatedRequest;
     const result = await claimRoi(user.sub, req.params.id as string);
     sendSuccess(res, result, "ROI claimed successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function toggleAutoCompoundHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const { autoCompound } = req.body as { autoCompound: boolean };
+    const investment = await updateAutoCompound(user.sub, req.params.id as string, autoCompound);
+    sendSuccess(res, investment, "Auto-compound setting updated");
   } catch (err) {
     next(err);
   }

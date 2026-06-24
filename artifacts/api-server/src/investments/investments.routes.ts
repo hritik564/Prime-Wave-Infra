@@ -6,11 +6,12 @@ import {
   claimPrincipalHandler,
   claimRoiHandler,
   getEarningsHandler,
+  toggleAutoCompoundHandler,
 } from "./investments.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 import { requireBusinessAccess } from "../middleware/businessAccess.middleware";
 import { validate } from "../middleware/validate.middleware";
-import { createInvestmentSchema, listInvestmentsQuerySchema } from "./investments.schema";
+import { createInvestmentSchema, listInvestmentsQuerySchema, toggleAutoCompoundSchema } from "./investments.schema";
 
 const router = Router();
 
@@ -28,6 +29,9 @@ router.get("/:id", getById);
 
 // GET /api/investments/:id/earnings — ROI earnings summary
 router.get("/:id/earnings", getEarningsHandler);
+
+// PATCH /api/investments/:id/auto-compound — toggle auto-compound per investment
+router.patch("/:id/auto-compound", validate(toggleAutoCompoundSchema), toggleAutoCompoundHandler);
 
 // POST /api/investments/:id/claim-roi — move claimableROI to income wallet
 router.post("/:id/claim-roi", requireBusinessAccess, claimRoiHandler);
