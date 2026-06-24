@@ -708,3 +708,27 @@ model WithdrawalRequest {
   @@index([createdAt])
   @@map("withdrawal_requests")
 }
+
+// ── Job Execution Log ─────────────────────────────────────────────────────────
+
+enum JobStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+model JobExecutionLog {
+  id               String    @id @default(cuid())
+  jobName          String
+  startedAt        DateTime
+  completedAt      DateTime?
+  status           JobStatus
+  recordsProcessed Int?
+  errorMessage     String?
+  createdAt        DateTime  @default(now())
+
+  @@index([jobName])
+  @@index([status])
+  @@index([createdAt])
+  @@map("job_execution_logs")
+}

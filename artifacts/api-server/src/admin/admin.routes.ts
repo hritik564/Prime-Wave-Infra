@@ -31,6 +31,24 @@ import {
   activateUserHandler,
 } from "./admin-users.controller";
 import { walletAdjustmentHandler } from "./admin-wallet-adjustments.controller";
+import {
+  revenueReportHandler,
+  dailyBusinessReportHandler,
+  topEarnersHandler,
+  topSponsorsHandler,
+  rankDistributionHandler,
+  networkDistributionHandler,
+  pendingOperationsHandler,
+  riskReportHandler,
+  userIncomeSummaryHandler,
+} from "./reports/reports.controller";
+import {
+  exportUsersHandler,
+  exportDepositsHandler,
+  exportWithdrawalsHandler,
+  exportSalaryIncomeHandler,
+  exportBinaryIncomeHandler,
+} from "./reports/csv-export.controller";
 import { validate } from "../middleware/validate.middleware";
 import { requireAdminAuth, requireAdminRoles } from "../middleware/auth.middleware";
 import { authLimiter, adminLimiter } from "../middleware/rateLimiter.middleware";
@@ -49,6 +67,11 @@ import {
   userSearchQuerySchema,
   walletAdjustmentSchema,
 } from "./admin-dashboard.schema";
+import {
+  dateRangeSchema,
+  paginatedDateRangeSchema,
+  topListSchema,
+} from "./reports/reports.schema";
 
 const router = Router();
 
@@ -105,6 +128,52 @@ const superAdminGuard = requireAdminRoles("SUPER_ADMIN");
 router.get("/dashboard",     adminLimiter, superAdminGuard, getDashboardHandler);
 router.get("/system-health", adminLimiter, superAdminGuard, getSystemHealthHandler);
 
+// ── Reports — SUPER_ADMIN only ────────────────────────────────────────────────
+router.get(
+  "/reports/revenue",
+  adminLimiter, superAdminGuard,
+  validate(dateRangeSchema, "query"),
+  revenueReportHandler,
+);
+
+router.get(
+  "/reports/daily-business",
+  adminLimiter, superAdminGuard,
+  validate(paginatedDateRangeSchema, "query"),
+  dailyBusinessReportHandler,
+);
+
+router.get(
+  "/reports/top-earners",
+  adminLimiter, superAdminGuard,
+  validate(topListSchema, "query"),
+  topEarnersHandler,
+);
+
+router.get(
+  "/reports/top-sponsors",
+  adminLimiter, superAdminGuard,
+  validate(topListSchema, "query"),
+  topSponsorsHandler,
+);
+
+router.get("/reports/rank-distribution",    adminLimiter, superAdminGuard, rankDistributionHandler);
+router.get(
+  "/reports/network-distribution",
+  adminLimiter, superAdminGuard,
+  validate(dateRangeSchema, "query"),
+  networkDistributionHandler,
+);
+router.get("/reports/pending",              adminLimiter, superAdminGuard, pendingOperationsHandler);
+router.get("/reports/risk",                 adminLimiter, superAdminGuard, riskReportHandler);
+
+// ── CSV exports — SUPER_ADMIN only ───────────────────────────────────────────
+router.get("/reports/export/users",         adminLimiter, superAdminGuard, exportUsersHandler);
+router.get("/reports/export/deposits",      adminLimiter, superAdminGuard, exportDepositsHandler);
+router.get("/reports/export/withdrawals",   adminLimiter, superAdminGuard, exportWithdrawalsHandler);
+router.get("/reports/export/salary-income", adminLimiter, superAdminGuard, exportSalaryIncomeHandler);
+router.get("/reports/export/binary-income", adminLimiter, superAdminGuard, exportBinaryIncomeHandler);
+
 // ── User management — SUPER_ADMIN + SUPPORT_ADMIN ─────────────────────────────
 const supportAdminGuard = requireAdminRoles("SUPER_ADMIN", "SUPPORT_ADMIN");
 
@@ -142,6 +211,13 @@ router.post(
   adminLimiter,
   supportAdminGuard,
   activateUserHandler,
+);
+
+router.get(
+  "/users/:id/income-summary",
+  adminLimiter,
+  superAdminGuard,
+  userIncomeSummaryHandler,
 );
 
 // ── Wallet adjustments — SUPER_ADMIN + FINANCE_ADMIN ─────────────────────────
