@@ -55,3 +55,24 @@ export async function loginAdmin(input: AdminLoginInput) {
     },
   };
 }
+
+export async function getAdminProfile(adminId: string) {
+  const admin = await prisma.admin.findUnique({
+    where: { id: adminId },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      isActive: true,
+      createdAt: true,
+    },
+  });
+
+  if (!admin) {
+    throw new AppError("Admin not found", HTTP_STATUS.NOT_FOUND, "ADMIN_NOT_FOUND");
+  }
+
+  return admin;
+}

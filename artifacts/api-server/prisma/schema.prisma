@@ -17,6 +17,7 @@ enum AdminRole {
 enum UserStatus {
   ACTIVE
   INACTIVE
+  BLOCKED
   SUSPENDED
 }
 
@@ -31,22 +32,20 @@ model User {
   status       UserStatus @default(ACTIVE)
   referralCode String     @unique
 
-  // Kept for backward compatibility (raw string from Sprint 1)
+  // Kept for backward compatibility (Sprint 1 plain string)
   referredBy String?
 
-  // --- New optional fields ---
+  // New optional fields (Sprint 2 schema improvements)
   walletAddress String?
   telegramId    String?
   profileImage  String?
 
-  // --- Sponsor / upline self-relation ---
-  // A user has one sponsor (upline) and many direct referrals (downline)
+  // Sponsor / upline self-relation
   sponsorId       String?
   sponsor         User?  @relation("UserSponsorRelation", fields: [sponsorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   directReferrals User[] @relation("UserSponsorRelation")
 
-  // --- Binary tree self-relation ---
-  // A user has one binary parent and up to many binary children
+  // Binary tree self-relation
   binaryParentId String?
   binaryParent   User?  @relation("UserBinaryRelation", fields: [binaryParentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   binaryChildren User[] @relation("UserBinaryRelation")
@@ -54,7 +53,8 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  wallet Wallet?
+  wallet    Wallet?
+  adminLogs AdminLog[]
 
   @@map("users")
 }
@@ -69,6 +69,8 @@ model Admin {
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  logs AdminLog[]
 
   @@map("admins")
 }
@@ -85,4 +87,20 @@ model Wallet {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("wallets")
+}
+
+model AdminLog {
+  id           String   @id @default(cuid())
+  adminId      String
+  action       String
+  targetUserId String?
+  details      Json?
+  createdAt    DateTime @default(now())
+
+  admin      Admin @relation(fields: [adminId], references: [id], onDelete: Restrict)
+  targetUser User? @relation(fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([adminId])
+  @@index([targetUserId])
+  @@map("admin_logs")
 }

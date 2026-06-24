@@ -4,7 +4,7 @@ import { prisma } from "../config/prisma";
 import { env } from "../config/env";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
-import type { RegisterInput, LoginInput } from "./auth.schema";
+import type { RegisterInput, LoginInput, ChangePasswordInput } from "./auth.schema";
 import type { AuthPayload } from "../shared/types";
 
 function generateReferralCode(): string {
@@ -102,18 +102,26 @@ export async function loginUser(input: LoginInput) {
   });
 
   if (!user) {
+    // Use a generic message to prevent email enumeration
     throw new AppError("Invalid credentials", HTTP_STATUS.UNAUTHORIZED, "INVALID_CREDENTIALS");
   }
 
-  if (user.status !== "ACTIVE") {
-    throw new AppError("Account is not active", HTTP_STATUS.FORBIDDEN, "ACCOUNT_INACTIVE");
+  // BLOCKED users cannot log in under any circumstances
+  if (user.status === "BLOCKED") {
+    throw new AppError(
+      "Your account has been blocked. Please contact support.",
+      HTTP_STATUS.FORBIDDEN,
+      "ACCOUNT_BLOCKED",
+    );
   }
 
+  // Verify password before revealing any other status info
   const isValid = await bcrypt.compare(password, user.passwordHash);
   if (!isValid) {
     throw new AppError("Invalid credentials", HTTP_STATUS.UNAUTHORIZED, "INVALID_CREDENTIALS");
   }
 
+  // SUSPENDED and INACTIVE users CAN log in (restrictions enforced per-route)
   const token = signToken({ sub: user.id, email: user.email, type: "user" });
 
   return {
@@ -128,4 +136,40 @@ export async function loginUser(input: LoginInput) {
       status: user.status,
     },
   };
+}
+
+export async function changePassword(userId: string, input: ChangePasswordInput) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, passwordHash: true, status: true },
+  });
+
+  if (!user) {
+    throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
+  }
+
+  if (user.status === "BLOCKED") {
+    throw new AppError(
+      "Your account has been blocked",
+      HTTP_STATUS.FORBIDDEN,
+      "ACCOUNT_BLOCKED",
+    );
+  }
+
+  const isValid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+  if (!isValid) {
+    throw new AppError(
+      "Current password is incorrect",
+      HTTP_STATUS.BAD_REQUEST,
+      "INVALID_CURRENT_PASSWORD",
+    );
+  }
+
+  const rounds = parseInt(env.BCRYPT_ROUNDS, 10);
+  const passwordHash = await bcrypt.hash(input.newPassword, rounds);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+  });
 }
