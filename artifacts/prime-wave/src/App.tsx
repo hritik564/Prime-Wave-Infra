@@ -1,6 +1,10 @@
 import { Switch, Route } from "wouter";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import DashboardPage from "@/pages/DashboardPage";
+import LoginPage from "@/pages/auth/LoginPage";
+import RegisterPage from "@/pages/auth/RegisterPage";
+import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
+import ResetPasswordPage from "@/pages/auth/ResetPasswordPage";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
@@ -25,7 +29,7 @@ function ComingSoon({ title }: { title: string }) {
             Coming in a future sprint
           </h3>
           <p className="mt-1 text-sm text-muted-foreground max-w-xs">
-            This page is part of the design system and will be fully built out in subsequent sprints.
+            This page will be fully built out in subsequent sprints.
           </p>
         </div>
       </PageContainer>
@@ -37,6 +41,21 @@ export default function App() {
   return (
     <ThemeProvider>
       <Switch>
+        {/* ── Auth Routes (no AppLayout) ── */}
+        <Route path="/login">
+          <LoginPage />
+        </Route>
+        <Route path="/register">
+          <RegisterPage />
+        </Route>
+        <Route path="/forgot-password">
+          <ForgotPasswordPage />
+        </Route>
+        <Route path="/reset-password">
+          <ResetPasswordPage />
+        </Route>
+
+        {/* ── App Routes (with AppLayout via DashboardPage) ── */}
         <Route path="/dashboard">
           <DashboardPage />
         </Route>
@@ -76,9 +95,10 @@ export default function App() {
         <Route path="/settings">
           <ComingSoon title="Settings" />
         </Route>
-        {/* Root and catch-all — must be last */}
+
+        {/* ── Root + catch-all ── */}
         <Route>
-          <DashboardPage />
+          <LoginPage />
         </Route>
       </Switch>
     </ThemeProvider>
