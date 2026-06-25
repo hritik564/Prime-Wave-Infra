@@ -376,6 +376,90 @@ export interface DevWithdrawal {
   user: { email: string; username: string };
 }
 
+// ── Dev Network types ─────────────────────────────────────────────────────────
+
+export interface NetOwnerStatus {
+  id: string;
+  username: string;
+  leftBV: string;
+  rightBV: string;
+  matchedBV: string;
+  carryForwardBV: string;
+  powerLeg: string;
+  weakLeg: string;
+  directReferralCount: number;
+  directLeft: string;
+  directRight: string;
+}
+
+export interface NetQualification {
+  binaryQualified: boolean;
+  matchingQualified: boolean;
+  orbitQualified: boolean;
+  salaryQualified: boolean;
+  salaryRank: string | null;
+  salarySalary: string | null;
+}
+
+export interface NetTestUser {
+  id: string;
+  username: string;
+  position: string | null;
+  binaryParentId: string | null;
+  leftBV: string;
+  rightBV: string;
+}
+
+export interface NetStatus {
+  owner: NetOwnerStatus;
+  qualification: NetQualification;
+  testNetwork: {
+    exists: boolean;
+    userCount: number;
+    users: NetTestUser[];
+  };
+  lastResults: {
+    matching: { incomeAmount: string; matchedBV: string; payableBV: string; at: string } | null;
+    orbit: { incomeAmount: string; matchedBV: string; rewardCount: number; at: string } | null;
+  };
+}
+
+export interface NetGenResult {
+  message: string;
+  usersCreated: number;
+  users: { id: string; username: string; referralCode: string; role: string }[];
+  investments: string;
+}
+
+export interface NetBvResult {
+  message: string;
+  preset: string;
+  investments?: { side: string; userId: string; username: string; investmentId: string; bvAdded: number }[];
+  rankName?: string;
+  monthlyAmount?: string;
+  expiresAt?: string;
+  investmentId?: string;
+  from?: string;
+  amount?: string;
+  bvGenerated?: number;
+}
+
+export interface NetRunResult {
+  engine: string;
+  usersProcessed?: number;
+  usersSkipped?: number;
+  newPayouts?: number;
+  incomeGenerated?: string;
+  walletUpdated?: number;
+  executionMs: number;
+}
+
+export interface NetDeleteResult {
+  message: string;
+  deleted: number;
+  deletedUsers: string[];
+}
+
 export const devApi = {
   getStatus: () => request<DevStatus>("/api/dev/status"),
 
@@ -443,5 +527,29 @@ export const devApi = {
   clearNotifications: (userId: string) =>
     request<{ deleted: number }>("/api/dev/notifications/clear", {
       method: "POST", body: JSON.stringify({ userId }),
+    }),
+
+  // ── Network & BV generator ──────────────────────────────────────────────────
+  getNetworkStatus: (ownerId: string) =>
+    request<NetStatus>(`/api/dev/network/status?ownerId=${encodeURIComponent(ownerId)}`),
+
+  generateNetwork: (ownerId: string, planType?: string, amount?: number) =>
+    request<NetGenResult>("/api/dev/network/generate", {
+      method: "POST", body: JSON.stringify({ ownerId, planType, amount }),
+    }),
+
+  generateBV: (ownerId: string, preset: string) =>
+    request<NetBvResult>("/api/dev/network/bv", {
+      method: "POST", body: JSON.stringify({ ownerId, preset }),
+    }),
+
+  runNetworkEngine: (engine: string) =>
+    request<NetRunResult>("/api/dev/network/run", {
+      method: "POST", body: JSON.stringify({ engine }),
+    }),
+
+  deleteTestNetwork: (ownerId: string) =>
+    request<NetDeleteResult>("/api/dev/network", {
+      method: "DELETE", body: JSON.stringify({ ownerId }),
     }),
 };

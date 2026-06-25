@@ -1,0 +1,166 @@
+Sprint QA-3 — Network & Compensation Testing Utilities (Development Only)
+
+The Binary, Orbit, Level Income and Salary engines are correctly connected, but currently there is no qualifying network data to test them.
+
+Build development-only testing utilities that generate REAL qualifying data using the existing production services.
+
+These utilities must only be available when:
+
+NODE_ENV === "development"
+
+They must never be included in production.
+
+Create a "Generate Test Network" action.
+
+Generate the following structure automatically:
+
+Current User
+
+├── Left Direct (personally sponsored)
+
+│      ├── Left Team Member
+
+│      └── Left Team Member
+
+└── Right Direct (personally sponsored)
+
+```
+   ├── Right Team Member
+
+   └── Right Team Member
+```
+
+Requirements:
+
+* Use the existing registration service.
+* Use the existing sponsor placement logic.
+* Do not insert records directly into the database.
+* Every user must be a real platform user.
+
+For every generated user:
+
+Create real investments using the existing investment service.
+
+Allow selecting:
+
+90 Day
+
+180 Day
+
+270 Day
+
+360 Day
+
+Investment Amount
+
+Use the production investment creation flow.
+
+This must generate real BV.
+
+Provide quick actions:
+
+Generate 50 BV Left
+
+Generate 50 BV Right
+
+Generate 150 BV Left
+
+Generate 150 BV Right
+
+Generate 500 BV Both Legs
+
+Generate Salary Qualification
+
+Generate Matching Qualification
+
+Generate Orbit Qualification
+
+Generate Level Income Qualification
+
+These actions must generate qualifying data through production business logic.
+
+Do not directly edit BV values.
+
+Once qualifying data exists:
+
+Allow running:
+
+Run Binary Matching
+
+Run Binary Orbit
+
+Run Level Income
+
+Run Salary Cycle
+
+Display:
+
+Users Processed
+
+Matched BV
+
+Carry Forward BV
+
+Flushed BV
+
+Income Generated
+
+Wallet Updated
+
+Execution Time
+
+Display:
+
+Current User
+
+Left BV
+
+Right BV
+
+Matched BV
+
+Carry Forward
+
+Power Leg
+
+Weak Leg
+
+Direct Left
+
+Direct Right
+
+Binary Qualified
+
+Orbit Qualified
+
+Salary Qualified
+
+Development only.
+
+Provide:
+
+Delete Test Network
+
+This should remove only generated test users and their related development test data.
+
+It must never affect real users.
+
+Do NOT fake data.
+
+Do NOT insert BV directly.
+
+Do NOT bypass business rules.
+
+All generated data must pass through the same production services used by real users.
+
+The purpose of these tools is to verify that the production compensation engines work correctly with real qualifying data.
+
+1. New development utilities created.
+
+2. Existing production services reused.
+
+3. Security protections.
+
+4. Completion report.
+
+   Also tag all generated test users with something like: isTestUser = true

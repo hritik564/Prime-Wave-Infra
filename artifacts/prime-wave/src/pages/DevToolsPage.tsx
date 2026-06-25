@@ -4,8 +4,13 @@ import {
   AlertTriangle, RefreshCw, Zap, TrendingUp, Wallet, ArrowUpFromLine,
   ArrowRightLeft, Network, Bell, Activity, FileText, CheckCircle2,
   XCircle, Clock, ChevronDown, Play, RotateCcw, Loader2, Cpu,
+  Users, Trash2, GitBranch,
 } from "lucide-react";
-import { devApi, type DevStatus, type DevInvestment, type DevDeposit, type DevWithdrawal } from "@/lib/api";
+import {
+  devApi,
+  type DevStatus, type DevInvestment, type DevDeposit, type DevWithdrawal,
+  type NetStatus,
+} from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -287,6 +292,104 @@ export default function DevToolsPage() {
     } finally { setBusy(p => ({ ...p, [key]: false })); }
   }, [busy, addLog, updateLog, refreshStatus]);
 
+  // ── Network & BV Generator ───────────────────────────────────────────────────
+  const [netOwnerId,       setNetOwnerId]       = useState("");
+  const [netStatus,        setNetStatus]        = useState<NetStatus | null>(null);
+  const [netStatusLoading, setNetStatusLoading] = useState(false);
+  const [netGenPlan,       setNetGenPlan]       = useState("PLAN_90");
+  const [netGenAmount,     setNetGenAmount]     = useState("5000");
+  const [netGenWithInv,    setNetGenWithInv]    = useState(false);
+  const [netGenLoading,    setNetGenLoading]    = useState(false);
+  const [netGenResult,     setNetGenResult]     = useState<Record<string, unknown> | null>(null);
+  const [netBvLoading,     setNetBvLoading]     = useState<Record<string, boolean>>({});
+  const [netRunResult,     setNetRunResult]     = useState<Record<string, unknown> | null>(null);
+  const [netDelLoading,    setNetDelLoading]    = useState(false);
+
+  // Pre-fill ownerId once the auth user loads
+  useEffect(() => {
+    if (user?.id) setNetOwnerId(prev => prev || user.id);
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const refreshNetStatus = useCallback(async () => {
+    if (!netOwnerId) return;
+    setNetStatusLoading(true);
+    try {
+      const s = await devApi.getNetworkStatus(netOwnerId);
+      setNetStatus(s);
+    } catch { /* ignore */ }
+    finally { setNetStatusLoading(false); }
+  }, [netOwnerId]);
+
+  useEffect(() => { if (netOwnerId) void refreshNetStatus(); }, [netOwnerId, refreshNetStatus]);
+
+  const generateNetwork = useCallback(async () => {
+    if (!netOwnerId || netGenLoading) return;
+    setNetGenLoading(true); setNetGenResult(null);
+    const lid = addLog({ action: "Generate Test Network", status: "running" });
+    try {
+      const r = await devApi.generateNetwork(
+        netOwnerId,
+        netGenWithInv ? netGenPlan : undefined,
+        netGenWithInv ? parseInt(netGenAmount, 10) : undefined,
+      );
+      setNetGenResult({ "users created": r.usersCreated, investments: r.investments });
+      updateLog(lid, { status: "ok", detail: `${r.usersCreated} test users created` });
+      await refreshNetStatus();
+    } catch (e: unknown) {
+      updateLog(lid, { status: "error", detail: e instanceof Error ? e.message : "Failed" });
+    } finally { setNetGenLoading(false); }
+  }, [netOwnerId, netGenLoading, netGenWithInv, netGenPlan, netGenAmount, addLog, updateLog, refreshNetStatus]);
+
+  const generateBV = useCallback(async (preset: string, label: string) => {
+    if (!netOwnerId || netBvLoading[preset]) return;
+    setNetBvLoading(p => ({ ...p, [preset]: true }));
+    const lid = addLog({ action: label, status: "running" });
+    try {
+      const r = await devApi.generateBV(netOwnerId, preset);
+      const detail = r.investments
+        ? r.investments.map(i => `${i.side} +${i.bvAdded} BV (${i.username})`).join(", ")
+        : r.rankName ? `${r.rankName} — $${r.monthlyAmount}/mo`
+        : r.from ? `Level income from ${r.from}` : "done";
+      updateLog(lid, { status: "ok", detail });
+      await refreshNetStatus();
+    } catch (e: unknown) {
+      updateLog(lid, { status: "error", detail: e instanceof Error ? e.message : "Failed" });
+    } finally { setNetBvLoading(p => ({ ...p, [preset]: false })); }
+  }, [netOwnerId, netBvLoading, addLog, updateLog, refreshNetStatus]);
+
+  const runNetEngine = useCallback(async (engine: string, label: string) => {
+    if (busy[`net_${engine}`]) return;
+    setBusy(p => ({ ...p, [`net_${engine}`]: true })); setNetRunResult(null);
+    const lid = addLog({ action: label, status: "running" });
+    try {
+      const r = await devApi.runNetworkEngine(engine);
+      const result: Record<string, unknown> = { "exec time": fmtMs(r.executionMs) };
+      if (r.usersProcessed !== undefined) result["processed"] = r.usersProcessed;
+      if (r.usersSkipped   !== undefined) result["skipped"]   = r.usersSkipped;
+      if (r.incomeGenerated)              result["income"]     = r.incomeGenerated;
+      if (r.newPayouts      !== undefined) result["payouts"]  = r.newPayouts;
+      setNetRunResult(result);
+      updateLog(lid, { status: "ok", execMs: r.executionMs, detail: r.incomeGenerated ?? `${r.usersProcessed ?? r.newPayouts ?? 0} processed` });
+      await refreshNetStatus();
+    } catch (e: unknown) {
+      updateLog(lid, { status: "error", detail: e instanceof Error ? e.message : "Failed" });
+    } finally { setBusy(p => ({ ...p, [`net_${engine}`]: false })); }
+  }, [busy, addLog, updateLog, refreshNetStatus]);
+
+  const deleteNetwork = useCallback(async () => {
+    if (!netOwnerId || netDelLoading) return;
+    setNetDelLoading(true);
+    const lid = addLog({ action: "Delete Test Network", status: "running" });
+    try {
+      const r = await devApi.deleteTestNetwork(netOwnerId);
+      setNetStatus(null); setNetGenResult(null); setNetRunResult(null);
+      updateLog(lid, { status: "ok", detail: `${r.deleted} users deleted` });
+      await refreshNetStatus();
+    } catch (e: unknown) {
+      updateLog(lid, { status: "error", detail: e instanceof Error ? e.message : "Failed" });
+    } finally { setNetDelLoading(false); }
+  }, [netOwnerId, netDelLoading, addLog, updateLog, refreshNetStatus]);
+
   const userId = user?.id ?? "";
 
   if (!import.meta.env.DEV) return null;
@@ -480,6 +583,167 @@ export default function DevToolsPage() {
               <p className="mt-3 text-xs" style={{ color: "#475569" }}>
                 Level Income is event-driven — triggered automatically during investment creation. No standalone cycle exists.
               </p>
+            </Section>
+
+            {/* §10 Network & BV Generator */}
+            <Section icon={GitBranch} title="§10 — Network & BV Generator">
+
+              {/* Owner selector */}
+              <div className="flex items-center gap-2 mb-4">
+                <input
+                  value={netOwnerId}
+                  onChange={e => setNetOwnerId(e.target.value)}
+                  placeholder="Owner user ID…"
+                  className="flex-1 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none"
+                  style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.1)" }}
+                />
+                {netOwnerId !== userId && (
+                  <DevBtn label="Use Mine" onClick={() => setNetOwnerId(userId)} variant="ghost" size="sm" />
+                )}
+                <DevBtn label="Refresh" onClick={refreshNetStatus} loading={netStatusLoading} variant="ghost" size="sm" icon={RefreshCw} />
+              </div>
+
+              {/* BV Status Panel */}
+              {netStatus && (
+                <div className="rounded-xl p-3 mb-4 space-y-3" style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(212,175,55,0.15)" }}>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    {([
+                      ["Left BV",   netStatus.owner.leftBV,       netStatus.owner.powerLeg === "LEFT"  ? "#D4AF37" : "#60a5fa"],
+                      ["Right BV",  netStatus.owner.rightBV,      netStatus.owner.powerLeg === "RIGHT" ? "#D4AF37" : "#60a5fa"],
+                      ["Matched BV", netStatus.owner.matchedBV,   "#34d399"],
+                      ["Carry Fwd", netStatus.owner.carryForwardBV, "#94a3b8"],
+                    ] as [string, string, string][]).map(([k, v, c]) => (
+                      <div key={k} className="rounded-lg p-2" style={{ background: "rgba(255,255,255,0.04)" }}>
+                        <div className="text-xs mb-0.5" style={{ color: "#475569" }}>{k}</div>
+                        <div className="text-sm font-bold font-mono" style={{ color: c }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs" style={{ color: "#475569" }}>
+                      Power: <span style={{ color: "#D4AF37" }}>{netStatus.owner.powerLeg}</span>
+                    </span>
+                    <span className="text-xs" style={{ color: "#475569" }}>Directs: {netStatus.owner.directReferralCount}</span>
+                    {([
+                      ["Binary",   netStatus.qualification.binaryQualified],
+                      ["Matching", netStatus.qualification.matchingQualified],
+                      ["Orbit",    netStatus.qualification.orbitQualified],
+                      ["Salary",   netStatus.qualification.salaryQualified],
+                    ] as [string, boolean][]).map(([k, v]) => (
+                      <span key={k} className="rounded-full px-2 py-0.5 text-xs font-semibold"
+                        style={{ background: v ? "rgba(52,211,153,0.15)" : "rgba(239,68,68,0.1)", color: v ? "#34d399" : "#f87171" }}>
+                        {k} {v ? "✓" : "✗"}
+                      </span>
+                    ))}
+                    {netStatus.qualification.salaryRank && (
+                      <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa" }}>
+                        {netStatus.qualification.salaryRank} ${netStatus.qualification.salarySalary}/mo
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs" style={{ color: "#475569" }}>
+                    Test network: {netStatus.testNetwork.exists
+                      ? `${netStatus.testNetwork.userCount} users — ${netStatus.testNetwork.users.map(u => u.username).join(", ")}`
+                      : "not generated"}
+                  </div>
+                  {(netStatus.lastResults.matching || netStatus.lastResults.orbit) && (
+                    <div className="text-xs space-y-0.5" style={{ color: "#475569" }}>
+                      {netStatus.lastResults.matching && (
+                        <div>Last match: <span style={{ color: "#34d399" }}>${netStatus.lastResults.matching.incomeAmount}</span> income · {netStatus.lastResults.matching.matchedBV} matched BV</div>
+                      )}
+                      {netStatus.lastResults.orbit && (
+                        <div>Last orbit: <span style={{ color: "#34d399" }}>${netStatus.lastResults.orbit.incomeAmount}</span> income · {netStatus.lastResults.orbit.rewardCount} reward(s)</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Generate Network */}
+              <div className="mb-4 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#64748b" }}>Generate Test Network</p>
+                <p className="text-xs" style={{ color: "#475569" }}>
+                  Creates 6 real platform users (Left Direct, Right Direct + 2 team members each) using the production registration &amp; placement services. Every user is tagged <code style={{ color: "#D4AF37" }}>isTestUser=true</code>.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none" style={{ color: "#94a3b8" }}>
+                    <input type="checkbox" checked={netGenWithInv} onChange={e => setNetGenWithInv(e.target.checked)}
+                      className="rounded accent-yellow-500" />
+                    Invest immediately
+                  </label>
+                  {netGenWithInv && (
+                    <>
+                      <select value={netGenPlan} onChange={e => setNetGenPlan(e.target.value)}
+                        className="rounded-lg px-2 py-1 text-xs text-white outline-none"
+                        style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                        <option value="PLAN_90">90 Day</option>
+                        <option value="PLAN_180">180 Day</option>
+                        <option value="PLAN_270">270 Day</option>
+                        <option value="PLAN_360">360 Day</option>
+                      </select>
+                      <input type="number" value={netGenAmount} onChange={e => setNetGenAmount(e.target.value)}
+                        placeholder="Amount ($)" min={100} step={100}
+                        className="w-28 rounded-lg px-2 py-1 text-xs text-white font-mono outline-none"
+                        style={{ background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.1)" }} />
+                    </>
+                  )}
+                  <DevBtn label="Generate Test Network" onClick={generateNetwork} loading={netGenLoading} icon={Users} />
+                </div>
+                {netGenResult && <ResultBox data={netGenResult} />}
+              </div>
+
+              {/* Quick BV Actions */}
+              <div className="mb-4 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#64748b" }}>Quick BV Actions</p>
+                <p className="text-xs" style={{ color: "#475569" }}>All actions create real investments via the production investment service. No direct DB writes.</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {([
+                    { preset: "50L",    label: "50 BV Left",    variant: "ghost"   as const },
+                    { preset: "50R",    label: "50 BV Right",   variant: "ghost"   as const },
+                    { preset: "150L",   label: "150 BV Left",   variant: "warning" as const },
+                    { preset: "150R",   label: "150 BV Right",  variant: "warning" as const },
+                    { preset: "500B",   label: "500 BV Both",   variant: "primary" as const },
+                    { preset: "matchQ", label: "Match Qualify", variant: "ghost"   as const },
+                    { preset: "orbitQ", label: "Orbit Qualify", variant: "warning" as const },
+                    { preset: "levelQ", label: "Level Qualify", variant: "ghost"   as const },
+                    { preset: "salaryQ",label: "Salary Qualify",variant: "primary" as const },
+                  ]).map(({ preset, label, variant }) => (
+                    <DevBtn key={preset} label={label} size="sm" variant={variant}
+                      onClick={() => void generateBV(preset, label)}
+                      loading={netBvLoading[preset]} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Run Engines */}
+              <div className="mb-4 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#64748b" }}>Run Compensation Engines</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <DevBtn label="Run Binary Matching" onClick={() => void runNetEngine("matching", "Run Binary Matching")}
+                    loading={busy["net_matching"]} icon={Play} />
+                  <DevBtn label="Run Binary Orbit"    onClick={() => void runNetEngine("orbit",    "Run Binary Orbit")}
+                    loading={busy["net_orbit"]}    icon={Play} variant="warning" />
+                  <DevBtn label="Run Salary Cycle"    onClick={() => void runNetEngine("salary",   "Run Salary Cycle")}
+                    loading={busy["net_salary"]}   icon={Play} variant="ghost" />
+                </div>
+                {netRunResult && <ResultBox data={netRunResult} />}
+              </div>
+
+              {/* Delete Network */}
+              <div className="pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: "#f87171" }}>Delete Test Network</p>
+                    <p className="text-xs mt-0.5" style={{ color: "#475569" }}>
+                      Reverses BV, removes all test-tagged data. Real users are never touched.
+                    </p>
+                  </div>
+                  <DevBtn
+                    label={netStatus?.testNetwork.userCount ? `Delete (${netStatus.testNetwork.userCount} users)` : "Delete Network"}
+                    onClick={deleteNetwork} loading={netDelLoading} variant="danger" icon={Trash2} />
+                </div>
+              </div>
+
             </Section>
 
             {/* §7 Notifications */}

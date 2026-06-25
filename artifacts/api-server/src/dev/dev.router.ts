@@ -13,6 +13,7 @@ import { HTTP_STATUS } from "../shared/constants";
 import { sendSuccess } from "../shared/response";
 import { env } from "../config/env";
 import { logger } from "../lib/logger";
+import networkRouter from "./dev-network.router";
 
 const devRouter = Router();
 
@@ -24,6 +25,9 @@ devRouter.use((_req, res, next) => {
   }
   next();
 });
+
+// ── Network & BV generator sub-router ────────────────────────────────────────
+devRouter.use("/network", networkRouter);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
