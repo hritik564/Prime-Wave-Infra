@@ -289,3 +289,33 @@ export function getDepositHistory(params?: { page?: number; limit?: number; stat
   if (params?.status) q.set("status", params.status);
   return request<{ data: DepositRequest[]; meta: ListMeta }>(`/api/deposits/history?${q}`);
 }
+
+export interface WithdrawalRequest {
+  id: string;
+  amount: string;
+  walletAddress: string;
+  network: string;
+  status: "PENDING" | "APPROVED" | "COMPLETED" | "REJECTED" | "CANCELLED";
+  rejectedReason?: string | null;
+  adminNotes?: string | null;
+  createdAt: string;
+}
+
+export function createWithdrawal(data: { amount: number; walletAddress: string; network: string }) {
+  return request<WithdrawalRequest>("/api/withdrawals", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function getWithdrawalHistory(params?: { page?: number; limit?: number; status?: string }) {
+  const q = new URLSearchParams();
+  if (params?.page)   q.set("page",   String(params.page));
+  if (params?.limit)  q.set("limit",  String(params.limit));
+  if (params?.status) q.set("status", params.status);
+  return request<{ data: WithdrawalRequest[]; meta: ListMeta }>(`/api/withdrawals/history?${q}`);
+}
+
+export function cancelWithdrawal(id: string) {
+  return request<{ withdrawalId: string; status: string }>(`/api/withdrawals/${id}/cancel`, { method: "POST" });
+}

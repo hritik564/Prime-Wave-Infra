@@ -1,64 +1,71 @@
-import { useState } from "react";
-import { ArrowUpFromLine, X, Copy, CheckCheck, Wallet } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { ArrowUpFromLine, X, Wallet, Loader2, CheckCircle2 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import WalletTabs from "@/components/wallet/WalletTabs";
 import WalletHero from "@/components/wallet/WalletHero";
 import { Badge } from "@/components/ui/badge";
-
-interface WithdrawalItem {
-  id: number;
-  amount: string;
-  status: "pending" | "approved" | "completed" | "rejected" | "cancelled";
-  date: string;
-  wallet: string;
-}
-
-const history: WithdrawalItem[] = [
-  { id: 1, amount: "$800.00",  status: "completed", date: "Jun 18, 2026", wallet: "0xA1b2...f8A9" },
-  { id: 2, amount: "$350.00",  status: "approved",  date: "Jun 22, 2026", wallet: "0xA1b2...f8A9" },
-  { id: 3, amount: "$1,200.00",status: "pending",   date: "Jun 24, 2026", wallet: "0xA1b2...f8A9" },
-  { id: 4, amount: "$200.00",  status: "rejected",  date: "Jun 01, 2026", wallet: "0xA1b2...f8A9" },
-  { id: 5, amount: "$500.00",  status: "cancelled", date: "May 28, 2026", wallet: "0xA1b2...f8A9" },
-];
+import {
+  getWallets,
+  getWithdrawalHistory,
+  createWithdrawal,
+  type WithdrawalRequest,
+} from "@/lib/api";
+import { useAuth } from "@/providers/AuthProvider";
 
 const statusConfig = {
-  pending:   { label: "Pending",   variant: "warning"     as const, color: "#fbbf24" },
-  approved:  { label: "Approved",  variant: "success"     as const, color: "#34d399" },
-  completed: { label: "Completed", variant: "success"     as const, color: "#34d399" },
-  rejected:  { label: "Rejected",  variant: "destructive" as const, color: "#f87171" },
-  cancelled: { label: "Cancelled", variant: "secondary"   as const, color: "rgba(170,179,197,0.6)" },
+  PENDING:   { label: "Pending",   variant: "warning"     as const },
+  APPROVED:  { label: "Approved",  variant: "success"     as const },
+  COMPLETED: { label: "Completed", variant: "success"     as const },
+  REJECTED:  { label: "Rejected",  variant: "destructive" as const },
+  CANCELLED: { label: "Cancelled", variant: "secondary"   as const },
 };
 
-const BEP20_ADDRESS = "0xA1b2C3d4E5f6A7b8C9d0E1f2A3b4C5d6E7f8A9b0";
-const MIN_WITHDRAWAL = 50;
-const MAX_WITHDRAWAL = 500;
-const AVAILABLE = 500;
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      onClick={() => { navigator.clipboard.writeText(text).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-      className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0"
-      style={{ background: "rgba(212,175,55,0.1)", color: "#D4AF37" }}
-    >
-      {copied ? <CheckCheck className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-    </button>
-  );
+function fmt(n: number | string) {
+  const v = typeof n === "string" ? parseFloat(n) : n;
+  return `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function WithdrawalModal({ onClose }: { onClose: () => void }) {
-  const [amount, setAmount] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
 
-  const num = parseFloat(amount) || 0;
-  const isValid = num >= MIN_WITHDRAWAL && num <= Math.min(MAX_WITHDRAWAL, AVAILABLE);
+function shorten(addr: string) {
+  if (addr.length <= 14) return addr;
+  return `${addr.slice(0, 8)}...${addr.slice(-6)}`;
+}
 
-  const handleSubmit = () => {
+interface ToastItem { id: number; message: string; type: "success" | "error" }
+
+interface WithdrawalModalProps {
+  available: number;
+  walletAddress: string;
+  onClose: () => void;
+  onSuccess: (msg: string) => void;
+}
+
+function WithdrawalModal({ available, walletAddress, onClose, onSuccess }: WithdrawalModalProps) {
+  const [amount, setAmount]       = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+
+  const num      = parseFloat(amount) || 0;
+  const minWith  = 50;
+  const maxWith  = Math.min(500, available);
+  const isValid  = num >= minWith && num <= maxWith && !submitting;
+
+  const handleSubmit = async () => {
     if (!isValid) return;
-    setSubmitted(true);
-    setTimeout(() => { setSubmitted(false); onClose(); }, 2000);
+    setSubmitting(true);
+    setError(null);
+    try {
+      await createWithdrawal({ amount: num, walletAddress, network: "BEP20" });
+      onSuccess(`Withdrawal of ${fmt(num)} submitted. Awaiting admin approval.`);
+      onClose();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Submission failed. Please try again.");
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -69,17 +76,9 @@ function WithdrawalModal({ onClose }: { onClose: () => void }) {
     >
       <div
         className="w-full max-w-md rounded-2xl overflow-hidden"
-        style={{
-          background: "hsl(var(--card))",
-          border: "1px solid rgba(212,175,55,0.2)",
-          boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
-        }}
+        style={{ background: "hsl(var(--card))", border: "1px solid rgba(212,175,55,0.2)", boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}
       >
-        {/* Modal Header */}
-        <div
-          className="flex items-center justify-between px-5 py-4"
-          style={{ borderBottom: "1px solid hsl(var(--border))" }}
-        >
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid hsl(var(--border))" }}>
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "rgba(212,175,55,0.1)" }}>
               <ArrowUpFromLine className="h-4 w-4" style={{ color: "#D4AF37" }} />
@@ -89,31 +88,23 @@ function WithdrawalModal({ onClose }: { onClose: () => void }) {
               <p className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>BEP20 Network</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
-            style={{ color: "hsl(var(--muted-foreground))" }}
-          >
+          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ color: "hsl(var(--muted-foreground))" }}>
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Wallet Address (read-only) */}
+          {/* Wallet address */}
           <div>
             <label className="text-xs font-semibold uppercase tracking-widest mb-2 block" style={{ color: "hsl(var(--muted-foreground))" }}>
               BEP20 Wallet Address
             </label>
-            <div
-              className="flex items-center gap-3 rounded-xl px-4 py-3"
-              style={{ background: "hsl(var(--input))", border: "1px solid hsl(var(--border))" }}
-            >
+            <div className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: "hsl(var(--input))", border: "1px solid hsl(var(--border))" }}>
               <Wallet className="h-4 w-4 shrink-0" style={{ color: "hsl(var(--muted-foreground))" }} />
-              <p className="flex-1 font-mono text-xs text-foreground truncate">{BEP20_ADDRESS}</p>
-              <CopyButton text={BEP20_ADDRESS} />
+              <p className="flex-1 font-mono text-xs text-foreground truncate">{walletAddress || "No wallet address on file"}</p>
             </div>
             <p className="text-xs mt-1.5" style={{ color: "rgba(170,179,197,0.5)" }}>
-              Funds will be sent to your registered wallet. Contact support to change it.
+              Funds will be sent to your registered wallet. Update it in Settings.
             </p>
           </div>
 
@@ -123,13 +114,11 @@ function WithdrawalModal({ onClose }: { onClose: () => void }) {
               Amount (USDT)
             </label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold" style={{ color: "hsl(var(--muted-foreground))" }}>
-                $
-              </span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold" style={{ color: "hsl(var(--muted-foreground))" }}>$</span>
               <input
                 type="number"
-                min={MIN_WITHDRAWAL}
-                max={Math.min(MAX_WITHDRAWAL, AVAILABLE)}
+                min={minWith}
+                max={maxWith}
                 step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -142,46 +131,40 @@ function WithdrawalModal({ onClose }: { onClose: () => void }) {
               />
             </div>
             <div className="flex items-center justify-between mt-1.5">
-              <span className="text-xs" style={{ color: "rgba(170,179,197,0.5)" }}>
-                Min: ${MIN_WITHDRAWAL}
-              </span>
-              <span className="text-xs" style={{ color: "rgba(170,179,197,0.5)" }}>
-                Max: ${Math.min(MAX_WITHDRAWAL, AVAILABLE)}
-              </span>
+              <span className="text-xs" style={{ color: "rgba(170,179,197,0.5)" }}>Min: ${minWith}</span>
+              <span className="text-xs" style={{ color: "rgba(170,179,197,0.5)" }}>Max: {fmt(maxWith)}</span>
             </div>
-            {num > 0 && num < MIN_WITHDRAWAL && (
-              <p className="text-xs mt-1" style={{ color: "#f87171" }}>Minimum withdrawal is ${MIN_WITHDRAWAL}</p>
+            {num > 0 && num < minWith && (
+              <p className="text-xs mt-1" style={{ color: "#f87171" }}>Minimum withdrawal is ${minWith}</p>
             )}
-            {num > Math.min(MAX_WITHDRAWAL, AVAILABLE) && (
-              <p className="text-xs mt-1" style={{ color: "#f87171" }}>Maximum withdrawal is ${Math.min(MAX_WITHDRAWAL, AVAILABLE)}</p>
+            {num > maxWith && (
+              <p className="text-xs mt-1" style={{ color: "#f87171" }}>Exceeds available balance ({fmt(maxWith)})</p>
             )}
           </div>
 
-          {/* Available balance */}
-          <div
-            className="flex items-center justify-between px-4 py-3 rounded-xl"
-            style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.15)" }}
-          >
+          {/* Available */}
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.15)" }}>
             <span className="text-sm" style={{ color: "rgba(170,179,197,0.7)" }}>Available Balance</span>
-            <span className="text-sm font-semibold font-mono" style={{ color: "#34d399" }}>${AVAILABLE.toFixed(2)}</span>
+            <span className="text-sm font-semibold font-mono" style={{ color: "#34d399" }}>{fmt(available)}</span>
           </div>
 
-          {/* Submit */}
+          {error && (
+            <div className="rounded-lg px-3 py-2.5 text-xs" style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.25)", color: "#ef4444" }}>
+              {error}
+            </div>
+          )}
+
           <button
             onClick={handleSubmit}
-            disabled={!isValid || submitted}
+            disabled={!isValid}
             className="w-full rounded-xl py-3.5 font-semibold text-sm transition-all duration-200 min-h-[52px] flex items-center justify-center gap-2"
             style={
-              isValid && !submitted
+              isValid
                 ? { background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)", color: "#0E1B37", boxShadow: "0 4px 16px rgba(212,175,55,0.3)" }
-                : { background: "rgba(255,255,255,0.06)", color: "rgba(170,179,197,0.4)", cursor: "not-allowed" }
+                : { background: "rgba(255,255,255,0.06)", color: "rgba(170,179,197,0.4)", cursor: submitting ? "default" : "not-allowed" }
             }
           >
-            {submitted ? (
-              <>✓ Withdrawal Submitted</>
-            ) : (
-              <><ArrowUpFromLine className="h-4 w-4" /> Submit Withdrawal Request</>
-            )}
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ArrowUpFromLine className="h-4 w-4" /> Submit Withdrawal Request</>}
           </button>
         </div>
       </div>
@@ -190,7 +173,42 @@ function WithdrawalModal({ onClose }: { onClose: () => void }) {
 }
 
 export default function WithdrawalWalletPage() {
+  const { user }                  = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
+  const [balance, setBalance]     = useState<number>(0);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [toasts, setToasts]       = useState<ToastItem[]>([]);
+
+  const load = useCallback(async () => {
+    try {
+      const [walletData, historyData] = await Promise.all([
+        getWallets(),
+        getWithdrawalHistory({ limit: 50 }),
+      ]);
+      setBalance(parseFloat(walletData.withdrawalWallet));
+      setWithdrawals(historyData.data);
+    } catch {
+      // keep whatever we have
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const showToast = useCallback((message: string, type: ToastItem["type"] = "success") => {
+    const id = Date.now();
+    setToasts((t) => [...t, { id, message, type }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
+  }, []);
+
+  const handleSuccess = useCallback((msg: string) => {
+    showToast(msg);
+    void load();
+  }, [showToast, load]);
+
+  const walletAddress = (user as { walletAddress?: string } | null)?.walletAddress ?? "";
 
   return (
     <AppLayout pageTitle="Wallets" notificationCount={3}>
@@ -199,24 +217,14 @@ export default function WithdrawalWalletPage() {
 
         <WalletHero
           walletName="Withdrawal Wallet"
-          balance="$500.00"
+          balance={loading ? "Loading…" : fmt(balance)}
           description="Funds available for withdrawal to your BEP20 wallet"
-          subMetrics={[
-            { label: "Available",  value: "$500.00", color: "#34d399" },
-            { label: "Locked",     value: "$0.00",   color: "rgba(170,179,197,0.6)" },
-            { label: "Total",      value: "$500.00", color: "#D4AF37" },
-          ]}
         />
 
-        {/* Request Withdrawal CTA */}
         <button
           onClick={() => setModalOpen(true)}
           className="w-full flex items-center justify-center gap-2.5 rounded-2xl font-semibold text-sm mb-5 lg:mb-6 min-h-[56px] transition-all duration-200 active:scale-[0.98]"
-          style={{
-            background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)",
-            color: "#0E1B37",
-            boxShadow: "0 4px 20px rgba(212,175,55,0.35)",
-          }}
+          style={{ background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)", color: "#0E1B37", boxShadow: "0 4px 20px rgba(212,175,55,0.35)" }}
         >
           <ArrowUpFromLine className="h-4 w-4" />
           Request Withdrawal
@@ -226,92 +234,95 @@ export default function WithdrawalWalletPage() {
         <div>
           <h2 className="text-lg font-semibold font-heading text-foreground mb-4">Withdrawal History</h2>
 
-          {/* Mobile: Cards */}
-          <div className="md:hidden space-y-3">
-            {history.map((item) => {
-              const s = statusConfig[item.status];
-              return (
-                <div
-                  key={item.id}
-                  className="rounded-xl p-4"
-                  style={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    boxShadow: "0 2px 12px rgba(0,0,0,0.25)",
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-lg font-bold font-heading" style={{ color: "#f87171" }}>
-                      -{item.amount}
-                    </span>
-                    <Badge variant={s.variant}>{s.label}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono" style={{ color: "rgba(170,179,197,0.55)" }}>
-                      {item.wallet}
-                    </span>
-                    <span className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
-                      {item.date}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Desktop: Table */}
-          <div
-            className="hidden md:block rounded-2xl overflow-hidden"
-            style={{
-              background: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
-            }}
-          >
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: "1px solid hsl(var(--border))" }}>
-                  {["Amount", "Status", "Wallet", "Date"].map((h) => (
-                    <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: "hsl(var(--muted-foreground))" }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((item, i) => {
-                  const s = statusConfig[item.status];
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#D4AF37" }} />
+            </div>
+          ) : withdrawals.length === 0 ? (
+            <div className="rounded-2xl p-10 text-center" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+              <ArrowUpFromLine className="h-8 w-8 mx-auto mb-3 opacity-30" style={{ color: "#D4AF37" }} />
+              <p className="text-sm font-medium text-foreground">No withdrawals yet</p>
+              <p className="text-xs mt-1" style={{ color: "hsl(var(--muted-foreground))" }}>
+                Submit a withdrawal request to get started.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Mobile: Cards */}
+              <div className="md:hidden space-y-3">
+                {withdrawals.map((item) => {
+                  const s = statusConfig[item.status] ?? statusConfig.PENDING;
                   return (
-                    <tr
-                      key={item.id}
-                      className="transition-colors hover:bg-white/[0.02]"
-                      style={{ borderBottom: i < history.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}
-                    >
-                      <td className="px-5 py-4">
-                        <span className="font-semibold font-mono" style={{ color: "#f87171" }}>
-                          -{item.amount}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4">
+                    <div key={item.id} className="rounded-xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 2px 12px rgba(0,0,0,0.25)" }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-lg font-bold font-heading" style={{ color: "#f87171" }}>-{fmt(item.amount)}</span>
                         <Badge variant={s.variant}>{s.label}</Badge>
-                      </td>
-                      <td className="px-5 py-4 font-mono text-xs" style={{ color: "rgba(170,179,197,0.55)" }}>
-                        {item.wallet}
-                      </td>
-                      <td className="px-5 py-4 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
-                        {item.date}
-                      </td>
-                    </tr>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono" style={{ color: "rgba(170,179,197,0.55)" }}>{shorten(item.walletAddress)}</span>
+                        <span className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>{fmtDate(item.createdAt)}</span>
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+              </div>
+
+              {/* Desktop: Table */}
+              <div className="hidden md:block rounded-2xl overflow-hidden" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid hsl(var(--border))" }}>
+                      {["Amount", "Status", "Network", "Wallet", "Date"].map((h) => (
+                        <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: "hsl(var(--muted-foreground))" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {withdrawals.map((item, i) => {
+                      const s = statusConfig[item.status] ?? statusConfig.PENDING;
+                      return (
+                        <tr key={item.id} className="transition-colors hover:bg-white/[0.02]" style={{ borderBottom: i < withdrawals.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                          <td className="px-5 py-4 font-semibold font-mono" style={{ color: "#f87171" }}>-{fmt(item.amount)}</td>
+                          <td className="px-5 py-4"><Badge variant={s.variant}>{s.label}</Badge></td>
+                          <td className="px-5 py-4 text-xs font-semibold" style={{ color: "#D4AF37" }}>{item.network}</td>
+                          <td className="px-5 py-4 font-mono text-xs" style={{ color: "rgba(170,179,197,0.55)" }}>{shorten(item.walletAddress)}</td>
+                          <td className="px-5 py-4 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>{fmtDate(item.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       </PageContainer>
 
-      {/* Withdrawal Modal */}
-      {modalOpen && <WithdrawalModal onClose={() => setModalOpen(false)} />}
+      {modalOpen && (
+        <WithdrawalModal
+          available={balance}
+          walletAddress={walletAddress}
+          onClose={() => setModalOpen(false)}
+          onSuccess={handleSuccess}
+        />
+      )}
+
+      {toasts.length > 0 && (
+        <div className="fixed bottom-20 left-4 right-4 z-50 flex flex-col gap-2 pointer-events-none lg:bottom-6 lg:left-auto lg:right-6 lg:w-80">
+          {toasts.map((t) => (
+            <div key={t.id} className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-xl"
+              style={{
+                background: "#0E1B37",
+                border: `1px solid ${t.type === "error" ? "rgba(239,68,68,0.35)" : "rgba(52,211,153,0.35)"}`,
+                color: t.type === "error" ? "#ef4444" : "#34d399",
+              }}
+            >
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span>{t.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </AppLayout>
   );
 }
