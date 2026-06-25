@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { X, Copy, CheckCheck, ArrowDownToLine, AlertCircle } from "lucide-react";
-import { addPendingDeposit } from "@/lib/walletStore";
+import { createDepositRequest } from "@/lib/api";
 
 const DEPOSIT_ADDRESS = "0xA1b2C3d4E5f6A7b8C9d0E1f2A3b4C5d6E7f8A9b0";
 const NETWORK_LABEL   = "BEP20 (BSC)";
@@ -54,6 +54,7 @@ export default function DepositModal({ onClose, onSuccess }: DepositModalProps) 
   const [txHash, setTxHash]   = useState("");
   const [touched, setTouched] = useState({ amount: false, txHash: false });
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const amountNum = parseInt(amount, 10) || 0;
 
@@ -75,15 +76,24 @@ export default function DepositModal({ onClose, onSuccess }: DepositModalProps) 
     txHash.trim().length > 0 &&
     !submitting;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setTouched({ amount: true, txHash: true });
     if (!isValid) return;
     setSubmitting(true);
-    addPendingDeposit({ amount: amountNum, network: "BEP20", txHash: txHash.trim() });
-    setTimeout(() => {
+    try {
+      await createDepositRequest({
+        amount: amountNum,
+        network: "BEP20",
+        txHash: txHash.trim(),
+        companyWallet: DEPOSIT_ADDRESS,
+      });
       onSuccess("Deposit submitted successfully. Awaiting admin approval.");
       onClose();
-    }, 800);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Submission failed. Please try again.";
+      setError(msg);
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -253,6 +263,17 @@ export default function DepositModal({ onClose, onSuccess }: DepositModalProps) 
               </div>
             ))}
           </div>
+
+          {/* API error */}
+          {error && (
+            <div
+              className="flex items-start gap-2 rounded-lg px-3 py-2.5 text-xs"
+              style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.25)", color: "#ef4444" }}
+            >
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
 
           {/* Submit */}
           <button

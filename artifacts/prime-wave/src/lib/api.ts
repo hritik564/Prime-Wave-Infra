@@ -258,3 +258,34 @@ export function markAllNotificationsRead() {
 export function markNotificationRead(id: string) {
   return request<null>(`/api/notifications/${id}/read`, { method: "POST" });
 }
+
+export interface DepositRequest {
+  id: string;
+  amount: string;
+  network: string;
+  txHash: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  rejectedReason?: string | null;
+  createdAt: string;
+}
+
+export function createDepositRequest(data: {
+  amount: number;
+  network: string;
+  txHash: string;
+  companyWallet: string;
+  screenshotUrl?: string;
+}) {
+  return request<DepositRequest>("/api/deposits", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function getDepositHistory(params?: { page?: number; limit?: number; status?: string }) {
+  const q = new URLSearchParams();
+  if (params?.page)   q.set("page",   String(params.page));
+  if (params?.limit)  q.set("limit",  String(params.limit));
+  if (params?.status) q.set("status", params.status);
+  return request<{ data: DepositRequest[]; meta: ListMeta }>(`/api/deposits/history?${q}`);
+}
