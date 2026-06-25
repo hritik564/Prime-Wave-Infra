@@ -12,6 +12,7 @@ import { depositsRouter } from "../deposits";
 import { withdrawalsRouter } from "../withdrawals";
 import notificationsRouter from "../notifications/notifications.routes";
 import devRouter from "../dev/dev.router";
+import seedRouter from "../seed/seed.router";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use("/deposits",      depositsRouter);
 router.use("/withdrawals",   withdrawalsRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/dev",           devRouter);
+router.use("/",              seedRouter);
 
 export default router;
