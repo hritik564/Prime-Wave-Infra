@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Loader2, Check, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuthCard } from "@/components/auth/AuthCard";
@@ -14,6 +14,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { register as apiRegister } from "@/lib/api";
+import { useAuth } from "@/providers/AuthProvider";
 
 const registerSchema = z
   .object({
@@ -138,6 +140,8 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
 }
 
 export default function RegisterPage() {
+  const [, navigate] = useLocation();
+  const { authLogin } = useAuth();
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState(1);
   const [formError, setFormError] = useState<string>();
@@ -172,10 +176,24 @@ export default function RegisterPage() {
     setStep((s) => s - 1);
   };
 
-  const onSubmit = async (_data: RegisterData) => {
+  const onSubmit = async (data: RegisterData) => {
     setFormError(undefined);
-    await new Promise((r) => setTimeout(r, 2000));
-    setFormError("Registration failed. This username or email may already exist.");
+    try {
+      const result = await apiRegister({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        username: data.username,
+        email: data.email,
+        phone: data.phone,
+        password: data.password,
+        referralCode: data.referralCode || undefined,
+        binaryPlacement: data.binaryPlacement,
+      });
+      authLogin(result.token, result.user);
+      navigate("/dashboard");
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Registration failed. This username or email may already exist.");
+    }
   };
 
   const stepVariants = {

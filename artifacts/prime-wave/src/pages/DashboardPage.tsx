@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import HeroCard from "@/components/dashboard/HeroCard";
@@ -9,21 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import DepositModal from "@/components/deposits/DepositModal";
 import {
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  GitFork,
-  Bell,
-  Wallet,
-  PiggyBank,
-  Banknote,
-  TrendingUp,
-  GitBranch,
-  Globe,
-  Layers3,
-  Clock,
-  CheckCircle,
-  DollarSign,
+  ArrowDownToLine, ArrowUpFromLine, GitFork, Bell, Wallet,
+  PiggyBank, Banknote, TrendingUp, GitBranch, Globe, Layers3,
+  Clock, CheckCircle, DollarSign,
 } from "lucide-react";
+import { useAuth } from "@/providers/AuthProvider";
+import { getProfile, listInvestments, getWalletHistory, type ProfileData, type ApiInvestment, type Transaction } from "@/lib/api";
 
 /* ── Inline toast ── */
 interface ToastItem { id: number; message: string }
@@ -52,170 +43,65 @@ function getGreeting() {
   return "Good Evening";
 }
 
-const wallets = [
-  {
-    label: "Deposit Wallet",
-    value: "$15,000.00",
-    subtext: "3 active plans",
-    icon: PiggyBank,
-    color: "#D4AF37",
-    bg: "rgba(212,175,55,0.1)",
-  },
-  {
-    label: "Income Wallet",
-    value: "$1,280.75",
-    subtext: "Available to withdraw",
-    icon: Wallet,
-    color: "#60a5fa",
-    bg: "rgba(96,165,250,0.1)",
-  },
-  {
-    label: "Withdrawal Wallet",
-    value: "$500.00",
-    subtext: "Pending processing",
-    icon: ArrowUpFromLine,
-    color: "#c084fc",
-    bg: "rgba(192,132,252,0.1)",
-  },
-  {
-    label: "Today's ROI",
-    value: "+$36.25",
-    subtext: "0.15% of portfolio",
-    icon: TrendingUp,
-    color: "#34d399",
-    bg: "rgba(52,211,153,0.1)",
-  },
-];
+function fmt(n: number) {
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
-const earnings = [
-  {
-    label: "Binary Income",
-    value: "$450.00",
-    subtext: "This month",
-    icon: GitBranch,
-    color: "#60a5fa",
-    bg: "rgba(96,165,250,0.08)",
-  },
-  {
-    label: "Orbit Income",
-    value: "$230.00",
-    subtext: "This month",
-    icon: Globe,
-    color: "#c084fc",
-    bg: "rgba(192,132,252,0.08)",
-  },
-  {
-    label: "Level Income",
-    value: "$120.00",
-    subtext: "This month",
-    icon: Layers3,
-    color: "#22d3ee",
-    bg: "rgba(34,211,238,0.08)",
-  },
-  {
-    label: "Salary Income",
-    value: "$800.00",
-    subtext: "This month",
-    icon: Banknote,
-    color: "#D4AF37",
-    bg: "rgba(212,175,55,0.08)",
-  },
-];
+const TX_TYPE_LABEL: Record<string, string> = {
+  DEPOSIT:          "Deposit",
+  INVESTMENT:       "Investment Created",
+  ROI_CLAIM:        "Daily ROI Credit",
+  PRINCIPAL_RELEASE:"Principal Released",
+  INCOME_TRANSFER:  "Income Transfer",
+  BINARY_MATCH:     "Binary Income",
+  BINARY_ORBIT:     "Orbit Income",
+  LEVEL_INCOME:     "Level Income",
+  SALARY:           "Leadership Salary",
+  WITHDRAWAL:       "Withdrawal",
+};
 
-const recentActivity = [
-  {
-    icon: CheckCircle,
-    iconColor: "#34d399",
-    iconBg: "rgba(52,211,153,0.1)",
-    type: "Deposit Approved",
-    description: "Bank transfer processed",
-    amount: "+$2,500.00",
-    positive: true,
-    time: "2 days ago",
-    badge: "Approved",
-    badgeVariant: "success" as const,
-  },
-  {
-    icon: GitBranch,
-    iconColor: "#60a5fa",
-    iconBg: "rgba(96,165,250,0.1)",
-    type: "Binary Income",
-    description: "Left leg cycle matched",
-    amount: "+$150.00",
-    positive: true,
-    time: "3 days ago",
-    badge: "Received",
-    badgeVariant: "secondary" as const,
-  },
-  {
-    icon: DollarSign,
-    iconColor: "#D4AF37",
-    iconBg: "rgba(212,175,55,0.1)",
-    type: "Leadership Salary",
-    description: "Silver rank monthly salary",
-    amount: "+$800.00",
-    positive: true,
-    time: "5 days ago",
-    badge: "Received",
-    badgeVariant: "secondary" as const,
-  },
-  {
-    icon: TrendingUp,
-    iconColor: "#34d399",
-    iconBg: "rgba(52,211,153,0.1)",
-    type: "Daily ROI Credit",
-    description: "Elite Growth plan returns",
-    amount: "+$36.25",
-    positive: true,
-    time: "Today",
-    badge: null,
-    badgeVariant: "secondary" as const,
-  },
-  {
-    icon: ArrowUpFromLine,
-    iconColor: "#f87171",
-    iconBg: "rgba(248,113,113,0.1)",
-    type: "Withdrawal Processed",
-    description: "To registered bank account",
-    amount: "-$500.00",
-    positive: false,
-    time: "1 week ago",
-    badge: "Sent",
-    badgeVariant: "secondary" as const,
-  },
-];
+const TX_TYPE_POSITIVE: Record<string, boolean> = {
+  DEPOSIT: true, ROI_CLAIM: true, PRINCIPAL_RELEASE: true,
+  BINARY_MATCH: true, BINARY_ORBIT: true, LEVEL_INCOME: true, SALARY: true,
+  INCOME_TRANSFER: false, INVESTMENT: false, WITHDRAWAL: false,
+};
 
 const quickActions = [
-  {
-    label: "New Deposit",
-    icon: ArrowDownToLine,
-    primary: true,
-    href: "/wallets/deposit",
-  },
-  {
-    label: "Withdraw Funds",
-    icon: ArrowUpFromLine,
-    primary: false,
-    href: "/wallets/withdrawal",
-  },
-  {
-    label: "Binary Tree",
-    icon: GitFork,
-    primary: false,
-    href: "/binary-tree",
-  },
-  {
-    label: "Notifications",
-    icon: Bell,
-    primary: false,
-    href: "/notifications",
-  },
+  { label: "New Deposit",    icon: ArrowDownToLine, primary: true,  href: "/wallets/deposit"    },
+  { label: "Withdraw Funds", icon: ArrowUpFromLine, primary: false, href: "/wallets/withdrawal" },
+  { label: "Binary Tree",    icon: GitFork,         primary: false, href: "/binary-tree"        },
+  { label: "Notifications",  icon: Bell,            primary: false, href: "/notifications"      },
 ];
 
 export default function DashboardPage() {
   const greeting = getGreeting();
+  const { user } = useAuth();
   const [depositOpen, setDepositOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [investments, setInvestments] = useState<ApiInvestment[]>([]);
+  const [recentTxs, setRecentTxs] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [profileData, invResult, historyResult] = await Promise.all([
+          getProfile(),
+          listInvestments({ limit: 100 }),
+          getWalletHistory({ limit: 5 }),
+        ]);
+        setProfile(profileData);
+        setInvestments(invResult.data);
+        setRecentTxs(historyResult.data);
+      } catch {
+        // silently fail — show zeros
+      } finally {
+        setLoading(false);
+      }
+    }
+    void load();
+  }, []);
 
   const showToast = useCallback((message: string) => {
     const id = Date.now();
@@ -223,225 +109,205 @@ export default function DashboardPage() {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
   }, []);
 
+  const depositWallet   = profile ? parseFloat(profile.wallet.depositWallet)    : 0;
+  const incomeWallet    = profile ? parseFloat(profile.wallet.incomeWallet)     : 0;
+  const withdrawalWallet = profile ? parseFloat(profile.wallet.withdrawalWallet) : 0;
+
+  const totalInvested = investments
+    .filter(i => i.status === "ACTIVE")
+    .reduce((s, i) => s + parseFloat(i.currentPrincipal), 0);
+
+  const dailyEarnings = investments
+    .filter(i => i.status === "ACTIVE" && !i.autoCompound)
+    .reduce((s, i) => s + parseFloat(i.currentPrincipal) * (parseFloat(i.dailyROI) / 100), 0);
+
+  const activePlans = investments.filter(i => i.status === "ACTIVE").length;
+
+  const firstName = user?.firstName ?? profile?.firstName ?? "User";
+
+  const wallets = [
+    { label: "Deposit Wallet",    value: fmt(depositWallet),    subtext: `${activePlans} active plan${activePlans !== 1 ? "s" : ""}`, icon: PiggyBank,      color: "#D4AF37", bg: "rgba(212,175,55,0.1)" },
+    { label: "Income Wallet",     value: fmt(incomeWallet),     subtext: "Available to transfer",                                      icon: Wallet,         color: "#60a5fa", bg: "rgba(96,165,250,0.1)" },
+    { label: "Withdrawal Wallet", value: fmt(withdrawalWallet), subtext: "Pending processing",                                         icon: ArrowUpFromLine, color: "#c084fc", bg: "rgba(192,132,252,0.1)" },
+    { label: "Today's ROI",       value: `+${fmt(dailyEarnings)}`, subtext: "Daily earnings",                                          icon: TrendingUp,     color: "#34d399", bg: "rgba(52,211,153,0.1)" },
+  ];
+
+  const earnings = [
+    { label: "Binary Income", value: "$0.00", subtext: "Coming soon", icon: GitBranch, color: "#60a5fa", bg: "rgba(96,165,250,0.08)" },
+    { label: "Orbit Income",  value: "$0.00", subtext: "Coming soon", icon: Globe,     color: "#c084fc", bg: "rgba(192,132,252,0.08)" },
+    { label: "Level Income",  value: "$0.00", subtext: "Coming soon", icon: Layers3,   color: "#22d3ee", bg: "rgba(34,211,238,0.08)" },
+    { label: "Salary Income", value: "$0.00", subtext: "Coming soon", icon: Banknote,  color: "#D4AF37", bg: "rgba(212,175,55,0.08)"  },
+  ];
+
   return (
-    <AppLayout notificationCount={3}>
+    <AppLayout notificationCount={0}>
       <PageContainer>
         {/* ── Greeting ── */}
         <div className="mb-5 lg:mb-6">
           <h1 className="text-2xl lg:text-3xl font-bold font-heading text-foreground">
-            {greeting}, John{" "}
-            <span role="img" aria-label="wave">
-              👋
-            </span>
+            {greeting}, {firstName}{" "}
+            <span role="img" aria-label="wave">👋</span>
           </h1>
           <p className="mt-1 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
             Beyond Limits. Beyond Growth.
           </p>
         </div>
 
-        {/* ── Hero Card ── */}
-        <HeroCard
-          totalInvestment="$15,000.00"
-          todayEarnings="+$36.25"
-          currentRank="Silver"
-          nextSalaryTarget="$25,000"
-          nextSalaryProgress={34}
-        />
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#D4AF37" }} />
+          </div>
+        ) : (
+          <>
+            {/* ── Hero Card ── */}
+            <HeroCard
+              totalInvestment={fmt(totalInvested)}
+              todayEarnings={`+${fmt(dailyEarnings)}`}
+              currentRank="Silver"
+              nextSalaryTarget="$25,000"
+              nextSalaryProgress={Math.min(Math.round((totalInvested / 25000) * 100), 100)}
+            />
 
-        {/* ── Rank Progress ── */}
-        <RankProgressCard
-          currentRank="Silver"
-          nextRank="Gold"
-          progress={34}
-          remaining="$8,500"
-          teamVolume="$16,500"
-        />
+            {/* ── Rank Progress ── */}
+            <RankProgressCard
+              currentRank="Silver"
+              nextRank="Gold"
+              progress={Math.min(Math.round((totalInvested / 25000) * 100), 100)}
+              remaining={fmt(Math.max(0, 25000 - totalInvested))}
+              teamVolume={fmt(totalInvested)}
+            />
 
-        {/* ── Wallet Summary ── */}
-        <Section title="Wallet Summary" description="Your fund balances">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-            {wallets.map((w) => {
-              const Icon = w.icon;
-              return (
-                <div
-                  key={w.label}
-                  className="rounded-xl p-4 lg:p-5 transition-all duration-200 active:scale-[0.97]"
-                  style={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.25)",
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-3">
+            {/* ── Wallet Summary ── */}
+            <Section title="Wallet Summary" description="Your fund balances">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+                {wallets.map((w) => {
+                  const Icon = w.icon;
+                  return (
                     <div
-                      className="flex h-8 w-8 items-center justify-center rounded-lg"
-                      style={{ background: w.bg }}
+                      key={w.label}
+                      className="rounded-xl p-4 lg:p-5 transition-all duration-200 active:scale-[0.97]"
+                      style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 4px 20px rgba(0,0,0,0.25)" }}
                     >
-                      <Icon className="h-4 w-4" style={{ color: w.color }} />
-                    </div>
-                  </div>
-                  <p className="text-lg lg:text-xl font-bold font-heading" style={{ color: w.value.startsWith("+") ? "#34d399" : "hsl(var(--foreground))" }}>
-                    {w.value}
-                  </p>
-                  <p className="text-xs mt-0.5 truncate" style={{ color: "hsl(var(--muted-foreground))" }}>
-                    {w.label}
-                  </p>
-                  <p className="text-[10px] mt-0.5 truncate" style={{ color: "rgba(170,179,197,0.5)" }}>
-                    {w.subtext}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </Section>
-
-        {/* ── Quick Actions ── */}
-        <Section title="Quick Actions">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {quickActions.map((action) => {
-              const Icon = action.icon;
-              const isNewDeposit = action.label === "New Deposit";
-              return (
-                <button
-                  key={action.label}
-                  onClick={isNewDeposit ? () => setDepositOpen(true) : undefined}
-                  className="flex items-center justify-center gap-2.5 rounded-xl font-semibold text-sm transition-all duration-200 active:scale-[0.97] min-h-[52px]"
-                  style={
-                    action.primary
-                      ? {
-                          background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)",
-                          color: "#0E1B37",
-                          border: "none",
-                          boxShadow: "0 4px 16px rgba(212,175,55,0.3)",
-                        }
-                      : {
-                          background: "hsl(var(--card))",
-                          color: "hsl(var(--foreground))",
-                          border: "1px solid hsl(var(--border))",
-                          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-                        }
-                  }
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span>{action.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </Section>
-
-        {/* ── Earnings Overview ── */}
-        <Section title="Earnings Overview" description="Passive income across all channels">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-            {earnings.map((e) => {
-              const Icon = e.icon;
-              return (
-                <div
-                  key={e.label}
-                  className="rounded-xl p-4 lg:p-5"
-                  style={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.25)",
-                  }}
-                >
-                  <div
-                    className="flex h-9 w-9 items-center justify-center rounded-xl mb-3"
-                    style={{ background: e.bg }}
-                  >
-                    <Icon className="h-4 w-4" style={{ color: e.color }} />
-                  </div>
-                  <p className="text-lg lg:text-xl font-bold font-heading text-foreground">
-                    {e.value}
-                  </p>
-                  <p className="text-xs mt-0.5 font-medium truncate" style={{ color: "hsl(var(--muted-foreground))" }}>
-                    {e.label}
-                  </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(170,179,197,0.45)" }}>
-                    {e.subtext}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </Section>
-
-        {/* ── Charts ── */}
-        <Section title="Performance Charts" description="Portfolio & earnings analytics">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <PortfolioGrowthChart />
-            <EarningsTrendChart />
-          </div>
-        </Section>
-
-        {/* ── Recent Activity ── */}
-        <Section
-          title="Recent Activity"
-          action={
-            <Button variant="ghost" size="sm" className="text-xs h-8 gap-1">
-              View all
-            </Button>
-          }
-        >
-          <div
-            className="rounded-2xl overflow-hidden"
-            style={{
-              background: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
-            }}
-          >
-            {recentActivity.map((item, i) => {
-              const Icon = item.icon;
-              return (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.02]"
-                  style={{
-                    borderBottom:
-                      i < recentActivity.length - 1
-                        ? "1px solid rgba(255,255,255,0.04)"
-                        : "none",
-                  }}
-                >
-                  {/* Icon */}
-                  <div
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                    style={{ background: item.iconBg }}
-                  >
-                    <Icon className="h-4 w-4" style={{ color: item.iconColor }} />
-                  </div>
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {item.type}
-                    </p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <Clock className="h-2.5 w-2.5 shrink-0" style={{ color: "rgba(170,179,197,0.5)" }} />
-                      <p className="text-xs truncate" style={{ color: "rgba(170,179,197,0.5)" }}>
-                        {item.description} · {item.time}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: w.bg }}>
+                          <Icon className="h-4 w-4" style={{ color: w.color }} />
+                        </div>
+                      </div>
+                      <p className="text-lg lg:text-xl font-bold font-heading" style={{ color: w.value.startsWith("+") ? "#34d399" : "hsl(var(--foreground))" }}>
+                        {w.value}
                       </p>
+                      <p className="text-xs mt-0.5 truncate" style={{ color: "hsl(var(--muted-foreground))" }}>{w.label}</p>
+                      <p className="text-[10px] mt-0.5 truncate" style={{ color: "rgba(170,179,197,0.5)" }}>{w.subtext}</p>
                     </div>
-                  </div>
-                  {/* Right: Amount + Badge */}
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span
-                      className="text-sm font-semibold font-mono"
-                      style={{ color: item.positive ? "#34d399" : "#f87171" }}
+                  );
+                })}
+              </div>
+            </Section>
+
+            {/* ── Quick Actions ── */}
+            <Section title="Quick Actions">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {quickActions.map((action) => {
+                  const Icon = action.icon;
+                  const isNewDeposit = action.label === "New Deposit";
+                  return (
+                    <button
+                      key={action.label}
+                      onClick={isNewDeposit ? () => setDepositOpen(true) : undefined}
+                      className="flex items-center justify-center gap-2.5 rounded-xl font-semibold text-sm transition-all duration-200 active:scale-[0.97] min-h-[52px]"
+                      style={
+                        action.primary
+                          ? { background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)", color: "#0E1B37", border: "none", boxShadow: "0 4px 16px rgba(212,175,55,0.3)" }
+                          : { background: "hsl(var(--card))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }
+                      }
                     >
-                      {item.amount}
-                    </span>
-                    {item.badge && (
-                      <Badge variant={item.badgeVariant} className="text-[9px] px-1.5 py-0">
-                        {item.badge}
-                      </Badge>
-                    )}
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span>{action.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </Section>
+
+            {/* ── Earnings Overview ── */}
+            <Section title="Earnings Overview" description="Passive income across all channels">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+                {earnings.map((e) => {
+                  const Icon = e.icon;
+                  return (
+                    <div
+                      key={e.label}
+                      className="rounded-xl p-4 lg:p-5"
+                      style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 4px 20px rgba(0,0,0,0.25)" }}
+                    >
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl mb-3" style={{ background: e.bg }}>
+                        <Icon className="h-4 w-4" style={{ color: e.color }} />
+                      </div>
+                      <p className="text-lg lg:text-xl font-bold font-heading text-foreground">{e.value}</p>
+                      <p className="text-xs mt-0.5 font-medium truncate" style={{ color: "hsl(var(--muted-foreground))" }}>{e.label}</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: "rgba(170,179,197,0.45)" }}>{e.subtext}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </Section>
+
+            {/* ── Charts ── */}
+            <Section title="Performance Charts" description="Portfolio & earnings analytics">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <PortfolioGrowthChart />
+                <EarningsTrendChart />
+              </div>
+            </Section>
+
+            {/* ── Recent Activity ── */}
+            <Section
+              title="Recent Activity"
+              action={<Button variant="ghost" size="sm" className="text-xs h-8 gap-1">View all</Button>}
+            >
+              <div className="rounded-2xl overflow-hidden" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
+                {recentTxs.length === 0 ? (
+                  <div className="py-10 text-center">
+                    <p className="text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>No transactions yet</p>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </Section>
+                ) : (
+                  recentTxs.map((tx, i) => {
+                    const positive = TX_TYPE_POSITIVE[tx.type] ?? true;
+                    const amount = parseFloat(tx.amount);
+                    return (
+                      <div
+                        key={tx.id}
+                        className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.02]"
+                        style={{ borderBottom: i < recentTxs.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: positive ? "rgba(52,211,153,0.1)" : "rgba(248,113,113,0.1)" }}>
+                          {positive ? <CheckCircle className="h-4 w-4" style={{ color: "#34d399" }} /> : <DollarSign className="h-4 w-4" style={{ color: "#f87171" }} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{TX_TYPE_LABEL[tx.type] ?? tx.type}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Clock className="h-2.5 w-2.5 shrink-0" style={{ color: "rgba(170,179,197,0.5)" }} />
+                            <p className="text-xs truncate" style={{ color: "rgba(170,179,197,0.5)" }}>
+                              {tx.description ?? tx.type} · {new Date(tx.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span className="text-sm font-semibold font-mono" style={{ color: positive ? "#34d399" : "#f87171" }}>
+                            {positive ? "+" : "-"}{fmt(amount)}
+                          </span>
+                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
+                            {tx.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </Section>
+          </>
+        )}
       </PageContainer>
 
       {depositOpen && (
@@ -457,28 +323,16 @@ export default function DashboardPage() {
 }
 
 function Section({
-  title,
-  description,
-  action,
-  children,
+  title, description, action, children,
 }: {
-  title: string;
-  description?: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
+  title: string; description?: string; action?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
     <div className="mb-6 lg:mb-8">
       <div className="flex items-start justify-between gap-4 mb-3 lg:mb-4">
         <div>
-          <h2 className="text-lg lg:text-xl font-semibold font-heading text-foreground">
-            {title}
-          </h2>
-          {description && (
-            <p className="text-xs lg:text-sm mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>
-              {description}
-            </p>
-          )}
+          <h2 className="text-lg lg:text-xl font-semibold font-heading text-foreground">{title}</h2>
+          {description && <p className="text-xs lg:text-sm mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>{description}</p>}
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </div>

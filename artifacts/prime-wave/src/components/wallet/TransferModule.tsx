@@ -1,24 +1,47 @@
 import { useState, useCallback } from "react";
-import { ArrowDown, Send } from "lucide-react";
+import { ArrowDown, Send, Loader2, CheckCircle2 } from "lucide-react";
+import { transfer } from "@/lib/api";
 
 const FEE_RATE = 0.15;
 
-export default function TransferModule({ availableBalance = 1280.75 }: { availableBalance?: number }) {
+export default function TransferModule({
+  availableBalance = 0,
+  onTransferSuccess,
+}: {
+  availableBalance?: number;
+  onTransferSuccess?: (newIncomeBalance: number, newWithdrawalBalance: number) => void;
+}) {
   const [raw, setRaw] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string>();
 
   const amount = parseFloat(raw) || 0;
   const fee = amount * FEE_RATE;
   const net = amount - fee;
-
   const isValid = amount > 0 && amount <= availableBalance;
 
-  const handleSubmit = useCallback(() => {
-    if (!isValid) return;
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 2500);
-    setRaw("");
-  }, [isValid]);
+  const handleSubmit = useCallback(async () => {
+    if (!isValid || submitting) return;
+    setSubmitting(true);
+    setError(undefined);
+    try {
+      const result = await transfer(amount);
+      setSuccess(true);
+      setRaw("");
+      if (onTransferSuccess) {
+        onTransferSuccess(
+          parseFloat(result.incomeWalletBalance),
+          parseFloat(result.withdrawalWalletBalance),
+        );
+      }
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Transfer failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [isValid, submitting, amount, onTransferSuccess]);
 
   return (
     <div
@@ -64,7 +87,7 @@ export default function TransferModule({ availableBalance = 1280.75 }: { availab
               max={availableBalance}
               step="0.01"
               value={raw}
-              onChange={(e) => setRaw(e.target.value)}
+              onChange={(e) => { setRaw(e.target.value); setError(undefined); }}
               placeholder="0.00"
               className="w-full rounded-xl pl-8 pr-20 py-3.5 text-lg font-mono font-semibold text-foreground outline-none transition-all"
               style={{
@@ -116,32 +139,32 @@ export default function TransferModule({ availableBalance = 1280.75 }: { availab
           </div>
         )}
 
+        {/* Error */}
+        {error && <p className="text-xs text-center" style={{ color: "#ef4444" }}>{error}</p>}
+
+        {/* Success */}
+        {success && (
+          <div className="flex items-center gap-2 justify-center py-2 rounded-xl" style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.2)" }}>
+            <CheckCircle2 className="h-4 w-4" style={{ color: "#34d399" }} />
+            <p className="text-sm font-medium" style={{ color: "#34d399" }}>Transfer completed</p>
+          </div>
+        )}
+
         {/* Submit */}
         <button
           onClick={handleSubmit}
-          disabled={!isValid || submitted}
+          disabled={!isValid || submitting}
           className="w-full rounded-xl py-3.5 font-semibold text-sm transition-all duration-200 min-h-[52px] flex items-center justify-center gap-2"
           style={
-            isValid && !submitted
-              ? {
-                  background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)",
-                  color: "#0E1B37",
-                  boxShadow: "0 4px 16px rgba(212,175,55,0.3)",
-                }
-              : {
-                  background: "rgba(255,255,255,0.06)",
-                  color: "rgba(170,179,197,0.4)",
-                  cursor: "not-allowed",
-                }
+            isValid && !submitting
+              ? { background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)", color: "#0E1B37", boxShadow: "0 4px 16px rgba(212,175,55,0.3)" }
+              : { background: "rgba(255,255,255,0.06)", color: "rgba(170,179,197,0.4)", cursor: "not-allowed" }
           }
         >
-          {submitted ? (
-            <>✓ Transfer Submitted</>
+          {submitting ? (
+            <><Loader2 className="h-4 w-4 animate-spin" /> Transferring…</>
           ) : (
-            <>
-              <Send className="h-4 w-4" />
-              Transfer to Withdrawal Wallet
-            </>
+            <><Send className="h-4 w-4" /> Transfer to Withdrawal Wallet</>
           )}
         </button>
       </div>
@@ -149,23 +172,11 @@ export default function TransferModule({ availableBalance = 1280.75 }: { availab
   );
 }
 
-function PreviewRow({
-  label,
-  value,
-  valueColor,
-}: {
-  label: string;
-  value: string;
-  valueColor?: string;
-}) {
+function PreviewRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (
     <div className="px-4 py-2.5 flex items-center justify-between">
-      <span className="text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
-        {label}
-      </span>
-      <span className="text-sm font-mono font-semibold" style={{ color: valueColor ?? "hsl(var(--foreground))" }}>
-        {value}
-      </span>
+      <span className="text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>{label}</span>
+      <span className="text-sm font-mono font-semibold" style={{ color: valueColor ?? "hsl(var(--foreground))" }}>{value}</span>
     </div>
   );
 }

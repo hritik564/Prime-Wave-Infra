@@ -1,0 +1,155 @@
+Sprint QA-1 — Critical Stabilization
+
+Stop all new feature development.
+
+Do not build Network, Binary Tree, Notifications or Admin UI until these issues are resolved.
+
+Backend must remain the single source of truth.
+
+========================================
+P0 — DASHBOARD
+==============
+
+Remove all hardcoded/demo values.
+
+Dashboard must read portfolio values from backend APIs.
+
+Hero Card, Portfolio chart and all investment totals must match the Investments module exactly.
+
+========================================
+P0 — INVESTMENTS
+================
+
+Investigate why newly created investments disappear after page refresh.
+
+Verify:
+
+* Investment is committed to database.
+* API returns persisted investment.
+* Frontend refetches correctly.
+* Query cache is invalidated after creation.
+
+Fix the root cause.
+
+========================================
+P0 — ROI ENGINE
+===============
+
+Verify ROI scheduler.
+
+Verify ROI generation every 12 hours.
+
+Verify:
+
+Auto Compound ON
+
+→ principal increases.
+
+Auto Compound OFF
+
+→ claimableROI increases.
+
+Provide evidence using real persisted data.
+
+========================================
+P0 — CLAIM PRINCIPAL
+====================
+
+Claim Principal currently does nothing.
+
+Correct behavior:
+
+After plan maturity:
+
+Principal moves to Income Wallet.
+
+Investment status becomes Completed.
+
+Principal cannot be claimed twice.
+
+========================================
+P0 — INCOME → WITHDRAWAL TRANSFER
+=================================
+
+Transfer currently shows success but nothing happens.
+
+Implement the complete workflow.
+
+When transfer is submitted:
+
+* Deduct amount from Income Wallet.
+* Create Transfer Request.
+* Status = Pending.
+* Hold period = 72 hours.
+
+User must see:
+
+Pending Transfer Amount
+
+Release Time
+
+Released Transfers
+
+After 72 hours:
+
+Funds automatically become available in Withdrawal Wallet.
+
+========================================
+P1 — CLAIM HISTORY
+==================
+
+ROI claims and Principal claims must appear in Claim History immediately after successful claim.
+
+========================================
+P1 — INCOME WALLET
+==================
+
+Remove the Auto Compound toggle completely.
+
+Auto Compound exists only per Investment.
+
+========================================
+P1 — NOTIFICATIONS
+==================
+
+If page is present:
+
+Wire it to backend.
+
+Otherwise show a proper empty state.
+
+No dead pages.
+
+========================================
+P1 — SETTINGS
+=============
+
+Wire Settings page to backend.
+
+Profile
+
+Wallet Address
+
+Password
+
+Theme
+
+No dead navigation.
+
+========================================
+RETURN
+======
+
+For every bug:
+
+1. Root cause.
+2. Files modified.
+3. APIs used.
+4. Database tables affected.
+5. Completion report.
+
+No placeholder fixes.
+
+No frontend-only fixes.
+
+Everything must persist after browser refresh.

@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { login } from "@/lib/api";
+import { useAuth } from "@/providers/AuthProvider";
 
 const loginSchema = z.object({
   identifier: z.string().min(1, "Email or username is required"),
@@ -23,6 +25,8 @@ type LoginData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const [formError, setFormError] = useState<string>();
+  const { authLogin } = useAuth();
+  const [, navigate] = useLocation();
 
   const {
     register,
@@ -36,12 +40,16 @@ export default function LoginPage() {
   });
 
   const rememberMe = watch("rememberMe");
-  const [, navigate] = useLocation();
 
-  const onSubmit = async (_data: LoginData) => {
+  const onSubmit = async (data: LoginData) => {
     setFormError(undefined);
-    await new Promise((r) => setTimeout(r, 800));
-    navigate("/dashboard");
+    try {
+      const result = await login(data.identifier, data.password);
+      authLogin(result.token, result.user);
+      navigate("/dashboard");
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Login failed. Please check your credentials.");
+    }
   };
 
   return (

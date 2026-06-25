@@ -26,6 +26,17 @@ export const directReferralsQuerySchema = z.object({
 
 export type DirectReferralsQuery = z.infer<typeof directReferralsQuerySchema>;
 
+// ── Update profile schema ─────────────────────────────────────────────────────
+
+export const updateProfileSchema = z.object({
+  firstName:     z.string().min(2, "Must be at least 2 characters").optional(),
+  lastName:      z.string().min(2, "Must be at least 2 characters").optional(),
+  phone:         z.string().min(7, "Enter a valid phone number").optional(),
+  walletAddress: z.string().max(200).optional(),
+});
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
 // ── Full profile ──────────────────────────────────────────────────────────────
 
 export async function getUserProfile(userId: string) {
@@ -42,6 +53,7 @@ export async function getUserProfile(userId: string) {
       referralCode:        true,
       referredBy:          true,
       directReferralCount: true,
+      walletAddress:       true,
       createdAt:           true,
       wallet: {
         select: {
@@ -58,6 +70,46 @@ export async function getUserProfile(userId: string) {
   if (!user) {
     throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
   }
+
+  return user;
+}
+
+// ── Update profile ────────────────────────────────────────────────────────────
+
+export async function updateUserProfile(userId: string, input: UpdateProfileInput) {
+  const data: Record<string, string | undefined> = {};
+  if (input.firstName     !== undefined) data["firstName"]     = input.firstName;
+  if (input.lastName      !== undefined) data["lastName"]      = input.lastName;
+  if (input.phone         !== undefined) data["phone"]         = input.phone;
+  if (input.walletAddress !== undefined) data["walletAddress"] = input.walletAddress;
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data,
+    select: {
+      id:                  true,
+      email:               true,
+      username:            true,
+      firstName:           true,
+      lastName:            true,
+      phone:               true,
+      status:              true,
+      referralCode:        true,
+      referredBy:          true,
+      directReferralCount: true,
+      walletAddress:       true,
+      createdAt:           true,
+      wallet: {
+        select: {
+          id:               true,
+          depositWallet:    true,
+          incomeWallet:     true,
+          withdrawalWallet: true,
+          updatedAt:        true,
+        },
+      },
+    },
+  });
 
   return user;
 }

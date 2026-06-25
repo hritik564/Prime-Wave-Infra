@@ -1,13 +1,14 @@
 import { Router } from "express";
 import {
   getProfile,
+  updateProfile,
   getDirectReferralsHandler,
   getSponsorHandler,
   getReferralLinkHandler,
 } from "./users.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 import { validate } from "../middleware/validate.middleware";
-import { directReferralsQuerySchema } from "./users.service";
+import { directReferralsQuerySchema, updateProfileSchema } from "./users.service";
 
 const router = Router();
 
@@ -16,6 +17,9 @@ router.use(requireAuth);
 
 // GET /api/users/profile
 router.get("/profile", getProfile);
+
+// PATCH /api/users/profile
+router.patch("/profile", validate(updateProfileSchema), updateProfile);
 
 // GET /api/users/referral-link
 router.get("/referral-link", getReferralLinkHandler);

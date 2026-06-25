@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import {
   getUserProfile,
+  updateUserProfile,
   getDirectReferrals,
   getSponsor,
   getReferralLink,
@@ -8,7 +9,7 @@ import {
 import { sendSuccess } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
 import type { AuthenticatedRequest } from "../shared/types";
-import type { DirectReferralsQuery } from "./users.service";
+import type { DirectReferralsQuery, UpdateProfileInput } from "./users.service";
 
 export async function getProfile(
   req: Request,
@@ -19,6 +20,21 @@ export async function getProfile(
     const { user } = req as AuthenticatedRequest;
     const profile = await getUserProfile(user.sub);
     sendSuccess(res, profile, "Profile fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateProfile(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const input = req.body as UpdateProfileInput;
+    const profile = await updateUserProfile(user.sub, input);
+    sendSuccess(res, profile, "Profile updated successfully");
   } catch (err) {
     next(err);
   }
