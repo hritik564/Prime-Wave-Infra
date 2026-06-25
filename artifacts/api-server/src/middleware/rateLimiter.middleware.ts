@@ -8,11 +8,11 @@ const rateLimitResponse = (message: string) => ({
 
 /**
  * Global limiter — applied to all API routes.
- * 100 requests per 15-minute window per IP.
+ * 1000 requests per 15-minute window per IP.
  */
 export const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: rateLimitResponse("Too many requests. Please try again later."),
