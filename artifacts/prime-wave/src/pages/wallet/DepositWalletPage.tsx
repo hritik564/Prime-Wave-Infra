@@ -1,40 +1,38 @@
-import { useState, useCallback } from "react";
-import { Copy, CheckCheck, ArrowDownToLine, Plus, CheckCircle2 } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { Copy, CheckCheck, ArrowDownToLine, Plus, CheckCircle2, Loader2 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import WalletTabs from "@/components/wallet/WalletTabs";
 import WalletHero from "@/components/wallet/WalletHero";
 import { Badge } from "@/components/ui/badge";
 import DepositModal from "@/components/deposits/DepositModal";
-import { getPendingDeposits, type PendingDeposit } from "@/lib/walletStore";
-
-interface DepositItem {
-  id: number;
-  amount: string;
-  network: string;
-  status: "approved" | "pending" | "rejected";
-  date: string;
-  txHash: string;
-}
-
-const history: DepositItem[] = [
-  { id: 1, amount: "$7,500.00", network: "BEP20", status: "approved", date: "Jun 20, 2026", txHash: "0x3f2a...c8d1" },
-  { id: 2, amount: "$5,000.00", network: "BEP20", status: "approved", date: "Jun 15, 2026", txHash: "0x1b4e...a7f2" },
-  { id: 3, amount: "$2,500.00", network: "TRC20", status: "approved", date: "Jun 10, 2026", txHash: "0x9c3d...2e5b" },
-  { id: 4, amount: "$1,000.00", network: "BEP20", status: "pending", date: "Jun 24, 2026", txHash: "0x7a8b...4f9c" },
-  { id: 5, amount: "$500.00",  network: "TRC20", status: "rejected", date: "Jun 05, 2026", txHash: "0x2d6e...1a3c" },
-];
-
-const statusConfig = {
-  approved: { label: "Approved", variant: "success" as const, color: "#34d399" },
-  pending:  { label: "Pending",  variant: "warning" as const, color: "#fbbf24" },
-  rejected: { label: "Rejected", variant: "destructive" as const, color: "#f87171" },
-};
+import { getWallets, getDepositHistory, type DepositRequest } from "@/lib/api";
 
 const DEPOSIT_ADDRESS = "0xA1b2C3d4E5f6A7b8C9d0E1f2A3b4C5d6E7f8A9b0";
 
-function shorten(addr: string, front = 6, back = 4) {
-  return `${addr.slice(0, front)}...${addr.slice(-back)}`;
+const statusConfig = {
+  APPROVED: { label: "Approved", variant: "success"     as const, color: "#34d399" },
+  PENDING:  { label: "Pending",  variant: "warning"     as const, color: "#fbbf24" },
+  REJECTED: { label: "Rejected", variant: "destructive" as const, color: "#f87171" },
+};
+
+function fmt(amount: string) {
+  const n = parseFloat(amount);
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtBalance(amount: string) {
+  const n = parseFloat(amount);
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function shorten(hash: string) {
+  if (hash.length <= 14) return hash;
+  return `${hash.slice(0, 8)}...${hash.slice(-6)}`;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -60,8 +58,27 @@ interface ToastItem { id: number; message: string }
 
 export default function DepositWalletPage() {
   const [depositOpen, setDepositOpen] = useState(false);
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [pendingDeposits, setPendingDeposits] = useState<PendingDeposit[]>(getPendingDeposits);
+  const [toasts, setToasts]           = useState<ToastItem[]>([]);
+  const [balance, setBalance]         = useState<string | null>(null);
+  const [deposits, setDeposits]       = useState<DepositRequest[]>([]);
+  const [loading, setLoading]         = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const [walletData, historyData] = await Promise.all([
+        getWallets(),
+        getDepositHistory({ limit: 50 }),
+      ]);
+      setBalance(walletData.depositWallet);
+      setDeposits(historyData.data);
+    } catch {
+      // keep whatever we have
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   const showToast = useCallback((message: string) => {
     const id = Date.now();
@@ -70,9 +87,11 @@ export default function DepositWalletPage() {
   }, []);
 
   const handleDepositSuccess = useCallback((message: string) => {
-    setPendingDeposits(getPendingDeposits());
     showToast(message);
-  }, [showToast]);
+    void load(); // refresh balance + history
+  }, [showToast, load]);
+
+  const displayBalance = loading ? "Loading…" : balance !== null ? fmtBalance(balance) : "$0.00";
 
   return (
     <AppLayout pageTitle="Wallets" notificationCount={3}>
@@ -81,7 +100,7 @@ export default function DepositWalletPage() {
 
         <WalletHero
           walletName="Deposit Wallet"
-          balance="$15,000.00"
+          balance={displayBalance}
           description="Your principal investment balance across all active plans"
         />
 
@@ -136,175 +155,118 @@ export default function DepositWalletPage() {
         <div className="mb-2">
           <h2 className="text-lg font-semibold font-heading text-foreground mb-4">Deposit History</h2>
 
-          {/* Mobile: Cards */}
-          <div className="md:hidden space-y-3">
-            {/* Pending deposits from localStorage */}
-            {pendingDeposits.map((dep) => (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#D4AF37" }} />
+            </div>
+          ) : deposits.length === 0 ? (
+            <div
+              className="rounded-2xl p-8 text-center"
+              style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
+            >
+              <p className="text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>No deposits yet</p>
+            </div>
+          ) : (
+            <>
+              {/* Mobile: Cards */}
+              <div className="md:hidden space-y-3">
+                {deposits.map((dep) => {
+                  const s = statusConfig[dep.status] ?? statusConfig.PENDING;
+                  return (
+                    <div
+                      key={dep.id}
+                      className="rounded-xl p-4"
+                      style={{
+                        background: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        boxShadow: "0 2px 12px rgba(0,0,0,0.25)",
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-lg font-bold font-heading" style={{ color: "#34d399" }}>
+                          +{fmt(dep.amount)}
+                        </span>
+                        <Badge variant={s.variant}>{s.label}</Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
+                        <span className="font-medium" style={{ color: "hsl(var(--foreground))" }}>{dep.network}</span>
+                        <span>{fmtDate(dep.createdAt)}</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <span className="text-xs font-mono truncate max-w-[160px]" style={{ color: "rgba(170,179,197,0.55)" }}>
+                          Tx: {shorten(dep.txHash)}
+                        </span>
+                        <CopyButton text={dep.txHash} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop: Table */}
               <div
-                key={dep.id}
-                className="rounded-xl p-4"
+                className="hidden md:block rounded-2xl overflow-hidden"
                 style={{
                   background: "hsl(var(--card))",
-                  border: "1px solid rgba(251,191,36,0.2)",
-                  boxShadow: "0 2px 12px rgba(0,0,0,0.25)",
+                  border: "1px solid hsl(var(--border))",
+                  boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
                 }}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-lg font-bold font-heading" style={{ color: "#34d399" }}>
-                    +${dep.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                  </span>
-                  <Badge variant="warning">Pending</Badge>
-                </div>
-                <div className="flex items-center justify-between text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
-                  <span className="font-medium" style={{ color: "hsl(var(--foreground))" }}>{dep.network}</span>
-                  <span>{dep.date}</span>
-                </div>
-                <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-xs font-mono truncate max-w-[160px]" style={{ color: "rgba(170,179,197,0.55)" }}>
-                    Tx: {dep.txHash}
-                  </span>
-                  <CopyButton text={dep.txHash} />
-                </div>
-              </div>
-            ))}
-
-            {/* Static seed history */}
-            {history.map((item) => {
-              const s = statusConfig[item.status];
-              return (
-                <div
-                  key={item.id}
-                  className="rounded-xl p-4"
-                  style={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    boxShadow: "0 2px 12px rgba(0,0,0,0.25)",
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-lg font-bold font-heading" style={{ color: "#34d399" }}>
-                      +{item.amount}
-                    </span>
-                    <Badge variant={s.variant}>{s.label}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
-                    <span className="font-medium" style={{ color: "hsl(var(--foreground))" }}>{item.network}</span>
-                    <span>{item.date}</span>
-                  </div>
-                  <div className="flex items-center justify-between mt-1.5">
-                    <span className="text-xs font-mono" style={{ color: "rgba(170,179,197,0.55)" }}>
-                      Tx: {item.txHash}
-                    </span>
-                    <CopyButton text={item.txHash} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Desktop: Table */}
-          <div
-            className="hidden md:block rounded-2xl overflow-hidden"
-            style={{
-              background: "hsl(var(--card))",
-              border: "1px solid hsl(var(--border))",
-              boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
-            }}
-          >
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: "1px solid hsl(var(--border))" }}>
-                  {["Amount", "Network", "Status", "Date", "Tx Hash"].map((h) => (
-                    <th
-                      key={h}
-                      className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider"
-                      style={{ color: "hsl(var(--muted-foreground))" }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {/* Pending deposits from localStorage */}
-                {pendingDeposits.map((dep, i) => {
-                  const isLast = i === pendingDeposits.length - 1 && history.length === 0;
-                  return (
-                    <tr
-                      key={dep.id}
-                      className="transition-colors hover:bg-white/[0.02]"
-                      style={{ borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.04)" }}
-                    >
-                      <td className="px-5 py-4">
-                        <span className="font-semibold font-mono" style={{ color: "#34d399" }}>
-                          +${dep.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="text-xs font-semibold px-2 py-1 rounded-md" style={{ background: "rgba(212,175,55,0.1)", color: "#D4AF37" }}>
-                          {dep.network}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <Badge variant="warning">Pending</Badge>
-                      </td>
-                      <td className="px-5 py-4 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
-                        {dep.date}
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs truncate max-w-[140px]" style={{ color: "rgba(170,179,197,0.55)" }}>
-                            {dep.txHash}
-                          </span>
-                          <CopyButton text={dep.txHash} />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {/* Static seed history */}
-                {history.map((item, i) => {
-                  const s = statusConfig[item.status];
-                  return (
-                    <tr
-                      key={item.id}
-                      className="transition-colors hover:bg-white/[0.02]"
-                      style={{ borderBottom: i < history.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}
-                    >
-                      <td className="px-5 py-4">
-                        <span className="font-semibold font-mono" style={{ color: "#34d399" }}>
-                          +{item.amount}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <span
-                          className="text-xs font-semibold px-2 py-1 rounded-md"
-                          style={{ background: "rgba(212,175,55,0.1)", color: "#D4AF37" }}
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid hsl(var(--border))" }}>
+                      {["Amount", "Network", "Status", "Date", "Tx Hash"].map((h) => (
+                        <th
+                          key={h}
+                          className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider"
+                          style={{ color: "hsl(var(--muted-foreground))" }}
                         >
-                          {item.network}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <Badge variant={s.variant}>{s.label}</Badge>
-                      </td>
-                      <td className="px-5 py-4 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
-                        {item.date}
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs" style={{ color: "rgba(170,179,197,0.55)" }}>
-                            {item.txHash}
-                          </span>
-                          <CopyButton text={item.txHash} />
-                        </div>
-                      </td>
+                          {h}
+                        </th>
+                      ))}
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {deposits.map((dep, i) => {
+                      const s = statusConfig[dep.status] ?? statusConfig.PENDING;
+                      return (
+                        <tr
+                          key={dep.id}
+                          className="transition-colors hover:bg-white/[0.02]"
+                          style={{ borderBottom: i < deposits.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}
+                        >
+                          <td className="px-5 py-4">
+                            <span className="font-semibold font-mono" style={{ color: "#34d399" }}>
+                              +{fmt(dep.amount)}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className="text-xs font-semibold px-2 py-1 rounded-md" style={{ background: "rgba(212,175,55,0.1)", color: "#D4AF37" }}>
+                              {dep.network}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4">
+                            <Badge variant={s.variant}>{s.label}</Badge>
+                          </td>
+                          <td className="px-5 py-4 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
+                            {fmtDate(dep.createdAt)}
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs truncate max-w-[140px]" style={{ color: "rgba(170,179,197,0.55)" }}>
+                                {shorten(dep.txHash)}
+                              </span>
+                              <CopyButton text={dep.txHash} />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       </PageContainer>
 
