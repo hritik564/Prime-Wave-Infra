@@ -319,3 +319,129 @@ export function getWithdrawalHistory(params?: { page?: number; limit?: number; s
 export function cancelWithdrawal(id: string) {
   return request<{ withdrawalId: string; status: string }>(`/api/withdrawals/${id}/cancel`, { method: "POST" });
 }
+
+/* ── Dev Toolkit (development only) ──────────────────────────────── */
+
+export interface DevStatus {
+  environment: string;
+  serverTime: string;
+  timezone: string;
+  activeInvestments: number;
+  pendingDeposits: number;
+  pendingWithdrawals: number;
+  totalUsers: number;
+  lastRoiCycle: string | null;
+}
+
+export interface DevRoiResult {
+  cycles: number;
+  investmentsUpdated: number;
+  matured: number;
+  roiGenerated: string;
+  autoCompounded: string;
+  claimableGenerated: string;
+  executionMs: number;
+}
+
+export interface DevInvestment {
+  id: string;
+  status: string;
+  currentPrincipal: string;
+  dailyROI: string;
+  autoCompound: boolean;
+  maturesAt: string;
+  claimableROI: string;
+  claimablePrincipal: string;
+  createdAt: string;
+  planType: string;
+  user: { email: string; username: string };
+}
+
+export interface DevDeposit {
+  id: string;
+  amount: string;
+  network: string;
+  status: string;
+  createdAt: string;
+  user: { email: string; username: string };
+}
+
+export interface DevWithdrawal {
+  id: string;
+  amount: string;
+  network: string;
+  status: string;
+  walletAddress: string;
+  createdAt: string;
+  user: { email: string; username: string };
+}
+
+export const devApi = {
+  getStatus: () => request<DevStatus>("/api/dev/status"),
+
+  runRoi: (cycles: number) =>
+    request<DevRoiResult>("/api/dev/roi/run", { method: "POST", body: JSON.stringify({ cycles }) }),
+
+  getInvestments: () =>
+    request<{ investments: DevInvestment[] }>("/api/dev/investments"),
+
+  matureInvestment: (id: string) =>
+    request<{ investmentId: string; status: string; claimablePrincipal: string }>(
+      `/api/dev/investments/${id}/mature`, { method: "POST" }),
+
+  resetInvestment: (id: string) =>
+    request<{ investmentId: string; status: string; maturesAt: string }>(
+      `/api/dev/investments/${id}/reset`, { method: "POST" }),
+
+  getPendingDeposits: () =>
+    request<{ deposits: DevDeposit[] }>("/api/dev/deposits/pending"),
+
+  approveDeposit: (id: string) =>
+    request<{ depositId: string; status: string }>(`/api/dev/deposits/${id}/approve`, { method: "POST" }),
+
+  rejectDeposit: (id: string, reason?: string) =>
+    request<{ depositId: string; status: string }>(`/api/dev/deposits/${id}/reject`, {
+      method: "POST", body: JSON.stringify({ reason }),
+    }),
+
+  getPendingWithdrawals: () =>
+    request<{ withdrawals: DevWithdrawal[] }>("/api/dev/withdrawals/pending"),
+
+  approveWithdrawal: (id: string) =>
+    request<{ withdrawalId: string; status: string }>(`/api/dev/withdrawals/${id}/approve`, { method: "POST" }),
+
+  rejectWithdrawal: (id: string, reason?: string) =>
+    request<{ withdrawalId: string; status: string }>(`/api/dev/withdrawals/${id}/reject`, {
+      method: "POST", body: JSON.stringify({ reason }),
+    }),
+
+  cancelWithdrawal: (id: string) =>
+    request<{ withdrawalId: string; status: string }>(`/api/dev/withdrawals/${id}/cancel`, { method: "POST" }),
+
+  releaseTransfers: () =>
+    request<{ transferred: number; totalNetAmount: string }>("/api/dev/transfers/release", { method: "POST" }),
+
+  runBinaryMatching: () =>
+    request<{ executionMs: number }>("/api/dev/binary/matching", { method: "POST" }),
+
+  runBinaryOrbit: () =>
+    request<{ executionMs: number }>("/api/dev/binary/orbit", { method: "POST" }),
+
+  runSalary: () =>
+    request<{ executionMs: number }>("/api/dev/binary/salary", { method: "POST" }),
+
+  generateNotification: (userId: string) =>
+    request<{ userId: string; type: string }>("/api/dev/notifications/generate", {
+      method: "POST", body: JSON.stringify({ userId }),
+    }),
+
+  markAllNotificationsRead: (userId: string) =>
+    request<{ updated: number }>("/api/dev/notifications/mark-all-read", {
+      method: "POST", body: JSON.stringify({ userId }),
+    }),
+
+  clearNotifications: (userId: string) =>
+    request<{ deleted: number }>("/api/dev/notifications/clear", {
+      method: "POST", body: JSON.stringify({ userId }),
+    }),
+};

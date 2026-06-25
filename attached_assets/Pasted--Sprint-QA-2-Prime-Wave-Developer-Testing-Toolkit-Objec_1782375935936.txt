@@ -1,0 +1,270 @@
+# Sprint QA-2 — Prime Wave Developer Testing Toolkit
+
+## Objective
+
+Build a secure Developer Testing Toolkit that allows the development team to execute production business logic instantly without waiting for scheduled jobs.
+
+This toolkit is for testing only.
+
+It must NEVER be available in production.
+
+---
+
+# SECURITY
+
+The toolkit must only be enabled when:
+
+NODE_ENV === "development"
+
+If NODE_ENV === "production":
+
+* The page must not exist.
+* Routes must not exist.
+* APIs must not exist.
+* Buttons must not exist.
+
+This is mandatory.
+
+---
+
+# Developer Page
+
+Create:
+
+/dev-tools
+
+Display a warning banner:
+
+"Developer Testing Toolkit — Disabled in Production"
+
+---
+
+# SECTION 1 — ROI Engine
+
+Buttons:
+
+• Run Next ROI Cycle
+
+Runs the exact production ROI scheduler once.
+
+Do NOT duplicate ROI logic.
+
+Call the existing scheduler/service.
+
+---
+
+• Run 1 Day ROI
+
+Runs two ROI cycles.
+
+---
+
+• Run 7 Day ROI
+
+Runs fourteen ROI cycles.
+
+---
+
+• Run 30 Day ROI
+
+Runs sixty ROI cycles.
+
+---
+
+Display after execution:
+
+* Investments Updated
+* ROI Generated
+* Auto Compounded Amount
+* Claimable ROI Generated
+* Execution Time
+
+---
+
+# SECTION 2 — Investment Controls
+
+Allow selecting any investment.
+
+Actions:
+
+• Mark Investment Matured
+
+This should execute the same maturity logic used by production.
+
+Expected result:
+
+* Principal becomes claimable.
+* Investment status updates.
+* Dashboard refreshes.
+
+---
+
+• Reset Investment
+
+Development only.
+
+Returns selected investment to Active status.
+
+---
+
+# SECTION 3 — Deposit Testing
+
+Buttons:
+
+Approve Pending Deposit
+
+Reject Pending Deposit
+
+Use existing backend services.
+
+Wallet balances must update exactly as production.
+
+---
+
+# SECTION 4 — Withdrawal Testing
+
+Buttons:
+
+Approve Withdrawal
+
+Reject Withdrawal
+
+Cancel Withdrawal
+
+Execute production services only.
+
+---
+
+# SECTION 5 — Transfer Testing
+
+Button:
+
+Release Pending Transfers
+
+Execute the production transfer-release service immediately.
+
+Expected:
+
+Pending transfers become available inside Withdrawal Wallet.
+
+Do NOT bypass production logic.
+
+---
+
+# SECTION 6 — Binary Engine
+
+Buttons:
+
+Run Binary Matching
+
+Run Binary Orbit
+
+Run Level Income
+
+Run Monthly Salary
+
+Each button must execute the existing production services.
+
+No duplicated calculations.
+
+---
+
+# SECTION 7 — Notifications
+
+Buttons:
+
+Generate Test Notification
+
+Mark All Notifications Read
+
+Clear Notifications
+
+---
+
+# SECTION 8 — Dashboard Refresh
+
+After every successful action:
+
+Automatically refresh:
+
+* Dashboard
+* Wallets
+* Investments
+* Notifications
+* Team
+
+No manual refresh should be required.
+
+---
+
+# SECTION 9 — System Status
+
+Display:
+
+Last ROI Cycle
+
+Last Binary Cycle
+
+Last Salary Cycle
+
+Last Transfer Release
+
+Scheduler Status
+
+Application Timezone
+
+Current Server Time
+
+Current Environment
+
+---
+
+# SECTION 10 — Execution Log
+
+Maintain a live log.
+
+Each action should display:
+
+Timestamp
+
+Action
+
+Status
+
+Execution Time
+
+Database Records Updated
+
+Wallet Changes
+
+Errors (if any)
+
+Newest entries appear first.
+
+---
+
+# RULES
+
+Never fake data.
+
+Never modify business rules.
+
+Never duplicate calculations.
+
+Every button must execute the existing production services.
+
+The toolkit exists only to trigger production logic immediately for testing.
+
+---
+
+# RETURN
+
+1. Pages created.
+
+2. APIs/endpoints added.
+
+3. Existing services reused.
+
+4. Security protections implemented.
+
+5. Completion report.

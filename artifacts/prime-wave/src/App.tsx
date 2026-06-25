@@ -14,6 +14,7 @@ import InvestmentHistoryPage from "@/pages/investments/InvestmentHistoryPage";
 import TeamPage from "@/pages/network/TeamPage";
 import NotificationsPage from "@/pages/notifications/NotificationsPage";
 import SettingsPage from "@/pages/settings/SettingsPage";
+import DevToolsPage from "@/pages/DevToolsPage";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
@@ -123,6 +124,11 @@ function AppRoutes() {
       </Route>
       <Route path="/income/salary">
         <RequireAuth><ComingSoon title="Salary Income" /></RequireAuth>
+      </Route>
+
+      {/* ── Dev Toolkit (dev only) ── */}
+      <Route path="/dev-tools">
+        <DevToolsPage />
       </Route>
 
       {/* ── Root + catch-all → login ── */}
