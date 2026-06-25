@@ -117,10 +117,17 @@ export async function registerUser(input: RegisterInput) {
 }
 
 export async function loginUser(input: LoginInput) {
-  const { email, password } = input;
+  const { identifier, password } = input;
+  const id = identifier.trim().toLowerCase();
 
-  const user = await prisma.user.findUnique({
-    where: { email: email.toLowerCase() },
+  // Support login by email OR username
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: id },
+        { username: id },
+      ],
+    },
   });
 
   if (!user) {

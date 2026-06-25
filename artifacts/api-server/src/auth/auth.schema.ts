@@ -24,10 +24,11 @@ export const registerSchema = z.object({
     .regex(/^\+?[1-9]\d{7,14}$/, "Invalid phone number format")
     .optional(),
   referralCode: z.string().optional(),
+  binaryPlacement: z.enum(["LEFT", "RIGHT"]).optional(),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  identifier: z.string().min(1, "Email or username is required"),
   password: z.string().min(1, "Password is required"),
 });
 
