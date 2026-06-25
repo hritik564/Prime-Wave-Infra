@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowUpFromLine, X, Wallet, Loader2, CheckCircle2 } from "lucide-react";
+import {
+  ArrowUpFromLine, X, Wallet, Loader2, CheckCircle2,
+  GitMerge, RefreshCw, Users, DollarSign, ArrowLeftRight,
+  TrendingUp, Layers, ArrowDownToLine, HelpCircle,
+} from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import WalletTabs from "@/components/wallet/WalletTabs";
@@ -7,19 +11,43 @@ import WalletHero from "@/components/wallet/WalletHero";
 import { Badge } from "@/components/ui/badge";
 import {
   getWallets,
+  getWalletHistory,
   getWithdrawalHistory,
   createWithdrawal,
+  type Transaction,
   type WithdrawalRequest,
 } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 
-const statusConfig = {
+// ── Type display config ────────────────────────────────────────────────────────
+
+const TYPE_CONFIG: Record<string, {
+  label: string;
+  color: string;
+  bg: string;
+  Icon: React.ElementType;
+  credit: boolean;
+}> = {
+  BINARY_MATCH:      { label: "Binary Matching",  color: "#D4AF37", bg: "rgba(212,175,55,0.1)",  Icon: GitMerge,        credit: true  },
+  BINARY_ORBIT:      { label: "Binary Orbit",     color: "#a78bfa", bg: "rgba(167,139,250,0.1)", Icon: RefreshCw,       credit: true  },
+  LEVEL_INCOME:      { label: "Level Income",     color: "#34d399", bg: "rgba(52,211,153,0.1)",  Icon: Users,           credit: true  },
+  SALARY:            { label: "Salary Payout",    color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  Icon: DollarSign,      credit: true  },
+  INCOME_TRANSFER:   { label: "Income Transfer",  color: "#fb923c", bg: "rgba(251,146,60,0.1)",  Icon: ArrowLeftRight,  credit: true  },
+  ROI_CLAIM:         { label: "ROI Claim",        color: "#34d399", bg: "rgba(52,211,153,0.1)",  Icon: TrendingUp,      credit: true  },
+  PRINCIPAL_RELEASE: { label: "Principal",        color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  Icon: Layers,          credit: true  },
+  DEPOSIT:           { label: "Deposit",          color: "#34d399", bg: "rgba(52,211,153,0.1)",  Icon: ArrowDownToLine, credit: true  },
+  WITHDRAWAL:        { label: "Withdrawal",       color: "#f87171", bg: "rgba(248,113,113,0.1)", Icon: ArrowUpFromLine, credit: false },
+};
+
+const STATUS_CONFIG = {
   PENDING:   { label: "Pending",   variant: "warning"     as const },
   APPROVED:  { label: "Approved",  variant: "success"     as const },
   COMPLETED: { label: "Completed", variant: "success"     as const },
   REJECTED:  { label: "Rejected",  variant: "destructive" as const },
   CANCELLED: { label: "Cancelled", variant: "secondary"   as const },
 };
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function fmt(n: number | string) {
   const v = typeof n === "string" ? parseFloat(n) : n;
@@ -30,12 +58,23 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const days = Math.floor(diff / 86_400_000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  return fmtDate(dateStr);
+}
+
 function shorten(addr: string) {
   if (addr.length <= 14) return addr;
   return `${addr.slice(0, 8)}...${addr.slice(-6)}`;
 }
 
 interface ToastItem { id: number; message: string; type: "success" | "error" }
+
+// ── Withdrawal Modal ───────────────────────────────────────────────────────────
 
 interface WithdrawalModalProps {
   available: number;
@@ -45,14 +84,14 @@ interface WithdrawalModalProps {
 }
 
 function WithdrawalModal({ available, walletAddress, onClose, onSuccess }: WithdrawalModalProps) {
-  const [amount, setAmount]       = useState("");
+  const [amount, setAmount]         = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [error, setError]           = useState<string | null>(null);
 
-  const num      = parseFloat(amount) || 0;
-  const minWith  = 50;
-  const maxWith  = Math.min(500, available);
-  const isValid  = num >= minWith && num <= maxWith && !submitting;
+  const num     = parseFloat(amount) || 0;
+  const minWith = 50;
+  const maxWith = Math.min(500, available);
+  const isValid = num >= minWith && num <= maxWith && !submitting;
 
   const handleSubmit = async () => {
     if (!isValid) return;
@@ -94,7 +133,6 @@ function WithdrawalModal({ available, walletAddress, onClose, onSuccess }: Withd
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Wallet address */}
           <div>
             <label className="text-xs font-semibold uppercase tracking-widest mb-2 block" style={{ color: "hsl(var(--muted-foreground))" }}>
               BEP20 Wallet Address
@@ -108,7 +146,6 @@ function WithdrawalModal({ available, walletAddress, onClose, onSuccess }: Withd
             </p>
           </div>
 
-          {/* Amount */}
           <div>
             <label className="text-xs font-semibold uppercase tracking-widest mb-2 block" style={{ color: "hsl(var(--muted-foreground))" }}>
               Amount (USDT)
@@ -142,7 +179,6 @@ function WithdrawalModal({ available, walletAddress, onClose, onSuccess }: Withd
             )}
           </div>
 
-          {/* Available */}
           <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.15)" }}>
             <span className="text-sm" style={{ color: "rgba(170,179,197,0.7)" }}>Available Balance</span>
             <span className="text-sm font-semibold font-mono" style={{ color: "#34d399" }}>{fmt(available)}</span>
@@ -172,22 +208,27 @@ function WithdrawalModal({ available, walletAddress, onClose, onSuccess }: Withd
   );
 }
 
+// ── Main Page ──────────────────────────────────────────────────────────────────
+
 export default function WithdrawalWalletPage() {
   const { user }                  = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
   const [balance, setBalance]     = useState<number>(0);
-  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
+  const [txHistory, setTxHistory] = useState<Transaction[]>([]);
+  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
   const [loading, setLoading]     = useState(true);
   const [toasts, setToasts]       = useState<ToastItem[]>([]);
 
   const load = useCallback(async () => {
     try {
-      const [walletData, historyData] = await Promise.all([
+      const [walletData, txData, wrData] = await Promise.all([
         getWallets(),
+        getWalletHistory({ limit: 50 }),
         getWithdrawalHistory({ limit: 50 }),
       ]);
       setBalance(parseFloat(walletData.withdrawalWallet));
-      setWithdrawals(historyData.data);
+      setTxHistory(txData.data);
+      setWithdrawalRequests(wrData.data);
     } catch {
       // keep whatever we have
     } finally {
@@ -230,18 +271,71 @@ export default function WithdrawalWalletPage() {
           Request Withdrawal
         </button>
 
-        {/* History */}
-        <div>
-          <h2 className="text-lg font-semibold font-heading text-foreground mb-4">Withdrawal History</h2>
+        {/* ── Transaction History ───────────────────────────────────────── */}
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold font-heading text-foreground mb-4">Transaction History</h2>
 
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#D4AF37" }} />
             </div>
-          ) : withdrawals.length === 0 ? (
+          ) : txHistory.length === 0 ? (
             <div className="rounded-2xl p-10 text-center" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-              <ArrowUpFromLine className="h-8 w-8 mx-auto mb-3 opacity-30" style={{ color: "#D4AF37" }} />
-              <p className="text-sm font-medium text-foreground">No withdrawals yet</p>
+              <ArrowLeftRight className="h-8 w-8 mx-auto mb-3 opacity-30" style={{ color: "#D4AF37" }} />
+              <p className="text-sm font-medium text-foreground">No transactions yet</p>
+              <p className="text-xs mt-1" style={{ color: "hsl(var(--muted-foreground))" }}>
+                Credits from Binary Matching, Orbit, Level Income, Salary, and transfers will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl overflow-hidden" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
+              {txHistory.map((tx, i) => {
+                const cfg = TYPE_CONFIG[tx.type] ?? {
+                  label: tx.type.replace(/_/g, " "),
+                  color: "#AAB3C5",
+                  bg: "rgba(170,179,197,0.1)",
+                  Icon: HelpCircle,
+                  credit: true,
+                };
+                const { label, color, bg, Icon, credit } = cfg;
+                const amount = parseFloat(tx.amount);
+                return (
+                  <div
+                    key={tx.id}
+                    className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.02]"
+                    style={{ borderBottom: i < txHistory.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: bg }}>
+                      <Icon className="h-4 w-4" style={{ color }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{label}</p>
+                      <p className="text-xs mt-0.5 truncate" style={{ color: "rgba(170,179,197,0.5)" }}>
+                        {tx.description ?? label} · {timeAgo(tx.createdAt)}
+                      </p>
+                    </div>
+                    <span className="text-sm font-semibold font-mono shrink-0" style={{ color: credit ? "#34d399" : "#f87171" }}>
+                      {credit ? "+" : "-"}{fmt(amount)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ── Withdrawal Requests ───────────────────────────────────────── */}
+        <div>
+          <h2 className="text-lg font-semibold font-heading text-foreground mb-4">Withdrawal Requests</h2>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin" style={{ color: "#D4AF37" }} />
+            </div>
+          ) : withdrawalRequests.length === 0 ? (
+            <div className="rounded-2xl p-8 text-center" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+              <ArrowUpFromLine className="h-7 w-7 mx-auto mb-3 opacity-30" style={{ color: "#D4AF37" }} />
+              <p className="text-sm font-medium text-foreground">No withdrawal requests yet</p>
               <p className="text-xs mt-1" style={{ color: "hsl(var(--muted-foreground))" }}>
                 Submit a withdrawal request to get started.
               </p>
@@ -250,8 +344,8 @@ export default function WithdrawalWalletPage() {
             <>
               {/* Mobile: Cards */}
               <div className="md:hidden space-y-3">
-                {withdrawals.map((item) => {
-                  const s = statusConfig[item.status] ?? statusConfig.PENDING;
+                {withdrawalRequests.map((item) => {
+                  const s = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.PENDING;
                   return (
                     <div key={item.id} className="rounded-xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 2px 12px rgba(0,0,0,0.25)" }}>
                       <div className="flex items-center justify-between mb-2">
@@ -278,10 +372,10 @@ export default function WithdrawalWalletPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {withdrawals.map((item, i) => {
-                      const s = statusConfig[item.status] ?? statusConfig.PENDING;
+                    {withdrawalRequests.map((item, i) => {
+                      const s = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.PENDING;
                       return (
-                        <tr key={item.id} className="transition-colors hover:bg-white/[0.02]" style={{ borderBottom: i < withdrawals.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                        <tr key={item.id} className="transition-colors hover:bg-white/[0.02]" style={{ borderBottom: i < withdrawalRequests.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
                           <td className="px-5 py-4 font-semibold font-mono" style={{ color: "#f87171" }}>-{fmt(item.amount)}</td>
                           <td className="px-5 py-4"><Badge variant={s.variant}>{s.label}</Badge></td>
                           <td className="px-5 py-4 text-xs font-semibold" style={{ color: "#D4AF37" }}>{item.network}</td>
