@@ -539,15 +539,16 @@ networkRouter.delete("/", async (req, res, next) => {
       ancestorDeltas.set(entry.userId, prev);
     }
 
-    // Decrement ancestors before we lose the bv_history records
+    // Decrement ancestors — clamp to 0 so engines that already consumed BV
+    // don't push the value negative (GREATEST prevents double-subtract).
     for (const [ancestorId, delta] of ancestorDeltas.entries()) {
-      await prisma.user.update({
-        where: { id: ancestorId },
-        data:  {
-          ...(delta.left.gt(0)  && { leftBV:  { decrement: delta.left } }),
-          ...(delta.right.gt(0) && { rightBV: { decrement: delta.right } }),
-        },
-      });
+      await prisma.$executeRaw`
+        UPDATE "users"
+        SET
+          "leftBV"  = GREATEST("leftBV"  - ${delta.left}::numeric,  0),
+          "rightBV" = GREATEST("rightBV" - ${delta.right}::numeric, 0)
+        WHERE id = ${ancestorId}
+      `;
     }
 
     // ── Collect investment IDs before deletion ────────────────────────────────
