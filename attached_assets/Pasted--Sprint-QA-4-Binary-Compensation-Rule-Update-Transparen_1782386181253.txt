@@ -1,0 +1,329 @@
+# Sprint QA-4 — Binary Compensation Rule Update & Transparency
+
+## Objective
+
+Update the Binary Matching and Binary Orbit engines to match the finalized Prime Wave compensation plan.
+
+In addition, improve transparency by recording every payout cycle in the ledger, history pages and notifications.
+
+Do NOT change the payout amounts.
+
+Only change the BV processing rules and audit trail.
+
+---
+
+# 1. Binary Matching (Final Business Rule)
+
+Every 12 hours:
+
+Calculate:
+
+Matched BV = min(Left BV, Right BV)
+
+Maximum payable BV per cycle:
+
+50 BV
+
+Reward:
+
+Rewarded BV = min(Matched BV, 50)
+
+Binary Income = Rewarded BV × $5
+
+Maximum payout:
+
+$250
+
+### IMPORTANT
+
+ALL matched BV must be flushed.
+
+Not only the rewarded BV.
+
+Only unmatched BV carries forward.
+
+Example:
+
+Left = 60 BV
+
+Right = 100 BV
+
+Matched = 60 BV
+
+Rewarded BV = 50 BV
+
+Income = $250
+
+Flushed BV = 60 BV
+
+Carry Forward:
+
+Left = 0 BV
+
+Right = 40 BV
+
+---
+
+Example:
+
+Left = 200 BV
+
+Right = 200 BV
+
+Matched = 200 BV
+
+Rewarded BV = 50 BV
+
+Income = $250
+
+Flushed BV = 200 BV
+
+Carry Forward:
+
+Left = 0
+
+Right = 0
+
+---
+
+# 2. Binary Orbit (Final Business Rule)
+
+Every 12 hours:
+
+Matched BV = min(Left BV, Right BV)
+
+Qualification:
+
+Matched BV must be at least 150.
+
+Reward:
+
+$500
+
+Maximum one reward per cycle.
+
+### IMPORTANT
+
+ALL matched BV must be flushed.
+
+Only unmatched BV carries forward.
+
+---
+
+Example:
+
+Left = 180
+
+Right = 160
+
+Matched = 160
+
+Reward = $500
+
+Flushed BV = 160
+
+Carry Forward:
+
+Left = 20
+
+Right = 0
+
+---
+
+Example:
+
+Left = 310
+
+Right = 300
+
+Matched = 300
+
+Reward = $500
+
+Flushed BV = 300
+
+Carry Forward:
+
+Left = 10
+
+Right = 0
+
+---
+
+# 3. Binary History
+
+Create (or update) Binary History records so every payout cycle stores:
+
+Date
+
+Left BV
+
+Right BV
+
+Matched BV
+
+Rewarded BV
+
+Flushed BV
+
+Carry Forward Left
+
+Carry Forward Right
+
+Binary Income
+
+Status
+
+Cycle Timestamp
+
+Every Binary Matching payout must have an immutable history record.
+
+---
+
+# 4. Binary Orbit History
+
+Create (or update) Orbit History records.
+
+Store:
+
+Date
+
+Left BV
+
+Right BV
+
+Matched BV
+
+Qualification Threshold
+
+Reward
+
+Flushed BV
+
+Carry Forward Left
+
+Carry Forward Right
+
+Cycle Timestamp
+
+---
+
+# 5. Withdrawal Wallet History
+
+Whenever Binary Income, Orbit Income, Salary Income or Level Income is credited to the Withdrawal Wallet:
+
+Create a corresponding ledger entry.
+
+Example:
+
++ $250
+
+Binary Matching Income
+
+Reference:
+
+Cycle ID
+
+Timestamp
+
+Every wallet credit must have a matching ledger entry.
+
+No exceptions.
+
+---
+
+# 6. Notifications
+
+Update notifications.
+
+Instead of:
+
+"Binary Match Income Received"
+
+Display:
+
+Binary Matching Complete
+
+Matched BV
+
+Rewarded BV
+
+Flushed BV
+
+Carry Forward Left
+
+Carry Forward Right
+
+Income Credited
+
+---
+
+Orbit notification:
+
+Binary Orbit Complete
+
+Matched BV
+
+Reward
+
+Flushed BV
+
+Carry Forward Left
+
+Carry Forward Right
+
+---
+
+# 7. Developer Toolkit
+
+Update QA Toolkit output.
+
+After running Binary Matching display:
+
+Matched BV
+
+Rewarded BV
+
+Flushed BV
+
+Carry Forward Left
+
+Carry Forward Right
+
+Income Generated
+
+Execution Time
+
+Do the same for Orbit.
+
+---
+
+# IMPORTANT
+
+Do NOT fake values.
+
+Do NOT bypass production services.
+
+Do NOT modify payout amounts.
+
+Only update:
+
+* BV consumption rules
+* History
+* Ledger
+* Notifications
+* QA reporting
+
+Everything must persist after browser refresh.
+
+---
+
+# Return
+
+1. Files modified.
+
+2. Database tables affected.
+
+3. Services updated.
+
+4. Completion report.

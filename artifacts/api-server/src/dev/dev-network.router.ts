@@ -456,12 +456,16 @@ networkRouter.post("/run", async (req, res, next) => {
       const cycleEnd = new Date();
       const r = await processMatchingCycle(cycleStart, cycleEnd);
       result = {
-        engine:           "Binary Matching",
-        usersProcessed:   r.processed,
-        usersSkipped:     r.skipped,
-        incomeGenerated:  `$${r.totalIncome.toFixed(2)}`,
-        totalMatchedBV:   r.totalIncome.div(5).toFixed(2),  // $5/BV
-        walletUpdated:    r.processed,
+        engine:          "Binary Matching",
+        usersProcessed:  r.processed,
+        usersSkipped:    r.skipped,
+        incomeGenerated: `$${r.totalIncome.toFixed(2)}`,
+        matchedBV:       r.totalMatchedBV.toFixed(2),
+        rewardedBV:      r.totalRewardedBV.toFixed(2),
+        flushedBV:       r.totalFlushedBV.toFixed(2),
+        carryFwdLeft:    r.totalCarryFwdLeft.toFixed(2),
+        carryFwdRight:   r.totalCarryFwdRight.toFixed(2),
+        walletUpdated:   r.processed,
       };
     } else if (engine === "orbit") {
       const cycleEnd = new Date();
@@ -471,6 +475,11 @@ networkRouter.post("/run", async (req, res, next) => {
         usersProcessed:  r.processed,
         usersSkipped:    r.skipped,
         incomeGenerated: `$${r.totalIncome.toFixed(2)}`,
+        matchedBV:       r.totalMatchedBV.toFixed(2),
+        flushedBV:       r.totalFlushedBV.toFixed(2),
+        carryFwdLeft:    r.totalCarryFwdLeft.toFixed(2),
+        carryFwdRight:   r.totalCarryFwdRight.toFixed(2),
+        rewards:         r.totalRewards,
         walletUpdated:   r.processed,
       };
     } else if (engine === "salary") {

@@ -388,9 +388,19 @@ devRouter.post("/transfers/release", async (_req, res, next) => {
 // ── POST /api/dev/binary/matching ────────────────────────────────────────────
 devRouter.post("/binary/matching", async (_req, res, next) => {
   try {
-    const t = Date.now();
-    await runMatchingCycle();
-    sendSuccess(res, { executionMs: Date.now() - t });
+    const t      = Date.now();
+    const result = await runMatchingCycle();
+    sendSuccess(res, {
+      executionMs:     Date.now() - t,
+      processed:       result?.processed        ?? 0,
+      skipped:         result?.skipped          ?? 0,
+      incomeGenerated: `$${result?.totalIncome.toFixed(2)        ?? "0.00"}`,
+      matchedBV:       result?.totalMatchedBV.toFixed(2)         ?? "0.00",
+      rewardedBV:      result?.totalRewardedBV.toFixed(2)        ?? "0.00",
+      flushedBV:       result?.totalFlushedBV.toFixed(2)         ?? "0.00",
+      carryFwdLeft:    result?.totalCarryFwdLeft.toFixed(2)      ?? "0.00",
+      carryFwdRight:   result?.totalCarryFwdRight.toFixed(2)     ?? "0.00",
+    });
   } catch (err) {
     next(err);
   }
@@ -399,9 +409,19 @@ devRouter.post("/binary/matching", async (_req, res, next) => {
 // ── POST /api/dev/binary/orbit ───────────────────────────────────────────────
 devRouter.post("/binary/orbit", async (_req, res, next) => {
   try {
-    const t = Date.now();
-    await runOrbitCycle();
-    sendSuccess(res, { executionMs: Date.now() - t });
+    const t      = Date.now();
+    const result = await runOrbitCycle();
+    sendSuccess(res, {
+      executionMs:     Date.now() - t,
+      processed:       result?.processed        ?? 0,
+      skipped:         result?.skipped          ?? 0,
+      incomeGenerated: `$${result?.totalIncome.toFixed(2)        ?? "0.00"}`,
+      matchedBV:       result?.totalMatchedBV.toFixed(2)         ?? "0.00",
+      flushedBV:       result?.totalFlushedBV.toFixed(2)         ?? "0.00",
+      carryFwdLeft:    result?.totalCarryFwdLeft.toFixed(2)      ?? "0.00",
+      carryFwdRight:   result?.totalCarryFwdRight.toFixed(2)     ?? "0.00",
+      rewards:         result?.totalRewards     ?? 0,
+    });
   } catch (err) {
     next(err);
   }

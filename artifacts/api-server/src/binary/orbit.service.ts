@@ -15,13 +15,25 @@ const SETTINGS = {
   MIN_REFERRALS:         "orbit.min_referrals",
 } as const;
 
-// Hardcoded fallbacks (used if SystemSettings row is missing)
 const DEFAULTS = {
   BV_PER_REWARD:         150,
   MAX_REWARDS_PER_CYCLE: 1,
   INCOME_PER_REWARD:     500,
   MIN_REFERRALS:         2,
 } as const;
+
+// ── Result type ───────────────────────────────────────────────────────────────
+
+export interface OrbitCycleResult {
+  processed:          number;
+  skipped:            number;
+  totalIncome:        Prisma.Decimal;
+  totalMatchedBV:     Prisma.Decimal;
+  totalFlushedBV:     Prisma.Decimal;
+  totalCarryFwdLeft:  Prisma.Decimal;
+  totalCarryFwdRight: Prisma.Decimal;
+  totalRewards:       number;
+}
 
 // ── Orbit cycle ───────────────────────────────────────────────────────────────
 
@@ -33,24 +45,23 @@ const DEFAULTS = {
  * Algorithm per qualifying user (settings read from SystemSettings):
  *   1. Qualification: directReferralCount >= minReferrals AND rewardCount > 0.
  *      Skip (preserve BV) if not qualified.
- *   2. matchedBV          = min(leftBV, rightBV)
- *   3. rewardCount        = floor(matchedBV / bvPerReward)
- *   4. payableRewardCount = min(rewardCount, maxRewardsPerCycle)
- *   5. destroyedRewardCount = rewardCount - payableRewardCount
+ *   2. matchedBV           = min(leftBV, rightBV)
+ *   3. rewardCount         = floor(matchedBV / bvPerReward)   — full orbits earned
+ *   4. payableRewardCount  = min(rewardCount, maxPerCycle)    — capped at 1/cycle
+ *   5. destroyedRewardCount= rewardCount - payableRewardCount — excess orbits
  *   6. incomeAmount        = payableRewardCount × incomePerReward
- *   7. consumedBV          = rewardCount × bvPerReward
- *      newLeftBV  = leftBV  - consumedBV   (carry-forward unspent BV)
- *      newRightBV = rightBV - consumedBV
+ *   7. flushedBV           = matchedBV     — ALL matched BV flushed, not just consumed
+ *      carryForwardLeft    = leftBV  - matchedBV
+ *      carryForwardRight   = rightBV - matchedBV
  *   8. Credit incomeAmount → withdrawalWallet.
  *   9. Insert BinaryOrbitIncome + WalletTransaction.
  *
- * Each user processed in its own Prisma transaction — one failure is isolated.
+ * Each user is processed in its own Prisma transaction — one failure is isolated.
  */
 export async function processOrbitCycle(
   cycleStart: Date,
   cycleEnd:   Date,
-): Promise<{ processed: number; skipped: number; totalIncome: Prisma.Decimal }> {
-  // Read settings once per cycle
+): Promise<OrbitCycleResult> {
   const [bvPerReward, maxRewardsPerCycle, incomePerReward, minReferrals] = await Promise.all([
     getNumericSetting(SETTINGS.BV_PER_REWARD,         DEFAULTS.BV_PER_REWARD),
     getNumericSetting(SETTINGS.MAX_REWARDS_PER_CYCLE, DEFAULTS.MAX_REWARDS_PER_CYCLE),
@@ -61,7 +72,6 @@ export async function processOrbitCycle(
   const decBvPerReward     = new Prisma.Decimal(bvPerReward);
   const decIncomePerReward = new Prisma.Decimal(incomePerReward);
 
-  // Snapshot candidates: ACTIVE users who meet referral gate and have BV on both legs
   const candidates = await prisma.user.findMany({
     where: {
       status:              "ACTIVE",
@@ -78,12 +88,17 @@ export async function processOrbitCycle(
     orderBy: { id: "asc" },
   });
 
-  let processed   = 0;
-  let skipped     = 0;
-  let totalIncome = new Prisma.Decimal(0);
+  let processed           = 0;
+  let skipped             = 0;
+  let totalIncome         = new Prisma.Decimal(0);
+  let totalMatchedBV      = new Prisma.Decimal(0);
+  let totalFlushedBV      = new Prisma.Decimal(0);
+  let totalCarryFwdLeft   = new Prisma.Decimal(0);
+  let totalCarryFwdRight  = new Prisma.Decimal(0);
+  let totalRewards        = 0;
 
   for (const user of candidates) {
-    const matchedBV  = Prisma.Decimal.min(user.leftBV, user.rightBV);
+    const matchedBV   = Prisma.Decimal.min(user.leftBV, user.rightBV);
     const rewardCount = Math.floor(matchedBV.div(decBvPerReward).toNumber());
 
     if (rewardCount <= 0) {
@@ -91,21 +106,21 @@ export async function processOrbitCycle(
       continue;
     }
 
-    const payableRewardCount  = Math.min(rewardCount, maxRewardsPerCycle);
+    const payableRewardCount   = Math.min(rewardCount, maxRewardsPerCycle);
     const destroyedRewardCount = rewardCount - payableRewardCount;
-    const incomeAmount        = new Prisma.Decimal(payableRewardCount).times(decIncomePerReward);
+    const incomeAmount         = new Prisma.Decimal(payableRewardCount).times(decIncomePerReward);
 
-    // Consume rewardCount × bvPerReward from each leg (not just payable — all earned rewards consume BV)
-    const consumedBV  = new Prisma.Decimal(rewardCount).times(decBvPerReward);
-    const newLeftBV   = user.leftBV.minus(consumedBV);
-    const newRightBV  = user.rightBV.minus(consumedBV);
+    // ALL matched BV is flushed — only unmatched BV carries forward
+    const flushedBV         = matchedBV;
+    const carryForwardLeft  = user.leftBV.minus(matchedBV);
+    const carryForwardRight = user.rightBV.minus(matchedBV);
 
     try {
       await prisma.$transaction(async (tx) => {
-        // Update user BV balances
+        // Update user BV balances — flush ALL matched BV
         await tx.user.update({
           where: { id: user.id },
-          data:  { leftBV: newLeftBV, rightBV: newRightBV },
+          data:  { leftBV: carryForwardLeft, rightBV: carryForwardRight },
         });
 
         // Credit withdrawal wallet
@@ -115,13 +130,16 @@ export async function processOrbitCycle(
           select: { id: true },
         });
 
-        // BinaryOrbitIncome record
+        // BinaryOrbitIncome record — full transparency
         await tx.binaryOrbitIncome.create({
           data: {
             userId: user.id,
             matchedBV,
             rewardCount,
             destroyedRewardCount,
+            flushedBV,
+            carryForwardLeft,
+            carryForwardRight,
             incomeAmount,
             cycleStart,
             cycleEnd,
@@ -138,11 +156,13 @@ export async function processOrbitCycle(
             amount:      incomeAmount,
             description: `Binary orbit income — ${payableRewardCount} orbit × $${incomePerReward} (cycle ${cycleStart.toISOString()})`,
             metadata: {
-              matchedBV:            matchedBV.toFixed(8),
+              matchedBV:         matchedBV.toFixed(8),
               rewardCount,
               payableRewardCount,
               destroyedRewardCount,
-              consumedBV:           consumedBV.toFixed(8),
+              flushedBV:         flushedBV.toFixed(8),
+              carryForwardLeft:  carryForwardLeft.toFixed(8),
+              carryForwardRight: carryForwardRight.toFixed(8),
               bvPerReward,
               cycleStart,
               cycleEnd,
@@ -154,19 +174,47 @@ export async function processOrbitCycle(
       void notificationService.create({
         userId:  user.id,
         type:    "BINARY_ORBIT_INCOME",
-        title:   "Binary Orbit Income Received",
-        message: `You earned $${incomeAmount.toFixed(2)} binary orbit income (${payableRewardCount} orbit reward${payableRewardCount === 1 ? "" : "s"}).`,
-        metadata: { incomeAmount: incomeAmount.toString(), rewardCount, payableRewardCount },
+        title:   "Binary Orbit Complete",
+        message: [
+          `Matched BV: ${matchedBV.toFixed(2)}`,
+          `Reward: $${incomeAmount.toFixed(2)}`,
+          `Flushed BV: ${flushedBV.toFixed(2)}`,
+          `Carry Forward Left: ${carryForwardLeft.toFixed(2)}`,
+          `Carry Forward Right: ${carryForwardRight.toFixed(2)}`,
+        ].join("\n"),
+        metadata: {
+          matchedBV:         matchedBV.toString(),
+          flushedBV:         flushedBV.toString(),
+          carryForwardLeft:  carryForwardLeft.toString(),
+          carryForwardRight: carryForwardRight.toString(),
+          incomeAmount:      incomeAmount.toString(),
+          rewardCount,
+          payableRewardCount,
+        },
       });
 
-      totalIncome = totalIncome.plus(incomeAmount);
+      totalIncome        = totalIncome.plus(incomeAmount);
+      totalMatchedBV     = totalMatchedBV.plus(matchedBV);
+      totalFlushedBV     = totalFlushedBV.plus(flushedBV);
+      totalCarryFwdLeft  = totalCarryFwdLeft.plus(carryForwardLeft);
+      totalCarryFwdRight = totalCarryFwdRight.plus(carryForwardRight);
+      totalRewards       += payableRewardCount;
       processed++;
     } catch {
       skipped++;
     }
   }
 
-  return { processed, skipped, totalIncome };
+  return {
+    processed,
+    skipped,
+    totalIncome,
+    totalMatchedBV,
+    totalFlushedBV,
+    totalCarryFwdLeft,
+    totalCarryFwdRight,
+    totalRewards,
+  };
 }
 
 // ── Query: orbit history ──────────────────────────────────────────────────────
@@ -176,6 +224,9 @@ const historySelect = {
   matchedBV:            true,
   rewardCount:          true,
   destroyedRewardCount: true,
+  flushedBV:            true,
+  carryForwardLeft:     true,
+  carryForwardRight:    true,
   incomeAmount:         true,
   cycleStart:           true,
   cycleEnd:             true,
@@ -236,7 +287,7 @@ export async function getOrbitSummary(userId: string) {
       }),
       prisma.binaryOrbitIncome.aggregate({
         where:  { userId },
-        _sum:   { matchedBV: true, incomeAmount: true },
+        _sum:   { matchedBV: true, flushedBV: true, incomeAmount: true },
         _count: true,
       }),
       getNumericSetting(SETTINGS.BV_PER_REWARD,         DEFAULTS.BV_PER_REWARD),
@@ -274,6 +325,7 @@ export async function getOrbitSummary(userId: string) {
     allTime: {
       cycles:      agg._count,
       matchedBV:   agg._sum.matchedBV   ?? new Prisma.Decimal(0),
+      flushedBV:   agg._sum.flushedBV   ?? new Prisma.Decimal(0),
       incomeAmount: agg._sum.incomeAmount ?? new Prisma.Decimal(0),
     },
   };

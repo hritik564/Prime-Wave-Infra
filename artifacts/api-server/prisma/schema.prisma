@@ -395,15 +395,18 @@ model SalaryBvLedger {
 //   cycleStart/cycleEnd                           — 12-hour window boundaries
 
 model BinaryMatchIncome {
-  id           String   @id @default(cuid())
-  userId       String
-  matchedBV    Decimal  @db.Decimal(18, 8)
-  payableBV    Decimal  @db.Decimal(18, 8)
-  destroyedBV  Decimal  @db.Decimal(18, 8)
-  incomeAmount Decimal  @db.Decimal(18, 8)
-  cycleStart   DateTime
-  cycleEnd     DateTime
-  createdAt    DateTime @default(now())
+  id                String   @id @default(cuid())
+  userId            String
+  matchedBV         Decimal  @db.Decimal(18, 8)
+  payableBV         Decimal  @db.Decimal(18, 8)
+  destroyedBV       Decimal  @db.Decimal(18, 8)
+  flushedBV         Decimal  @default(0) @db.Decimal(18, 8)
+  carryForwardLeft  Decimal  @default(0) @db.Decimal(18, 8)
+  carryForwardRight Decimal  @default(0) @db.Decimal(18, 8)
+  incomeAmount      Decimal  @db.Decimal(18, 8)
+  cycleStart        DateTime
+  cycleEnd          DateTime
+  createdAt         DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Restrict)
 
@@ -454,6 +457,9 @@ model BinaryOrbitIncome {
   matchedBV            Decimal  @db.Decimal(18, 8)
   rewardCount          Int
   destroyedRewardCount Int
+  flushedBV            Decimal  @default(0) @db.Decimal(18, 8)
+  carryForwardLeft     Decimal  @default(0) @db.Decimal(18, 8)
+  carryForwardRight    Decimal  @default(0) @db.Decimal(18, 8)
   incomeAmount         Decimal  @db.Decimal(18, 8)
   cycleStart           DateTime
   cycleEnd             DateTime

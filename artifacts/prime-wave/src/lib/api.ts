@@ -450,6 +450,12 @@ export interface NetRunResult {
   usersSkipped?: number;
   newPayouts?: number;
   incomeGenerated?: string;
+  matchedBV?: string;
+  rewardedBV?: string;
+  flushedBV?: string;
+  carryFwdLeft?: string;
+  carryFwdRight?: string;
+  rewards?: number;
   walletUpdated?: number;
   executionMs: number;
 }
@@ -506,10 +512,18 @@ export const devApi = {
     request<{ transferred: number; totalNetAmount: string }>("/api/dev/transfers/release", { method: "POST" }),
 
   runBinaryMatching: () =>
-    request<{ executionMs: number }>("/api/dev/binary/matching", { method: "POST" }),
+    request<{
+      executionMs: number; processed: number; skipped: number;
+      incomeGenerated: string; matchedBV: string; rewardedBV: string;
+      flushedBV: string; carryFwdLeft: string; carryFwdRight: string;
+    }>("/api/dev/binary/matching", { method: "POST" }),
 
   runBinaryOrbit: () =>
-    request<{ executionMs: number }>("/api/dev/binary/orbit", { method: "POST" }),
+    request<{
+      executionMs: number; processed: number; skipped: number;
+      incomeGenerated: string; matchedBV: string; flushedBV: string;
+      carryFwdLeft: string; carryFwdRight: string; rewards: number;
+    }>("/api/dev/binary/orbit", { method: "POST" }),
 
   runSalary: () =>
     request<{ executionMs: number }>("/api/dev/binary/salary", { method: "POST" }),

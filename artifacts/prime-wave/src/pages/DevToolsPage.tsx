@@ -364,10 +364,16 @@ export default function DevToolsPage() {
     try {
       const r = await devApi.runNetworkEngine(engine);
       const result: Record<string, unknown> = { "exec time": fmtMs(r.executionMs) };
-      if (r.usersProcessed !== undefined) result["processed"] = r.usersProcessed;
-      if (r.usersSkipped   !== undefined) result["skipped"]   = r.usersSkipped;
-      if (r.incomeGenerated)              result["income"]     = r.incomeGenerated;
-      if (r.newPayouts      !== undefined) result["payouts"]  = r.newPayouts;
+      if (r.usersProcessed !== undefined) result["processed"]   = r.usersProcessed;
+      if (r.usersSkipped   !== undefined) result["skipped"]     = r.usersSkipped;
+      if (r.incomeGenerated)              result["income"]       = r.incomeGenerated;
+      if (r.matchedBV)                    result["matched BV"]   = r.matchedBV;
+      if (r.rewardedBV)                   result["rewarded BV"]  = r.rewardedBV;
+      if (r.flushedBV)                    result["flushed BV"]   = r.flushedBV;
+      if (r.carryFwdLeft)                 result["carry→L"]      = r.carryFwdLeft;
+      if (r.carryFwdRight)                result["carry→R"]      = r.carryFwdRight;
+      if (r.rewards          !== undefined) result["rewards"]    = r.rewards;
+      if (r.newPayouts       !== undefined) result["payouts"]    = r.newPayouts;
       setNetRunResult(result);
       updateLog(lid, { status: "ok", execMs: r.executionMs, detail: r.incomeGenerated ?? `${r.usersProcessed ?? r.newPayouts ?? 0} processed` });
       await refreshNetStatus();
@@ -569,11 +575,35 @@ export default function DevToolsPage() {
               <div className="flex flex-wrap gap-2">
                 <DevBtn label="Run Binary Matching" icon={Play}
                   onClick={() => void simpleAction("matching", "Run Binary Matching",
-                    async () => { const r = await devApi.runBinaryMatching(); return { "exec time": fmtMs(r.executionMs) }; })}
+                    async () => {
+                      const r = await devApi.runBinaryMatching();
+                      return {
+                        "exec time":   fmtMs(r.executionMs),
+                        "processed":   r.processed,
+                        "matched BV":  r.matchedBV,
+                        "rewarded BV": r.rewardedBV,
+                        "flushed BV":  r.flushedBV,
+                        "carry→L":     r.carryFwdLeft,
+                        "carry→R":     r.carryFwdRight,
+                        "income":      r.incomeGenerated,
+                      };
+                    })}
                   loading={busy["matching"]} />
                 <DevBtn label="Run Binary Orbit" icon={Play} variant="warning"
                   onClick={() => void simpleAction("orbit", "Run Binary Orbit",
-                    async () => { const r = await devApi.runBinaryOrbit(); return { "exec time": fmtMs(r.executionMs) }; })}
+                    async () => {
+                      const r = await devApi.runBinaryOrbit();
+                      return {
+                        "exec time":  fmtMs(r.executionMs),
+                        "processed":  r.processed,
+                        "matched BV": r.matchedBV,
+                        "flushed BV": r.flushedBV,
+                        "carry→L":    r.carryFwdLeft,
+                        "carry→R":    r.carryFwdRight,
+                        "rewards":    r.rewards,
+                        "income":     r.incomeGenerated,
+                      };
+                    })}
                   loading={busy["orbit"]} />
                 <DevBtn label="Run Monthly Salary" icon={Play} variant="ghost"
                   onClick={() => void simpleAction("salary", "Run Monthly Salary",
