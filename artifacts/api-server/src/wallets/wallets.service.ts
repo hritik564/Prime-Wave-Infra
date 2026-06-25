@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
-import type { TransferInput, HistoryQueryInput } from "./wallets.schema";
+import { TRANSACTION_TYPES, type TransferInput, type HistoryQueryInput } from "./wallets.schema";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -16,10 +16,10 @@ export async function getWalletBalances(userId: string) {
     where: { userId },
     select: {
       id: true,
-      depositWallet: true,
-      incomeWallet: true,
+      depositWallet:    true,
+      incomeWallet:     true,
       withdrawalWallet: true,
-      updatedAt: true,
+      updatedAt:        true,
     },
   });
 
@@ -34,13 +34,12 @@ export async function getWalletBalances(userId: string) {
 
 export async function transferIncomeToWithdrawal(userId: string, input: TransferInput) {
   const grossAmount = new Prisma.Decimal(input.amount.toString());
-  const fee = grossAmount.mul(TRANSFER_FEE_PERCENT).div(HUNDRED);
-  const netAmount = grossAmount.sub(fee);
+  const fee         = grossAmount.mul(TRANSFER_FEE_PERCENT).div(HUNDRED);
+  const netAmount   = grossAmount.sub(fee);
 
   return prisma.$transaction(async (tx) => {
-    // Lock and read wallet inside the transaction
     const wallet = await tx.wallet.findUnique({
-      where: { userId },
+      where:  { userId },
       select: { id: true, incomeWallet: true },
     });
 
@@ -56,41 +55,34 @@ export async function transferIncomeToWithdrawal(userId: string, input: Transfer
       );
     }
 
-    // Atomic balance update
     const updatedWallet = await tx.wallet.update({
       where: { userId },
       data: {
-        incomeWallet: { decrement: grossAmount },
+        incomeWallet:     { decrement: grossAmount },
         withdrawalWallet: { increment: netAmount },
       },
       select: {
-        depositWallet: true,
-        incomeWallet: true,
+        depositWallet:    true,
+        incomeWallet:     true,
         withdrawalWallet: true,
       },
     });
 
-    // Audit record
     const transaction = await tx.walletTransaction.create({
       data: {
-        walletId: wallet.id,
+        walletId:    wallet.id,
         userId,
-        type: "INCOME_TRANSFER",
-        status: "SUCCESS",
-        amount: grossAmount,
+        type:        "INCOME_TRANSFER",
+        status:      "SUCCESS",
+        amount:      grossAmount,
         fee,
         netAmount,
         description: `Income → Withdrawal transfer (${TRANSFER_FEE_PERCENT}% fee deducted)`,
       },
       select: {
-        id: true,
-        type: true,
-        status: true,
-        amount: true,
-        fee: true,
-        netAmount: true,
-        description: true,
-        createdAt: true,
+        id: true, type: true, status: true,
+        amount: true, fee: true, netAmount: true,
+        description: true, createdAt: true,
       },
     });
 
@@ -101,13 +93,31 @@ export async function transferIncomeToWithdrawal(userId: string, input: Transfer
 // ── Paginated history ─────────────────────────────────────────────────────────
 
 export async function getWalletHistory(userId: string, query: HistoryQueryInput) {
-  const { page, limit, type, status } = query;
+  const { page, limit, type, types, status } = query;
   const skip = (page - 1) * limit;
+
+  // Build type filter — `types` (multi) takes precedence over singular `type`
+  let typeFilter: Prisma.WalletTransactionWhereInput["type"] | undefined;
+  if (types) {
+    const valid = types
+      .split(",")
+      .map(t => t.trim())
+      .filter((t): t is typeof TRANSACTION_TYPES[number] =>
+        (TRANSACTION_TYPES as readonly string[]).includes(t),
+      );
+    if (valid.length === 1) {
+      typeFilter = valid[0];
+    } else if (valid.length > 1) {
+      typeFilter = { in: valid };
+    }
+  } else if (type) {
+    typeFilter = type;
+  }
 
   const where: Prisma.WalletTransactionWhereInput = {
     userId,
-    ...(type !== undefined && { type }),
-    ...(status !== undefined && { status }),
+    ...(typeFilter !== undefined && { type: typeFilter }),
+    ...(status    !== undefined && { status }),
   };
 
   const [transactions, total] = await prisma.$transaction([
@@ -115,17 +125,17 @@ export async function getWalletHistory(userId: string, query: HistoryQueryInput)
       where,
       orderBy: { createdAt: "desc" },
       skip,
-      take: limit,
+      take:    limit,
       select: {
-        id: true,
-        type: true,
-        status: true,
-        amount: true,
-        fee: true,
-        netAmount: true,
+        id:          true,
+        type:        true,
+        status:      true,
+        amount:      true,
+        fee:         true,
+        netAmount:   true,
         description: true,
-        metadata: true,
-        createdAt: true,
+        metadata:    true,
+        createdAt:   true,
       },
     }),
     prisma.walletTransaction.count({ where }),

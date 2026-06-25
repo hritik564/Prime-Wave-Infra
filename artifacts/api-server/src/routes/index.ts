@@ -11,6 +11,7 @@ import { salaryRouter } from "../salary";
 import { depositsRouter } from "../deposits";
 import { withdrawalsRouter } from "../withdrawals";
 import notificationsRouter from "../notifications/notifications.routes";
+import incomeRouter from "../income/income.router";
 import devRouter from "../dev/dev.router";
 import seedRouter from "../seed/seed.router";
 
@@ -28,6 +29,7 @@ router.use("/salary",        salaryRouter);
 router.use("/deposits",      depositsRouter);
 router.use("/withdrawals",   withdrawalsRouter);
 router.use("/notifications", notificationsRouter);
+router.use("/income",        incomeRouter);
 router.use("/dev",           devRouter);
 router.use("/",              seedRouter);
 

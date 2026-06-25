@@ -15,6 +15,7 @@ import TeamPage from "@/pages/network/TeamPage";
 import NotificationsPage from "@/pages/notifications/NotificationsPage";
 import SettingsPage from "@/pages/settings/SettingsPage";
 import DevToolsPage from "@/pages/DevToolsPage";
+import IncomeCenterPage from "@/pages/income/IncomeCenterPage";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
@@ -113,17 +114,21 @@ function AppRoutes() {
       <Route path="/team">
         <RequireAuth><TeamPage /></RequireAuth>
       </Route>
+      <Route path="/income">
+        <RequireAuth><IncomeCenterPage /></RequireAuth>
+      </Route>
+      {/* Legacy sub-routes redirect to Income Center */}
       <Route path="/income/binary">
-        <RequireAuth><ComingSoon title="Binary Income" /></RequireAuth>
+        <Redirect to="/income" />
       </Route>
       <Route path="/income/orbit">
-        <RequireAuth><ComingSoon title="Orbit Income" /></RequireAuth>
+        <Redirect to="/income" />
       </Route>
       <Route path="/income/level">
-        <RequireAuth><ComingSoon title="Level Income" /></RequireAuth>
+        <Redirect to="/income" />
       </Route>
       <Route path="/income/salary">
-        <RequireAuth><ComingSoon title="Salary Income" /></RequireAuth>
+        <Redirect to="/income" />
       </Route>
 
       {/* ── Dev Toolkit (dev only) ── */}

@@ -10,10 +10,7 @@ import {
   ArrowDownToLine,
   GitFork,
   Users,
-  GitBranch,
-  Globe,
-  Layers3,
-  Banknote,
+  Sparkles,
   Bell,
   Settings,
   FlaskConical,
@@ -42,37 +39,30 @@ const navGroups: NavGroup[] = [
   {
     label: "Portfolio",
     items: [
-      { label: "Investments", href: "/investments", icon: TrendingUp },
-      { label: "Deposit Wallet", href: "/wallets/deposit", icon: Wallet },
-      { label: "Income Wallet", href: "/wallets/income", icon: PiggyBank },
-      {
-        label: "Withdrawal Wallet",
-        href: "/wallets/withdrawal",
-        icon: ArrowDownToLine,
-      },
+      { label: "Investments",       href: "/investments",       icon: TrendingUp },
+      { label: "Deposit Wallet",    href: "/wallets/deposit",   icon: Wallet },
+      { label: "Income Wallet",     href: "/wallets/income",    icon: PiggyBank },
+      { label: "Withdrawal Wallet", href: "/wallets/withdrawal", icon: ArrowDownToLine },
     ],
   },
   {
     label: "Network",
     items: [
       { label: "Binary Tree", href: "/binary-tree", icon: GitFork },
-      { label: "Team", href: "/team", icon: Users },
+      { label: "Team",        href: "/team",        icon: Users },
     ],
   },
   {
     label: "Income",
     items: [
-      { label: "Binary Income", href: "/income/binary", icon: GitBranch },
-      { label: "Orbit Income", href: "/income/orbit", icon: Globe },
-      { label: "Level Income", href: "/income/level", icon: Layers3 },
-      { label: "Salary Income", href: "/income/salary", icon: Banknote },
+      { label: "Income Center", href: "/income", icon: Sparkles },
     ],
   },
   {
     label: "Account",
     items: [
       { label: "Notifications", href: "/notifications", icon: Bell },
-      { label: "Settings", href: "/settings", icon: Settings },
+      { label: "Settings",      href: "/settings",      icon: Settings },
     ],
   },
 ];
@@ -101,10 +91,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
               background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)",
             }}
           >
-            <span
-              className="text-xs font-bold"
-              style={{ color: "#0E1B37" }}
-            >
+            <span className="text-xs font-bold" style={{ color: "#0E1B37" }}>
               PW
             </span>
           </div>
@@ -164,7 +151,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
                           "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-150",
                           isActive
                             ? "sidebar-active font-medium"
-                            : "border-l-2 border-transparent hover:bg-white/5"
+                            : "border-l-2 border-transparent hover:bg-white/5",
                         )}
                         style={
                           isActive

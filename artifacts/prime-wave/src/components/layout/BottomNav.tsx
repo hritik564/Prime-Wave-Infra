@@ -1,5 +1,5 @@
 import { useLocation, Link } from "wouter";
-import { Home, Wallet, TrendingUp, Network, Bell, User } from "lucide-react";
+import { Home, Wallet, TrendingUp, Sparkles, Bell, User } from "lucide-react";
 
 interface NavItem {
   label: string;
@@ -28,10 +28,10 @@ const NAV_ITEMS: NavItem[] = [
     matches: ["/investments"],
   },
   {
-    label: "Network",
-    href: "/team",
-    icon: Network,
-    matches: ["/team", "/network", "/binary-tree"],
+    label: "Income",
+    href: "/income",
+    icon: Sparkles,
+    matches: ["/income"],
   },
   {
     label: "Alerts",

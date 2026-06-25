@@ -19,7 +19,7 @@ seedRouter.post("/seed", async (req, res) => {
   const batch1 = [
     {
       id: "cmqrh2dhe0000g5n5ocrx0jq1",
-      email: "test@primewave.io",
+      email: "tco",
       username: "testuser",
       passwordHash: "$2b$10$QwlgDFu4z8tYP.Kg7oAs..edwd6FRVvG4XAuqiOJAjjPXeVe1xLWm",
       firstName: "Test", lastName: "User",

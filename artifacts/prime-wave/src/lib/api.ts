@@ -214,18 +214,69 @@ export interface Transaction {
   id: string;
   type: string;
   amount: string;
+  fee?: string | null;
+  netAmount?: string | null;
   status: string;
   description: string | null;
+  metadata?: Record<string, unknown> | null;
   createdAt: string;
 }
 
-export function getWalletHistory(params?: { page?: number; limit?: number; type?: string }) {
+export function getWalletHistory(params?: {
+  page?: number;
+  limit?: number;
+  type?: string;
+  types?: string[];
+}) {
   const q = new URLSearchParams();
-  if (params?.page)  q.set("page",  String(params.page));
-  if (params?.limit) q.set("limit", String(params.limit));
-  if (params?.type)  q.set("type",  params.type);
+  if (params?.page)         q.set("page",  String(params.page));
+  if (params?.limit)        q.set("limit", String(params.limit));
+  if (params?.type)         q.set("type",  params.type);
+  if (params?.types?.length) q.set("types", params.types.join(","));
   const qs = q.toString() ? `?${q}` : "";
   return request<{ data: Transaction[]; meta: ListMeta }>(`/api/wallets/history${qs}`);
+}
+
+/* ── Income Center ────────────────────────────────────────────── */
+
+export interface IncomeBreakdown {
+  type: string;
+  total: string;
+  today: string;
+  week: string;
+  percentage: string;
+}
+
+export interface IncomeSummary {
+  periods: {
+    today: string;
+    week: string;
+    month: string;
+    lifetime: string;
+  };
+  breakdown: IncomeBreakdown[];
+  analytics: {
+    highestSource: string | null;
+    largestReward: string;
+    avgDailyIncome: string;
+    avgMonthlyIncome: string;
+    roiVsNetworkRoi: string;
+    roiVsNetworkNet: string;
+    totalTransactions: number;
+  };
+}
+
+export interface TrendPoint {
+  date: string;
+  total: number;
+}
+
+export function getIncomeSummary() {
+  return request<IncomeSummary>("/api/income/summary");
+}
+
+export function getIncomeTrend(period: "7d" | "30d" | "90d" | "1y" | "all") {
+  return request<TrendPoint[]>(`/api/income/trend?period=${period}`);
 }
 
 /* ── Notifications ────────────────────────────────────────────────── */

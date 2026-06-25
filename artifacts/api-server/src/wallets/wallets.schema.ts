@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const TRANSACTION_TYPES = [
+export const TRANSACTION_TYPES = [
   "DEPOSIT",
   "INVESTMENT",
   "ROI_CLAIM",
@@ -18,7 +18,7 @@ const TRANSACTION_STATUSES = ["PENDING", "SUCCESS", "FAILED"] as const;
 export const transferSchema = z.object({
   amount: z
     .number({
-      required_error: "Amount is required",
+      required_error:    "Amount is required",
       invalid_type_error: "Amount must be a number",
     })
     .positive("Amount must be greater than zero")
@@ -30,11 +30,13 @@ export const transferSchema = z.object({
 });
 
 export const historyQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-  type: z.enum(TRANSACTION_TYPES).optional(),
+  page:   z.coerce.number().int().min(1).default(1),
+  limit:  z.coerce.number().int().min(1).max(100).default(20),
+  type:   z.enum(TRANSACTION_TYPES).optional(),
+  // Comma-separated list for multi-type filtering, e.g. "BINARY_MATCH,SALARY"
+  types:  z.string().optional(),
   status: z.enum(TRANSACTION_STATUSES).optional(),
 });
 
-export type TransferInput = z.infer<typeof transferSchema>;
+export type TransferInput     = z.infer<typeof transferSchema>;
 export type HistoryQueryInput = z.infer<typeof historyQuerySchema>;

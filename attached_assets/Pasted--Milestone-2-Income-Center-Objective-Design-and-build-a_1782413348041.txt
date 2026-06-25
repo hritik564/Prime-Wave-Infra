@@ -1,0 +1,574 @@
+# Milestone 2 — Income Center
+
+## Objective
+
+Design and build a premium **Income Center** that becomes the single source of truth for every earning inside Prime Wave.
+
+This replaces:
+
+* Binary Income
+* Binary Orbit
+* Level Income
+* Salary Income
+* ROI History
+
+There must NOT be separate pages for these anymore.
+
+Every income source should flow into one unified premium financial experience.
+
+This page should feel closer to Revolut, Binance, Stripe or Wise than a traditional MLM application.
+
+Reuse existing backend services and APIs.
+
+Do not duplicate business logic.
+
+---
+
+# DESIGN LANGUAGE
+
+Continue using Prime Wave's premium design system.
+
+Background:
+
+Premium Black / Charcoal
+
+Accent:
+
+Luxury Gold
+
+Cards:
+
+Soft Glassmorphism
+
+Corners:
+
+Rounded XL
+
+Animations:
+
+Framer Motion
+
+Typography:
+
+Cormorant Garamond for hero values
+
+Inter for all supporting content
+
+Mobile-first.
+
+Desktop optimized.
+
+No placeholder financial values.
+
+---
+
+# SECTION 1 — Hero
+
+Create a premium hero card.
+
+Display:
+
+Today's Earnings
+
+This Week
+
+This Month
+
+Lifetime Earnings
+
+Example:
+
+Today's Earnings
+
+$750.00
+
+↑ +18%
+
+Week
+
+$4,250
+
+Month
+
+$12,450
+
+Lifetime
+
+$48,800
+
+Animate all monetary values.
+
+---
+
+# SECTION 2 — Monthly Goal
+
+Directly beneath the hero.
+
+User configurable.
+
+Example:
+
+Monthly Goal
+
+$15,000
+
+██████████████░░░░
+
+82%
+
+$2,700 Remaining
+
+Store goal per user.
+
+Changing goal must never affect compensation calculations.
+
+---
+
+# SECTION 3 — Earnings Breakdown
+
+Five premium cards.
+
+ROI
+
+Binary
+
+Orbit
+
+Level
+
+Salary
+
+Each card shows:
+
+Total Earned
+
+Percentage of Lifetime Income
+
+Trend
+
+Today's contribution
+
+Tap card:
+
+Filters timeline instantly.
+
+---
+
+# SECTION 4 — Income Distribution
+
+Premium donut chart.
+
+Display contribution of:
+
+ROI
+
+Binary
+
+Orbit
+
+Level
+
+Salary
+
+Gold palette only.
+
+Hover/tap:
+
+Amount
+
+Percentage
+
+---
+
+# SECTION 5 — Earnings Trend
+
+Interactive area chart.
+
+Time filters:
+
+7 Days
+
+30 Days
+
+90 Days
+
+1 Year
+
+All Time
+
+Backend aggregation only.
+
+No fake values.
+
+---
+
+# SECTION 6 — Unified Timeline
+
+Replace every existing history page.
+
+Timeline cards.
+
+Each entry contains:
+
+Income Type
+
+Amount
+
+Timestamp
+
+Status
+
+Reference ID
+
+Newest first.
+
+Infinite scroll.
+
+Examples:
+
+ROI Claim
+
++$42
+
+---
+
+Binary Matching
+
++$250
+
+---
+
+Binary Orbit
+
++$500
+
+---
+
+Level Income
+
++$75
+
+---
+
+Salary
+
++$125
+
+---
+
+# SECTION 7 — Premium Filters
+
+Sticky filter chips.
+
+All
+
+ROI
+
+Binary
+
+Orbit
+
+Level
+
+Salary
+
+Multiple selection.
+
+Instant filtering.
+
+---
+
+# SECTION 8 — Search
+
+Real-time search.
+
+Support:
+
+Reference ID
+
+Income Type
+
+Date
+
+Month
+
+Year
+
+Amount
+
+---
+
+# SECTION 9 — Transaction Details
+
+Click any timeline item.
+
+Desktop:
+
+Right-side drawer.
+
+Mobile:
+
+Bottom sheet.
+
+Display different information based on income type.
+
+---
+
+ROI
+
+Investment ID
+
+Principal
+
+ROI %
+
+ROI Generated
+
+Auto Compound
+
+Timestamp
+
+---
+
+Binary Matching
+
+Income
+
+Matched BV
+
+Rewarded BV
+
+Flushed BV
+
+Carry Left
+
+Carry Right
+
+Cycle
+
+Reference ID
+
+---
+
+Binary Orbit
+
+Reward
+
+Matched BV
+
+Qualification Threshold
+
+Flushed BV
+
+Carry Left
+
+Carry Right
+
+Reference ID
+
+---
+
+Level Income
+
+Level
+
+Referral
+
+Investment
+
+Percentage
+
+Reference ID
+
+---
+
+Salary
+
+Rank
+
+Business Volume
+
+Monthly Salary
+
+Achieved Date
+
+Expiry Date
+
+Reference ID
+
+---
+
+# SECTION 10 — Analytics
+
+Display:
+
+Highest Income Source
+
+Largest Single Reward
+
+Average Daily Income
+
+Average Monthly Income
+
+Current Earning Streak
+
+Longest Earning Streak
+
+ROI vs Network %
+
+---
+
+# SECTION 11 — Export
+
+Export:
+
+CSV
+
+Excel
+
+PDF
+
+Support:
+
+Current Filter
+
+Date Range
+
+Income Type
+
+---
+
+# SECTION 12 — Empty States
+
+Premium illustrations.
+
+Examples:
+
+"No income yet."
+
+"Complete your first investment to begin earning."
+
+No blank tables.
+
+---
+
+# SECTION 13 — Mobile
+
+This page must feel like a native mobile banking application.
+
+Requirements:
+
+Sticky filters
+
+Large touch targets
+
+Bottom sheet details
+
+Smooth animations
+
+No horizontal scrolling
+
+Excellent spacing
+
+390px optimized
+
+430px optimized
+
+---
+
+# SECTION 14 — Desktop
+
+1440px optimized.
+
+Hero + Analytics
+
+Charts
+
+Timeline
+
+Perfect spacing.
+
+No stretched layouts.
+
+---
+
+# SECTION 15 — Performance
+
+Lazy load timeline.
+
+Server pagination.
+
+Virtual scrolling.
+
+Charts aggregate on backend.
+
+Support 100,000+ income records.
+
+---
+
+# SECTION 16 — Existing Backend
+
+Reuse existing APIs.
+
+Reuse:
+
+ROI
+
+Binary Matching
+
+Binary Orbit
+
+Level Income
+
+Salary
+
+Wallet Transactions
+
+Notifications
+
+No duplicated logic.
+
+---
+
+# SECTION 17 — Future Ready
+
+The page architecture must support adding future income types without redesigning the UI.
+
+Every income source should simply register itself with the Income Center.
+
+---
+
+# IMPORTANT
+
+This page is one of the flagship experiences of Prime Wave.
+
+Prioritize elegance, readability and trust.
+
+Every financial number must feel transparent.
+
+Every interaction should reinforce confidence.
+
+The user should immediately understand:
+
+• How much they earned
+• Where it came from
+• When it was earned
+• Why it was earned
+
+without opening multiple pages.
+
+---
+
+# RETURN
+
+1. Components created.
+
+2. Backend APIs reused.
+
+3. Mobile screenshots.
+
+4. Desktop screenshots.
+
+5. Performance optimizations.
+
+6. Completion report.
