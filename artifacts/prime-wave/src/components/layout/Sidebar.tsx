@@ -16,6 +16,7 @@ import {
   Banknote,
   Bell,
   Settings,
+  FlaskConical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -185,6 +186,24 @@ export default function Sidebar({ onClose }: SidebarProps) {
           ))}
         </nav>
       </ScrollArea>
+
+      {/* Dev Toolkit link — development only */}
+      {import.meta.env.DEV && (
+        <div className="px-3 pb-2">
+          <Link
+            href="/dev-tools"
+            className="flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-semibold transition-all duration-150"
+            style={{
+              background: "rgba(234,88,12,0.1)",
+              border: "1px solid rgba(234,88,12,0.25)",
+              color: "#fb923c",
+            }}
+          >
+            <FlaskConical className="h-3.5 w-3.5 shrink-0" />
+            Dev Toolkit
+          </Link>
+        </div>
+      )}
 
       {/* Pro Member badge */}
       <div
