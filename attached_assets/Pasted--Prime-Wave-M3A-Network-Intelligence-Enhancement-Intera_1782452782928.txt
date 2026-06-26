@@ -1,0 +1,409 @@
+# Prime Wave — M3A Network Intelligence Enhancement (Interactive Binary Tree Upgrade)
+
+## Objective
+
+Upgrade the existing **Network Intelligence (M3A)** page into a premium, highly interactive experience **without changing the overall layout or information architecture.**
+
+This is **NOT** a redesign.
+
+The current page structure stays exactly as it is.
+
+Only improve interaction quality, usability, and polish.
+
+No backend changes unless absolutely required.
+
+Do not remove existing components.
+
+---
+
+# 1. Preserve Existing Layout
+
+Keep the page exactly as it currently exists.
+
+Current section order remains:
+
+1. Hero Summary
+2. Intelligence Insights
+3. Network Pulse
+4. Binary Health
+5. Binary Tree
+6. Team Explorer
+7. Top Performers
+8. Team Activity
+9. Referral Link
+
+Do not reorder sections.
+
+Do not redesign cards.
+
+Focus entirely on improving interaction.
+
+---
+
+# 2. Binary Tree (Highest Priority)
+
+This is the flagship feature.
+
+The Binary Tree should feel like an application inside the application rather than a static visualization.
+
+---
+
+## Entire Member Card Must Be Clickable
+
+Currently only a tiny connector/dot is clickable.
+
+Replace this behavior.
+
+The **entire node card** must behave as the clickable area.
+
+Hovering anywhere over the card should:
+
+• show pointer cursor
+
+• slightly lift the card
+
+• increase shadow
+
+• brighten border
+
+• animate smoothly
+
+Clicking anywhere on the card opens the Member Details panel.
+
+---
+
+## Keep Existing Right Sidebar
+
+Do NOT replace it with a modal.
+
+The existing side panel is the correct UX.
+
+Improve it instead.
+
+Opening animation should slide smoothly from the right.
+
+Closing animation should be equally smooth.
+
+Tree should remain visible in the background.
+
+---
+
+## Upgrade Member Details Panel
+
+Expand the sidebar into a professional member profile.
+
+Suggested layout:
+
+Header
+
+• Avatar
+
+• Name
+
+• Username
+
+• Rank
+
+• Active Status
+
+Statistics
+
+• Investment
+
+• BV
+
+• ROI
+
+• Weekly Income
+
+• Monthly Income
+
+• Total Earnings
+
+Network
+
+• Sponsor
+
+• Parent
+
+• Position (Left/Right)
+
+• Level
+
+• Join Date
+
+• Last Activity
+
+Performance
+
+• Direct Referrals
+
+• Total Team
+
+• Active Team
+
+• Carry Forward BV
+
+Actions
+
+• View Full Profile
+
+• Open Downline
+
+• Copy Referral
+
+Design should feel similar to CRM software.
+
+---
+
+## Tree Hover Highlight
+
+When hovering a node:
+
+Highlight the complete path from Root → Selected Member.
+
+Example:
+
+Root
+
+↓
+
+Left Direct
+
+↓
+
+Left Child
+
+↓
+
+Hovered Member
+
+Everything else becomes slightly faded.
+
+This helps users instantly understand hierarchy.
+
+---
+
+## Tree Controls
+
+Keep existing Level buttons.
+
+Improve them.
+
+Support:
+
+L1
+
+L2
+
+L3
+
+L4
+
+Only one level active at a time.
+
+Smooth transition between levels.
+
+---
+
+Add action buttons beside levels:
+
+Fit View
+
+Center Tree
+
+Expand
+
+Collapse
+
+These are UI only if functionality already exists.
+
+---
+
+## Zoom Controls
+
+Add floating controls inside the tree.
+
+Bottom Left
+
+* Zoom In
+
+− Zoom Out
+
+Fit
+
+100%
+
+Users should not rely only on mouse wheel.
+
+---
+
+## Better Card Hover
+
+Node cards should have premium interactions.
+
+Hover:
+
+• subtle lift
+
+• stronger border
+
+• soft glow
+
+• connector line slightly brightens
+
+Click animation:
+
+Small scale-down then open sidebar.
+
+---
+
+## Empty Nodes
+
+Keep placeholder nodes.
+
+Improve appearance.
+
+Instead of dull boxes, display:
+
+*
+
+Open Position
+
+or
+
+Invite Member
+
+Hover should highlight them.
+
+These should visually encourage expansion.
+
+Do not implement invite logic.
+
+Only improve presentation.
+
+---
+
+## Tree Animation
+
+Animate tree rendering.
+
+Root first.
+
+Then Level 1.
+
+Then Level 2.
+
+Then Level 3.
+
+Short staggered animation.
+
+Very subtle.
+
+No excessive motion.
+
+---
+
+# 3. Team Explorer
+
+Current list is too long.
+
+Limit visible members to:
+
+Maximum 5.
+
+After the fifth member display:
+
+View All Members →
+
+This should navigate to the Team page (or placeholder if page isn't ready).
+
+Search and filters remain.
+
+---
+
+# 4. Top Performers
+
+Display only:
+
+Top 5 performers.
+
+Add:
+
+View Complete Ranking →
+
+at the bottom.
+
+Do not remove existing ranking logic.
+
+---
+
+# 5. Team Activity
+
+Display only the latest:
+
+5 activities.
+
+Then display:
+
+View Full Activity →
+
+No backend changes.
+
+Simply limit rendered items.
+
+---
+
+# 6. General Polish
+
+Across the page:
+
+Improve spacing consistency.
+
+Improve hover transitions.
+
+Buttons should animate smoothly.
+
+Cards should feel responsive.
+
+No layout shift.
+
+No flashing.
+
+No jarring transitions.
+
+Maintain the premium Prime Wave visual language.
+
+---
+
+# 7. Performance
+
+Avoid unnecessary re-renders.
+
+Do not fetch additional APIs.
+
+Reuse existing data.
+
+Animations should remain lightweight.
+
+Tree interaction should remain smooth even with larger datasets.
+
+---
+
+# 8. Important Constraints
+
+Do NOT redesign the page.
+
+Do NOT change colors.
+
+Do NOT replace existing sections.
+
+Do NOT introduce new business logic.
+
+Do NOT modify backend APIs unless required.
+
+Do NOT break current functionality.
+
+This is a UX refinement pass focused on interaction quality and premium polish.
+
+The goal is to make the Binary Tree the standout feature of the Network Intelligence page while keeping the rest of the experience clean, fast, and familiar.

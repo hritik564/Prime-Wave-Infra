@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   ReactFlow,
   Background,
-  Controls,
   Handle,
   Position,
+  useReactFlow,
+  useStore,
   type Node,
   type Edge,
   type NodeTypes,
@@ -12,11 +13,12 @@ import {
 import "@xyflow/react/dist/style.css";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Users, TrendingUp, UserCheck, UserX, Copy, CheckCheck,
+  Users, TrendingUp, UserX, Copy, CheckCheck,
   Search, Award, Activity, Brain, GitBranch, UserPlus,
   X, ChevronLeft, ChevronRight, Link2, Target, Zap,
   ArrowRight, Star, ShieldCheck, Flame, Clock, BarChart2,
-  CircleDot, Wallet,
+  CircleDot, Wallet, ZoomIn, ZoomOut, Maximize2, Calendar,
+  ChevronRight as ChevRight,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
@@ -65,10 +67,7 @@ function greeting() {
   const h = new Date().getHours();
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
-function computeGrowthScore(
-  stats: NetworkStats | null,
-  bvSummary: BvSummary | null,
-): number {
+function computeGrowthScore(stats: NetworkStats | null, bvSummary: BvSummary | null) {
   const totalTeam    = stats?.totalTeam    ?? 0;
   const activeMembers = stats?.activeMembers ?? 0;
   const weeklyNew    = stats?.weeklyNew    ?? 0;
@@ -78,11 +77,17 @@ function computeGrowthScore(
   const qualified = bvSummary?.binaryQualified ?? false;
   const activeRate = totalTeam > 0 ? activeMembers / totalTeam : 0;
   return Math.min(100,
-    Math.round(activeRate * 35) +
-    (qualified ? 15 : 0) +
-    Math.min(30, Math.round((minBV / 150) * 30)) +
-    Math.min(20, weeklyNew * 4),
+    Math.round(activeRate * 35) + (qualified ? 15 : 0) +
+    Math.min(30, Math.round((minBV / 150) * 30)) + Math.min(20, weeklyNew * 4),
   );
+}
+
+// Ancestor path for tree hover highlighting
+function getAncestorSet(nodeId: string, parentMap: Map<string, string>): Set<string> {
+  const set = new Set<string>();
+  let cur: string | undefined = nodeId;
+  while (cur) { set.add(cur); cur = parentMap.get(cur); }
+  return set;
 }
 
 // ── Inline Avatar ─────────────────────────────────────────────────────────────
@@ -91,7 +96,7 @@ function Av({ first, last, size = 36 }: { first: string; last: string; size?: nu
     <div style={{
       width: size, height: size, borderRadius: size / 2, flexShrink: 0,
       display: "flex", alignItems: "center", justifyContent: "center",
-      background: "linear-gradient(135deg, rgba(212,175,55,0.2), rgba(212,175,55,0.07))",
+      background: "linear-gradient(135deg,rgba(212,175,55,0.2),rgba(212,175,55,0.07))",
       border: "1px solid rgba(212,175,55,0.2)", color: GOLD,
       fontWeight: 700, fontSize: size < 36 ? 10 : 12,
     }}>
@@ -100,7 +105,7 @@ function Av({ first, last, size = 36 }: { first: string; last: string; size?: nu
   );
 }
 
-// ── Custom RF Node Data type ───────────────────────────────────────────────────
+// ── React Flow Node Data ──────────────────────────────────────────────────────
 interface TreeNodeData extends Record<string, unknown> {
   id:                  string;
   username:            string;
@@ -109,24 +114,42 @@ interface TreeNodeData extends Record<string, unknown> {
   status:              string;
   position:            "LEFT" | "RIGHT" | null;
   directReferralCount: number;
+  depth:               number;
+  faded:               boolean;
   onSelect?:           (data: TreeNodeData) => void;
+}
+
+// ── Tree node animation helper ────────────────────────────────────────────────
+function nodeAnimate(depth: number, faded: boolean) {
+  return {
+    initial:    { opacity: 0, scale: 0.85, y: -8 } as const,
+    animate:    faded ? { opacity: 0.18, scale: 1, y: 0 } : { opacity: 1, scale: 1, y: 0 },
+    transition: faded
+      ? { duration: 0.18 }
+      : { delay: depth * 0.07, duration: 0.3, ease: "easeOut" as const },
+  };
 }
 
 // ── RF Custom Nodes — MUST be outside component ────────────────────────────────
 function RootNode({ data }: { data: TreeNodeData }) {
+  const anim = nodeAnimate(data.depth, data.faded);
   return (
-    <div style={{
-      background: "linear-gradient(135deg, rgba(212,175,55,0.14) 0%, rgba(212,175,55,0.05) 100%)",
-      border: "2px solid rgba(212,175,55,0.5)", borderRadius: 14,
-      padding: "10px 14px", minWidth: 155,
-      boxShadow: "0 0 24px rgba(212,175,55,0.18), 0 4px 20px rgba(0,0,0,0.5)",
-    }}>
+    <motion.div
+      initial={anim.initial}
+      animate={anim.animate}
+      transition={anim.transition}
+      style={{
+        background: "linear-gradient(135deg,rgba(212,175,55,0.16) 0%,rgba(212,175,55,0.06) 100%)",
+        border: "2px solid rgba(212,175,55,0.55)", borderRadius: 14,
+        padding: "10px 14px", minWidth: 155,
+        boxShadow: "0 0 28px rgba(212,175,55,0.2),0 4px 20px rgba(0,0,0,0.5)",
+      }}>
       <Handle type="source" position={Position.Bottom}
-        style={{ background: "rgba(212,175,55,0.55)", width: 8, height: 8, border: "none" }} />
+        style={{ background: "rgba(212,175,55,0.6)", width: 8, height: 8, border: "none" }} />
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{
           width: 30, height: 30, borderRadius: 15, flexShrink: 0,
-          background: "rgba(212,175,55,0.14)", border: "1px solid rgba(212,175,55,0.4)",
+          background: "rgba(212,175,55,0.15)", border: "1px solid rgba(212,175,55,0.45)",
           display: "flex", alignItems: "center", justifyContent: "center",
           color: GOLD_L, fontSize: 10, fontWeight: 800,
         }}>{initials(data.firstName, data.lastName)}</div>
@@ -138,28 +161,39 @@ function RootNode({ data }: { data: TreeNodeData }) {
       <div style={{ marginTop: 7, fontSize: 9, color: "rgba(212,175,55,0.5)", textAlign: "center" }}>
         {data.directReferralCount} direct ref{data.directReferralCount !== 1 ? "s" : ""}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
 function MemberNode({ data }: { data: TreeNodeData }) {
+  const [hovered, setHovered] = useState(false);
   const isActive = data.status === "ACTIVE";
   const isLeft   = data.position === "LEFT";
+  const armColor = isLeft ? "#60a5fa" : "#a78bfa";
+  const anim     = nodeAnimate(data.depth, data.faded);
   return (
-    <div
+    <motion.div
+      initial={anim.initial}
+      animate={anim.animate}
+      transition={anim.transition}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onClick={() => data.onSelect?.(data)}
       style={{
         background: "hsl(221 59% 10%)",
-        border: `1.5px solid ${isActive ? "rgba(52,211,153,0.28)" : "rgba(255,255,255,0.08)"}`,
+        border: `1.5px solid ${hovered ? armColor : isActive ? "rgba(52,211,153,0.3)" : "rgba(255,255,255,0.09)"}`,
         borderRadius: 12, padding: "8px 12px", minWidth: 140,
-        cursor: "pointer", boxShadow: "0 4px 18px rgba(0,0,0,0.4)",
-        transition: "border-color 0.15s",
-      }}
-    >
+        cursor: "pointer",
+        boxShadow: hovered
+          ? `0 8px 28px rgba(0,0,0,0.55),0 0 16px ${armColor}28`
+          : "0 4px 18px rgba(0,0,0,0.4)",
+        transform: hovered ? "translateY(-2px)" : "translateY(0)",
+        transition: "border-color 0.18s,box-shadow 0.18s,transform 0.18s",
+      }}>
       <Handle type="target" position={Position.Top}
-        style={{ background: "rgba(255,255,255,0.14)", width: 6, height: 6, border: "none" }} />
+        style={{ background: "rgba(255,255,255,0.15)", width: 6, height: 6, border: "none" }} />
       <Handle type="source" position={Position.Bottom}
-        style={{ background: "rgba(255,255,255,0.14)", width: 6, height: 6, border: "none" }} />
+        style={{ background: "rgba(255,255,255,0.15)", width: 6, height: 6, border: "none" }} />
       <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
         <div style={{ position: "relative", flexShrink: 0 }}>
           <div style={{
@@ -185,35 +219,55 @@ function MemberNode({ data }: { data: TreeNodeData }) {
       </div>
       <span style={{
         fontSize: 8, fontWeight: 700, letterSpacing: "0.08em",
-        color: isLeft ? "#60a5fa" : "#a78bfa",
+        color: armColor,
         background: isLeft ? "rgba(96,165,250,0.1)" : "rgba(167,139,250,0.1)",
         padding: "2px 6px", borderRadius: 4,
       }}>
         {data.position ?? "—"} ARM
       </span>
-    </div>
+    </motion.div>
   );
 }
 
-function EmptySlotNode({ data }: { data: { side: string } }) {
+function EmptySlotNode({ data }: { data: Record<string, unknown> & { side: string } }) {
+  const [hovered, setHovered] = useState(false);
   const isLeft = data.side === "LEFT";
+  const color  = isLeft ? "#60a5fa" : "#a78bfa";
   return (
-    <div style={{
-      background: "rgba(255,255,255,0.015)",
-      border: `1px dashed ${isLeft ? "rgba(96,165,250,0.2)" : "rgba(167,139,250,0.2)"}`,
-      borderRadius: 12, padding: "10px 16px", minWidth: 120,
-      display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", gap: 4,
-    }}>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: 0.3, duration: 0.3 }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: hovered ? (isLeft ? "rgba(96,165,250,0.05)" : "rgba(167,139,250,0.05)") : "rgba(255,255,255,0.015)",
+        border: `1px dashed ${hovered ? color : isLeft ? "rgba(96,165,250,0.2)" : "rgba(167,139,250,0.2)"}`,
+        borderRadius: 12, padding: "10px 16px", minWidth: 128,
+        display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center", gap: 5,
+        transition: "all 0.2s ease",
+        cursor: "default",
+      }}>
       <Handle type="target" position={Position.Top}
         style={{ background: "rgba(255,255,255,0.08)", width: 6, height: 6, border: "none" }} />
       <Handle type="source" position={Position.Bottom}
         style={{ background: "rgba(255,255,255,0.08)", width: 6, height: 6, border: "none" }} />
-      <span style={{ fontSize: 16, color: isLeft ? "rgba(96,165,250,0.35)" : "rgba(167,139,250,0.35)", lineHeight: 1 }}>+</span>
-      <span style={{ fontSize: 9, fontWeight: 600, color: isLeft ? "rgba(96,165,250,0.4)" : "rgba(167,139,250,0.4)" }}>
-        Open {data.side}
-      </span>
-    </div>
+      <div style={{
+        width: 22, height: 22, borderRadius: "50%",
+        border: `1.5px dashed ${color}50`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        color: `${color}70`, fontSize: 14, fontWeight: 300,
+      }}>+</div>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: `${color}70`, letterSpacing: "0.04em" }}>
+          Open Position
+        </div>
+        <div style={{ fontSize: 8, color: `${color}45`, marginTop: 1 }}>
+          {data.side} arm
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -229,11 +283,16 @@ function treeToFlowElements(
   currentUserId: string,
   maxDepth:      number,
   onSelect:      (data: TreeNodeData) => void,
-): { nodes: Node[]; edges: Edge[] } {
-  const nodes: Node[] = [];
-  const edges: Edge[] = [];
-  const V_GAP  = 130;
-  const H_BASE = 75 * Math.pow(2, maxDepth - 1);
+  hoveredAncestors: Set<string>,
+): { nodes: Node[]; edges: Edge[]; parentMap: Map<string, string> } {
+  const nodes:     Node[]              = [];
+  const edges:     Edge[]              = [];
+  const parentMap: Map<string, string> = new Map();
+
+  const V_GAP  = 140;
+  const H_BASE = 80 * Math.pow(2, maxDepth - 1);
+
+  const hasHover = hoveredAncestors.size > 0;
 
   function walk(
     node:     BinaryTreeNode | null,
@@ -244,64 +303,70 @@ function treeToFlowElements(
   ) {
     if (depth > maxDepth) return;
     const hOffset = H_BASE / Math.pow(2, depth);
+    const onPath  = (id: string) => hasHover && hoveredAncestors.has(id);
+    const faded   = (id: string) => hasHover && !hoveredAncestors.has(id);
 
     if (!node) {
       if (parentId && depth <= maxDepth) {
         const emptyId = `empty-${parentId}-${side}`;
         nodes.push({
-          id: emptyId,
+          id: emptyId, type: "emptySlot",
           position: { x, y: depth * V_GAP },
-          type: "emptySlot",
-          data: { side },
+          data: { side, faded: hasHover ? 0.15 : 1 },
           draggable: false,
         } as Node);
+        const edgeFaded = parentId ? faded(parentId) : hasHover;
         edges.push({
           id: `e-${parentId}-${emptyId}`,
-          source: parentId,
-          target: emptyId,
+          source: parentId!, target: emptyId,
           type: "smoothstep",
           style: {
             stroke: side === "LEFT" ? "rgba(96,165,250,0.16)" : "rgba(167,139,250,0.16)",
-            strokeDasharray: "4,4",
-            strokeWidth: 1.5,
+            strokeDasharray: "4,4", strokeWidth: 1.5,
+            opacity: edgeFaded ? 0.15 : 1,
           },
         } as Edge);
       }
       return;
     }
 
-    const isRoot = node.id === currentUserId;
+    if (parentId) parentMap.set(node.id, parentId);
+
+    const isRoot   = node.id === currentUserId;
+    const nodeFaded = faded(node.id);
+
     nodes.push({
       id: node.id,
       position: { x, y: depth * V_GAP },
       type: isRoot ? "rootNode" : "memberNode",
       data: {
-        id:                  node.id,
-        username:            node.username,
-        firstName:           node.firstName,
-        lastName:            node.lastName,
-        status:              node.status,
-        position:            node.position,
+        id: node.id, username: node.username,
+        firstName: node.firstName, lastName: node.lastName,
+        status: node.status, position: node.position,
         directReferralCount: node.directReferralCount,
-        onSelect,
+        depth, faded: nodeFaded, onSelect,
       },
       draggable: false,
     } as Node);
 
     if (parentId && side) {
-      const isLeft = side === "LEFT";
+      const isLeft     = side === "LEFT";
+      const edgeOnPath = onPath(parentId) && onPath(node.id);
       edges.push({
         id: `e-${parentId}-${node.id}`,
-        source: parentId,
-        target: node.id,
+        source: parentId, target: node.id,
         type: "smoothstep",
         label: side,
         labelStyle: { fill: isLeft ? "#60a5fa" : "#a78bfa", fontSize: 9, fontWeight: 700 },
         labelBgStyle: { fill: "hsl(221 59% 10%)", fillOpacity: 0.9 },
         labelBgPadding: [2, 4] as [number, number],
         style: {
-          stroke: isLeft ? "rgba(96,165,250,0.5)" : "rgba(167,139,250,0.5)",
-          strokeWidth: 2,
+          stroke: edgeOnPath
+            ? (isLeft ? "#60a5fa" : "#a78bfa")
+            : (isLeft ? "rgba(96,165,250,0.45)" : "rgba(167,139,250,0.45)"),
+          strokeWidth: edgeOnPath ? 2.5 : 2,
+          opacity: hasHover && !edgeOnPath ? 0.12 : 1,
+          transition: "all 0.2s ease",
         },
       } as Edge);
     }
@@ -311,7 +376,94 @@ function treeToFlowElements(
   }
 
   walk(root, 0, 0, null, null);
-  return { nodes, edges };
+  return { nodes, edges, parentMap };
+}
+
+// ── Inner Tree Controls (must be inside ReactFlow context) ────────────────────
+const CTRL_BTN: React.CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "center",
+  width: 30, height: 30, cursor: "pointer", border: "none",
+  background: "transparent", color: "rgba(170,179,197,0.7)",
+  transition: "color 0.15s",
+};
+
+function TreeInnerControls({
+  depth, setDepth, onFit,
+}: {
+  depth:    number;
+  setDepth: (d: number) => void;
+  onFit:    () => void;
+}) {
+  const { zoomIn, zoomOut, fitView } = useReactFlow();
+  const zoom = useStore((s) => Math.round(s.transform[2] * 100));
+
+  const handleFit = useCallback(() => {
+    fitView({ padding: 0.25, duration: 350 });
+    onFit();
+  }, [fitView, onFit]);
+
+  const panelBase: React.CSSProperties = {
+    background: "rgba(10,18,36,0.9)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: 10, backdropFilter: "blur(8px)",
+    overflow: "hidden",
+  };
+  const divider = <div style={{ height: 1, background: "rgba(255,255,255,0.07)" }} />;
+
+  return (
+    <>
+      {/* Zoom controls — bottom left */}
+      <div style={{ position: "absolute", bottom: 12, left: 12, zIndex: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={panelBase}>
+          <button style={CTRL_BTN} onClick={() => zoomIn({ duration: 200 })} title="Zoom in">
+            <ZoomIn style={{ width: 13, height: 13 }} />
+          </button>
+          {divider}
+          <div style={{ textAlign: "center", fontSize: 9, fontWeight: 700, color: MUTED, padding: "3px 0" }}>
+            {zoom}%
+          </div>
+          {divider}
+          <button style={CTRL_BTN} onClick={() => zoomOut({ duration: 200 })} title="Zoom out">
+            <ZoomOut style={{ width: 13, height: 13 }} />
+          </button>
+          {divider}
+          <button style={CTRL_BTN} onClick={handleFit} title="Fit view">
+            <Maximize2 style={{ width: 12, height: 12 }} />
+          </button>
+        </div>
+      </div>
+
+      {/* Level + action controls — top right */}
+      <div style={{ position: "absolute", top: 10, right: 10, zIndex: 10, display: "flex", gap: 6 }}>
+        {/* Level selector */}
+        <div style={{ ...panelBase, display: "flex", padding: 3, gap: 2 }}>
+          {([1, 2, 3, 4] as const).map((d) => (
+            <button key={d} onClick={() => setDepth(d)}
+              style={{
+                padding: "4px 10px", borderRadius: 7, fontSize: 11, fontWeight: 700,
+                cursor: "pointer", border: "none", transition: "all 0.18s",
+                background: depth === d ? "rgba(212,175,55,0.18)" : "transparent",
+                color: depth === d ? GOLD : MUTED,
+                outline: depth === d ? `1px solid rgba(212,175,55,0.35)` : "1px solid transparent",
+              }}>
+              L{d}
+            </button>
+          ))}
+        </div>
+        {/* Fit view action */}
+        <button onClick={handleFit}
+          title="Fit view"
+          style={{
+            ...panelBase, display: "flex", alignItems: "center", gap: 5,
+            padding: "0 10px", cursor: "pointer", fontSize: 10, fontWeight: 600,
+            color: MUTED, border: "none",
+          }}>
+          <Maximize2 style={{ width: 11, height: 11 }} />
+          Fit
+        </button>
+      </div>
+    </>
+  );
 }
 
 // ── Insight meta ──────────────────────────────────────────────────────────────
@@ -322,18 +474,13 @@ const INSIGHT_STYLE = {
   info:    { bg: "rgba(96,165,250,0.07)",  border: "rgba(96,165,250,0.22)",  color: "#60a5fa" },
   gold:    { bg: "rgba(212,175,55,0.07)",  border: "rgba(212,175,55,0.25)",  color: GOLD },
 };
-const INSIGHT_ICON = {
-  success: UserCheck,
-  warning: Zap,
-  alert:   Target,
-  info:    Activity,
-  gold:    Award,
+const INSIGHT_ICON: Record<string, React.ElementType> = {
+  success: ShieldCheck, warning: Zap, alert: Target, info: Activity, gold: Award,
 };
 
-// ── InsightCard ───────────────────────────────────────────────────────────────
 function InsightCard({ insight }: { insight: NetworkInsight }) {
   const s    = INSIGHT_STYLE[insight.type];
-  const Icon = INSIGHT_ICON[insight.type];
+  const Icon = INSIGHT_ICON[insight.type] ?? Activity;
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
       className="shrink-0 w-64 rounded-2xl p-4"
@@ -343,9 +490,7 @@ function InsightCard({ insight }: { insight: NetworkInsight }) {
           width: 30, height: 30, borderRadius: 10, flexShrink: 0,
           display: "flex", alignItems: "center", justifyContent: "center",
           background: `${s.color}18`,
-        }}>
-          <Icon style={{ width: 14, height: 14, color: s.color }} />
-        </div>
+        }}><Icon style={{ width: 14, height: 14, color: s.color }} /></div>
         <p style={{ fontSize: 12, fontWeight: 700, color: "hsl(var(--foreground))", lineHeight: 1.3 }}>
           {insight.title}
         </p>
@@ -382,17 +527,14 @@ function MemberCard({ m, onClick }: { m: NetworkMember; onClick: () => void }) {
           <p className="text-sm font-semibold text-foreground truncate">@{m.username}</p>
           {m.position && (
             <span style={{
-              fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
+              fontSize: 9, fontWeight: 700,
               color: m.position === "LEFT" ? "#60a5fa" : "#a78bfa",
               background: m.position === "LEFT" ? "rgba(96,165,250,0.1)" : "rgba(167,139,250,0.1)",
               padding: "1px 5px", borderRadius: 4,
             }}>{m.position[0]}</span>
           )}
           {m.isSponsored && (
-            <span style={{
-              fontSize: 9, fontWeight: 700, color: GOLD,
-              background: "rgba(212,175,55,0.1)", padding: "1px 5px", borderRadius: 4,
-            }}>S</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: GOLD, background: "rgba(212,175,55,0.1)", padding: "1px 5px", borderRadius: 4 }}>S</span>
           )}
         </div>
         <p className="text-xs truncate" style={{ color: MUTED }}>
@@ -416,38 +558,12 @@ function IncomeJourneyModal({ member, onClose }: { member: NetworkMember; onClos
   const bvGenerated = Math.floor(Number(member.investedAmount) / 100);
   const matchReward = Math.min(bvGenerated, 50) * 5;
   const steps = [
-    {
-      icon: UserPlus, color: "#60a5fa", bg: "rgba(96,165,250,0.1)",
-      title: `${member.firstName} Joined`, desc: `Placed in your ${member.position ?? "binary"} arm`,
-    },
-    {
-      icon: TrendingUp, color: GOLD, bg: "rgba(212,175,55,0.1)",
-      title: "Invested",
-      desc: member.activeInvestments > 0
-        ? `${fmtUSD(member.investedAmount)} across ${member.activeInvestments} active plan${member.activeInvestments > 1 ? "s" : ""}`
-        : "No active investment yet",
-    },
-    {
-      icon: BarChart2, color: "#34d399", bg: "rgba(52,211,153,0.1)",
-      title: "BV Generated",
-      desc: bvGenerated > 0
-        ? `${bvGenerated} BV credited to your ${member.position ?? ""} leg (1 BV per $100 invested)`
-        : "Investment needed to generate BV",
-    },
-    {
-      icon: Zap, color: "#a78bfa", bg: "rgba(167,139,250,0.1)",
-      title: "Binary Match Contribution",
-      desc: bvGenerated > 0
-        ? `Up to ${fmtUSD(matchReward)} per cycle when legs match (min BV side × $5, capped at $250)`
-        : "Contribute to binary income once invested",
-    },
-    {
-      icon: Wallet, color: "#fb923c", bg: "rgba(251,146,60,0.1)",
-      title: "Credited to Wallet",
-      desc: "Binary income is paid into your Withdrawal Wallet each cycle",
-    },
+    { icon: UserPlus,    color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  title: `${member.firstName} Joined`,   desc: `Placed in your ${member.position ?? "binary"} arm` },
+    { icon: TrendingUp,  color: GOLD,      bg: "rgba(212,175,55,0.1)",  title: "Invested",                     desc: member.activeInvestments > 0 ? `${fmtUSD(member.investedAmount)} across ${member.activeInvestments} active plan${member.activeInvestments > 1 ? "s" : ""}` : "No active investment yet" },
+    { icon: BarChart2,   color: "#34d399", bg: "rgba(52,211,153,0.1)",  title: "BV Generated",                 desc: bvGenerated > 0 ? `${bvGenerated} BV credited to your ${member.position ?? ""} leg (1 BV per $100 invested)` : "Investment needed to generate BV" },
+    { icon: Zap,         color: "#a78bfa", bg: "rgba(167,139,250,0.1)", title: "Binary Match Contribution",    desc: bvGenerated > 0 ? `Up to ${fmtUSD(matchReward)} per cycle when legs match (min BV side × $5, capped at $250)` : "Contribute to binary income once invested" },
+    { icon: Wallet,      color: "#fb923c", bg: "rgba(251,146,60,0.1)",  title: "Credited to Wallet",           desc: "Binary income is paid into your Withdrawal Wallet each cycle" },
   ];
-
   return (
     <motion.div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -469,7 +585,6 @@ function IncomeJourneyModal({ member, onClose }: { member: NetworkMember; onClos
         </div>
         <div className="p-5">
           <div className="relative">
-            {/* vertical line */}
             <div className="absolute left-4 top-4 bottom-4 w-px" style={{ background: "rgba(255,255,255,0.06)" }} />
             <div className="space-y-5">
               {steps.map((step, i) => {
@@ -495,9 +610,7 @@ function IncomeJourneyModal({ member, onClose }: { member: NetworkMember; onClos
             <div className="mt-5 rounded-xl p-3 text-center"
               style={{ background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.18)" }}>
               <p className="text-xs" style={{ color: MUTED }}>Potential per cycle from this member</p>
-              <p className="text-xl font-bold mt-1" style={{ color: GOLD_L }}>
-                up to {fmtUSD(matchReward)}
-              </p>
+              <p className="text-xl font-bold mt-1" style={{ color: GOLD_L }}>up to {fmtUSD(matchReward)}</p>
               <p className="text-[10px] mt-0.5" style={{ color: MUTED }}>when both legs have enough BV</p>
             </div>
           )}
@@ -507,115 +620,158 @@ function IncomeJourneyModal({ member, onClose }: { member: NetworkMember; onClos
   );
 }
 
-// ── Member Drawer ─────────────────────────────────────────────────────────────
+// ── Member Drawer — CRM Style ─────────────────────────────────────────────────
+function DrawerSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-5">
+      <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: MUTED, marginBottom: 10 }}>
+        {title}
+      </p>
+      {children}
+    </div>
+  );
+}
+function DrawerRow({ label, value, valueColor, icon }: { label: string; value: string | number; valueColor?: string; icon?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between py-2.5"
+      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+      <div className="flex items-center gap-2" style={{ color: MUTED }}>
+        {icon && <span style={{ flexShrink: 0 }}>{icon}</span>}
+        <span style={{ fontSize: 12 }}>{label}</span>
+      </div>
+      <span style={{ fontSize: 12, fontWeight: 700, color: valueColor ?? "hsl(var(--foreground))" }}>{value}</span>
+    </div>
+  );
+}
+
 function MemberDrawer({
   member, onClose, onJourney,
 }: { member: NetworkMember; onClose: () => void; onJourney: () => void }) {
-  const isActive = member.status === "ACTIVE";
+  const isActive    = member.status === "ACTIVE";
   const bvGenerated = Math.floor(Number(member.investedAmount) / 100);
-
-  const rows = [
-    { label: "Position",      value: member.position ?? "—",          color: member.position === "LEFT" ? "#60a5fa" : member.position === "RIGHT" ? "#a78bfa" : MUTED },
-    { label: "Direct Refs",   value: String(member.directReferrals),  color: GOLD },
-    { label: "Active Plans",  value: String(member.activeInvestments), color: "#34d399" },
-    { label: "Invested",      value: member.activeInvestments > 0 ? fmtUSD(member.investedAmount) : "—", color: GOLD },
-    { label: "BV Generated",  value: bvGenerated > 0 ? `${bvGenerated} BV` : "—", color: "#a78bfa" },
-    { label: "Placement",     value: member.isSponsored ? "Sponsored" : "Spillover", color: member.isSponsored ? GOLD : "#60a5fa" },
-  ];
+  const armColor    = member.position === "LEFT" ? "#60a5fa" : "#a78bfa";
+  const estROI      = bvGenerated > 0 ? `~${fmtUSD(Math.min(bvGenerated, 50) * 5)}/cycle` : "—";
 
   return (
     <motion.div className="fixed inset-0 z-50 flex justify-end"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={onClose} />
-      <motion.div className="relative w-full max-w-sm h-full overflow-y-auto"
+      <motion.div className="relative w-full max-w-sm h-full flex flex-col"
         initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 30, stiffness: 320 }}
         style={{ background: "hsl(var(--card))", borderLeft: "1px solid hsl(var(--border))" }}>
-        <div className="p-5">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-5">
-            <p className="text-sm font-semibold text-foreground">Member Profile</p>
-            <button onClick={onClose}
-              className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors"
-              style={{ color: MUTED }}>
-              <X className="h-4 w-4" />
-            </button>
-          </div>
 
-          {/* Avatar + status */}
-          <div className="flex flex-col items-center mb-6">
-            <div style={{ position: "relative" }}>
-              <Av first={member.firstName} last={member.lastName} size={64} />
+        {/* Header bar */}
+        <div className="flex items-center justify-between px-5 py-3.5 shrink-0"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <p className="text-sm font-semibold text-foreground">Member Profile</p>
+          <button onClick={onClose}
+            className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors"
+            style={{ color: MUTED }}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto">
+
+          {/* Profile hero */}
+          <div className="px-5 py-6 text-center"
+            style={{
+              background: "linear-gradient(180deg,rgba(212,175,55,0.05) 0%,transparent 100%)",
+              borderBottom: "1px solid rgba(255,255,255,0.05)",
+            }}>
+            <div style={{ position: "relative", display: "inline-block" }}>
+              <Av first={member.firstName} last={member.lastName} size={68} />
               <div style={{
-                position: "absolute", bottom: 2, right: 2, width: 14, height: 14,
+                position: "absolute", bottom: 3, right: 3, width: 15, height: 15,
                 borderRadius: "50%", background: isActive ? "#34d399" : "rgba(170,179,197,0.4)",
-                border: "2px solid hsl(var(--card))",
+                border: "2.5px solid hsl(var(--card))",
               }} />
             </div>
-            <p className="mt-3 text-base font-bold text-foreground">@{member.username}</p>
-            <p className="text-sm" style={{ color: MUTED }}>{member.firstName} {member.lastName}</p>
-
-            <div className="flex items-center gap-2 mt-2 flex-wrap justify-center">
+            <p className="mt-3 text-base font-extrabold text-foreground leading-tight">
+              {member.firstName} {member.lastName}
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: MUTED }}>@{member.username}</p>
+            <div className="flex items-center gap-2 justify-center mt-3 flex-wrap">
               <span style={{
-                padding: "3px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                background: isActive ? "rgba(52,211,153,0.1)" : "rgba(170,179,197,0.08)",
+                fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6,
+                background: isActive ? "rgba(52,211,153,0.1)" : "rgba(170,179,197,0.07)",
                 color: isActive ? "#34d399" : MUTED,
                 border: `1px solid ${isActive ? "rgba(52,211,153,0.25)" : "rgba(255,255,255,0.07)"}`,
               }}>{isActive ? "Active" : "Inactive"}</span>
+              {member.position && (
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6,
+                  background: `${armColor}12`, color: armColor,
+                  border: `1px solid ${armColor}30`,
+                }}>{member.position} ARM</span>
+              )}
               {member.isSponsored && (
                 <span style={{
-                  padding: "3px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                  background: "rgba(212,175,55,0.1)", color: GOLD,
-                  border: "1px solid rgba(212,175,55,0.25)",
-                }}>Personally Sponsored</span>
+                  fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6,
+                  background: "rgba(212,175,55,0.1)", color: GOLD, border: "1px solid rgba(212,175,55,0.25)",
+                }}>Sponsored</span>
               )}
             </div>
           </div>
 
-          {/* Stats grid */}
-          <div className="grid grid-cols-2 gap-2.5 mb-4">
-            {rows.map((s) => (
-              <div key={s.label} className="rounded-xl p-3 text-center"
-                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <p style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: MUTED, marginBottom: 5 }}>
-                  {s.label}
-                </p>
-                <p style={{ fontSize: 16, fontWeight: 800, color: s.color }}>{s.value}</p>
+          {/* Stats quick strip */}
+          <div className="grid grid-cols-3 divide-x px-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.05)" }}>
+            {[
+              { label: "Invested",    value: member.activeInvestments > 0 ? fmtUSD(member.investedAmount) : "—", color: GOLD },
+              { label: "BV Gen.",     value: bvGenerated > 0 ? `${bvGenerated}` : "—",                           color: "#a78bfa" },
+              { label: "Est/Cycle",   value: estROI,                                                              color: "#34d399" },
+            ].map((s) => (
+              <div key={s.label} className="py-3 text-center" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                <p style={{ fontSize: 16, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</p>
+                <p style={{ fontSize: 9, color: MUTED, marginTop: 3, textTransform: "uppercase", letterSpacing: "0.07em" }}>{s.label}</p>
               </div>
             ))}
           </div>
 
-          {/* Plans */}
-          {member.plans.length > 0 && (
-            <div className="mb-4 rounded-xl p-3"
-              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <p style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: MUTED, marginBottom: 8 }}>Active Plans</p>
-              <div className="flex flex-wrap gap-1.5">
-                {member.plans.map((p) => (
-                  <span key={p} style={{
-                    fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6,
-                    background: "rgba(212,175,55,0.1)", color: GOLD_L,
-                    border: "1px solid rgba(212,175,55,0.2)",
-                  }}>{p.replace("PLAN_", "")}-day</span>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Detail sections */}
+          <div className="px-5 pt-5">
 
-          {/* Join date */}
-          <p className="text-xs text-center mb-5" style={{ color: MUTED }}>
-            Joined {new Date(member.joinedAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
-          </p>
+            <DrawerSection title="Financial">
+              <DrawerRow label="Active Plans"    value={member.activeInvestments > 0 ? member.activeInvestments : "None"} valueColor={member.activeInvestments > 0 ? "#34d399" : MUTED} icon={<TrendingUp style={{ width: 12, height: 12 }} />} />
+              <DrawerRow label="Total Invested"  value={member.activeInvestments > 0 ? fmtUSD(member.investedAmount) : "—"} valueColor={GOLD} icon={<Wallet style={{ width: 12, height: 12 }} />} />
+              <DrawerRow label="BV Generated"    value={bvGenerated > 0 ? `${bvGenerated} BV` : "—"} valueColor="#a78bfa" icon={<BarChart2 style={{ width: 12, height: 12 }} />} />
+              <DrawerRow label="Binary Contribution" value={estROI} valueColor="#34d399" icon={<Zap style={{ width: 12, height: 12 }} />} />
+            </DrawerSection>
 
-          {/* Income Journey CTA */}
+            <DrawerSection title="Network">
+              <DrawerRow label="Position"         value={member.position ?? "—"} valueColor={member.position ? armColor : MUTED} icon={<GitBranch style={{ width: 12, height: 12 }} />} />
+              <DrawerRow label="Placement"         value={member.isSponsored ? "Personally Sponsored" : "Spillover"} valueColor={member.isSponsored ? GOLD : MUTED} icon={<Star style={{ width: 12, height: 12 }} />} />
+              <DrawerRow label="Direct Referrals"  value={member.directReferrals} valueColor={GOLD} icon={<Users style={{ width: 12, height: 12 }} />} />
+              <DrawerRow label="Joined"            value={new Date(member.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} icon={<Calendar style={{ width: 12, height: 12 }} />} />
+            </DrawerSection>
+
+            {member.plans.length > 0 && (
+              <DrawerSection title="Active Plans">
+                <div className="flex flex-wrap gap-1.5">
+                  {member.plans.map((p) => (
+                    <span key={p} style={{
+                      fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 7,
+                      background: "rgba(212,175,55,0.1)", color: GOLD_L, border: "1px solid rgba(212,175,55,0.2)",
+                    }}>{p.replace("PLAN_", "")}-day</span>
+                  ))}
+                </div>
+              </DrawerSection>
+            )}
+          </div>
+        </div>
+
+        {/* Actions footer */}
+        <div className="shrink-0 p-4 space-y-2.5" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <button onClick={onJourney}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-sm transition-all"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all"
             style={{
-              background: "linear-gradient(135deg, rgba(212,175,55,0.15), rgba(212,175,55,0.07))",
-              border: "1px solid rgba(212,175,55,0.3)", color: GOLD_L,
+              background: "linear-gradient(135deg,rgba(212,175,55,0.16),rgba(212,175,55,0.07))",
+              border: "1px solid rgba(212,175,55,0.32)", color: GOLD_L,
             }}>
             View Income Journey
-            <ArrowRight style={{ width: 14, height: 14 }} />
+            <ArrowRight style={{ width: 13, height: 13 }} />
           </button>
         </div>
       </motion.div>
@@ -624,13 +780,8 @@ function MemberDrawer({
 }
 
 // ── Section wrapper ────────────────────────────────────────────────────────────
-function Section({
-  title, icon, children, extra,
-}: {
-  title:    string;
-  icon:     React.ReactNode;
-  children: React.ReactNode;
-  extra?:   React.ReactNode;
+function Section({ title, icon, children, extra }: {
+  title: string; icon: React.ReactNode; children: React.ReactNode; extra?: React.ReactNode;
 }) {
   return (
     <div className="mb-5 lg:mb-6">
@@ -649,7 +800,6 @@ function Section({
   );
 }
 
-// ── Skeleton rows ─────────────────────────────────────────────────────────────
 function Skeleton({ n = 4, py = "py-3" }: { n?: number; py?: string }) {
   return (
     <>
@@ -659,7 +809,7 @@ function Skeleton({ n = 4, py = "py-3" }: { n?: number; py?: string }) {
           <div className="h-9 w-9 rounded-full shrink-0" style={{ background: "rgba(255,255,255,0.05)" }} />
           <div className="flex-1 space-y-2">
             <div className="h-2.5 rounded" style={{ background: "rgba(255,255,255,0.05)", width: "40%" }} />
-            <div className="h-2 rounded" style={{ background: "rgba(255,255,255,0.04)", width: "60%" }} />
+            <div className="h-2 rounded"   style={{ background: "rgba(255,255,255,0.04)", width: "60%" }} />
           </div>
         </div>
       ))}
@@ -667,18 +817,26 @@ function Skeleton({ n = 4, py = "py-3" }: { n?: number; py?: string }) {
   );
 }
 
-// ── Filter chips config ───────────────────────────────────────────────────────
+function ViewMore({ label, onClick }: { label: string; onClick?: () => void }) {
+  return (
+    <button onClick={onClick}
+      className="w-full flex items-center justify-center gap-1.5 py-3 transition-colors hover:bg-white/[0.02]"
+      style={{ borderTop: "1px solid rgba(255,255,255,0.05)", fontSize: 12, fontWeight: 600, color: MUTED }}>
+      {label} <ChevRight style={{ width: 13, height: 13 }} />
+    </button>
+  );
+}
+
 const FILTER_CHIPS: { key: MemberFilter; label: string; icon: React.ElementType }[] = [
-  { key: "all",              label: "All",          icon: Users     },
-  { key: "active",           label: "Active",       icon: ShieldCheck },
-  { key: "inactive",         label: "Inactive",     icon: UserX     },
-  { key: "sponsored",        label: "Sponsored",    icon: Star      },
-  { key: "no-plan",          label: "No Plan",      icon: Target    },
-  { key: "high-producers",   label: "High Value",   icon: Flame     },
-  { key: "recently-active",  label: "New",          icon: Clock     },
+  { key: "all",             label: "All",       icon: Users      },
+  { key: "active",          label: "Active",    icon: ShieldCheck },
+  { key: "inactive",        label: "Inactive",  icon: UserX      },
+  { key: "sponsored",       label: "Sponsored", icon: Star       },
+  { key: "no-plan",         label: "No Plan",   icon: Target     },
+  { key: "high-producers",  label: "High Value",icon: Flame      },
+  { key: "recently-active", label: "New",       icon: Clock      },
 ];
 
-// ── Leg stat row helper ───────────────────────────────────────────────────────
 function LegRow({ label, value, color }: { label: string; value: string | number; color?: string }) {
   return (
     <div className="flex items-center justify-between py-1.5">
@@ -688,10 +846,9 @@ function LegRow({ label, value, color }: { label: string; value: string | number
   );
 }
 
-// ── Activity icon + color ─────────────────────────────────────────────────────
 const ACT_STYLE: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
-  investment: { icon: TrendingUp, color: GOLD,       bg: "rgba(212,175,55,0.1)"  },
-  join:       { icon: UserPlus,   color: "#34d399",  bg: "rgba(52,211,153,0.1)"  },
+  investment: { icon: TrendingUp, color: GOLD,      bg: "rgba(212,175,55,0.1)" },
+  join:       { icon: UserPlus,   color: "#34d399", bg: "rgba(52,211,153,0.1)" },
 };
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
@@ -712,25 +869,23 @@ export default function NetworkIntelligencePage() {
   const [search, setSearch]             = useState("");
   const [filter, setFilter]             = useState<MemberFilter>("all");
   const [treeDepth, setTreeDepth]       = useState(3);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<NetworkMember | null>(null);
   const [journeyOpen, setJourneyOpen]   = useState(false);
   const [copied, setCopied]             = useState<"code" | "link" | null>(null);
   const [memberLoading, setMemberLoading] = useState(false);
+
+  // stable ref to parentMap (updated without triggering re-render of everything)
+  const parentMapRef = useRef<Map<string, string>>(new Map());
 
   // ── Initial parallel load ──────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
       setLoading(true);
       const [r0, r1, r2, r3, r4, r5, r6, r7, r8] = await Promise.allSettled([
-        getProfile(),
-        getNetworkStats(),
-        getNetworkInsights(),
-        getBvSummary(),
-        getBinaryTree(3),
-        getTopPerformers(),
-        getTeamActivity(),
-        getNetworkPulse(),
-        getLegBreakdown(),
+        getProfile(), getNetworkStats(), getNetworkInsights(),
+        getBvSummary(), getBinaryTree(3), getTopPerformers(),
+        getTeamActivity(), getNetworkPulse(), getLegBreakdown(),
       ]);
       if (r0.status === "fulfilled") setProfile(r0.value);
       if (r1.status === "fulfilled") setStats(r1.value);
@@ -746,14 +901,14 @@ export default function NetworkIntelligencePage() {
     void load();
   }, []);
 
-  // ── Members: re-load on search / filter / page change ─────────────────────
+  // ── Members reload ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (loading) return;
     let cancelled = false;
     async function loadMembers() {
       setMemberLoading(true);
       try {
-        const res = await getNetworkMembers({ page: memberPage, limit: 10, search, filter });
+        const res = await getNetworkMembers({ page: memberPage, limit: 5, search, filter });
         if (!cancelled) { setMembers(res.members); setMemberTotal(res.total); }
       } catch { /* ignore */ } finally {
         if (!cancelled) setMemberLoading(false);
@@ -763,35 +918,38 @@ export default function NetworkIntelligencePage() {
     return () => { cancelled = true; };
   }, [loading, search, filter, memberPage]);
 
-  // ── Tree depth change → re-fetch ───────────────────────────────────────────
+  // ── Tree depth reload ──────────────────────────────────────────────────────
   useEffect(() => {
     if (loading) return;
     getBinaryTree(treeDepth).then(setTree).catch(() => {});
   }, [treeDepth]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Node select callback (stable) ──────────────────────────────────────────
+  // ── Node select callback ───────────────────────────────────────────────────
   const handleNodeSelect = useCallback((data: TreeNodeData) => {
     setSelectedMember({
-      id:               data.id,
-      username:         data.username,
-      firstName:        data.firstName,
-      lastName:         data.lastName,
-      status:           data.status,
-      position:         data.position,
-      joinedAt:         new Date().toISOString(),
-      directReferrals:  data.directReferralCount,
-      activeInvestments: 0,
-      investedAmount:   "0",
-      plans:            [],
-      isSponsored:      false,
+      id: data.id, username: data.username,
+      firstName: data.firstName, lastName: data.lastName,
+      status: data.status, position: data.position,
+      joinedAt: new Date().toISOString(),
+      directReferrals: data.directReferralCount,
+      activeInvestments: 0, investedAmount: "0",
+      plans: [], isSponsored: false,
     });
   }, []);
 
-  // ── React Flow elements (memo) ─────────────────────────────────────────────
+  // ── Ancestor set for path highlighting ────────────────────────────────────
+  const hoveredAncestors = useMemo<Set<string>>(() => {
+    if (!hoveredNodeId) return new Set();
+    return getAncestorSet(hoveredNodeId, parentMapRef.current);
+  }, [hoveredNodeId]);
+
+  // ── Flow elements ──────────────────────────────────────────────────────────
   const { nodes: flowNodes, edges: flowEdges } = useMemo(() => {
     if (!tree || !profile) return { nodes: [], edges: [] };
-    return treeToFlowElements(tree, profile.id, treeDepth, handleNodeSelect);
-  }, [tree, profile?.id, treeDepth, handleNodeSelect]);
+    const result = treeToFlowElements(tree, profile.id, treeDepth, handleNodeSelect, hoveredAncestors);
+    parentMapRef.current = result.parentMap;
+    return result;
+  }, [tree, profile?.id, treeDepth, handleNodeSelect, hoveredAncestors]);
 
   // ── Copy helpers ───────────────────────────────────────────────────────────
   const copyCode = useCallback(() => {
@@ -799,15 +957,14 @@ export default function NetworkIntelligencePage() {
     void navigator.clipboard.writeText(profile.referralCode);
     setCopied("code"); setTimeout(() => setCopied(null), 2000);
   }, [profile]);
-
   const copyLink = useCallback(() => {
     if (!profile) return;
     void navigator.clipboard.writeText(`${window.location.origin}/register?ref=${profile.referralCode}`);
     setCopied("link"); setTimeout(() => setCopied(null), 2000);
   }, [profile]);
 
-  // ── Derived values ─────────────────────────────────────────────────────────
-  const totalPages  = Math.max(1, Math.ceil(memberTotal / 10));
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const totalPages  = Math.max(1, Math.ceil(memberTotal / 5));
   const leftBV      = Number(bvSummary?.leftBV  ?? stats?.leftBV  ?? 0);
   const rightBV     = Number(bvSummary?.rightBV ?? stats?.rightBV ?? 0);
   const totalBV     = leftBV + rightBV;
@@ -827,21 +984,14 @@ export default function NetworkIntelligencePage() {
     <AppLayout pageTitle="Network Intelligence" notificationCount={0}>
       <PageContainer>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* HERO — Insight-driven                                              */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* ── HERO ─────────────────────────────────────────────────────────── */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
           className="relative mb-5 rounded-2xl overflow-hidden"
           style={{
-            background: "linear-gradient(135deg, rgba(10,22,40,1) 0%, rgba(14,27,55,1) 55%, rgba(10,22,40,1) 100%)",
+            background: "linear-gradient(135deg,rgba(10,22,40,1) 0%,rgba(14,27,55,1) 55%,rgba(10,22,40,1) 100%)",
             border: "1px solid rgba(212,175,55,0.22)",
           }}>
-          <div style={{
-            position: "absolute", inset: 0, pointerEvents: "none",
-            background: "radial-gradient(ellipse 60% 80% at 100% 0%, rgba(212,175,55,0.08) 0%, transparent 60%)",
-          }} />
-
-          {/* Greeting row */}
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse 60% 80% at 100% 0%,rgba(212,175,55,0.08) 0%,transparent 60%)" }} />
           <div className="relative px-5 pt-5 pb-4">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -866,77 +1016,44 @@ export default function NetworkIntelligencePage() {
               </div>
             </div>
           </div>
-
-          {/* Divider */}
           <div style={{ height: 1, background: "rgba(255,255,255,0.06)", marginInline: 20 }} />
-
-          {/* Three key insights */}
           <div className="relative grid grid-cols-3 divide-x" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-            {/* Weak Leg */}
             <div className="px-4 py-4 text-center">
-              <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#fb923c", marginBottom: 6 }}>
-                Weak Leg
-              </p>
-              <p style={{ fontSize: 20, fontWeight: 800, color: "hsl(var(--foreground))", lineHeight: 1 }}>
-                {loading ? "—" : weakLeg}
-              </p>
-              <p style={{ fontSize: 9, color: MUTED, marginTop: 4 }}>
-                {loading ? "—" : bvNeeded > 0 ? `Needs ${bvNeeded} BV` : "At cap ✓"}
-              </p>
+              <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#fb923c", marginBottom: 6 }}>Weak Leg</p>
+              <p style={{ fontSize: 20, fontWeight: 800, color: "hsl(var(--foreground))", lineHeight: 1 }}>{loading ? "—" : weakLeg}</p>
+              <p style={{ fontSize: 9, color: MUTED, marginTop: 4 }}>{loading ? "—" : bvNeeded > 0 ? `Needs ${bvNeeded} BV` : "At cap ✓"}</p>
             </div>
-
-            {/* Next reward */}
             <div className="px-4 py-4 text-center" style={{ borderLeft: "1px solid rgba(255,255,255,0.06)" }}>
-              <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: GOLD, marginBottom: 6 }}>
-                Next Reward
-              </p>
-              <p style={{ fontSize: 20, fontWeight: 800, color: GOLD_L, lineHeight: 1 }}>
-                {loading ? "—" : nextReward > 0 ? `~${fmtUSD(nextReward)}` : "$0"}
-              </p>
+              <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: GOLD, marginBottom: 6 }}>Next Reward</p>
+              <p style={{ fontSize: 20, fontWeight: 800, color: GOLD_L, lineHeight: 1 }}>{loading ? "—" : nextReward > 0 ? `~${fmtUSD(nextReward)}` : "$0"}</p>
               <p style={{ fontSize: 9, color: MUTED, marginTop: 4 }}>per cycle</p>
             </div>
-
-            {/* Growth score */}
             <div className="px-4 py-4 text-center" style={{ borderLeft: "1px solid rgba(255,255,255,0.06)" }}>
-              <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#60a5fa", marginBottom: 6 }}>
-                Growth Score
-              </p>
-              <p style={{ fontSize: 20, fontWeight: 800, color: loading ? MUTED : scoreColor(growthScore), lineHeight: 1 }}>
-                {loading ? "—" : growthScore}
-              </p>
+              <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#60a5fa", marginBottom: 6 }}>Growth Score</p>
+              <p style={{ fontSize: 20, fontWeight: 800, color: loading ? MUTED : scoreColor(growthScore), lineHeight: 1 }}>{loading ? "—" : growthScore}</p>
               <p style={{ fontSize: 9, color: MUTED, marginTop: 4 }}>/100</p>
             </div>
           </div>
-
-          {/* Personally sponsored + active strip */}
           <div className="relative px-5 py-3 flex items-center gap-4 flex-wrap"
             style={{ borderTop: "1px solid rgba(255,255,255,0.05)", background: "rgba(0,0,0,0.12)" }}>
             <div className="flex items-center gap-1.5">
               <Star style={{ width: 11, height: 11, color: GOLD }} />
-              <span style={{ fontSize: 11, color: MUTED }}>
-                <span className="font-bold text-foreground">{loading ? "—" : (stats?.directReferrals ?? 0)}</span> personally sponsored
-              </span>
+              <span style={{ fontSize: 11, color: MUTED }}><span className="font-bold text-foreground">{loading ? "—" : (stats?.directReferrals ?? 0)}</span> personally sponsored</span>
             </div>
             <div className="w-px h-3 bg-white/10" />
             <div className="flex items-center gap-1.5">
               <CircleDot style={{ width: 11, height: 11, color: "#34d399" }} />
-              <span style={{ fontSize: 11, color: MUTED }}>
-                <span className="font-bold" style={{ color: "#34d399" }}>{loading ? "—" : (stats?.activeMembers ?? 0)}</span> active
-              </span>
+              <span style={{ fontSize: 11, color: MUTED }}><span className="font-bold" style={{ color: "#34d399" }}>{loading ? "—" : (stats?.activeMembers ?? 0)}</span> active</span>
             </div>
             <div className="w-px h-3 bg-white/10" />
             <div className="flex items-center gap-1.5">
               <UserX style={{ width: 11, height: 11, color: MUTED }} />
-              <span style={{ fontSize: 11, color: MUTED }}>
-                <span className="font-bold text-foreground">{loading ? "—" : (stats?.inactiveMembers ?? 0)}</span> inactive
-              </span>
+              <span style={{ fontSize: 11, color: MUTED }}><span className="font-bold text-foreground">{loading ? "—" : (stats?.inactiveMembers ?? 0)}</span> inactive</span>
             </div>
           </div>
         </motion.div>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* AI INSIGHTS                                                        */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* ── INTELLIGENCE INSIGHTS ─────────────────────────────────────────── */}
         <Section title="Intelligence Insights" icon={<Brain style={{ width: 15, height: 15, color: GOLD }} />}>
           <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
             {loading
@@ -951,19 +1068,14 @@ export default function NetworkIntelligencePage() {
           </div>
         </Section>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* NETWORK PULSE                                                      */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* ── NETWORK PULSE ─────────────────────────────────────────────────── */}
         <div className="mb-5 rounded-2xl overflow-hidden"
           style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-          <div className="flex items-center gap-2.5 px-5 pt-4 pb-3"
-            style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="flex items-center gap-2.5 px-5 pt-4 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
             <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
             <p className="text-sm font-semibold text-foreground">Network Pulse</p>
             {pulse?.lastActivityAt && (
-              <span className="ml-auto text-xs" style={{ color: MUTED }}>
-                Last activity {timeAgo(pulse.lastActivityAt)}
-              </span>
+              <span className="ml-auto text-xs" style={{ color: MUTED }}>Last activity {timeAgo(pulse.lastActivityAt)}</span>
             )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0"
@@ -972,7 +1084,7 @@ export default function NetworkIntelligencePage() {
               { label: "New Today",    value: loading ? "—" : String(pulse?.newMembersToday ?? 0),     icon: UserPlus,   color: "#34d399" },
               { label: "Investments",  value: loading ? "—" : String(pulse?.newInvestmentsToday ?? 0), icon: TrendingUp, color: GOLD },
               { label: "Matches",      value: loading ? "—" : String(pulse?.recentMatchCount ?? 0),    icon: Zap,        color: "#60a5fa" },
-              { label: "Income Today", value: loading ? "—" : (Number(pulse?.recentMatchIncome ?? 0) > 0 ? fmtUSD(pulse!.recentMatchIncome) : "$0"), icon: Award, color: "#a78bfa" },
+              { label: "Income Today", value: loading ? "—" : Number(pulse?.recentMatchIncome ?? 0) > 0 ? fmtUSD(pulse!.recentMatchIncome) : "$0", icon: Award, color: "#a78bfa" },
             ].map((s) => {
               const Icon = s.icon;
               return (
@@ -986,65 +1098,48 @@ export default function NetworkIntelligencePage() {
           </div>
         </div>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* BINARY HEALTH — Premium L/R comparison                            */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* ── BINARY HEALTH ─────────────────────────────────────────────────── */}
         <Section title="Binary Health" icon={<TrendingUp style={{ width: 15, height: 15, color: GOLD }} />}>
           <div className="grid grid-cols-2 gap-3 mb-3">
-            {/* LEFT arm card */}
-            <div className="rounded-2xl p-4"
-              style={{
-                background: "rgba(96,165,250,0.05)", border: "1px solid rgba(96,165,250,0.18)",
-              }}>
-              <div className="flex items-center justify-between mb-3">
-                <span style={{ fontSize: 12, fontWeight: 800, color: "#60a5fa", letterSpacing: "0.06em" }}>← LEFT</span>
-                {!loading && legBreakdown?.powerLeg === "LEFT" && (
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "#34d399", background: "rgba(52,211,153,0.1)", padding: "2px 6px", borderRadius: 4 }}>POWER</span>
-                )}
-                {!loading && legBreakdown?.weakLeg === "LEFT" && (
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "#fb923c", background: "rgba(251,146,60,0.1)", padding: "2px 6px", borderRadius: 4 }}>WEAK</span>
-                )}
-              </div>
-              {loading
-                ? <div className="space-y-2 animate-pulse">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-4 rounded" style={{ background: "rgba(255,255,255,0.05)" }} />)}</div>
-                : <>
-                    <LegRow label="Members"     value={legBreakdown?.leftMembers ?? stats?.leftTeam ?? 0}     color="#60a5fa" />
-                    <LegRow label="BV"          value={`${Number(legBreakdown?.leftBV ?? stats?.leftBV ?? 0).toFixed(0)} BV`}  color="#60a5fa" />
-                    <LegRow label="Investments" value={legBreakdown?.leftInvestments ?? "—"} />
-                    <LegRow label="New This Wk" value={`+${legBreakdown?.leftWeeklyNew ?? 0}`} />
-                    <LegRow label="Active"      value={legBreakdown?.leftActiveCount ?? "—"} color="#34d399" />
-                  </>
-              }
-            </div>
-
-            {/* RIGHT arm card */}
-            <div className="rounded-2xl p-4"
-              style={{
-                background: "rgba(167,139,250,0.05)", border: "1px solid rgba(167,139,250,0.18)",
-              }}>
-              <div className="flex items-center justify-between mb-3">
-                <span style={{ fontSize: 12, fontWeight: 800, color: "#a78bfa", letterSpacing: "0.06em" }}>RIGHT →</span>
-                {!loading && legBreakdown?.powerLeg === "RIGHT" && (
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "#34d399", background: "rgba(52,211,153,0.1)", padding: "2px 6px", borderRadius: 4 }}>POWER</span>
-                )}
-                {!loading && legBreakdown?.weakLeg === "RIGHT" && (
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "#fb923c", background: "rgba(251,146,60,0.1)", padding: "2px 6px", borderRadius: 4 }}>WEAK</span>
-                )}
-              </div>
-              {loading
-                ? <div className="space-y-2 animate-pulse">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-4 rounded" style={{ background: "rgba(255,255,255,0.05)" }} />)}</div>
-                : <>
-                    <LegRow label="Members"     value={legBreakdown?.rightMembers ?? stats?.rightTeam ?? 0}    color="#a78bfa" />
-                    <LegRow label="BV"          value={`${Number(legBreakdown?.rightBV ?? stats?.rightBV ?? 0).toFixed(0)} BV`} color="#a78bfa" />
-                    <LegRow label="Investments" value={legBreakdown?.rightInvestments ?? "—"} />
-                    <LegRow label="New This Wk" value={`+${legBreakdown?.rightWeeklyNew ?? 0}`} />
-                    <LegRow label="Active"      value={legBreakdown?.rightActiveCount ?? "—"} color="#34d399" />
-                  </>
-              }
-            </div>
+            {(["LEFT", "RIGHT"] as const).map((side) => {
+              const isLeft  = side === "LEFT";
+              const color   = isLeft ? "#60a5fa" : "#a78bfa";
+              const bv      = isLeft ? leftBV : rightBV;
+              const members = isLeft ? (legBreakdown?.leftMembers ?? stats?.leftTeam ?? 0) : (legBreakdown?.rightMembers ?? stats?.rightTeam ?? 0);
+              const investments = isLeft ? (legBreakdown?.leftInvestments ?? "—") : (legBreakdown?.rightInvestments ?? "—");
+              const weeklyNew   = isLeft ? (legBreakdown?.leftWeeklyNew ?? 0) : (legBreakdown?.rightWeeklyNew ?? 0);
+              const activeCount = isLeft ? (legBreakdown?.leftActiveCount ?? "—") : (legBreakdown?.rightActiveCount ?? "—");
+              const isPower = legBreakdown?.powerLeg === side;
+              const isWeak  = legBreakdown?.weakLeg  === side;
+              return (
+                <div key={side} className="rounded-2xl p-4"
+                  style={{ background: `${color}08`, border: `1px solid ${color}28` }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span style={{ fontSize: 12, fontWeight: 800, color, letterSpacing: "0.06em" }}>
+                      {isLeft ? "← " : ""}LEFT{!isLeft ? " →" : ""}
+                      {!isLeft ? " →" : ""}
+                    </span>
+                    {!loading && (isPower
+                      ? <span style={{ fontSize: 9, fontWeight: 700, color: "#34d399", background: "rgba(52,211,153,0.1)", padding: "2px 6px", borderRadius: 4 }}>POWER</span>
+                      : isWeak
+                      ? <span style={{ fontSize: 9, fontWeight: 700, color: "#fb923c", background: "rgba(251,146,60,0.1)", padding: "2px 6px", borderRadius: 4 }}>WEAK</span>
+                      : null
+                    )}
+                  </div>
+                  {loading
+                    ? <div className="space-y-2 animate-pulse">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-4 rounded" style={{ background: "rgba(255,255,255,0.05)" }} />)}</div>
+                    : <>
+                        <LegRow label="Members"   value={members}          color={color} />
+                        <LegRow label="BV"        value={`${bv.toFixed(0)} BV`} color={color} />
+                        <LegRow label="Invested"  value={investments} />
+                        <LegRow label="New Wk"    value={`+${weeklyNew}`} />
+                        <LegRow label="Active"    value={activeCount}      color="#34d399" />
+                      </>
+                  }
+                </div>
+              );
+            })}
           </div>
-
-          {/* Balance bar + summary */}
           <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
             <div className="mb-3">
               <div style={{ height: 8, borderRadius: 4, overflow: "hidden", display: "flex", background: "rgba(255,255,255,0.05)" }}>
@@ -1056,33 +1151,18 @@ export default function NetworkIntelligencePage() {
                 <span style={{ fontSize: 10, color: "#a78bfa", fontWeight: 600 }}>R {rightPct.toFixed(0)}%</span>
               </div>
             </div>
-
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div>
-                <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>Power Leg</p>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "#34d399", marginTop: 3 }}>
-                  {loading ? "—" : (legBreakdown?.powerLeg ?? (leftBV >= rightBV ? "LEFT" : "RIGHT"))}
-                </p>
-              </div>
-              <div>
-                <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>Carry Forward</p>
-                <p style={{ fontSize: 13, fontWeight: 700, color: GOLD, marginTop: 3 }}>
-                  {loading ? "—" : (() => {
-                    const cl = Number(legBreakdown?.carryForwardLeft  ?? 0);
-                    const cr = Number(legBreakdown?.carryForwardRight ?? 0);
-                    const total = cl + cr;
-                    return total > 0 ? `${total.toFixed(0)} BV` : "—";
-                  })()}
-                </p>
-              </div>
-              <div>
-                <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>Focus</p>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "#fb923c", marginTop: 3 }}>
-                  {loading ? "—" : (legBreakdown?.weakLeg ?? (leftBV <= rightBV ? "LEFT" : "RIGHT"))}
-                </p>
-              </div>
+              {[
+                { label: "Power Leg",  value: loading ? "—" : (legBreakdown?.powerLeg ?? (leftBV >= rightBV ? "LEFT" : "RIGHT")), color: "#34d399" },
+                { label: "Carry Fwd",  value: loading ? "—" : (() => { const t = Number(legBreakdown?.carryForwardLeft ?? 0) + Number(legBreakdown?.carryForwardRight ?? 0); return t > 0 ? `${t.toFixed(0)} BV` : "—"; })(), color: GOLD },
+                { label: "Focus",      value: loading ? "—" : (legBreakdown?.weakLeg ?? (leftBV <= rightBV ? "LEFT" : "RIGHT")), color: "#fb923c" },
+              ].map((s) => (
+                <div key={s.label}>
+                  <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>{s.label}</p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: s.color, marginTop: 3 }}>{s.value}</p>
+                </div>
+              ))}
             </div>
-
             <div className="mt-3 flex items-center gap-2 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
               <div style={{ width: 7, height: 7, borderRadius: "50%", background: qualified ? "#34d399" : "rgba(170,179,197,0.35)", flexShrink: 0 }} />
               <span style={{ fontSize: 11, color: qualified ? "#34d399" : MUTED }}>
@@ -1092,15 +1172,13 @@ export default function NetworkIntelligencePage() {
           </div>
         </Section>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* QUICK STATS                                                        */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* ── QUICK STATS ───────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
           {[
-            { label: "Total Team",  value: loading ? "—" : fmtK(stats?.totalTeam ?? 0),  color: GOLD_L,    icon: Users },
-            { label: "Active",      value: loading ? "—" : String(stats?.activeMembers ?? 0), color: "#34d399", icon: ShieldCheck },
-            { label: "Inactive",    value: loading ? "—" : String(stats?.inactiveMembers ?? 0), color: MUTED,   icon: UserX },
-            { label: "Sponsored",   value: loading ? "—" : String(stats?.directReferrals ?? 0), color: GOLD,  icon: Star },
+            { label: "Total Team", value: loading ? "—" : fmtK(stats?.totalTeam ?? 0), color: GOLD_L,    icon: Users       },
+            { label: "Active",     value: loading ? "—" : String(stats?.activeMembers ?? 0),  color: "#34d399", icon: ShieldCheck },
+            { label: "Inactive",   value: loading ? "—" : String(stats?.inactiveMembers ?? 0), color: MUTED,    icon: UserX       },
+            { label: "Sponsored",  value: loading ? "—" : String(stats?.directReferrals ?? 0), color: GOLD,     icon: Star        },
           ].map((s) => {
             const Icon = s.icon;
             return (
@@ -1116,47 +1194,42 @@ export default function NetworkIntelligencePage() {
           })}
         </div>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* BINARY TREE                                                        */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        <Section
-          title="Binary Tree"
-          icon={<GitBranch style={{ width: 15, height: 15, color: GOLD }} />}
-          extra={
-            <div className="flex items-center gap-1.5">
-              {([2, 3, 4] as const).map((d) => (
-                <button key={d} onClick={() => setTreeDepth(d)}
-                  className="px-3 py-1.5 text-xs rounded-lg font-medium transition-all"
-                  style={treeDepth === d
-                    ? { background: "rgba(212,175,55,0.15)", color: GOLD, border: "1px solid rgba(212,175,55,0.3)" }
-                    : { background: "rgba(255,255,255,0.04)", color: MUTED, border: "1px solid rgba(255,255,255,0.07)" }}>
-                  L{d}
-                </button>
-              ))}
-            </div>
-          }
-        >
+        {/* ── BINARY TREE ───────────────────────────────────────────────────── */}
+        <Section title="Binary Tree" icon={<GitBranch style={{ width: 15, height: 15, color: GOLD }} />}>
           <div className="rounded-2xl overflow-hidden"
-            style={{ height: 430, background: "hsl(221 59% 9%)", border: "1px solid hsl(var(--border))" }}>
+            style={{ height: 480, background: "hsl(221 59% 9%)", border: "1px solid hsl(var(--border))", position: "relative" }}>
             {loading
               ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", flexDirection: "column", gap: 12 }}>
                   <div className="animate-spin h-8 w-8 rounded-full"
                     style={{ border: "2px solid rgba(212,175,55,0.15)", borderTopColor: GOLD }} />
-                  <p style={{ fontSize: 12, color: MUTED }}>Loading tree…</p>
+                  <p style={{ fontSize: 12, color: MUTED }}>Building your network tree…</p>
                 </div>
               : tree
               ? <ReactFlow
-                  nodes={flowNodes} edges={flowEdges}
+                  nodes={flowNodes as never}
+                  edges={flowEdges as never}
                   nodeTypes={nodeTypes}
-                  fitView fitViewOptions={{ padding: 0.25 }}
-                  minZoom={0.25} maxZoom={2.5}
-                  nodesDraggable={false} nodesConnectable={false} elementsSelectable={false}
+                  fitView
+                  fitViewOptions={{ padding: 0.28 }}
+                  minZoom={0.2}
+                  maxZoom={3}
+                  nodesDraggable={false}
+                  nodesConnectable={false}
+                  elementsSelectable={false}
                   proOptions={{ hideAttribution: true }}
+                  onNodeMouseEnter={(_, node: { type?: string; id: string }) => {
+                    if (node.type !== "emptySlot") setHoveredNodeId(node.id);
+                  }}
+                  onNodeMouseLeave={() => setHoveredNodeId(null)}
                 >
-                  <Background color="rgba(212,175,55,0.03)" gap={24} size={1} />
-                  <Controls showInteractive={false} />
+                  <Background color="rgba(212,175,55,0.025)" gap={28} size={1} />
+                  <TreeInnerControls
+                    depth={treeDepth}
+                    setDepth={(d) => { setTreeDepth(d); setHoveredNodeId(null); }}
+                    onFit={() => {}}
+                  />
                 </ReactFlow>
-              : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10 }}>
+              : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12 }}>
                   <GitBranch style={{ width: 32, height: 32, color: "rgba(212,175,55,0.25)" }} />
                   <p style={{ fontSize: 13, color: MUTED, textAlign: "center" }}>
                     No binary tree yet.<br />Place your first team member to begin.
@@ -1164,13 +1237,13 @@ export default function NetworkIntelligencePage() {
                 </div>
             }
           </div>
+          <p className="mt-2 text-xs text-center" style={{ color: "rgba(170,179,197,0.35)" }}>
+            Hover a card to highlight the path to root · Click to open member profile
+          </p>
         </Section>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* TEAM EXPLORER                                                      */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* ── TEAM EXPLORER ─────────────────────────────────────────────────── */}
         <Section title="Team Explorer" icon={<Search style={{ width: 15, height: 15, color: GOLD }} />}>
-          {/* Search bar */}
           <div className="relative mb-2.5">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none" style={{ color: MUTED }} />
             <input value={search}
@@ -1179,26 +1252,20 @@ export default function NetworkIntelligencePage() {
               className="w-full rounded-xl py-2.5 pl-9 pr-4 text-sm outline-none"
               style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "hsl(var(--foreground))" }} />
           </div>
-
-          {/* Filter chips */}
           <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3" style={{ scrollbarWidth: "none" }}>
             {FILTER_CHIPS.map(({ key, label, icon: Icon }) => {
               const active = filter === key;
               return (
-                <button key={key}
-                  onClick={() => { setFilter(key); setMemberPage(1); }}
+                <button key={key} onClick={() => { setFilter(key); setMemberPage(1); }}
                   className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
                   style={active
                     ? { background: "rgba(212,175,55,0.15)", color: GOLD, border: "1px solid rgba(212,175,55,0.3)" }
                     : { background: "rgba(255,255,255,0.04)", color: MUTED, border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <Icon style={{ width: 10, height: 10 }} />
-                  {label}
+                  <Icon style={{ width: 10, height: 10 }} />{label}
                 </button>
               );
             })}
           </div>
-
-          {/* Members list */}
           <div className="rounded-2xl overflow-hidden mb-2"
             style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
             {memberLoading
@@ -1212,15 +1279,16 @@ export default function NetworkIntelligencePage() {
                       : "No members match your search or filter."}
                   </p>
                 </div>
-              : members.map((m, i) => (
-                  <div key={m.id} style={{ borderBottom: i < members.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                    <MemberCard m={m} onClick={() => setSelectedMember(m)} />
-                  </div>
-                ))
+              : <>
+                  {members.map((m, i) => (
+                    <div key={m.id} style={{ borderBottom: i < members.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
+                      <MemberCard m={m} onClick={() => setSelectedMember(m)} />
+                    </div>
+                  ))}
+                  {memberTotal > 5 && <ViewMore label="View All Members" />}
+                </>
             }
           </div>
-
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between">
               <p style={{ fontSize: 11, color: MUTED }}>{memberTotal} total</p>
@@ -1241,12 +1309,9 @@ export default function NetworkIntelligencePage() {
           )}
         </Section>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* TOP PERFORMERS                                                     */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* ── TOP PERFORMERS ────────────────────────────────────────────────── */}
         <Section title="Top Performers" icon={<Award style={{ width: 15, height: 15, color: GOLD }} />}>
-          <div className="rounded-2xl overflow-hidden"
-            style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+          <div className="rounded-2xl overflow-hidden" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
             {loading
               ? <Skeleton n={3} />
               : performers.length === 0
@@ -1254,44 +1319,36 @@ export default function NetworkIntelligencePage() {
                   <Award style={{ width: 28, height: 28, color: "rgba(212,175,55,0.2)", margin: "0 auto 10px" }} />
                   <p style={{ fontSize: 13, color: MUTED }}>Top performers appear here when team members invest.</p>
                 </div>
-              : performers.map((p, i) => (
-                  <div key={p.id} className="flex items-center gap-3 p-4"
-                    style={{ borderBottom: i < performers.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                    <div style={{
-                      width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      background: RANK_BG[i],
-                    }}>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: RANK_COLOR[i] }}>#{p.rank}</span>
-                    </div>
-                    <Av first={p.firstName} last={p.lastName} size={32} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-sm font-semibold text-foreground truncate">@{p.username}</p>
-                        {p.isSponsored && (
-                          <span style={{ fontSize: 8, fontWeight: 700, color: GOLD, background: "rgba(212,175,55,0.1)", padding: "1px 4px", borderRadius: 3 }}>S</span>
-                        )}
+              : <>
+                  {performers.slice(0, 5).map((p, i) => (
+                    <div key={p.id} className="flex items-center gap-3 p-4"
+                      style={{ borderBottom: i < Math.min(performers.length, 5) - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: RANK_BG[i] }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: RANK_COLOR[i] }}>#{p.rank}</span>
                       </div>
-                      <p style={{ fontSize: 10, color: MUTED }}>
-                        {p.directReferrals} ref{p.directReferrals !== 1 ? "s" : ""} · {p.status === "ACTIVE" ? "Active" : "Inactive"}
-                      </p>
+                      <Av first={p.firstName} last={p.lastName} size={32} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-semibold text-foreground truncate">@{p.username}</p>
+                          {p.isSponsored && <span style={{ fontSize: 8, fontWeight: 700, color: GOLD, background: "rgba(212,175,55,0.1)", padding: "1px 4px", borderRadius: 3 }}>S</span>}
+                        </div>
+                        <p style={{ fontSize: 10, color: MUTED }}>{p.directReferrals} ref{p.directReferrals !== 1 ? "s" : ""} · {p.status === "ACTIVE" ? "Active" : "Inactive"}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p style={{ fontSize: 15, fontWeight: 700, color: GOLD }}>{fmtUSD(p.totalInvested)}</p>
+                        <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em" }}>invested</p>
+                      </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p style={{ fontSize: 15, fontWeight: 700, color: GOLD }}>{fmtUSD(p.totalInvested)}</p>
-                      <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em" }}>invested</p>
-                    </div>
-                  </div>
-                ))
+                  ))}
+                  {performers.length > 5 && <ViewMore label="View Complete Ranking" />}
+                </>
             }
           </div>
         </Section>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* TEAM ACTIVITY — enhanced                                           */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* ── TEAM ACTIVITY ─────────────────────────────────────────────────── */}
         <Section title="Team Activity" icon={<Activity style={{ width: 15, height: 15, color: GOLD }} />}>
-          <div className="rounded-2xl overflow-hidden"
-            style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+          <div className="rounded-2xl overflow-hidden" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
             {loading
               ? <Skeleton n={5} />
               : activity.length === 0
@@ -1299,47 +1356,40 @@ export default function NetworkIntelligencePage() {
                   <Activity style={{ width: 28, height: 28, color: "rgba(212,175,55,0.2)", margin: "0 auto 10px" }} />
                   <p style={{ fontSize: 13, color: MUTED }}>Activity appears when team members invest or join.</p>
                 </div>
-              : activity.map((a, i) => {
-                  const style = ACT_STYLE[a.type] ?? ACT_STYLE.join;
-                  const Icon  = style.icon;
-                  return (
-                    <motion.div key={a.id}
-                      initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.04 }}
-                      className="flex items-center gap-3 px-4 py-3"
-                      style={{ borderBottom: i < activity.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                      <div style={{
-                        width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        background: style.bg,
-                      }}>
-                        <Icon style={{ width: 14, height: 14, color: style.color }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm leading-snug">
-                          <span className="font-semibold text-foreground">@{a.username}</span>
-                          {" "}<span style={{ color: MUTED }}>{a.description}</span>
-                        </p>
-                      </div>
-                      <span style={{ fontSize: 10, color: MUTED, flexShrink: 0 }}>{timeAgo(a.at)}</span>
-                    </motion.div>
-                  );
-                })
+              : <>
+                  {activity.slice(0, 5).map((a, i) => {
+                    const style = ACT_STYLE[a.type] ?? ACT_STYLE.join;
+                    const Icon  = style.icon;
+                    return (
+                      <motion.div key={a.id}
+                        initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        className="flex items-center gap-3 px-4 py-3"
+                        style={{ borderBottom: i < Math.min(activity.length, 5) - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
+                        <div style={{ width: 34, height: 34, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: style.bg }}>
+                          <Icon style={{ width: 14, height: 14, color: style.color }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm leading-snug">
+                            <span className="font-semibold text-foreground">@{a.username}</span>
+                            {" "}<span style={{ color: MUTED }}>{a.description}</span>
+                          </p>
+                        </div>
+                        <span style={{ fontSize: 10, color: MUTED, flexShrink: 0 }}>{timeAgo(a.at)}</span>
+                      </motion.div>
+                    );
+                  })}
+                  {activity.length > 5 && <ViewMore label="View Full Activity" />}
+                </>
             }
           </div>
         </Section>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* REFERRAL                                                           */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* ── REFERRAL ──────────────────────────────────────────────────────── */}
         <div className="rounded-2xl p-5 mb-2"
-          style={{
-            background: "linear-gradient(135deg, rgba(212,175,55,0.06) 0%, rgba(212,175,55,0.02) 100%)",
-            border: "1px solid rgba(212,175,55,0.2)",
-          }}>
+          style={{ background: "linear-gradient(135deg,rgba(212,175,55,0.06) 0%,rgba(212,175,55,0.02) 100%)", border: "1px solid rgba(212,175,55,0.2)" }}>
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg"
-              style={{ background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.15)" }}>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.15)" }}>
               <Link2 style={{ width: 15, height: 15, color: GOLD }} />
             </div>
             <h3 className="text-base font-semibold font-heading text-foreground">Grow Your Network</h3>
@@ -1358,33 +1408,21 @@ export default function NetworkIntelligencePage() {
               </div>
               <button onClick={copyCode}
                 className="h-10 w-10 flex items-center justify-center rounded-xl shrink-0 transition-all"
-                style={{
-                  background: copied === "code" ? "rgba(52,211,153,0.12)" : "rgba(212,175,55,0.09)",
-                  border: `1px solid ${copied === "code" ? "rgba(52,211,153,0.3)" : "rgba(212,175,55,0.2)"}`,
-                }}>
-                {copied === "code"
-                  ? <CheckCheck style={{ width: 14, height: 14, color: "#34d399" }} />
-                  : <Copy       style={{ width: 14, height: 14, color: GOLD }} />}
+                style={{ background: copied === "code" ? "rgba(52,211,153,0.12)" : "rgba(212,175,55,0.09)", border: `1px solid ${copied === "code" ? "rgba(52,211,153,0.3)" : "rgba(212,175,55,0.2)"}` }}>
+                {copied === "code" ? <CheckCheck style={{ width: 14, height: 14, color: "#34d399" }} /> : <Copy style={{ width: 14, height: 14, color: GOLD }} />}
               </button>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex-1 rounded-xl px-4 py-2.5 overflow-hidden"
                 style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                 <p style={{ fontSize: 11, color: MUTED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {!loading && profile
-                    ? `${window.location.origin}/register?ref=${profile.referralCode}`
-                    : "—"}
+                  {!loading && profile ? `${window.location.origin}/register?ref=${profile.referralCode}` : "—"}
                 </p>
               </div>
               <button onClick={copyLink}
                 className="h-10 w-10 flex items-center justify-center rounded-xl shrink-0 transition-all"
-                style={{
-                  background: copied === "link" ? "rgba(52,211,153,0.12)" : "rgba(212,175,55,0.09)",
-                  border: `1px solid ${copied === "link" ? "rgba(52,211,153,0.3)" : "rgba(212,175,55,0.2)"}`,
-                }}>
-                {copied === "link"
-                  ? <CheckCheck style={{ width: 14, height: 14, color: "#34d399" }} />
-                  : <Copy       style={{ width: 14, height: 14, color: GOLD }} />}
+                style={{ background: copied === "link" ? "rgba(52,211,153,0.12)" : "rgba(212,175,55,0.09)", border: `1px solid ${copied === "link" ? "rgba(52,211,153,0.3)" : "rgba(212,175,55,0.2)"}` }}>
+                {copied === "link" ? <CheckCheck style={{ width: 14, height: 14, color: "#34d399" }} /> : <Copy style={{ width: 14, height: 14, color: GOLD }} />}
               </button>
             </div>
           </div>
