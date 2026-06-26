@@ -1,0 +1,483 @@
+# Sprint 19 — Phase 5
+
+## Withdrawal Control Center
+
+Build the complete Withdrawal Control Center for the Prime Wave Admin Panel.
+
+IMPORTANT
+
+This page manages every withdrawal request on the platform.
+
+This is NOT a payment gateway.
+
+This is the operational control center.
+
+Use realistic mock data only.
+
+Do NOT connect backend.
+
+Do NOT modify existing pages.
+
+Do NOT modify routing.
+
+Keep the existing Prime Wave Admin design language.
+
+---
+
+## PAGE HEADER
+
+Title
+
+Withdrawal Control Center
+
+Subtitle
+
+Review, approve, reject and monitor every withdrawal request.
+
+Top Right
+
+Export
+
+Refresh
+
+Settlement Settings
+
+---
+
+## SUMMARY CARDS
+
+Create compact KPI cards.
+
+Total Withdrawal Requests
+
+Pending Approval
+
+Approved Today
+
+Rejected Today
+
+Total Pending Amount
+
+Today's Payout
+
+Average Processing Time
+
+Success Rate
+
+---
+
+## FILTER BAR
+
+Filters
+
+Status
+
+Pending
+
+Approved
+
+Rejected
+
+Cancelled
+
+Released
+
+Payment Method
+
+USDT
+
+Bank
+
+Crypto
+
+Wallet Type
+
+Amount Range
+
+Date Range
+
+Country
+
+Search
+
+Username
+
+Member ID
+
+Withdrawal ID
+
+Transaction Hash
+
+---
+
+## MAIN TABLE
+
+Columns
+
+Withdrawal ID
+
+Username
+
+Member
+
+Amount
+
+Wallet
+
+Network
+
+Requested
+
+Status
+
+Priority
+
+Assigned Admin
+
+Actions
+
+Sticky header.
+
+Hover effects.
+
+Pagination.
+
+25 rows.
+
+---
+
+## ROW ACTIONS
+
+Dropdown
+
+View Details
+
+Approve
+
+Reject
+
+Hold
+
+Cancel
+
+Assign Reviewer
+
+View Member
+
+Audit Trail
+
+---
+
+## CLICK ROW
+
+Clicking a row opens a large right-side drawer.
+
+Do NOT navigate away.
+
+---
+
+## WITHDRAWAL DRAWER
+
+Sections
+
+Withdrawal Summary
+
+Member Profile
+
+Wallet Information
+
+Payment Information
+
+Timeline
+
+Admin Notes
+
+Audit Log
+
+---
+
+## WITHDRAWAL SUMMARY
+
+Display
+
+Withdrawal ID
+
+Requested Amount
+
+Processing Fee
+
+Net Amount
+
+Wallet Type
+
+Current Status
+
+Priority
+
+Request Time
+
+---
+
+## MEMBER PROFILE
+
+Avatar
+
+Username
+
+Member ID
+
+Rank
+
+Status
+
+Country
+
+Sponsor
+
+---
+
+## WALLET INFORMATION
+
+Withdrawal Wallet Balance
+
+Income Wallet
+
+Deposit Wallet
+
+Recent Transfers
+
+---
+
+## PAYMENT INFORMATION
+
+Wallet Address
+
+Network
+
+Transaction Hash
+
+Destination
+
+Payment Method
+
+Mock only.
+
+---
+
+## TIMELINE
+
+Display events
+
+Withdrawal Requested
+
+Queued
+
+Assigned
+
+Approved
+
+Released
+
+Completed
+
+Rejected
+
+Every event
+
+Time
+
+Admin
+
+Status
+
+---
+
+## ADMIN NOTES
+
+Rich text notes
+
+Timestamp
+
+Admin avatar
+
+Pinned notes
+
+---
+
+## AUDIT LOG
+
+Table
+
+Time
+
+Admin
+
+Action
+
+IP
+
+Device
+
+Status
+
+Search
+
+Export
+
+---
+
+## APPROVAL MODAL
+
+Approving a withdrawal opens a confirmation modal.
+
+Display
+
+Requested Amount
+
+Fee
+
+Net Amount
+
+Wallet
+
+Member
+
+Confirmation checkbox
+
+Admin comment
+
+Buttons
+
+Approve
+
+Cancel
+
+---
+
+## REJECT MODAL
+
+Reason required.
+
+Optional comments.
+
+---
+
+## HOLD MODAL
+
+Reason required.
+
+Expected review date.
+
+---
+
+## BULK ACTIONS
+
+Bulk Approve
+
+Bulk Reject
+
+Bulk Hold
+
+Export
+
+Assign Reviewer
+
+---
+
+## HIGH PRIORITY PANEL
+
+Separate dashboard card.
+
+Large withdrawals
+
+VIP withdrawals
+
+Delayed withdrawals
+
+Manual review required
+
+Top 5 only.
+
+---
+
+## PROCESSING QUEUE
+
+Small side widget.
+
+Pending
+
+In Review
+
+Approved
+
+Released
+
+Completed
+
+Real-time style design using mock values.
+
+---
+
+## WITHDRAWAL ANALYTICS
+
+Charts
+
+Daily Withdrawal Volume
+
+Approval Time
+
+Rejection Reasons
+
+Country Distribution
+
+Mock data only.
+
+---
+
+## COMPONENTS
+
+WithdrawalTable
+
+WithdrawalDrawer
+
+ApprovalModal
+
+RejectModal
+
+HoldModal
+
+AuditTable
+
+Timeline
+
+AnalyticsCard
+
+PriorityBadge
+
+StatusBadge
+
+Reusable components only.
+
+---
+
+## PERFORMANCE
+
+Memoize rows.
+
+Virtualize table if needed.
+
+Lazy load analytics.
+
+---
+
+IMPORTANT
+
+Do NOT connect backend.
+
+Do NOT call APIs.
+
+Do NOT modify business logic.
+
+Build a production-ready UI architecture only.
+
+The Withdrawal Control Center should feel like the operational dashboard used by a fintech company's finance and compliance team.

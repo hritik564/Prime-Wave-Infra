@@ -17,9 +17,10 @@ import SettingsPage from "@/pages/settings/SettingsPage";
 import DevToolsPage from "@/pages/DevToolsPage";
 import IncomeCenterPage from "@/pages/income/IncomeCenterPage";
 import { lazy, Suspense } from "react";
-const AdminDashboardPage = lazy(() => import("@/pages/admin/AdminDashboardPage"));
-const AdminMembersPage      = lazy(() => import("@/pages/admin/MembersPage"));
-const AdminInvestmentsPage  = lazy(() => import("@/pages/admin/InvestmentsPage"));
+const AdminDashboardPage     = lazy(() => import("@/pages/admin/AdminDashboardPage"));
+const AdminMembersPage       = lazy(() => import("@/pages/admin/MembersPage"));
+const AdminInvestmentsPage   = lazy(() => import("@/pages/admin/InvestmentsPage"));
+const AdminWithdrawalsPage   = lazy(() => import("@/pages/admin/WithdrawalsPage"));
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
@@ -144,6 +145,9 @@ function AppRoutes() {
       </Route>
       <Route path="/admin/investments">
         <Suspense fallback={null}><AdminInvestmentsPage /></Suspense>
+      </Route>
+      <Route path="/admin/withdrawals">
+        <Suspense fallback={null}><AdminWithdrawalsPage /></Suspense>
       </Route>
       <Route path="/admin/:rest*">
         <Suspense fallback={null}><AdminDashboardPage /></Suspense>
