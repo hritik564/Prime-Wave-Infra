@@ -1,0 +1,371 @@
+# Sprint 19 — Phase 2
+
+Build the **Member Management** module.
+
+IMPORTANT
+
+This is NOT a simple table.
+
+Build an enterprise-grade Member Management system similar to what Stripe, Shopify, HubSpot or Salesforce provide.
+
+Do NOT modify the dashboard.
+
+Do NOT modify existing APIs.
+
+Do NOT modify authentication.
+
+Use mock data only.
+
+No backend yet.
+
+---
+
+# Page Layout
+
+Top Section
+
+Page Title
+
+Members
+
+Subtitle
+
+Manage, search and monitor every member on the platform.
+
+Top Right
+
+Create Member
+
+Export CSV
+
+Refresh
+
+---
+
+# Search
+
+Large global search bar.
+
+Should filter instantly.
+
+Search by
+
+Username
+
+Email
+
+Member ID
+
+Phone
+
+Referral Code
+
+Sponsor
+
+---
+
+# Filter Bar
+
+Status
+
+All
+
+Active
+
+Inactive
+
+Suspended
+
+Pending KYC
+
+Investment
+
+No Investment
+
+Starter
+
+Alpha
+
+Premium
+
+VIP
+
+Position
+
+Left
+
+Right
+
+Rank
+
+All
+
+Bronze
+
+Silver
+
+Gold
+
+Diamond
+
+Date Joined
+
+Quick presets
+
+Today
+
+7 Days
+
+30 Days
+
+Custom
+
+---
+
+# Members Table
+
+Premium table.
+
+Columns
+
+Avatar
+
+Username
+
+Member ID
+
+Email
+
+Phone
+
+Sponsor
+
+Position
+
+Current Plan
+
+Investment
+
+Status
+
+Joined Date
+
+Actions
+
+---
+
+Status should use colored pills.
+
+Investment should be formatted.
+
+Hover effect.
+
+Sticky header.
+
+Pagination.
+
+Maximum 20 per page.
+
+---
+
+# Row Actions
+
+View Profile
+
+Edit Member
+
+View Network
+
+Wallet
+
+Investments
+
+KYC
+
+Suspend
+
+Delete
+
+Use a dropdown menu.
+
+Never clutter the table.
+
+---
+
+# Clicking Row
+
+Clicking anywhere on a member row opens a right-side drawer.
+
+DO NOT navigate away.
+
+---
+
+# Member Drawer
+
+This should feel premium.
+
+Sections
+
+Profile
+
+Avatar
+
+Username
+
+Member ID
+
+Referral Code
+
+Sponsor
+
+Status
+
+Joined Date
+
+Wallets
+
+Deposit Wallet
+
+Income Wallet
+
+Withdrawal Wallet
+
+Network
+
+Left BV
+
+Right BV
+
+Carry Forward
+
+Direct Referrals
+
+Total Team
+
+Investments
+
+Plans
+
+ROI
+
+History
+
+Latest Activity
+
+Actions
+
+Suspend
+
+Reset Password
+
+Verify KYC
+
+Login As User
+
+View Full Profile
+
+Drawer should scroll independently.
+
+---
+
+# Bulk Selection
+
+Checkboxes.
+
+Bulk actions
+
+Approve KYC
+
+Suspend
+
+Export
+
+Send Notification
+
+Delete
+
+---
+
+# Statistics Row
+
+Above table
+
+Cards
+
+Total Members
+
+Active
+
+Suspended
+
+Pending KYC
+
+New Today
+
+---
+
+# Empty States
+
+Beautiful illustrations.
+
+Not plain text.
+
+---
+
+# Loading
+
+Skeleton loaders.
+
+---
+
+# Components
+
+Create reusable components.
+
+MemberTable
+
+MemberDrawer
+
+StatusBadge
+
+InvestmentBadge
+
+SearchBar
+
+FilterBar
+
+ActionDropdown
+
+StatCard
+
+Pagination
+
+EmptyState
+
+---
+
+# Performance
+
+Virtualize table if possible.
+
+Memoize rows.
+
+Avoid unnecessary rerenders.
+
+---
+
+# Responsive
+
+Desktop priority.
+
+Tablet acceptable.
+
+Mobile should remain functional.
+
+---
+
+# Goal
+
+Build a Member Management module that feels like the internal operating system of a fintech company, not a CRUD table.
+
+The page should be production quality and ready to connect to backend APIs later.

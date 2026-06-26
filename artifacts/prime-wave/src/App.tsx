@@ -18,6 +18,7 @@ import DevToolsPage from "@/pages/DevToolsPage";
 import IncomeCenterPage from "@/pages/income/IncomeCenterPage";
 import { lazy, Suspense } from "react";
 const AdminDashboardPage = lazy(() => import("@/pages/admin/AdminDashboardPage"));
+const AdminMembersPage   = lazy(() => import("@/pages/admin/MembersPage"));
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
@@ -136,6 +137,9 @@ function AppRoutes() {
       {/* ── Admin Portal ── */}
       <Route path="/admin">
         <Suspense fallback={null}><AdminDashboardPage /></Suspense>
+      </Route>
+      <Route path="/admin/members">
+        <Suspense fallback={null}><AdminMembersPage /></Suspense>
       </Route>
       <Route path="/admin/:rest*">
         <Suspense fallback={null}><AdminDashboardPage /></Suspense>
