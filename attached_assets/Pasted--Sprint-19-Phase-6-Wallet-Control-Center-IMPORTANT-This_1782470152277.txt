@@ -1,0 +1,473 @@
+# Sprint 19 — Phase 6
+
+## Wallet Control Center
+
+IMPORTANT
+
+This module is the financial command center of Prime Wave.
+
+It must provide administrators with complete visibility into every wallet across the platform.
+
+This is NOT a banking screen.
+
+This is an operations dashboard.
+
+Use realistic mock data only.
+
+Do NOT connect APIs.
+
+Do NOT connect the database.
+
+Do NOT modify existing modules.
+
+Continue using the Prime Wave Admin design system.
+
+---
+
+## PAGE HEADER
+
+Title
+
+Wallet Control Center
+
+Subtitle
+
+Monitor balances, transfers and wallet activity across the platform.
+
+Top Right
+
+Refresh
+
+Export
+
+Adjust Wallet
+
+Transfer Funds
+
+---
+
+## SUMMARY KPI CARDS
+
+Create compact KPI cards.
+
+Total Deposit Wallet Balance
+
+Total Income Wallet Balance
+
+Total Withdrawal Wallet Balance
+
+Pending Transfers
+
+Completed Transfers Today
+
+Total Platform Wallet Value
+
+Average Wallet Balance
+
+Flagged Wallets
+
+---
+
+## SEARCH
+
+Global Search
+
+Search by:
+
+Username
+
+Member ID
+
+Wallet Address
+
+Transaction ID
+
+Transfer ID
+
+---
+
+## FILTERS
+
+Wallet Type
+
+Deposit
+
+Income
+
+Withdrawal
+
+Status
+
+Active
+
+Locked
+
+Frozen
+
+Flagged
+
+Negative Balance
+
+Date Range
+
+Country
+
+Plan
+
+---
+
+## MAIN TABLE
+
+Columns
+
+Username
+
+Member ID
+
+Deposit Wallet
+
+Income Wallet
+
+Withdrawal Wallet
+
+Pending Transfer
+
+Last Transaction
+
+Wallet Status
+
+Actions
+
+Sticky header
+
+Hover effects
+
+Pagination
+
+---
+
+## ROW ACTIONS
+
+Dropdown Menu
+
+View Wallet
+
+Adjust Balance
+
+Transfer Funds
+
+Freeze Wallet
+
+Unfreeze Wallet
+
+View Transactions
+
+Audit Log
+
+---
+
+## CLICKING A ROW
+
+Open a large right-side Wallet Drawer.
+
+Do NOT navigate away.
+
+---
+
+## WALLET DRAWER
+
+Sections
+
+Wallet Summary
+
+Current Balances
+
+Pending Transfers
+
+Recent Transactions
+
+Transfer Queue
+
+Wallet Alerts
+
+Audit Log
+
+Admin Notes
+
+---
+
+## CURRENT BALANCES
+
+Display
+
+Deposit Wallet
+
+Income Wallet
+
+Withdrawal Wallet
+
+Pending Amount
+
+Available Amount
+
+Lifetime Credits
+
+Lifetime Debits
+
+---
+
+## TRANSFER QUEUE
+
+This is important.
+
+Display the 72-hour transfer system.
+
+Visual progress bar.
+
+Example
+
+Transfer
+
+$1000
+
+Released
+
+$300
+
+Remaining
+
+$700
+
+Hour
+
+24 / 72
+
+Next Release
+
+1h 18m
+
+Status
+
+Processing
+
+Completed
+
+Paused
+
+This is mock only for now.
+
+---
+
+## RECENT TRANSACTIONS
+
+Timeline style.
+
+Examples
+
+ROI Credited
+
+Binary Income
+
+Withdrawal Approved
+
+Wallet Transfer
+
+Principal Claim
+
+Deposit Approved
+
+Latest 10 entries.
+
+---
+
+## WALLET ALERTS
+
+Examples
+
+Large balance
+
+Transfer delayed
+
+Negative balance
+
+Suspicious activity
+
+Wallet frozen
+
+Color-coded cards.
+
+---
+
+## ADMIN ACTIONS
+
+Adjust Balance
+
+Transfer Funds
+
+Freeze Wallet
+
+Unfreeze Wallet
+
+Reset Wallet
+
+Each action opens a confirmation modal.
+
+Mock state only.
+
+---
+
+## BALANCE ADJUSTMENT MODAL
+
+Fields
+
+Wallet Type
+
+Adjustment Type
+
+Credit
+
+Debit
+
+Amount
+
+Reason
+
+Admin Notes
+
+Confirmation checkbox
+
+---
+
+## TRANSFER MODAL
+
+Fields
+
+From Wallet
+
+To Wallet
+
+Amount
+
+Reason
+
+Preview of balances after transfer
+
+---
+
+## AUDIT LOG
+
+Display
+
+Timestamp
+
+Admin
+
+Action
+
+Old Value
+
+New Value
+
+Reason
+
+Export
+
+Search
+
+---
+
+## LOCAL INTERACTIVITY
+
+Every action should update the local mock state.
+
+Examples
+
+Adjust Balance
+
+↓
+
+Balance updates
+
+↓
+
+Audit log updates
+
+↓
+
+Recent transaction appears
+
+↓
+
+Toast notification
+
+Freeze Wallet
+
+↓
+
+Status changes
+
+↓
+
+Alert appears
+
+Transfer
+
+↓
+
+Balances update
+
+↓
+
+Transfer queue updates
+
+↓
+
+Timeline updates
+
+---
+
+## COMPONENTS
+
+WalletTable
+
+WalletDrawer
+
+BalanceCard
+
+TransferQueue
+
+WalletTimeline
+
+AuditLog
+
+AdjustmentModal
+
+TransferModal
+
+StatusBadge
+
+Reusable only.
+
+---
+
+## PERFORMANCE
+
+Memoized tables.
+
+Lazy-render drawer tabs.
+
+Minimal rerenders.
+
+---
+
+IMPORTANT
+
+No backend.
+
+No APIs.
+
+No database.
+
+No business logic.
+
+Only build a production-ready Wallet Control Center using local mock state that can later be connected to live services without redesigning the UI.
