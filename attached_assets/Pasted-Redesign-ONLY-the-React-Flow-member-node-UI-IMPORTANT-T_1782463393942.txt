@@ -1,0 +1,295 @@
+Redesign ONLY the React Flow member node UI.
+
+IMPORTANT:
+This is a visual redesign ONLY.
+
+DO NOT modify:
+- Tree generation logic
+- React Flow configuration
+- Node positions
+- Click handlers
+- Drawer logic
+- Hover logic
+- Zoom / Pan / Fit View
+- Tree traversal
+- APIs
+- Types
+- Performance optimizations
+
+Everything currently works perfectly.
+Only redesign the JSX/CSS inside the custom node component.
+
+========================================================
+DESIGN GOAL
+========================================================
+
+The node should look like a premium SaaS application rather than a developer diagram.
+
+Current cards feel:
+- oversized
+- empty
+- low information density
+- not visually premium
+
+I want compact, information-rich, modern cards.
+
+Think:
+Stripe Dashboard
+Linear
+Vercel
+Framer
+Raycast
+Notion
+
+Dark theme.
+Elegant.
+Professional.
+
+========================================================
+CARD SIZE
+========================================================
+
+Reduce card size approximately 20-25%.
+
+Cards should fit more naturally inside the tree.
+
+More whitespace around the tree.
+
+========================================================
+NEW LAYOUT
+========================================================
+
+Top Row
+
+[Avatar]   Username                        Status Badge
+
+Example
+
+LD        @john_doe                  ACTIVE
+
+Status badge examples
+
+ACTIVE
+NEW
+TOP
+VIP
+INACTIVE
+
+Small pill.
+
+========================================================
+
+Second Row
+
+👥 2 refs
+
+Small muted text.
+
+========================================================
+
+Third Row
+
+Two equal metric boxes.
+
+┌────────────┬────────────┐
+│ 💰 $5,000  │ 📊 50 BV   │
+│Investment  │BV Value    │
+└────────────┴────────────┘
+
+Each metric:
+
+rounded
+glass effect
+subtle border
+center aligned
+
+========================================================
+
+Bottom Row
+
+Left
+
+Rank pill
+
+Examples
+
+GOLD MEMBER
+VIP
+SILVER
+BRONZE
+
+Right
+
+Arm badge
+
+LEFT ARM
+RIGHT ARM
+
+========================================================
+AVATAR
+========================================================
+
+Large circular avatar.
+
+Outer status ring.
+
+Green ring
+Active
+
+Yellow
+Top performer
+
+Blue
+New member
+
+Gray
+Inactive
+
+Red
+Suspended
+
+Small online indicator dot.
+
+========================================================
+TYPOGRAPHY
+========================================================
+
+Username
+
+Bold
+White
+
+Refs
+
+Muted gray
+
+Metric values
+
+Large
+Bold
+
+Metric labels
+
+Small uppercase
+
+========================================================
+CARD EFFECT
+========================================================
+
+Background
+
+Very dark navy
+
+Glassmorphism
+
+border:
+rgba(255,255,255,.08)
+
+Soft shadow
+
+Small blur
+
+Premium appearance.
+
+========================================================
+HOVER
+========================================================
+
+NO React state.
+
+Pure CSS only.
+
+Hover should:
+
+translateY(-3px)
+
+slightly brighter border
+
+slightly larger shadow
+
+transition 180ms
+
+NO data updates.
+
+NO graph rerender.
+
+========================================================
+CLICK
+========================================================
+
+Entire card remains clickable.
+
+Existing drawer opens.
+
+DO NOT change click logic.
+
+========================================================
+EMPTY SLOT DESIGN
+========================================================
+
+Replace current empty node.
+
+Use compact square.
+
+Dashed border.
+
+Centered +
+
+Label
+
+INVITE MEMBER
+
+Bottom badge
+
+LEFT POSITION
+
+or
+
+RIGHT POSITION
+
+Hover:
+
+border becomes gold
+
+subtle glow
+
+Nothing else.
+
+========================================================
+RESPONSIVE
+========================================================
+
+Tree must remain readable at:
+
+L2
+L3
+L4
+
+Cards should never overlap.
+
+========================================================
+DO NOT TOUCH
+========================================================
+
+DO NOT edit:
+
+treeToFlowElements()
+
+ReactFlow props
+
+node arrays
+
+edge arrays
+
+hover optimisation
+
+drawer state
+
+performance optimisation
+
+Everything functional stays exactly as it is.
+
+Only redesign the node component UI.
+
+Goal:
+Make the Binary Tree look like a premium million-dollar SaaS product while preserving every existing interaction and performance optimization.
