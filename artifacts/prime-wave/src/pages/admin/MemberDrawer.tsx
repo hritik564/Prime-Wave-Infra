@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { type AdminUserDetail } from "@/lib/api";
 import {
   X, Copy, UserPlus, TrendingUp, DollarSign, ArrowDownLeft,
   Users, Award, Wallet, ArrowUpRight, ShieldX, KeyRound, LogIn,
@@ -19,7 +20,7 @@ const BG     = "hsl(222 62% 7%)";
 const BG2    = "hsl(222 62% 10%)";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Status   = "ACTIVE" | "INACTIVE" | "SUSPENDED";
+type Status   = "ACTIVE" | "INACTIVE" | "SUSPENDED" | "BLOCKED";
 type Plan     = "STARTER" | "ALPHA" | "PREMIUM" | "VIP";
 type Position = "LEFT" | "RIGHT";
 type Rank     = "BRONZE" | "SILVER" | "GOLD" | "DIAMOND";
@@ -64,6 +65,7 @@ const STATUS_CFG: Record<Status, { color: string; bg: string }> = {
   ACTIVE:    { color: "#34d399", bg: "rgba(52,211,153,0.12)"   },
   INACTIVE:  { color: MUTED,     bg: "rgba(170,179,197,0.08)"  },
   SUSPENDED: { color: "#f87171", bg: "rgba(248,113,113,0.12)"  },
+  BLOCKED:   { color: "#f87171", bg: "rgba(248,113,113,0.12)"  },
 };
 const KYC_CFG: Record<KYC, { color: string; bg: string; label: string }> = {
   VERIFIED:    { color: "#34d399", bg: "rgba(52,211,153,0.12)",  label: "KYC ✓"       },
@@ -370,55 +372,68 @@ function OverviewTab({ m, onTabSwitch }: { m: DrawerMember; onTabSwitch: (tab: T
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB: Investments
 // ─────────────────────────────────────────────────────────────────────────────
-function InvestmentsTab({ m }: { m: DrawerMember }) {
-  const inv = m.plan ? [{
-    id: `INV${m.id.slice(-5)}01`, plan: m.plan, amount: m.investment,
-    roi: m.plan === "VIP" ? 24 : m.plan === "PREMIUM" ? 18 : m.plan === "ALPHA" ? 12 : 8,
-    duration: m.plan === "PREMIUM" || m.plan === "VIP" ? 365 : 180,
-    started: new Date(m.joinedAt.getTime() + 86400000 * 3), status: "ACTIVE",
-  }] : [];
-  const roiEarned = m.plan ? Math.round(m.investment * (inv[0]?.roi ?? 0) / 100 * 0.4) : 0;
-  if (!m.plan) return <div style={{ textAlign: "center", padding: 32, color: MUTED, fontSize: 13 }}>No active investment plan.</div>;
+function InvestmentsTab({ detail }: { m: DrawerMember; detail?: AdminUserDetail | null }) {
+  if (!detail) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {[1,2].map(i => <div key={i} style={{ background: BG2, border: `1px solid ${BORDER}`, borderRadius: 10, height: 130, opacity: 0.5 }} />)}
+      </div>
+    );
+  }
+  const investments = detail.investments;
+  if (investments.length === 0) {
+    return <div style={{ textAlign: "center", padding: 40, color: MUTED, fontSize: 13 }}>No investment history.</div>;
+  }
   return (
     <div>
-      {inv.map(i => (
-        <Card key={i.id}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.88)" }}>{i.plan} Plan</div>
-              <div style={{ fontSize: 10, color: MUTED, marginTop: 1 }}>{i.id} · Started {dt(i.started)}</div>
-            </div>
-            <Pill label={i.status} color="#34d399" bg="rgba(52,211,153,0.1)" />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
-            {[
-              { label: "Principal",  value: $(i.amount),        color: GOLD_L    },
-              { label: "ROI Rate",   value: `${i.roi}% p.a.`,   color: "#34d399" },
-              { label: "Duration",   value: `${i.duration}d`,   color: MUTED     },
-            ].map(s => (
-              <div key={s.label} style={{ background: CARD, borderRadius: 7, padding: "8px 10px" }}>
-                <div style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>{s.label}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: s.color }}>{s.value}</div>
+      {investments.map(inv => {
+        const amount    = parseFloat(String(inv.amount)) || 0;
+        const claimable = parseFloat(String(inv.claimableROI)) || 0;
+        const dailyROI  = parseFloat(String(inv.dailyROI)) || 0;
+        const isActive  = inv.status === "ACTIVE";
+        const pc        = PLAN_CFG[inv.planType] ?? { color: MUTED, bg: "rgba(170,179,197,0.06)" };
+        return (
+          <Card key={inv.id}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.88)", marginBottom: 2 }}>{inv.planType} Plan</div>
+                <div style={{ fontSize: 10, color: MUTED }}>
+                  {inv.id.slice(0, 18)}… · {inv.startedAt ? `Started ${dt(new Date(inv.startedAt))}` : "Not started"}
+                </div>
               </div>
-            ))}
+              <Pill label={inv.status} color={isActive ? "#34d399" : MUTED} bg={isActive ? "rgba(52,211,153,0.1)" : "rgba(170,179,197,0.06)"} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+              {[
+                { label: "Principal",     value: $(amount),                        color: pc.color  },
+                { label: "Daily ROI",     value: `${(dailyROI*100).toFixed(2)}%`,  color: "#34d399" },
+                { label: "Claimable ROI", value: $(claimable),                     color: GOLD      },
+              ].map(s => (
+                <div key={s.label} style={{ background: CARD, borderRadius: 7, padding: "8px 10px" }}>
+                  <div style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>{s.label}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: s.color }}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+            {inv.maturesAt && (
+              <div style={{ fontSize: 10, color: MUTED }}>Matures: {dt(new Date(inv.maturesAt))}</div>
+            )}
+          </Card>
+        );
+      })}
+      <SectionTitle title="RECENT DEPOSITS" />
+      {detail.depositRequests.length === 0
+        ? <div style={{ fontSize: 12, color: MUTED, padding: "8px 0" }}>No deposit history.</div>
+        : detail.depositRequests.slice(0, 5).map(dep => (
+          <div key={dep.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
+            <div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }}>Deposit · {dep.network}</div>
+              <div style={{ fontSize: 10, color: MUTED }}>{dt(new Date(dep.createdAt))} · {dep.status}</div>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#60a5fa", fontFamily: "monospace" }}>{$(parseFloat(String(dep.amount)) || 0)}</span>
           </div>
-          <ProgressBar label="ROI Progress (40% elapsed)" sublabel={$(roiEarned)} value={40} color={GOLD} />
-        </Card>
-      ))}
-      <SectionTitle title="TRANSACTION HISTORY" />
-      {[
-        { type: "Investment Deposit", amount: m.investment, date: new Date(m.joinedAt.getTime() + 86400000*3), color: "#60a5fa" },
-        { type: "ROI Credit",         amount: roiEarned,    date: new Date(Date.now()-86400000*14),            color: "#34d399" },
-        { type: "ROI Credit",         amount: Math.round(roiEarned*.6), date: new Date(Date.now()-86400000*44),color: "#34d399" },
-      ].map((tx,i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
-          <div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }}>{tx.type}</div>
-            <div style={{ fontSize: 10, color: MUTED }}>{dt(tx.date)}</div>
-          </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: tx.color, fontFamily: "monospace" }}>{$(tx.amount)}</span>
-        </div>
-      ))}
+        ))
+      }
     </div>
   );
 }
@@ -832,7 +847,7 @@ function HeaderActions({ m, onTabSwitch }: { m: DrawerMember; onTabSwitch: (tab:
 // ─────────────────────────────────────────────────────────────────────────────
 // MemberDrawer — main export
 // ─────────────────────────────────────────────────────────────────────────────
-export default function MemberDrawer({ member, onClose }: { member: DrawerMember | null; onClose: () => void }) {
+export default function MemberDrawer({ member, detail, onClose }: { member: DrawerMember | null; detail?: AdminUserDetail | null; onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
   const visible = !!member;
   const prevId  = useRef<string | null>(null);
@@ -927,7 +942,7 @@ export default function MemberDrawer({ member, onClose }: { member: DrawerMember
             {/* ── Tab content ──────────────────────────────────────────────── */}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px 28px" }}>
               {activeTab === "Overview"    && <OverviewTab    m={member} onTabSwitch={setActiveTab} />}
-              {activeTab === "Investments" && <InvestmentsTab m={member} />}
+              {activeTab === "Investments" && <InvestmentsTab m={member} detail={detail} />}
               {activeTab === "Wallets"     && <WalletsTab     m={member} />}
               {activeTab === "Network"     && <NetworkTab     m={member} />}
               {activeTab === "Activity"    && <ActivityTab    m={member} />}

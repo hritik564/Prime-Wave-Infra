@@ -244,7 +244,28 @@ export function ApproveKYCDialog({ member, onClose, onConfirm }: { member: BaseM
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. LoginAsUserDialog
+// 5. ActivateDialog
+// ─────────────────────────────────────────────────────────────────────────────
+export function ActivateDialog({ member, onClose, onConfirm }: { member: BaseMember; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <ModalShell onClose={onClose}>
+      <ModalHeader icon={BadgeCheck} title="Activate Member" subtitle={`Restore access for @${member.username}`} color="#34d399" bg="rgba(52,211,153,0.1)" onClose={onClose} />
+      <div style={{ padding: "0 20px 20px" }}>
+        <MemberChip m={member} />
+        <div style={{ fontSize: 12, color: "rgba(52,211,153,0.85)", background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.15)", borderRadius: 8, padding: "10px 12px", marginBottom: 16, lineHeight: 1.6 }}>
+          Activating this member will restore their ability to log in and perform transactions on the platform.
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Btn label="Cancel" onClick={onClose} />
+          <Btn label="Activate Member" onClick={() => { onConfirm(); onClose(); }} color="#34d399" bg="rgba(52,211,153,0.12)" border="rgba(52,211,153,0.3)" />
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. LoginAsUserDialog
 // ─────────────────────────────────────────────────────────────────────────────
 export function LoginAsUserDialog({ member, onClose, onConfirm }: { member: BaseMember; onClose: () => void; onConfirm: () => void }) {
   return (

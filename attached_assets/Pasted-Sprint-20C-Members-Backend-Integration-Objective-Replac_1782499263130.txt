@@ -1,0 +1,283 @@
+Sprint 20C — Members Backend Integration
+
+Objective
+
+Replace all mock member data and local mock interactions with live backend integration while preserving the existing UI exactly as it is.
+
+IMPORTANT
+
+Do NOT redesign the Members page.
+
+Do NOT change layouts, styling, tables, drawers or components.
+
+Only replace mock data and mock actions with real backend operations.
+
+--------------------------------------------------
+
+Integrate Member List
+
+Replace mock data with backend data.
+
+Support:
+
+• Server-side pagination
+
+• Search
+
+• Sorting
+
+• Filters
+
+• Empty state
+
+• Loading state
+
+• Error state
+
+--------------------------------------------------
+
+Member Drawer
+
+Load real member information.
+
+Include:
+
+• Profile
+
+• Wallet Balances
+
+• Investments
+
+• Binary Statistics
+
+• Recent Activity
+
+• Timeline
+
+• Notes
+
+• Audit Log
+
+Load drawer data on demand.
+
+Do not preload everything.
+
+--------------------------------------------------
+
+Search
+
+Connect to backend.
+
+Support searching by:
+
+Username
+
+Member ID
+
+Email
+
+Phone
+
+Referral Code
+
+Sponsor
+
+Return paginated results.
+
+--------------------------------------------------
+
+Filters
+
+Connect all existing filters.
+
+Status
+
+KYC
+
+Country
+
+Plan
+
+Investment Status
+
+Date Joined
+
+Server-side filtering preferred.
+
+--------------------------------------------------
+
+Create Member
+
+Replace mock creation.
+
+Validate all required fields.
+
+Display validation errors.
+
+Refresh table after successful creation.
+
+Show success toast.
+
+--------------------------------------------------
+
+Edit Member
+
+Connect update API.
+
+Refresh row after update.
+
+Keep drawer open.
+
+Show success toast.
+
+--------------------------------------------------
+
+Suspend / Activate
+
+Replace local state with backend operation.
+
+Require confirmation.
+
+Refresh affected member only.
+
+Update status badge.
+
+Log activity.
+
+--------------------------------------------------
+
+Approve / Reject KYC
+
+Connect backend.
+
+Update member status immediately.
+
+Refresh summary cards if required.
+
+--------------------------------------------------
+
+Delete Member
+
+Require confirmation.
+
+Require DELETE text confirmation if already implemented.
+
+Call backend.
+
+Remove member from table.
+
+Refresh pagination if required.
+
+--------------------------------------------------
+
+Reset Password
+
+Connect backend endpoint.
+
+Display success or failure.
+
+Never expose passwords.
+
+--------------------------------------------------
+
+Login As User
+
+Connect to backend if supported.
+
+If not yet implemented,
+
+display "Coming Soon" without breaking UI.
+
+--------------------------------------------------
+
+Statistics Cards
+
+Replace mock values with backend counts.
+
+Keep existing design.
+
+--------------------------------------------------
+
+Audit Log
+
+Replace mock audit records with backend audit data.
+
+--------------------------------------------------
+
+Admin Notes
+
+Load and save notes through backend.
+
+--------------------------------------------------
+
+Timeline
+
+Replace mock timeline with real member events.
+
+--------------------------------------------------
+
+Performance
+
+Load drawer lazily.
+
+Avoid duplicate API requests.
+
+Refresh only affected data after mutations.
+
+--------------------------------------------------
+
+Error Handling
+
+Handle:
+
+Validation failures
+
+Network errors
+
+Unauthorized
+
+Not found
+
+Conflict responses
+
+Show user-friendly messages.
+
+--------------------------------------------------
+
+Validation
+
+Verify:
+
+✓ Member list loads correctly.
+
+✓ Search works.
+
+✓ Filters work.
+
+✓ Pagination works.
+
+✓ Drawer loads real data.
+
+✓ Create Member works.
+
+✓ Edit Member works.
+
+✓ Suspend / Activate works.
+
+✓ KYC actions work.
+
+✓ Delete works.
+
+✓ Statistics update correctly.
+
+✓ Audit log loads.
+
+✓ Timeline loads.
+
+✓ Existing UI remains unchanged.
+
+--------------------------------------------------
+
+Goal
+
+Convert the entire Members module from mock data to a production-ready backend-powered module while preserving the existing user experience and architecture.

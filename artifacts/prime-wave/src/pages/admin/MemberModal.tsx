@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { X, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { registerUser } from "@/lib/api";
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 const GOLD   = "#D4AF37";
@@ -22,6 +23,7 @@ interface MemberModalProps {
   mode: "create" | "edit";
   initial?: Partial<MemberFormData>;
   onClose: () => void;
+  onCreated?: () => void;
 }
 
 // ─── Countries ────────────────────────────────────────────────────────────────
@@ -59,7 +61,7 @@ function generatePassword() {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export default function MemberModal({ mode, initial = {}, onClose }: MemberModalProps) {
+export default function MemberModal({ mode, initial = {}, onClose, onCreated }: MemberModalProps) {
   const isEdit = mode === "edit";
 
   const [form, setForm] = useState<MemberFormData>({
@@ -79,8 +81,10 @@ export default function MemberModal({ mode, initial = {}, onClose }: MemberModal
     investment:    initial.investment    ?? "",
   });
 
-  const [showPass, setShowPass] = useState(false);
-  const [errors,   setErrors]   = useState<Partial<Record<keyof MemberFormData, string>>>({});
+  const [showPass,    setShowPass]    = useState(false);
+  const [submitting,  setSubmitting]  = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [errors,      setErrors]      = useState<Partial<Record<keyof MemberFormData, string>>>({});
 
   const set = useCallback(<K extends keyof MemberFormData>(k: K, v: MemberFormData[K]) => {
     setForm(prev => ({ ...prev, [k]: v }));
@@ -99,10 +103,28 @@ export default function MemberModal({ mode, initial = {}, onClose }: MemberModal
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    // UI only — no backend
-    onClose();
+    setSubmitError(null);
+    if (isEdit) { onClose(); return; }
+    setSubmitting(true);
+    try {
+      await registerUser({
+        email:          form.email,
+        username:       form.username,
+        password:       form.password,
+        firstName:      form.firstName,
+        lastName:       form.lastName,
+        phone:          form.phone || undefined,
+        referralCode:   form.sponsor || undefined,
+        binaryPlacement: (form.placement as "LEFT" | "RIGHT") || undefined,
+      });
+      onCreated?.();
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to create member");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const inp = (k: keyof MemberFormData, placeholder: string, type = "text") => (
@@ -245,13 +267,20 @@ export default function MemberModal({ mode, initial = {}, onClose }: MemberModal
         </div>
 
         {/* Footer */}
-        <div style={{ display: "flex", gap: 10, padding: "16px 22px", borderTop: `1px solid ${BORDER}`, flexShrink: 0 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "10px 0", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 9, cursor: "pointer", fontSize: 13, color: MUTED }}>
-            Cancel
-          </button>
-          <button onClick={handleSubmit} style={{ flex: 2, padding: "10px 0", background: "rgba(212,175,55,0.12)", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 9, cursor: "pointer", fontSize: 13, fontWeight: 700, color: GOLD_L }}>
-            {isEdit ? "Save Changes" : "Create Member"}
-          </button>
+        <div style={{ padding: "0 22px 16px 22px", borderTop: `1px solid ${BORDER}`, paddingTop: 16, flexShrink: 0 }}>
+          {submitError && (
+            <div style={{ fontSize: 12, color: "#f87171", background: "rgba(248,113,113,0.07)", border: "1px solid rgba(248,113,113,0.18)", borderRadius: 8, padding: "8px 12px", marginBottom: 10 }}>
+              {submitError}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={onClose} disabled={submitting} style={{ flex: 1, padding: "10px 0", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 9, cursor: submitting ? "not-allowed" : "pointer", fontSize: 13, color: MUTED, opacity: submitting ? 0.5 : 1 }}>
+              Cancel
+            </button>
+            <button onClick={() => void handleSubmit()} disabled={submitting} style={{ flex: 2, padding: "10px 0", background: submitting ? "rgba(212,175,55,0.06)" : "rgba(212,175,55,0.12)", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 9, cursor: submitting ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 700, color: GOLD_L, opacity: submitting ? 0.7 : 1 }}>
+              {submitting ? "Creating…" : isEdit ? "Save Changes" : "Create Member"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

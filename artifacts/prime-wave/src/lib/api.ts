@@ -466,18 +466,148 @@ export interface AdminUserListItem {
   id: string;
   username: string;
   email: string;
+  phone: string | null;
   firstName: string;
   lastName: string;
   status: string;
+  referralCode: string;
+  directReferralCount: number;
   createdAt: string;
+  wallet: {
+    depositWallet: string;
+    incomeWallet: string;
+    withdrawalWallet: string;
+    lockedWithdrawalBalance: string;
+  } | null;
 }
 
-export function adminSearchUsers(params?: { page?: number; limit?: number; status?: string }) {
+export interface AdminUserDetail {
+  id: string;
+  username: string;
+  email: string;
+  phone: string | null;
+  firstName: string;
+  lastName: string;
+  status: string;
+  referralCode: string;
+  directReferralCount: number;
+  position: "LEFT" | "RIGHT" | null;
+  leftBV: string;
+  rightBV: string;
+  walletAddress: string | null;
+  telegramId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  wallet: {
+    depositWallet: string;
+    incomeWallet: string;
+    withdrawalWallet: string;
+    lockedWithdrawalBalance: string;
+    updatedAt: string;
+  } | null;
+  sponsor: {
+    id: string;
+    username: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+  directReferrals: Array<{
+    id: string;
+    username: string;
+    email: string;
+    createdAt: string;
+    status: string;
+  }>;
+  binaryParent: {
+    id: string;
+    username: string;
+    position: string;
+  } | null;
+  investments: Array<{
+    id: string;
+    planType: string;
+    amount: string;
+    status: string;
+    dailyROI: string;
+    claimableROI: string;
+    startedAt: string | null;
+    maturesAt: string | null;
+    completedAt: string | null;
+    createdAt: string;
+  }>;
+  depositRequests: Array<{
+    id: string;
+    amount: string;
+    network: string;
+    status: string;
+    txHash: string | null;
+    approvedAt: string | null;
+    createdAt: string;
+  }>;
+  withdrawalRequests: Array<{
+    id: string;
+    amount: string;
+    network: string;
+    status: string;
+    walletAddressSnapshot: string;
+    txHash: string | null;
+    approvedAt: string | null;
+    completedAt: string | null;
+    rejectedReason: string | null;
+    createdAt: string;
+  }>;
+  salaryAchievements: Array<{
+    rankName: string;
+    monthlyAmount: string;
+    achievedAt: string;
+    expiresAt: string | null;
+    isActive: boolean;
+  }>;
+}
+
+export function adminSearchUsers(params?: {
+  page?: number; limit?: number; status?: string;
+  username?: string; email?: string; phone?: string; referralCode?: string;
+}) {
   const q = new URLSearchParams();
-  if (params?.page)   q.set("page",   String(params.page));
-  if (params?.limit)  q.set("limit",  String(params.limit));
-  if (params?.status) q.set("status", params.status);
+  if (params?.page)         q.set("page",         String(params.page));
+  if (params?.limit)        q.set("limit",        String(params.limit));
+  if (params?.status)       q.set("status",       params.status);
+  if (params?.username)     q.set("username",     params.username);
+  if (params?.email)        q.set("email",        params.email);
+  if (params?.phone)        q.set("phone",        params.phone);
+  if (params?.referralCode) q.set("referralCode", params.referralCode);
   return request<{ data: AdminUserListItem[]; meta: ListMeta }>(`/api/admin/users/search?${q}`);
+}
+
+export function getAdminUserDetail(id: string) {
+  return request<AdminUserDetail>(`/api/admin/users/${id}`);
+}
+
+export function adminSuspendUser(id: string) {
+  return request<{ id: string; status: string }>(`/api/admin/users/${id}/suspend`, { method: "POST" });
+}
+
+export function adminActivateUser(id: string) {
+  return request<{ id: string; status: string }>(`/api/admin/users/${id}/activate`, { method: "POST" });
+}
+
+export function adminBlockUser(id: string) {
+  return request<{ id: string; status: string }>(`/api/admin/users/${id}/block`, { method: "POST" });
+}
+
+export interface RegisterPayload {
+  email: string; username: string; password: string;
+  firstName: string; lastName: string;
+  phone?: string; referralCode?: string; binaryPlacement?: "LEFT" | "RIGHT";
+}
+
+export function registerUser(payload: RegisterPayload) {
+  return request<{ token: string; user: StoredAuthUser }>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 /* ── Dev Toolkit (development only) ──────────────────────────────── */
