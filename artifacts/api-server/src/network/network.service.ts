@@ -6,7 +6,7 @@ import type { MembersQuery } from "./network.schema";
 
 // ── Recursive binary downline IDs via CTE ─────────────────────────────────────
 
-async function getBinaryDownlineIds(userId: string): Promise<string[]> {
+export async function getBinaryDownlineIds(userId: string): Promise<string[]> {
   if (!userId) return [];
   const rows = await prisma.$queryRaw<{ id: string }[]>`
     WITH RECURSIVE bd AS (

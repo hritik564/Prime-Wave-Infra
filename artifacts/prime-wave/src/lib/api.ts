@@ -806,3 +806,120 @@ export function getTeamActivity() {
 export function getNetworkMemberJourney(memberId: string) {
   return request<MemberJourney>(`/api/network/member/${memberId}/journey`);
 }
+
+/* ── Decision Engine ──────────────────────────────────────────────── */
+
+export type DEPriority = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+
+export interface DEActionItem {
+  id:              string;
+  priority:        DEPriority;
+  title:           string;
+  description:     string;
+  reason:          string;
+  estimatedReward: string | null;
+  rewardLabel:     string | null;
+  category:        "BINARY" | "ORBIT" | "SALARY" | "MEMBER" | "REFERRAL" | "REACTIVATION";
+}
+
+export interface DEOpportunity {
+  type:            "BINARY" | "ORBIT" | "SALARY" | "LEVEL";
+  title:           string;
+  description:     string;
+  progressPercent: number;
+  requiredAction:  string;
+  estimatedReward: string | null;
+  priority:        DEPriority;
+  bvNeeded:        number | null;
+  currentValue:    string;
+  targetValue:     string;
+}
+
+export interface DEHealthCategory {
+  label:    string;
+  score:    number;
+  maxScore: number;
+  status:   "EXCELLENT" | "GOOD" | "NEEDS_ATTENTION" | "CRITICAL";
+  detail:   string;
+}
+
+export interface DEHealthScore {
+  overall:    number;
+  categories: DEHealthCategory[];
+}
+
+export interface DEMemberRec {
+  id:                    string;
+  firstName:             string;
+  lastName:              string;
+  username:              string;
+  status:                string;
+  reason:                string;
+  action:                string;
+  daysSinceJoined:       number;
+  isPersonallySponsored: boolean;
+  tag:                   "NOT_INVESTED" | "INACTIVE" | "HIGH_PRODUCER";
+}
+
+export interface DEQualCard {
+  type:            "BINARY_MATCH" | "BINARY_ORBIT" | "SALARY" | "REFERRAL";
+  title:           string;
+  progressPercent: number;
+  current:         string;
+  remaining:       string;
+  potentialReward: string;
+  action:          string;
+}
+
+export interface DEIncomeForecast {
+  hasData:         boolean;
+  weeklyBinary:    string;
+  monthlyBinary:   string;
+  weeklyROI:       string;
+  monthlyROI:      string;
+  estimatedSalary: string;
+  monthlyTotal:    string;
+}
+
+export interface DEGrowthForecast {
+  hasData:                 boolean;
+  confidence:              "HIGH" | "MEDIUM" | "LOW";
+  monthlyTeamGrowth:       number;
+  monthlyInvestmentVolume: string;
+  monthlyNetworkIncome:    string;
+}
+
+export interface DEMission {
+  id:          string;
+  title:       string;
+  description: string;
+  completed:   boolean;
+  progress:    number;
+  icon:        string;
+}
+
+export interface DEWeeklyObjective {
+  id:              string;
+  title:           string;
+  current:         number;
+  target:          number;
+  unit:            string;
+  reward:          string;
+  progressPercent: number;
+}
+
+export interface DecisionEngine {
+  actionPlan:            DEActionItem[];
+  opportunities:         DEOpportunity[];
+  healthScore:           DEHealthScore;
+  memberRecommendations: DEMemberRec[];
+  qualificationProgress: DEQualCard[];
+  incomeForecast:        DEIncomeForecast;
+  growthForecast:        DEGrowthForecast;
+  dailyMissions:         DEMission[];
+  weeklyObjectives:      DEWeeklyObjective[];
+}
+
+export function getDecisionEngine() {
+  return request<DecisionEngine>("/api/network/decision-engine");
+}

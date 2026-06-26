@@ -12,7 +12,9 @@ import {
   Search, Award, Activity, GitBranch, UserPlus, Zap,
   X, ChevronLeft, ChevronRight, Link2, Target, Star,
   Wallet, BarChart2, ArrowRight, Clock, Shield, ArrowUpRight,
-  Radio,
+  Radio, Flame, Brain, CheckCircle2, Circle, BarChart,
+  AlertTriangle, TrendingDown, Sparkles, CalendarCheck,
+  Calendar, ChevronDown, ChevronUp,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
@@ -20,11 +22,14 @@ import {
   getProfile, getNetworkStats, getNetworkInsights,
   getBinaryTree, getBvSummary, getNetworkMembers,
   getTopPerformers, getTeamActivity, getNetworkMemberJourney,
+  getDecisionEngine,
 } from "@/lib/api";
 import type {
   ProfileData, NetworkStats, NetworkInsight, BinaryTreeNode,
   BvSummary, NetworkMember, TopPerformer, TeamActivityItem,
-  MemberJourney,
+  MemberJourney, DecisionEngine, DEActionItem, DEOpportunity,
+  DEHealthScore, DEMemberRec, DEQualCard, DEIncomeForecast,
+  DEGrowthForecast, DEMission, DEWeeklyObjective, DEPriority,
 } from "@/lib/api";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -763,6 +768,484 @@ function ActivityEntry({ item }: { item: TeamActivityItem }) {
   );
 }
 
+// ── Decision Engine sub-components ────────────────────────────────────────────
+
+function PriorityBadge({ p }: { p: DEPriority }) {
+  const map: Record<DEPriority, { label: string; color: string }> = {
+    CRITICAL: { label: "Critical", color: "#f87171" },
+    HIGH:     { label: "High",     color: C_WARN },
+    MEDIUM:   { label: "Medium",   color: C_L },
+    LOW:      { label: "Low",      color: MUTED },
+  };
+  const { label, color } = map[p];
+  return (
+    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.05em",
+      color, background: `${color}18`, borderRadius: 6, padding: "2px 7px" }}>
+      {label.toUpperCase()}
+    </span>
+  );
+}
+
+function DEBar({ pct, color = GOLD }: { pct: number; color?: string }) {
+  return (
+    <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+      <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+        transition={{ duration: 1.2, ease: "easeOut" }}
+        style={{ height: "100%", background: `linear-gradient(90deg,${color}80,${color})`, borderRadius: 2 }} />
+    </div>
+  );
+}
+
+function ActionPlanSection({ items }: { items: DEActionItem[] }) {
+  const catIcon: Record<string, React.ElementType> = {
+    BINARY: Zap, ORBIT: Target, SALARY: Award, MEMBER: UserPlus,
+    REFERRAL: Users, REACTIVATION: Activity,
+  };
+  const catColor: Record<string, string> = {
+    BINARY: GOLD, ORBIT: C_L, SALARY: "#a78bfa", MEMBER: C_OK,
+    REFERRAL: C_L, REACTIVATION: C_WARN,
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.04 }}>
+      <SH title="Today's Action Plan" sub="Highest-impact actions ranked by potential reward" icon={Flame} />
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {items.length === 0 && (
+          <div style={{ ...CARD, padding: "20px", textAlign: "center" }}>
+            <Sparkles size={22} color={GOLD} style={{ marginBottom: 8 }} />
+            <p style={{ color: MUTED, fontSize: 13 }}>No urgent actions right now — you're in great shape!</p>
+          </div>
+        )}
+        {items.map((item, idx) => {
+          const Icon  = catIcon[item.category] ?? Zap;
+          const color = catColor[item.category] ?? GOLD;
+          return (
+            <motion.div key={item.id}
+              initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: idx * 0.06 }}
+              style={{ ...CARD, padding: "16px 18px", borderLeft: `3px solid ${color}` }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: `${color}15`,
+                  border: `1px solid ${color}25`, display: "flex", alignItems: "center",
+                  justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                  <Icon size={14} color={color} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 10, color: MUTED, fontWeight: 600 }}>PRIORITY #{idx + 1}</span>
+                    <PriorityBadge p={item.priority} />
+                  </div>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.92)", lineHeight: 1.35, marginBottom: 4 }}>
+                    {item.title}
+                  </p>
+                  <p style={{ fontSize: 12, color: MUTED, lineHeight: 1.5, marginBottom: item.estimatedReward ? 10 : 0 }}>
+                    {item.reason}
+                  </p>
+                  {item.estimatedReward && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ padding: "5px 10px", background: `${GOLD}12`,
+                        border: `1px solid ${GOLD}25`, borderRadius: 8 }}>
+                        <p style={{ fontSize: 10, color: MUTED, marginBottom: 1 }}>{item.rewardLabel ?? "Estimated Reward"}</p>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: GOLD }}>≈ {item.estimatedReward}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
+
+function OpportunitiesSection({ items }: { items: DEOpportunity[] }) {
+  const typeColor: Record<string, string> = {
+    BINARY: GOLD, ORBIT: C_L, SALARY: "#a78bfa", LEVEL: C_OK,
+  };
+  const typeIcon: Record<string, React.ElementType> = {
+    BINARY: Zap, ORBIT: Target, SALARY: Award, LEVEL: TrendingUp,
+  };
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.06 }}>
+      <SH title="Opportunity Cards" sub="Real income opportunities ranked by proximity" icon={Sparkles} />
+      <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6, scrollbarWidth: "none" }}>
+        {items.map((opp, idx) => {
+          const color = typeColor[opp.type] ?? GOLD;
+          const Icon  = typeIcon[opp.type] ?? Zap;
+          return (
+            <motion.div key={idx} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: idx * 0.07 }}
+              style={{ minWidth: 200, maxWidth: 220, flexShrink: 0, ...CARD, padding: "16px 16px",
+                border: `1px solid ${color}22` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}15`,
+                  border: `1px solid ${color}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Icon size={13} color={color} />
+                </div>
+                <p style={{ fontSize: 11, fontWeight: 700, color }}>{opp.title}</p>
+              </div>
+              <p style={{ fontSize: 11, color: MUTED, lineHeight: 1.5, marginBottom: 12, minHeight: 44 }}>
+                {opp.description}
+              </p>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                  <span style={{ fontSize: 10, color: MUTED }}>Progress</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color }}>{opp.progressPercent}%</span>
+                </div>
+                <DEBar pct={opp.progressPercent} color={color} />
+              </div>
+              <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
+                <span style={{ color: "rgba(255,255,255,0.6)" }}>{opp.currentValue}</span> → {opp.targetValue}
+              </div>
+              {opp.estimatedReward && (
+                <p style={{ fontSize: 13, fontWeight: 700, color: GOLD, marginBottom: 6 }}>≈ {opp.estimatedReward}</p>
+              )}
+              <p style={{ fontSize: 10, color, fontWeight: 600 }}>→ {opp.requiredAction}</p>
+            </motion.div>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
+
+function HealthScoreSection({ health }: { health: DEHealthScore }) {
+  const statusColor: Record<string, string> = {
+    EXCELLENT: C_OK, GOOD: C_L, NEEDS_ATTENTION: C_WARN, CRITICAL: "#f87171",
+  };
+  const overallColor = health.overall >= 80 ? C_OK : health.overall >= 60 ? C_L : health.overall >= 40 ? C_WARN : "#f87171";
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+      <SH title="Network Health Score" sub="5-category breakdown of your network strength" icon={Shield} />
+      <div style={CARD}>
+        {/* Overall */}
+        <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 20, paddingBottom: 16,
+          borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ textAlign: "center", flexShrink: 0 }}>
+            <p style={{ fontSize: 42, fontWeight: 800, color: overallColor, lineHeight: 1 }}>{health.overall}</p>
+            <p style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>/ 100</p>
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.9)", marginBottom: 6 }}>Overall Health</p>
+            <DEBar pct={health.overall} color={overallColor} />
+            <p style={{ fontSize: 11, color: overallColor, marginTop: 6, fontWeight: 600 }}>
+              {health.overall >= 80 ? "Excellent" : health.overall >= 60 ? "Good" : health.overall >= 40 ? "Needs Attention" : "Critical"}
+            </p>
+          </div>
+        </div>
+        {/* Categories */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {health.categories.map((cat) => {
+            const color = statusColor[cat.status] ?? MUTED;
+            const pct   = cat.maxScore > 0 ? (cat.score / cat.maxScore) * 100 : 0;
+            return (
+              <div key={cat.label}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <div>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>{cat.label}</p>
+                    <p style={{ fontSize: 10, color: MUTED, marginTop: 1 }}>{cat.detail}</p>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color }}>{cat.score}<span style={{ fontSize: 10, color: MUTED }}>/{cat.maxScore}</span></p>
+                    <p style={{ fontSize: 9, color, fontWeight: 600, letterSpacing: "0.04em" }}>{cat.status.replace("_", " ")}</p>
+                  </div>
+                </div>
+                <DEBar pct={pct} color={color} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function MemberRecSection({ recs }: { recs: DEMemberRec[] }) {
+  if (recs.length === 0) return null;
+  const tagColor: Record<string, string> = {
+    NOT_INVESTED: C_WARN, INACTIVE: "#f87171", HIGH_PRODUCER: C_OK,
+  };
+  const tagLabel: Record<string, string> = {
+    NOT_INVESTED: "Not Invested", INACTIVE: "Inactive", HIGH_PRODUCER: "High Producer",
+  };
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
+      <SH title="Smart Member Recommendations" sub="Members requiring your attention right now" icon={Brain} />
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {recs.map((rec, idx) => {
+          const color = tagColor[rec.tag] ?? MUTED;
+          return (
+            <motion.div key={rec.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: idx * 0.05 }}
+              style={{ ...CARD, padding: "14px 16px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 18, background: `${color}15`,
+                  border: `1px solid ${color}25`, display: "flex", alignItems: "center",
+                  justifyContent: "center", flexShrink: 0, fontSize: 13, fontWeight: 700, color }}>
+                  {rec.firstName[0]?.toUpperCase() ?? "?"}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>
+                      {rec.firstName} {rec.lastName}
+                    </p>
+                    <span style={{ fontSize: 9, fontWeight: 700, color, background: `${color}18`,
+                      borderRadius: 5, padding: "2px 6px", letterSpacing: "0.04em" }}>
+                      {tagLabel[rec.tag]}
+                    </span>
+                    {rec.isPersonallySponsored && (
+                      <span style={{ fontSize: 9, fontWeight: 700, color: GOLD, background: `${GOLD}15`,
+                        borderRadius: 5, padding: "2px 6px" }}>
+                        YOUR REFERRAL
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 11, color: MUTED, lineHeight: 1.5, marginBottom: 8 }}>{rec.reason}</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
+                    background: `${color}0e`, border: `1px solid ${color}18`, borderRadius: 8 }}>
+                    <ArrowRight size={11} color={color} />
+                    <p style={{ fontSize: 11, fontWeight: 600, color }}>{rec.action}</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
+
+function QualProgressSection({ cards }: { cards: DEQualCard[] }) {
+  const typeColor: Record<string, string> = {
+    BINARY_MATCH: GOLD, BINARY_ORBIT: C_L, SALARY: "#a78bfa", REFERRAL: C_OK,
+  };
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.13 }}>
+      <SH title="Qualification Progress" sub="Track progress toward each income milestone" icon={Target} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {cards.map((card) => {
+          const color = typeColor[card.type] ?? GOLD;
+          return (
+            <div key={card.type} style={{ ...CARD, padding: "14px 14px", border: `1px solid ${color}18` }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 8 }}>{card.title}</p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <span style={{ fontSize: 9, color: MUTED }}>Progress</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color }}>{card.progressPercent}%</span>
+              </div>
+              <DEBar pct={card.progressPercent} color={color} />
+              <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
+                <p style={{ fontSize: 10, color: "rgba(255,255,255,0.6)" }}>{card.current}</p>
+                <p style={{ fontSize: 10, color: MUTED }}>{card.remaining}</p>
+                <p style={{ fontSize: 12, fontWeight: 700, color: GOLD, marginTop: 2 }}>{card.potentialReward}</p>
+                <p style={{ fontSize: 9, color, fontWeight: 600, marginTop: 2 }}>→ {card.action}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
+
+function IncomeForecastSection({ forecast }: { forecast: DEIncomeForecast }) {
+  const rows: { label: string; weekly: string; monthly: string; color: string }[] = [
+    { label: "Binary Match",  weekly: `$${Number(forecast.weeklyBinary).toFixed(0)}`,   monthly: `$${Number(forecast.monthlyBinary).toFixed(0)}`,   color: GOLD },
+    { label: "ROI Returns",   weekly: `$${Number(forecast.weeklyROI).toFixed(0)}`,      monthly: `$${Number(forecast.monthlyROI).toFixed(0)}`,      color: C_L },
+    { label: "Salary",        weekly: `$${(Number(forecast.estimatedSalary)/4).toFixed(0)}`, monthly: `$${Number(forecast.estimatedSalary).toFixed(0)}`, color: "#a78bfa" },
+  ];
+  const totalMonthly = (
+    Number(forecast.monthlyBinary) +
+    Number(forecast.monthlyROI) +
+    Number(forecast.estimatedSalary)
+  );
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }}>
+      <SH title="Income Forecast" sub="Based entirely on your current production" icon={BarChart} />
+      <div style={CARD}>
+        {!forecast.hasData ? (
+          <div style={{ textAlign: "center", padding: "24px 0" }}>
+            <TrendingDown size={24} color={MUTED} style={{ marginBottom: 8 }} />
+            <p style={{ color: MUTED, fontSize: 13 }}>Not enough activity yet.</p>
+            <p style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>
+              Complete an investment or earn binary income to see your forecast.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 0,
+              marginBottom: 16, paddingBottom: 14, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <div />
+              <p style={{ fontSize: 10, color: MUTED, fontWeight: 600, textAlign: "center" }}>WEEKLY</p>
+              <p style={{ fontSize: 10, color: MUTED, fontWeight: 600, textAlign: "center" }}>MONTHLY</p>
+            </div>
+            {rows.map((row) => (
+              <div key={row.label} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
+                gap: 0, marginBottom: 14, alignItems: "center" }}>
+                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>{row.label}</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: row.color, textAlign: "center" }}>{row.weekly}</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: row.color, textAlign: "center" }}>{row.monthly}</p>
+              </div>
+            ))}
+            <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0 14px" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>Estimated Monthly Total</p>
+              <p style={{ fontSize: 20, fontWeight: 800, color: GOLD }}>
+                ${totalMonthly.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function GrowthForecastSection({ forecast }: { forecast: DEGrowthForecast }) {
+  const confColor: Record<string, string> = { HIGH: C_OK, MEDIUM: C_WARN, LOW: MUTED };
+  const confLabel: Record<string, string> = { HIGH: "High Confidence", MEDIUM: "Medium Confidence", LOW: "Low Confidence" };
+  const color = confColor[forecast.confidence] ?? MUTED;
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+      <SH title="Growth Forecast" sub="Projections based on your current pace" icon={TrendingUp} />
+      <div style={CARD}>
+        {!forecast.hasData ? (
+          <div style={{ textAlign: "center", padding: "24px 0" }}>
+            <BarChart size={24} color={MUTED} style={{ marginBottom: 8 }} />
+            <p style={{ color: MUTED, fontSize: 13 }}>Not enough activity yet.</p>
+            <p style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>
+              Add team members or investments to see growth projections.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <span style={{ fontSize: 10, color, fontWeight: 700, background: `${color}15`,
+                borderRadius: 6, padding: "2px 8px", letterSpacing: "0.04em" }}>
+                {confLabel[forecast.confidence]}
+              </span>
+              <span style={{ fontSize: 11, color: MUTED }}>· At your current pace</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {[
+                { label: "Team Growth / Month", value: `+${forecast.monthlyTeamGrowth} members`, color: C_L },
+                { label: "Investment Volume / Month", value: `$${Number(forecast.monthlyInvestmentVolume).toLocaleString("en-US", { maximumFractionDigits: 0 })}`, color: GOLD },
+                { label: "Network Income / Month", value: `$${Number(forecast.monthlyNetworkIncome).toLocaleString("en-US", { maximumFractionDigits: 0 })}`, color: C_OK },
+              ].map((row) => (
+                <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                  padding: "12px 14px", background: "rgba(255,255,255,0.025)", borderRadius: 10,
+                  border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>{row.label}</p>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: row.color }}>{row.value}</p>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function DailyMissionsSection({ missions }: { missions: DEMission[] }) {
+  const completed = missions.filter((m) => m.completed).length;
+  const pct = missions.length > 0 ? (completed / missions.length) * 100 : 0;
+  const missionIcon: Record<string, React.ElementType> = {
+    UserPlus: UserPlus, TrendingUp: TrendingUp, Zap: Zap,
+  };
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
+      <SH title="Daily Missions" sub="Complete all 3 to maximise today's impact" icon={CalendarCheck} />
+      <div style={CARD}>
+        {/* Overall progress */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <p style={{ fontSize: 12, color: MUTED }}>
+            {completed} of {missions.length} completed
+          </p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: pct === 100 ? C_OK : GOLD }}>{Math.round(pct)}%</p>
+        </div>
+        <DEBar pct={pct} color={pct === 100 ? C_OK : GOLD} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 18 }}>
+          {missions.map((m, idx) => {
+            const Icon = missionIcon[m.icon] ?? Zap;
+            return (
+              <motion.div key={m.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.06 }}
+                style={{ display: "flex", alignItems: "flex-start", gap: 12,
+                  padding: "12px 14px", borderRadius: 12,
+                  background: m.completed ? `${C_OK}0a` : "rgba(255,255,255,0.025)",
+                  border: `1px solid ${m.completed ? `${C_OK}22` : "rgba(255,255,255,0.06)"}` }}>
+                {m.completed
+                  ? <CheckCircle2 size={18} color={C_OK} style={{ flexShrink: 0, marginTop: 1 }} />
+                  : <Circle size={18} color={MUTED} style={{ flexShrink: 0, marginTop: 1 }} />
+                }
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600,
+                    color: m.completed ? C_OK : "rgba(255,255,255,0.85)",
+                    textDecoration: m.completed ? "line-through" : "none",
+                    lineHeight: 1.4 }}>
+                    {m.title}
+                  </p>
+                  {!m.completed && (
+                    <p style={{ fontSize: 11, color: MUTED, marginTop: 3, lineHeight: 1.45 }}>{m.description}</p>
+                  )}
+                  {!m.completed && m.progress > 0 && m.progress < 100 && (
+                    <div style={{ marginTop: 8 }}>
+                      <DEBar pct={m.progress} color={GOLD} />
+                    </div>
+                  )}
+                </div>
+                <div style={{ flexShrink: 0 }}>
+                  <Icon size={13} color={m.completed ? C_OK : MUTED} />
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function WeeklyObjSection({ objectives }: { objectives: DEWeeklyObjective[] }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.17 }}>
+      <SH title="Weekly Objectives" sub="Track progress toward your goals this week" icon={Calendar} />
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {objectives.map((obj, idx) => (
+          <motion.div key={obj.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.06 }}
+            style={{ ...CARD, padding: "16px 18px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)", lineHeight: 1.35 }}>{obj.title}</p>
+                <p style={{ fontSize: 10, color: MUTED, marginTop: 3 }}>
+                  Reward: <span style={{ color: GOLD_L }}>{obj.reward}</span>
+                </p>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
+                <p style={{ fontSize: 18, fontWeight: 800, color: obj.progressPercent >= 100 ? C_OK : GOLD }}>
+                  {obj.current}
+                </p>
+                <p style={{ fontSize: 10, color: MUTED }}>of {obj.target} {obj.unit}</p>
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 10, color: MUTED }}>Progress</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: obj.progressPercent >= 100 ? C_OK : GOLD }}>
+                {obj.progressPercent}%
+              </span>
+            </div>
+            <DEBar pct={obj.progressPercent} color={obj.progressPercent >= 100 ? C_OK : GOLD} />
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function NetworkIntelligencePage() {
   // ── Data state ───────────────────────────────────────────────────────────────
@@ -774,6 +1257,7 @@ export default function NetworkIntelligencePage() {
   const [performers, setPerformers] = useState<TopPerformer[]>([]);
   const [activities, setActivities] = useState<TeamActivityItem[]>([]);
   const [memberMap,  setMemberMap]  = useState<Map<string, NetworkMember>>(new Map());
+  const [engine,     setEngine]     = useState<DecisionEngine | null>(null);
 
   // Team explorer
   const [members,       setMembers]       = useState<NetworkMember[]>([]);
@@ -807,7 +1291,8 @@ export default function NetworkIntelligencePage() {
       getTopPerformers(),
       getTeamActivity(),
       getNetworkMembers({ page: 1, limit: 50, filter: "all" }),
-    ]).then(([p, s, ins, bv, perf, act, allM]) => {
+      getDecisionEngine(),
+    ]).then(([p, s, ins, bv, perf, act, allM, eng]) => {
       setProfile(p);
       setStats(s);
       setInsights(ins.insights);
@@ -817,6 +1302,7 @@ export default function NetworkIntelligencePage() {
       const map = new Map<string, NetworkMember>();
       allM.members.forEach((m: NetworkMember) => map.set(m.id, m));
       setMemberMap(map);
+      setEngine(eng);
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
@@ -968,6 +1454,12 @@ export default function NetworkIntelligencePage() {
             </div>
           </motion.div>
 
+          {/* ── DE-1. TODAY'S ACTION PLAN ────────────────────────────────────── */}
+          {engine && <ActionPlanSection items={engine.actionPlan} />}
+
+          {/* ── DE-2. OPPORTUNITY CARDS ──────────────────────────────────────── */}
+          {engine && <OpportunitiesSection items={engine.opportunities} />}
+
           {/* ── 2. AI INSIGHTS ───────────────────────────────────────────────── */}
           {insights.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
@@ -1065,6 +1557,15 @@ export default function NetworkIntelligencePage() {
             <QStat label="Direct Referrals"  value={stats.directReferrals} icon={Users}       color={C_L}   />
           </div>
 
+          {/* ── DE-3. NETWORK HEALTH SCORE ───────────────────────────────────── */}
+          {engine && <HealthScoreSection health={engine.healthScore} />}
+
+          {/* ── DE-4. SMART MEMBER RECOMMENDATIONS ───────────────────────────── */}
+          {engine && <MemberRecSection recs={engine.memberRecommendations} />}
+
+          {/* ── DE-5. QUALIFICATION PROGRESS ─────────────────────────────────── */}
+          {engine && <QualProgressSection cards={engine.qualificationProgress} />}
+
           {/* ── 6. BINARY TREE ───────────────────────────────────────────────── */}
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -1104,6 +1605,12 @@ export default function NetworkIntelligencePage() {
               }
             </div>
           </motion.div>
+
+          {/* ── DE-6. INCOME FORECAST ────────────────────────────────────────── */}
+          {engine && <IncomeForecastSection forecast={engine.incomeForecast} />}
+
+          {/* ── DE-7. GROWTH FORECAST ────────────────────────────────────────── */}
+          {engine && <GrowthForecastSection forecast={engine.growthForecast} />}
 
           {/* ── 7. TEAM EXPLORER ─────────────────────────────────────────────── */}
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
@@ -1183,6 +1690,12 @@ export default function NetworkIntelligencePage() {
               </div>
             )}
           </motion.div>
+
+          {/* ── DE-8. DAILY MISSIONS ─────────────────────────────────────────── */}
+          {engine && <DailyMissionsSection missions={engine.dailyMissions} />}
+
+          {/* ── DE-9. WEEKLY OBJECTIVES ──────────────────────────────────────── */}
+          {engine && <WeeklyObjSection objectives={engine.weeklyObjectives} />}
 
           {/* ── 8. TOP PERFORMERS ────────────────────────────────────────────── */}
           {performers.length > 0 && (
