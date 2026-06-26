@@ -118,30 +118,20 @@ interface TreeNodeData extends Record<string, unknown> {
   onSelect?:           (data: TreeNodeData) => void;
 }
 
-// ── Tree node animation helper ────────────────────────────────────────────────
-function nodeAnimate(depth: number, faded: boolean) {
-  return {
-    initial:    { opacity: 0, scale: 0.85, y: -8 } as const,
-    animate:    faded ? { opacity: 0.18, scale: 1, y: 0 } : { opacity: 1, scale: 1, y: 0 },
-    transition: faded
-      ? { duration: 0.18 }
-      : { delay: depth * 0.07, duration: 0.3, ease: "easeOut" as const },
-  };
-}
-
 // ── RF Custom Nodes — MUST be outside component ────────────────────────────────
+// Note: plain div + CSS transition is used here (not motion.div).
+// Framer Motion v12's animation Promise lifecycle conflicts with React Flow's
+// ResizeObserver-driven re-renders, causing silent non-Error rejections.
 function RootNode({ data }: { data: TreeNodeData }) {
-  const anim = nodeAnimate(data.depth, data.faded);
   return (
-    <motion.div
-      initial={anim.initial}
-      animate={anim.animate}
-      transition={anim.transition}
+    <div
       style={{
         background: "linear-gradient(135deg,rgba(212,175,55,0.16) 0%,rgba(212,175,55,0.06) 100%)",
         border: "2px solid rgba(212,175,55,0.55)", borderRadius: 14,
         padding: "10px 14px", minWidth: 155,
         boxShadow: "0 0 28px rgba(212,175,55,0.2),0 4px 20px rgba(0,0,0,0.5)",
+        opacity: data.faded ? 0.18 : 1,
+        transition: "opacity 0.18s ease",
       }}>
       <Handle type="source" position={Position.Bottom}
         style={{ background: "rgba(212,175,55,0.6)", width: 8, height: 8, border: "none" }} />
@@ -160,7 +150,7 @@ function RootNode({ data }: { data: TreeNodeData }) {
       <div style={{ marginTop: 7, fontSize: 9, color: "rgba(212,175,55,0.5)", textAlign: "center" }}>
         {data.directReferralCount} direct ref{data.directReferralCount !== 1 ? "s" : ""}
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -169,12 +159,8 @@ function MemberNode({ data }: { data: TreeNodeData }) {
   const isActive = data.status === "ACTIVE";
   const isLeft   = data.position === "LEFT";
   const armColor = isLeft ? "#60a5fa" : "#a78bfa";
-  const anim     = nodeAnimate(data.depth, data.faded);
   return (
-    <motion.div
-      initial={anim.initial}
-      animate={anim.animate}
-      transition={anim.transition}
+    <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => data.onSelect?.(data)}
@@ -187,7 +173,8 @@ function MemberNode({ data }: { data: TreeNodeData }) {
           ? `0 8px 28px rgba(0,0,0,0.55),0 0 16px ${armColor}28`
           : "0 4px 18px rgba(0,0,0,0.4)",
         transform: hovered ? "translateY(-2px)" : "translateY(0)",
-        transition: "border-color 0.18s,box-shadow 0.18s,transform 0.18s",
+        opacity: data.faded ? 0.18 : 1,
+        transition: "border-color 0.18s,box-shadow 0.18s,transform 0.18s,opacity 0.18s",
       }}>
       <Handle type="target" position={Position.Top}
         style={{ background: "rgba(255,255,255,0.15)", width: 6, height: 6, border: "none" }} />
@@ -224,7 +211,7 @@ function MemberNode({ data }: { data: TreeNodeData }) {
       }}>
         {data.position ?? "—"} ARM
       </span>
-    </motion.div>
+    </div>
   );
 }
 
@@ -233,10 +220,7 @@ function EmptySlotNode({ data }: { data: Record<string, unknown> & { side: strin
   const isLeft = data.side === "LEFT";
   const color  = isLeft ? "#60a5fa" : "#a78bfa";
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ delay: 0.3, duration: 0.3 }}
+    <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -266,7 +250,7 @@ function EmptySlotNode({ data }: { data: Record<string, unknown> & { side: strin
           {data.side} arm
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -1209,6 +1193,7 @@ export default function NetworkIntelligencePage() {
                   nodes={flowNodes as never}
                   edges={flowEdges as never}
                   nodeTypes={nodeTypes}
+                  colorMode="dark"
                   fitView
                   fitViewOptions={{ padding: 0.28 }}
                   minZoom={0.2}
