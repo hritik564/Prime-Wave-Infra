@@ -18,7 +18,6 @@ import {
   X, ChevronLeft, ChevronRight, Link2, Target, Zap,
   ArrowRight, Star, ShieldCheck, Flame, Clock, BarChart2,
   CircleDot, Wallet, ZoomIn, ZoomOut, Maximize2, Calendar,
-  ChevronRight as ChevRight,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
@@ -822,7 +821,7 @@ function ViewMore({ label, onClick }: { label: string; onClick?: () => void }) {
     <button onClick={onClick}
       className="w-full flex items-center justify-center gap-1.5 py-3 transition-colors hover:bg-white/[0.02]"
       style={{ borderTop: "1px solid rgba(255,255,255,0.05)", fontSize: 12, fontWeight: 600, color: MUTED }}>
-      {label} <ChevRight style={{ width: 13, height: 13 }} />
+      {label} <ChevronRight style={{ width: 13, height: 13 }} />
     </button>
   );
 }
