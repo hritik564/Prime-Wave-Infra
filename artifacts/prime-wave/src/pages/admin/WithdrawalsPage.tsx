@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import WithdrawalDrawer, { type DrawerWithdrawal } from "./WithdrawalDrawer";
 import { ApprovalModal, RejectModal, HoldModal } from "./WithdrawalModals";
+import { useToast, ToastContainer } from "@/components/admin/Toast";
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 const GOLD   = "#D4AF37";
@@ -48,7 +49,7 @@ const seed   = (n:number) => {
   let x = n; return()=>{ x=(x*1664525+1013904223)&0xffffffff; return (x>>>0)/4294967296; };
 };
 
-const WITHDRAWALS: Withdrawal[] = Array.from({length:70},(_, i)=>{
+const INITIAL_WITHDRAWALS: Withdrawal[] = Array.from({length:70},(_, i)=>{
   const r    = seed(i*97+13);
   const ui   = Math.floor(r()*NAMES.length);
   const name = NAMES[ui];  const first=FIRSTS[ui]; const last=LASTS[Math.floor(r()*LASTS.length)];
@@ -208,10 +209,11 @@ function ProcessingQueue({data}:{data:Withdrawal[]}) {
 }
 
 // ─── ActionDropdown ───────────────────────────────────────────────────────────
-function ActionDropdown({ w, onApprove, onReject, onHold, onView }: {
+function ActionDropdown({ w, onApprove, onReject, onHold, onView, onCancel, onAssign }: {
   w: Withdrawal;
   onApprove:(w:Withdrawal)=>void; onReject:(w:Withdrawal)=>void;
   onHold:(w:Withdrawal)=>void; onView:(w:Withdrawal)=>void;
+  onCancel:(w:Withdrawal)=>void; onAssign:(w:Withdrawal)=>void;
 }) {
   const [open,setOpen]=useState(false);
   const items=[
@@ -220,9 +222,9 @@ function ActionDropdown({ w, onApprove, onReject, onHold, onView }: {
       {icon:CheckCircle, label:"Approve",         color:"#34d399", fn:()=>onApprove(w)},
       {icon:X,           label:"Reject",          color:"#f87171", fn:()=>onReject(w)},
       {icon:Clock,       label:"Hold",            color:"#fbbf24", fn:()=>onHold(w)},
-      {icon:X,           label:"Cancel",          color:"#f87171", fn:()=>{}},
+      {icon:X,           label:"Cancel",          color:"#f87171", fn:()=>onCancel(w)},
     ]:[]),
-    {icon:UserCheck,   label:"Assign Reviewer", color:"rgba(255,255,255,0.7)", fn:()=>{}},
+    {icon:UserCheck,   label:"Assign Reviewer", color:"rgba(255,255,255,0.7)", fn:()=>onAssign(w)},
     {icon:Users,       label:"View Member",     color:"rgba(255,255,255,0.7)", fn:()=>{}},
     {icon:Shield,      label:"Audit Trail",     color:"rgba(255,255,255,0.7)", fn:()=>onView(w)},
   ];
@@ -248,9 +250,10 @@ function ActionDropdown({ w, onApprove, onReject, onHold, onView }: {
 }
 
 // ─── Table Row (memoized) ─────────────────────────────────────────────────────
-const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowClick, onApprove, onReject, onHold, isHover, onHoverSet }: {
+const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowClick, onApprove, onReject, onHold, onCancel, onAssign, isHover, onHoverSet }: {
   w:Withdrawal; checked:boolean; onToggle:()=>void; onRowClick:()=>void;
   onApprove:(w:Withdrawal)=>void; onReject:(w:Withdrawal)=>void; onHold:(w:Withdrawal)=>void;
+  onCancel:(w:Withdrawal)=>void; onAssign:(w:Withdrawal)=>void;
   isHover:boolean; onHoverSet:(id:string|null)=>void;
 }) {
   return (
@@ -296,7 +299,7 @@ const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowC
         <span style={{fontSize:11,color:w.assignedAdmin?"#60a5fa":MUTED}}>{w.assignedAdmin?w.assignedAdmin.split("@")[0]:"unassigned"}</span>
       </td>
       <td style={{padding:"11px 8px"}} onClick={e=>e.stopPropagation()}>
-        <ActionDropdown w={w} onApprove={onApprove} onReject={onReject} onHold={onHold} onView={onRowClick as never}/>
+        <ActionDropdown w={w} onApprove={onApprove} onReject={onReject} onHold={onHold} onView={onRowClick as never} onCancel={onCancel} onAssign={onAssign}/>
       </td>
     </tr>
   );
@@ -395,11 +398,18 @@ function AnalyticsSection({data}:{data:Withdrawal[]}) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
-type ModalKind = "approve" | "reject" | "hold" | null;
+type ModalKind = "approve" | "reject" | "hold" | "cancel" | "assign" | null;
 const ROWS_OPTIONS = [25, 50, 100];
+const ADMIN_REVIEWERS = ["alice@primewave.io","bob@primewave.io","compliance@primewave.io","finance@primewave.io"];
 
 export default function WithdrawalsPage() {
   // ── State ──────────────────────────────────────────────────────────────────
+  const { toasts, toast, dismiss } = useToast();
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>(() => [...INITIAL_WITHDRAWALS]);
+  const updateWithdrawal = useCallback((id: string, patch: Partial<Withdrawal>) => {
+    setWithdrawals(p => p.map(w => w.id === id ? {...w, ...patch} : w));
+  }, []);
+
   const [search,  setSearch  ] = useState("");
   const [status,  setStatus  ] = useState<Status|"">("");
   const [method,  setMethod  ] = useState<PayMeth|"">("");
@@ -415,11 +425,12 @@ export default function WithdrawalsPage() {
   const [drawerW, setDrawerW ] = useState<Withdrawal|null>(null);
   const [modalW,  setModalW  ] = useState<Withdrawal|null>(null);
   const [modal,   setModal   ] = useState<ModalKind>(null);
+  const [assignReviewer, setAssignReviewer] = useState(ADMIN_REVIEWERS[0]);
 
   // ── Filtered data ──────────────────────────────────────────────────────────
   const filtered = useMemo(()=>{
     const q=search.toLowerCase();
-    return WITHDRAWALS.filter(w=>{
+    return withdrawals.filter(w=>{
       if(status&&w.status!==status)return false;
       if(method&&w.paymentMethod!==method)return false;
       if(wallet&&w.walletType!==wallet)return false;
@@ -429,20 +440,20 @@ export default function WithdrawalsPage() {
       if(q&&!w.username.includes(q)&&!w.id.toLowerCase().includes(q)&&!w.memberId.toLowerCase().includes(q)&&!(w.transactionHash??'').toLowerCase().includes(q))return false;
       return true;
     });
-  },[search,status,method,wallet,country,minAmt,maxAmt]);
+  },[withdrawals,search,status,method,wallet,country,minAmt,maxAmt]);
 
   const pages     = Math.max(1,Math.ceil(filtered.length/rowsPer));
   const safePage  = Math.min(page,pages);
   const pageData  = filtered.slice((safePage-1)*rowsPer,safePage*rowsPer);
 
   // ── KPIs ───────────────────────────────────────────────────────────────────
-  const pending   = WITHDRAWALS.filter(w=>w.status==="PENDING");
-  const todayAcc  = WITHDRAWALS.filter(w=>w.status==="APPROVED"&&w.processedAt&&new Date(w.processedAt).toDateString()===new Date().toDateString());
-  const todayRej  = WITHDRAWALS.filter(w=>w.status==="REJECTED"&&w.processedAt&&new Date(w.processedAt).toDateString()===new Date().toDateString());
+  const pending   = withdrawals.filter(w=>w.status==="PENDING");
+  const todayAcc  = withdrawals.filter(w=>w.status==="APPROVED"&&w.processedAt&&new Date(w.processedAt).toDateString()===new Date().toDateString());
+  const todayRej  = withdrawals.filter(w=>w.status==="REJECTED"&&w.processedAt&&new Date(w.processedAt).toDateString()===new Date().toDateString());
   const pendingAmt= pending.reduce((s,w)=>s+w.amount,0);
   const todayPay  = todayAcc.reduce((s,w)=>s+w.amount,0);
-  const approved  = WITHDRAWALS.filter(w=>w.status==="APPROVED"||w.status==="RELEASED");
-  const total     = approved.length+WITHDRAWALS.filter(w=>w.status==="REJECTED").length;
+  const approved  = withdrawals.filter(w=>w.status==="APPROVED"||w.status==="RELEASED");
+  const total     = approved.length+withdrawals.filter(w=>w.status==="REJECTED").length;
   const rate      = total>0?((approved.length/total)*100).toFixed(1):"0.0";
 
   // ── Handlers ───────────────────────────────────────────────────────────────
@@ -450,7 +461,47 @@ export default function WithdrawalsPage() {
   const openApprove= useCallback((w:Withdrawal)=>{setModalW(w);setModal("approve");},[]);
   const openReject = useCallback((w:Withdrawal)=>{setModalW(w);setModal("reject");},[]);
   const openHold   = useCallback((w:Withdrawal)=>{setModalW(w);setModal("hold");},[]);
+  const openCancel = useCallback((w:Withdrawal)=>{setModalW(w);setModal("cancel");},[]);
+  const openAssign = useCallback((w:Withdrawal)=>{setModalW(w);setModal("assign");},[]);
   const closeModal = useCallback(()=>{setModal(null);setModalW(null);},[]);
+
+  const confirmApprove = useCallback((comment: string) => {
+    if(!modalW) return;
+    updateWithdrawal(modalW.id, { status:"APPROVED", processedAt:new Date(), assignedAdmin:"admin@primewave.io" });
+    setDrawerW(d => d?.id===modalW.id ? {...d, status:"APPROVED", processedAt:new Date(), assignedAdmin:"admin@primewave.io"} : d);
+    toast(`Withdrawal ${modalW.id} approved${comment?" — "+comment.slice(0,40):""}`, "success");
+    closeModal();
+  }, [modalW, updateWithdrawal, toast, closeModal]);
+
+  const confirmReject = useCallback((reason: string, _comment: string) => {
+    if(!modalW) return;
+    updateWithdrawal(modalW.id, { status:"REJECTED", processedAt:new Date(), assignedAdmin:"admin@primewave.io" });
+    setDrawerW(d => d?.id===modalW.id ? {...d, status:"REJECTED", processedAt:new Date()} : d);
+    toast(`Withdrawal ${modalW.id} rejected: ${reason}`, "error");
+    closeModal();
+  }, [modalW, updateWithdrawal, toast, closeModal]);
+
+  const confirmHold = useCallback((reason: string, _date: string) => {
+    if(!modalW) return;
+    updateWithdrawal(modalW.id, { assignedAdmin:"compliance@primewave.io" });
+    toast(`Withdrawal ${modalW.id} placed on hold — ${reason}`, "warn");
+    closeModal();
+  }, [modalW, updateWithdrawal, toast, closeModal]);
+
+  const confirmCancel = useCallback(() => {
+    if(!modalW) return;
+    updateWithdrawal(modalW.id, { status:"CANCELLED", processedAt:new Date() });
+    setDrawerW(d => d?.id===modalW.id ? {...d, status:"CANCELLED", processedAt:new Date()} : d);
+    toast(`Withdrawal ${modalW.id} cancelled`, "warn");
+    closeModal();
+  }, [modalW, updateWithdrawal, toast, closeModal]);
+
+  const confirmAssign = useCallback(() => {
+    if(!modalW) return;
+    updateWithdrawal(modalW.id, { assignedAdmin: assignReviewer });
+    toast(`Assigned ${assignReviewer} to ${modalW.id}`, "info");
+    closeModal();
+  }, [modalW, assignReviewer, updateWithdrawal, toast, closeModal]);
 
   const toggleRow  = useCallback((id:string)=>setSelected(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;}),[]);
   const toggleAll  = useCallback(()=>{
@@ -481,7 +532,7 @@ export default function WithdrawalsPage() {
 
       {/* KPI Cards */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
-        <StatCard icon={FileText}     label="Total Requests"       value={String(WITHDRAWALS.length)}      sub="All time"                        color="#60a5fa" bg="rgba(96,165,250,0.12)"/>
+        <StatCard icon={FileText}     label="Total Requests"       value={String(withdrawals.length)}      sub="All time"                        color="#60a5fa" bg="rgba(96,165,250,0.12)"/>
         <StatCard icon={Clock}        label="Pending Approval"     value={String(pending.length)}          sub={$(pendingAmt)+" pending"}         color="#fbbf24" bg="rgba(251,191,36,0.12)"/>
         <StatCard icon={CheckCircle}  label="Approved Today"       value={String(todayAcc.length)}         sub={$(todayPay)+" approved"}          color="#34d399" bg="rgba(52,211,153,0.12)"/>
         <StatCard icon={X}            label="Rejected Today"       value={String(todayRej.length)}         sub="Requires follow-up"               color="#f87171" bg="rgba(248,113,113,0.12)"/>
@@ -495,8 +546,8 @@ export default function WithdrawalsPage() {
 
       {/* Priority + Queue row */}
       <div style={{display:"grid",gridTemplateColumns:"1.4fr 1fr",gap:14,marginBottom:24}}>
-        <HighPriorityPanel data={WITHDRAWALS} onClick={openDrawer}/>
-        <ProcessingQueue   data={WITHDRAWALS}/>
+        <HighPriorityPanel data={withdrawals} onClick={openDrawer}/>
+        <ProcessingQueue   data={withdrawals}/>
       </div>
 
       {/* Filter bar */}
@@ -576,7 +627,7 @@ export default function WithdrawalsPage() {
                   checked={selected.has(w.id)}
                   onToggle={()=>toggleRow(w.id)}
                   onRowClick={()=>openDrawer(w)}
-                  onApprove={openApprove} onReject={openReject} onHold={openHold}
+                  onApprove={openApprove} onReject={openReject} onHold={openHold} onCancel={openCancel} onAssign={openAssign}
                   isHover={hovered===w.id}
                   onHoverSet={setHovered}
                 />
@@ -609,15 +660,63 @@ export default function WithdrawalsPage() {
       </div>
 
       {/* Analytics */}
-      <AnalyticsSection data={WITHDRAWALS}/>
+      <AnalyticsSection data={withdrawals}/>
 
       {/* Drawer */}
       <WithdrawalDrawer withdrawal={drawerW} onClose={()=>setDrawerW(null)} onApprove={openApprove} onReject={openReject} onHold={openHold}/>
 
       {/* Modals */}
-      {modal==="approve"&&modalW&&<ApprovalModal w={modalW} onClose={closeModal}/>}
-      {modal==="reject" &&modalW&&<RejectModal   w={modalW} onClose={closeModal}/>}
-      {modal==="hold"   &&modalW&&<HoldModal     w={modalW} onClose={closeModal}/>}
+      {modal==="approve"&&modalW&&<ApprovalModal w={modalW} onClose={closeModal} onConfirm={confirmApprove}/>}
+      {modal==="reject" &&modalW&&<RejectModal   w={modalW} onClose={closeModal} onConfirm={confirmReject}/>}
+      {modal==="hold"   &&modalW&&<HoldModal     w={modalW} onClose={closeModal} onConfirm={confirmHold}/>}
+
+      {/* Cancel confirm */}
+      {modal==="cancel"&&modalW&&(
+        <div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.6)"}}>
+          <div style={{background:"hsl(222 62% 8%)",border:`1px solid ${BORDER}`,borderRadius:14,padding:24,width:360,boxShadow:"0 24px 60px rgba(0,0,0,0.7)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+              <div style={{width:36,height:36,borderRadius:10,background:"rgba(248,113,113,0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}><X size={18} style={{color:"#f87171"}}/></div>
+              <div>
+                <div style={{fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.9)"}}>Cancel Withdrawal</div>
+                <div style={{fontSize:11,color:MUTED}}>{modalW.id} · {$(modalW.amount)}</div>
+              </div>
+            </div>
+            <p style={{fontSize:12,color:MUTED,lineHeight:1.6,margin:"0 0 16px"}}>This will mark the withdrawal as cancelled. The amount will not be deducted from the member's wallet.</p>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={closeModal} style={{flex:1,padding:"9px 0",background:"rgba(255,255,255,0.04)",border:`1px solid ${BORDER}`,borderRadius:8,cursor:"pointer",fontSize:12,color:MUTED}}>Back</button>
+              <button onClick={confirmCancel} style={{flex:2,padding:"9px 0",background:"rgba(248,113,113,0.12)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:600,color:"#f87171"}}>Cancel Withdrawal</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign reviewer */}
+      {modal==="assign"&&modalW&&(
+        <div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.6)"}}>
+          <div style={{background:"hsl(222 62% 8%)",border:`1px solid ${BORDER}`,borderRadius:14,padding:24,width:360,boxShadow:"0 24px 60px rgba(0,0,0,0.7)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+              <div style={{width:36,height:36,borderRadius:10,background:"rgba(96,165,250,0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}><UserCheck size={18} style={{color:"#60a5fa"}}/></div>
+              <div>
+                <div style={{fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.9)"}}>Assign Reviewer</div>
+                <div style={{fontSize:11,color:MUTED}}>{modalW.id}</div>
+              </div>
+            </div>
+            <div style={{fontSize:11,fontWeight:600,color:MUTED,marginBottom:8}}>SELECT REVIEWER</div>
+            {ADMIN_REVIEWERS.map(r=>(
+              <div key={r} onClick={()=>setAssignReviewer(r)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:assignReviewer===r?"rgba(96,165,250,0.08)":"rgba(255,255,255,0.025)",border:`1px solid ${assignReviewer===r?"rgba(96,165,250,0.3)":BORDER}`,borderRadius:8,cursor:"pointer",marginBottom:6}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:assignReviewer===r?"#60a5fa":"transparent",border:`1.5px solid ${assignReviewer===r?"#60a5fa":MUTED}`,flexShrink:0}}/>
+                <span style={{fontSize:12,color:assignReviewer===r?"rgba(255,255,255,0.85)":MUTED}}>{r}</span>
+              </div>
+            ))}
+            <div style={{display:"flex",gap:8,marginTop:14}}>
+              <button onClick={closeModal} style={{flex:1,padding:"9px 0",background:"rgba(255,255,255,0.04)",border:`1px solid ${BORDER}`,borderRadius:8,cursor:"pointer",fontSize:12,color:MUTED}}>Cancel</button>
+              <button onClick={confirmAssign} style={{flex:2,padding:"9px 0",background:"rgba(96,165,250,0.12)",border:"1px solid rgba(96,165,250,0.3)",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:600,color:"#60a5fa"}}>Assign Reviewer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ToastContainer toasts={toasts} onDismiss={dismiss}/>
     </div>
   );
 }

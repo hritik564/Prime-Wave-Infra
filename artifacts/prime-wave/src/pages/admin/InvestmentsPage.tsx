@@ -2,6 +2,7 @@ import {
   useState, useMemo, useCallback, useEffect, useRef, memo,
 } from "react";
 import AdminLayout from "./AdminLayout";
+import { useToast, ToastContainer } from "@/components/admin/Toast";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   ResponsiveContainer, XAxis, YAxis, Tooltip,
@@ -770,17 +771,21 @@ export default function InvestmentsPage() {
   const handleApprove = useCallback((inv: Investment) => setApprovalModal(inv), []);
   const handleReject  = useCallback((inv: Investment) => setRejectModal(inv),   []);
 
+  const { toasts, toast, dismiss } = useToast();
+
   const confirmApprove = useCallback((comment: string) => {
     if (!approvalModal) return;
     setInvestments(prev => prev.map(i => i.id === approvalModal.id ? { ...i, status: "APPROVED" as InvStatus, approvedAt: new Date(), approvedBy: "admin@primewave.io", notes: comment } : i));
+    toast(`Investment ${approvalModal.id} approved`, "success");
     setApprovalModal(null);
-  }, [approvalModal]);
+  }, [approvalModal, toast]);
 
   const confirmReject = useCallback((reason: string, notes: string) => {
     if (!rejectModal) return;
     setInvestments(prev => prev.map(i => i.id === rejectModal.id ? { ...i, status: "REJECTED" as InvStatus, rejectedReason: reason, notes } : i));
+    toast(`Investment ${rejectModal.id} rejected: ${reason}`, "error");
     setRejectModal(null);
-  }, [rejectModal]);
+  }, [rejectModal, toast]);
 
   const stats = useMemo(() => {
     const totalCap = investments.filter(i => i.status === "APPROVED").reduce((s, i) => s + i.amount, 0);
@@ -936,6 +941,7 @@ export default function InvestmentsPage() {
       <InvestmentDrawer inv={drawer} onClose={() => setDrawer(null)} onApprove={handleApprove} onReject={handleReject} />
       {approvalModal && <ApprovalModal inv={approvalModal} onConfirm={confirmApprove} onCancel={() => setApprovalModal(null)} />}
       {rejectModal   && <RejectModal   inv={rejectModal}   onConfirm={confirmReject}  onCancel={() => setRejectModal(null)}   />}
+      <ToastContainer toasts={toasts} onDismiss={dismiss}/>
     </AdminLayout>
   );
 }

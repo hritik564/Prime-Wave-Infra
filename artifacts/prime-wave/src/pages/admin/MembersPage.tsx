@@ -3,6 +3,7 @@ import {
 } from "react";
 import AdminLayout from "./AdminLayout";
 import MemberDrawer, { type DrawerMember } from "./MemberDrawer";
+import { useToast, ToastContainer } from "@/components/admin/Toast";
 import MemberModal from "./MemberModal";
 import { SuspendDialog, DeleteDialog, ResetPasswordDialog, ApproveKYCDialog, LoginAsUserDialog } from "./MemberDialogs";
 import {
@@ -358,6 +359,15 @@ export default function MembersPage() {
   const [loading,     setLoading]     = useState(true);
   const [showFilters, setShowFilters] = useState(false);
 
+  const { toasts, toast, dismiss } = useToast();
+  const [members, setMembers] = useState<Member[]>(() => [...MOCK]);
+  const updateMember = useCallback((id: string, patch: Partial<Member>) => {
+    setMembers(p => p.map(m => m.id === id ? {...m, ...patch} : m));
+  }, []);
+  const removeMember = useCallback((id: string) => {
+    setMembers(p => p.filter(m => m.id !== id));
+  }, []);
+
   // Drawer
   const [drawer, setDrawer] = useState<Member | null>(null);
 
@@ -386,7 +396,7 @@ export default function MembersPage() {
   // ── Filter ────────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const now = Date.now();
-    return MOCK.filter(m => {
+    return members.filter(m => {
       const q = search.toLowerCase();
       if (q && !m.username.includes(q) && !m.email.includes(q) && !m.id.includes(q) && !m.phone.includes(q) && !m.referralCode.toLowerCase().includes(q) && !(m.sponsor ?? "").includes(q) && !`${m.firstName} ${m.lastName}`.toLowerCase().includes(q)) return false;
       if (filters.status  !== "All Status"     && m.status !== filters.status)   return false;
@@ -414,13 +424,13 @@ export default function MembersPage() {
   const handleFilters = useCallback((f: Filters) => { setFilters(f); setPage(1); }, []);
 
   const stats = useMemo(() => ({
-    total:    MOCK.length,
-    active:   MOCK.filter(m => m.status === "ACTIVE").length,
-    kyc:      MOCK.filter(m => m.kyc === "PENDING").length,
-    suspended:MOCK.filter(m => m.status === "SUSPENDED").length,
-    premium:  MOCK.filter(m => m.plan === "PREMIUM" || m.plan === "VIP").length,
-    today:    MOCK.filter(m => Date.now() - m.joinedAt.getTime() < 86400000).length || 5,
-  }), []);
+    total:    members.length,
+    active:   members.filter(m => m.status === "ACTIVE").length,
+    kyc:      members.filter(m => m.kyc === "PENDING").length,
+    suspended:members.filter(m => m.status === "SUSPENDED").length,
+    premium:  members.filter(m => m.plan === "PREMIUM" || m.plan === "VIP").length,
+    today:    members.filter(m => Date.now() - m.joinedAt.getTime() < 86400000).length || 5,
+  }), [members]);
 
   const pages = Math.ceil(filtered.length / perPage);
 
@@ -560,7 +570,7 @@ export default function MembersPage() {
       </div>
 
       {/* ── Drawer ────────────────────────────────────────────────────────── */}
-      <MemberDrawer member={drawer} onClose={() => setDrawer(null)} />
+      <MemberDrawer member={drawer ? members.find(m => m.id === drawer.id) ?? null : null} onClose={() => setDrawer(null)} />
 
       {/* ── Create modal ──────────────────────────────────────────────────── */}
       {createOpen && (
@@ -587,11 +597,37 @@ export default function MembersPage() {
       )}
 
       {/* ── Dialogs ───────────────────────────────────────────────────────── */}
-      {suspendTarget && <SuspendDialog  member={suspendTarget} onClose={() => setSuspendTarget(null)} />}
-      {deleteTarget  && <DeleteDialog   member={deleteTarget}  onClose={() => setDeleteTarget(null)}  />}
-      {resetTarget   && <ResetPasswordDialog member={resetTarget} onClose={() => setResetTarget(null)} />}
-      {kycTarget     && <ApproveKYCDialog    member={kycTarget}   onClose={() => setKycTarget(null)}   />}
-      {loginAsTarget && <LoginAsUserDialog   member={loginAsTarget} onClose={() => setLoginAsTarget(null)} />}
+      {suspendTarget && <SuspendDialog  member={suspendTarget} onClose={() => setSuspendTarget(null)}
+        onConfirm={(reason) => {
+          updateMember(suspendTarget.id, { status: "SUSPENDED" });
+          toast(`@${suspendTarget.username} suspended — ${reason.slice(0, 50)}`, "warn");
+        }}
+      />}
+      {deleteTarget && <DeleteDialog member={deleteTarget} onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          removeMember(deleteTarget.id);
+          toast(`@${deleteTarget.username} permanently deleted`, "error");
+          if(drawer?.id === deleteTarget.id) setDrawer(null);
+        }}
+      />}
+      {resetTarget && <ResetPasswordDialog member={resetTarget} onClose={() => setResetTarget(null)}
+        onConfirm={(_pass) => {
+          toast(`Password reset for @${resetTarget.username} — email sent`, "info");
+        }}
+      />}
+      {kycTarget && <ApproveKYCDialog member={kycTarget} onClose={() => setKycTarget(null)}
+        onConfirm={(type) => {
+          updateMember(kycTarget.id, { kyc: type === "approve" ? "VERIFIED" : "REJECTED" });
+          toast(type === "approve" ? `KYC approved for @${kycTarget.username}` : `KYC rejected for @${kycTarget.username}`, type === "approve" ? "success" : "error");
+        }}
+      />}
+      {loginAsTarget && <LoginAsUserDialog member={loginAsTarget} onClose={() => setLoginAsTarget(null)}
+        onConfirm={() => {
+          toast(`Logged in as @${loginAsTarget.username} — session started`, "info");
+        }}
+      />}
+
+      <ToastContainer toasts={toasts} onDismiss={dismiss}/>
     </AdminLayout>
   );
 }

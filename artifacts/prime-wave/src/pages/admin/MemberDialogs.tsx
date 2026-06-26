@@ -72,7 +72,7 @@ const Btn = ({ label, onClick, color = MUTED, bg = "rgba(255,255,255,0.04)", bor
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. SuspendDialog
 // ─────────────────────────────────────────────────────────────────────────────
-export function SuspendDialog({ member, onClose }: { member: BaseMember; onClose: () => void }) {
+export function SuspendDialog({ member, onClose, onConfirm }: { member: BaseMember; onClose: () => void; onConfirm: (reason: string) => void }) {
   const [reason, setReason] = useState("");
   return (
     <ModalShell onClose={onClose}>
@@ -87,7 +87,7 @@ export function SuspendDialog({ member, onClose }: { member: BaseMember; onClose
         <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason for suspension…" style={{ ...TA, minHeight: 80 }} />
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
           <Btn label="Cancel" onClick={onClose} />
-          <Btn label="Suspend Member" onClick={onClose} disabled={!reason.trim()} color="#f87171" bg="rgba(248,113,113,0.12)" border="rgba(248,113,113,0.3)" />
+          <Btn label="Suspend Member" onClick={() => { if(reason.trim()) { onConfirm(reason.trim()); onClose(); } }} disabled={!reason.trim()} color="#f87171" bg="rgba(248,113,113,0.12)" border="rgba(248,113,113,0.3)" />
         </div>
       </div>
     </ModalShell>
@@ -97,7 +97,7 @@ export function SuspendDialog({ member, onClose }: { member: BaseMember; onClose
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. DeleteDialog
 // ─────────────────────────────────────────────────────────────────────────────
-export function DeleteDialog({ member, onClose }: { member: BaseMember; onClose: () => void }) {
+export function DeleteDialog({ member, onClose, onConfirm }: { member: BaseMember; onClose: () => void; onConfirm: () => void }) {
   const [confirm, setConfirm] = useState("");
   const ready = confirm === "DELETE";
   return (
@@ -119,7 +119,7 @@ export function DeleteDialog({ member, onClose }: { member: BaseMember; onClose:
         />
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
           <Btn label="Cancel" onClick={onClose} />
-          <Btn label="Permanently Delete" onClick={onClose} disabled={!ready} color="#f87171" bg="rgba(248,113,113,0.12)" border="rgba(248,113,113,0.3)" />
+          <Btn label="Permanently Delete" onClick={() => { if(ready) { onConfirm(); onClose(); }}} disabled={!ready} color="#f87171" bg="rgba(248,113,113,0.12)" border="rgba(248,113,113,0.3)" />
         </div>
       </div>
     </ModalShell>
@@ -134,7 +134,7 @@ function generatePass() {
   return Array.from({ length: 14 }, () => c[Math.floor(Math.random() * c.length)]).join("");
 }
 
-export function ResetPasswordDialog({ member, onClose }: { member: BaseMember; onClose: () => void }) {
+export function ResetPasswordDialog({ member, onClose, onConfirm }: { member: BaseMember; onClose: () => void; onConfirm: (pass: string) => void }) {
   const [pass, setPass] = useState("");
   const [show, setShow] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
@@ -165,7 +165,7 @@ export function ResetPasswordDialog({ member, onClose }: { member: BaseMember; o
         </label>
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
           <Btn label="Cancel" onClick={onClose} />
-          <Btn label="Reset Password" onClick={onClose} disabled={!pass.trim()} color="#60a5fa" bg="rgba(96,165,250,0.1)" border="rgba(96,165,250,0.3)" />
+          <Btn label="Reset Password" onClick={() => { if(pass.trim()) { onConfirm(pass.trim()); onClose(); }}} disabled={!pass.trim()} color="#60a5fa" bg="rgba(96,165,250,0.1)" border="rgba(96,165,250,0.3)" />
         </div>
       </div>
     </ModalShell>
@@ -181,7 +181,7 @@ const MOCK_DOCS = [
   { name: "selfie_id.jpg",     type: "Selfie with ID", size: "3.7 MB", status: "Submitted" },
 ];
 
-export function ApproveKYCDialog({ member, onClose }: { member: BaseMember; onClose: () => void }) {
+export function ApproveKYCDialog({ member, onClose, onConfirm }: { member: BaseMember; onClose: () => void; onConfirm: (type: "approve" | "reject") => void }) {
   const [action, setAction] = useState<"approve" | "reject" | null>(null);
   const [reason, setReason] = useState("");
 
@@ -193,7 +193,7 @@ export function ApproveKYCDialog({ member, onClose }: { member: BaseMember; onCl
         <p style={{ fontSize: 12, color: MUTED, lineHeight: 1.6, margin: "0 0 16px" }}>All 3 documents have been reviewed. Approving KYC will grant the member full platform access.</p>
         <div style={{ display: "flex", gap: 10 }}>
           <Btn label="Back" onClick={() => setAction(null)} />
-          <Btn label="Approve KYC" onClick={onClose} color="#34d399" bg="rgba(52,211,153,0.1)" border="rgba(52,211,153,0.3)" />
+          <Btn label="Approve KYC" onClick={() => { onConfirm("approve"); onClose(); }} color="#34d399" bg="rgba(52,211,153,0.1)" border="rgba(52,211,153,0.3)" />
         </div>
       </div>
     </ModalShell>
@@ -208,7 +208,7 @@ export function ApproveKYCDialog({ member, onClose }: { member: BaseMember; onCl
         <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Document was blurry, expired, or did not match…" style={{ ...TA, minHeight: 80, marginBottom: 16 }} />
         <div style={{ display: "flex", gap: 10 }}>
           <Btn label="Back" onClick={() => setAction(null)} />
-          <Btn label="Reject KYC" onClick={onClose} disabled={!reason.trim()} color="#f87171" bg="rgba(248,113,113,0.1)" border="rgba(248,113,113,0.3)" />
+          <Btn label="Reject KYC" onClick={() => { if(reason.trim()) { onConfirm("reject"); onClose(); }}} disabled={!reason.trim()} color="#f87171" bg="rgba(248,113,113,0.1)" border="rgba(248,113,113,0.3)" />
         </div>
       </div>
     </ModalShell>
@@ -246,7 +246,7 @@ export function ApproveKYCDialog({ member, onClose }: { member: BaseMember; onCl
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. LoginAsUserDialog
 // ─────────────────────────────────────────────────────────────────────────────
-export function LoginAsUserDialog({ member, onClose }: { member: BaseMember; onClose: () => void }) {
+export function LoginAsUserDialog({ member, onClose, onConfirm }: { member: BaseMember; onClose: () => void; onConfirm: () => void }) {
   return (
     <ModalShell onClose={onClose}>
       <ModalHeader icon={LogIn} title="Login As User" subtitle={`Impersonate @${member.username}`} color={GOLD} bg="rgba(212,175,55,0.1)" onClose={onClose} />
@@ -266,7 +266,7 @@ export function LoginAsUserDialog({ member, onClose }: { member: BaseMember; onC
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <Btn label="Cancel" onClick={onClose} />
-          <Btn label="Login As User" onClick={onClose} color={GOLD_L} bg="rgba(212,175,55,0.1)" border="rgba(212,175,55,0.3)" />
+          <Btn label="Login As User" onClick={() => { onConfirm(); onClose(); }} color={GOLD_L} bg="rgba(212,175,55,0.1)" border="rgba(212,175,55,0.3)" />
         </div>
       </div>
     </ModalShell>

@@ -1,0 +1,291 @@
+# Sprint 19.5 — Interactive Admin UI (Mock State)
+
+IMPORTANT
+
+This sprint is NOT backend integration.
+
+Do NOT connect APIs.
+
+Do NOT connect the database.
+
+Do NOT modify authentication.
+
+Do NOT modify existing layouts.
+
+Do NOT redesign any pages.
+
+The objective is to make the existing admin UI behave like a real application using LOCAL STATE ONLY.
+
+---
+
+## GENERAL REQUIREMENTS
+
+Every admin action should:
+
+1. Open the appropriate confirmation modal (if required).
+
+2. Validate required fields.
+
+3. Update the UI immediately using local mock state.
+
+4. Display a success or error toast.
+
+5. Refresh the affected table row.
+
+6. Update KPI cards where applicable.
+
+7. Append an entry to the local Activity Timeline.
+
+No backend.
+
+Everything happens only in memory.
+
+---
+
+## WITHDRAWAL CENTER
+
+Implement local interactions for:
+
+Approve
+
+Reject
+
+Hold
+
+Cancel
+
+Assign Reviewer
+
+Release
+
+Each action should:
+
+• Open confirmation modal.
+
+• Require required fields.
+
+• Update the row status.
+
+• Update status badge.
+
+• Update timeline.
+
+• Update dashboard counts.
+
+• Show success toast.
+
+Example:
+
+Pending
+
+↓
+
+Approved
+
+without refreshing the page.
+
+---
+
+## MEMBER MANAGEMENT
+
+Implement local interactions for:
+
+Create Member
+
+Edit Member
+
+Suspend
+
+Activate
+
+Delete
+
+Approve KYC
+
+Reset Password
+
+Login As User
+
+Each action should immediately update the mock dataset.
+
+Examples:
+
+Suspend
+
+↓
+
+Status changes
+
+↓
+
+KPI updates
+
+↓
+
+Drawer reflects new state
+
+↓
+
+Toast appears
+
+Delete
+
+↓
+
+Confirmation
+
+↓
+
+Row disappears
+
+↓
+
+Total Members decreases
+
+Create Member
+
+↓
+
+New member appears at top of table
+
+Edit Member
+
+↓
+
+Row updates instantly
+
+---
+
+## INVESTMENT CENTER
+
+Implement local interactions for:
+
+Approve
+
+Reject
+
+Cancel
+
+Edit
+
+Create Investment
+
+Status changes should immediately update:
+
+Investment table
+
+Summary cards
+
+Timeline
+
+Recent Activity
+
+Toast
+
+---
+
+## TOAST SYSTEM
+
+Create consistent success/error notifications.
+
+Examples
+
+✓ Withdrawal Approved
+
+✓ Member Suspended
+
+✓ Investment Updated
+
+✓ Reviewer Assigned
+
+Use the existing Prime Wave design language.
+
+---
+
+## ACTIVITY TIMELINE
+
+Every local action should append a mock timeline event.
+
+Examples
+
+Admin approved withdrawal
+
+Admin suspended member
+
+Admin edited investment
+
+Newest first.
+
+---
+
+## AUDIT LOG
+
+Append mock audit records.
+
+Display:
+
+Timestamp
+
+Admin
+
+Action
+
+Result
+
+No persistence required.
+
+---
+
+## LOCAL STATE ONLY
+
+Use React state or a lightweight local store.
+
+Do NOT use APIs.
+
+Do NOT use the database.
+
+Do NOT modify backend code.
+
+All state resets after page refresh.
+
+This is intentional.
+
+---
+
+## PERFORMANCE
+
+Avoid unnecessary rerenders.
+
+Update only affected rows.
+
+Keep interactions instant.
+
+---
+
+## VALIDATION CHECKLIST
+
+✓ Buttons no longer do nothing.
+
+✓ Modals open correctly.
+
+✓ Status badges update.
+
+✓ Tables update immediately.
+
+✓ KPI cards update.
+
+✓ Toasts appear.
+
+✓ Timelines update.
+
+✓ Audit logs update.
+
+✓ No backend required.
+
+---
+
+IMPORTANT
+
+This sprint exists only to simulate a production-ready admin workflow.
+
+Later, during Backend Integration, replace the local state updates with API calls without changing the UI or user experience.

@@ -56,7 +56,7 @@ const Btn = ({ label, onClick, color = MUTED, bg = "rgba(255,255,255,0.04)", bor
 const TA: React.CSSProperties = { width: "100%", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "9px 12px", fontSize: 12, color: "rgba(255,255,255,0.78)", outline: "none", resize: "vertical", boxSizing: "border-box" };
 
 // ─── Approve ──────────────────────────────────────────────────────────────────
-export function ApprovalModal({ w, onClose }: { w: WithdrawalStub; onClose: () => void }) {
+export function ApprovalModal({ w, onClose, onConfirm }: { w: WithdrawalStub; onClose: () => void; onConfirm: (comment: string) => void }) {
   const [checked, setChecked] = useState(false);
   const [comment, setComment] = useState("");
   const net = w.amount - w.fee;
@@ -80,7 +80,7 @@ export function ApprovalModal({ w, onClose }: { w: WithdrawalStub; onClose: () =
         </label>
         <div style={{ display: "flex", gap: 10 }}>
           <Btn label="Cancel" onClick={onClose} />
-          <Btn label="Approve Withdrawal" onClick={onClose} disabled={!checked} color="#34d399" bg="rgba(52,211,153,0.1)" border="rgba(52,211,153,0.3)" />
+          <Btn label="Approve Withdrawal" onClick={() => { if(checked) { onConfirm(comment); onClose(); }}} disabled={!checked} color="#34d399" bg="rgba(52,211,153,0.1)" border="rgba(52,211,153,0.3)" />
         </div>
       </div>
     </Shell>
@@ -92,7 +92,7 @@ const REJECT_REASONS = [
   "Invalid wallet address","Insufficient verification","Suspicious activity","Daily limit exceeded",
   "Account under review","Duplicate request","KYC not verified","Manual review required","Other",
 ];
-export function RejectModal({ w, onClose }: { w: WithdrawalStub; onClose: () => void }) {
+export function RejectModal({ w, onClose, onConfirm }: { w: WithdrawalStub; onClose: () => void; onConfirm: (reason: string, comment: string) => void }) {
   const [reason, setReason] = useState("");
   const [comment, setComment] = useState("");
   return (
@@ -113,7 +113,7 @@ export function RejectModal({ w, onClose }: { w: WithdrawalStub; onClose: () => 
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <Btn label="Cancel" onClick={onClose} />
-          <Btn label="Reject Withdrawal" onClick={onClose} disabled={!reason} color="#f87171" bg="rgba(248,113,113,0.1)" border="rgba(248,113,113,0.3)" />
+          <Btn label="Reject Withdrawal" onClick={() => { if(reason) { onConfirm(reason, comment); onClose(); }}} disabled={!reason} color="#f87171" bg="rgba(248,113,113,0.1)" border="rgba(248,113,113,0.3)" />
         </div>
       </div>
     </Shell>
@@ -121,7 +121,7 @@ export function RejectModal({ w, onClose }: { w: WithdrawalStub; onClose: () => 
 }
 
 // ─── Hold ─────────────────────────────────────────────────────────────────────
-export function HoldModal({ w, onClose }: { w: WithdrawalStub; onClose: () => void }) {
+export function HoldModal({ w, onClose, onConfirm }: { w: WithdrawalStub; onClose: () => void; onConfirm: (reason: string, date: string) => void }) {
   const [reason, setReason] = useState("");
   const [date, setDate] = useState("");
   return (
@@ -138,7 +138,7 @@ export function HoldModal({ w, onClose }: { w: WithdrawalStub; onClose: () => vo
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <Btn label="Cancel" onClick={onClose} />
-          <Btn label="Place on Hold" onClick={onClose} disabled={!reason.trim()} color="#fbbf24" bg="rgba(251,191,36,0.1)" border="rgba(251,191,36,0.3)" />
+          <Btn label="Place on Hold" onClick={() => { if(reason.trim()) { onConfirm(reason.trim(), date); onClose(); }}} disabled={!reason.trim()} color="#fbbf24" bg="rgba(251,191,36,0.1)" border="rgba(251,191,36,0.3)" />
         </div>
       </div>
     </Shell>
