@@ -1,6 +1,7 @@
 import { Switch, Route, useLocation, Redirect } from "wouter";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { AuthProvider, useAuth } from "@/providers/AuthProvider";
+import AccessDeniedPage from "@/pages/auth/AccessDeniedPage";
 import DashboardPage from "@/pages/DashboardPage";
 import LoginPage from "@/pages/auth/LoginPage";
 import RegisterPage from "@/pages/auth/RegisterPage";
@@ -69,6 +70,31 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function RequireMember({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isAdmin } = useAuth();
+  const [location] = useLocation();
+
+  if (!isAuthenticated) {
+    return <Redirect to={`/login?redirect=${encodeURIComponent(location)}`} />;
+  }
+  if (isAdmin) {
+    return <Redirect to="/admin" />;
+  }
+  return <>{children}</>;
+}
+
+function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isAdmin } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Redirect to="/login" />;
+  }
+  if (!isAdmin) {
+    return <Redirect to="/access-denied" />;
+  }
+  return <>{children}</>;
+}
+
 function AppRoutes() {
   return (
     <Switch>
@@ -86,46 +112,46 @@ function AppRoutes() {
         <ResetPasswordPage />
       </Route>
 
-      {/* ── Protected Platform Routes ── */}
+      {/* ── Protected Platform Routes (members only) ── */}
       <Route path="/dashboard">
-        <RequireAuth><DashboardPage /></RequireAuth>
+        <RequireMember><DashboardPage /></RequireMember>
       </Route>
 
       <Route path="/investments/history">
-        <RequireAuth><InvestmentHistoryPage /></RequireAuth>
+        <RequireMember><InvestmentHistoryPage /></RequireMember>
       </Route>
       <Route path="/investments">
-        <RequireAuth><InvestmentsPage /></RequireAuth>
+        <RequireMember><InvestmentsPage /></RequireMember>
       </Route>
 
       <Route path="/wallets/deposit">
-        <RequireAuth><DepositWalletPage /></RequireAuth>
+        <RequireMember><DepositWalletPage /></RequireMember>
       </Route>
       <Route path="/wallets/income">
-        <RequireAuth><IncomeWalletPage /></RequireAuth>
+        <RequireMember><IncomeWalletPage /></RequireMember>
       </Route>
       <Route path="/wallets/withdrawal">
-        <RequireAuth><WithdrawalWalletPage /></RequireAuth>
+        <RequireMember><WithdrawalWalletPage /></RequireMember>
       </Route>
 
       <Route path="/notifications">
-        <RequireAuth><NotificationsPage /></RequireAuth>
+        <RequireMember><NotificationsPage /></RequireMember>
       </Route>
       <Route path="/settings">
-        <RequireAuth><SettingsPage /></RequireAuth>
+        <RequireMember><SettingsPage /></RequireMember>
       </Route>
 
       <Route path="/binary-tree">
         <Redirect to="/team" />
       </Route>
       <Route path="/network">
-        <RequireAuth><NetworkIntelligencePage /></RequireAuth>
+        <RequireMember><NetworkIntelligencePage /></RequireMember>
       </Route>
       <Route path="/team">
-        <RequireAuth><NetworkIntelligencePage /></RequireAuth>
+        <RequireMember><NetworkIntelligencePage /></RequireMember>
       </Route>
       <Route path="/income">
-        <RequireAuth><IncomeCenterPage /></RequireAuth>
+        <RequireMember><IncomeCenterPage /></RequireMember>
       </Route>
       {/* Legacy sub-routes redirect to Income Center */}
       <Route path="/income/binary">
@@ -141,36 +167,41 @@ function AppRoutes() {
         <Redirect to="/income" />
       </Route>
 
-      {/* ── Admin Portal ── */}
+      {/* ── Access Denied ── */}
+      <Route path="/access-denied">
+        <AccessDeniedPage />
+      </Route>
+
+      {/* ── Admin Portal (admins only) ── */}
       <Route path="/admin">
-        <Suspense fallback={null}><AdminDashboardPage /></Suspense>
+        <RequireAdmin><Suspense fallback={null}><AdminDashboardPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/members">
-        <Suspense fallback={null}><AdminMembersPage /></Suspense>
+        <RequireAdmin><Suspense fallback={null}><AdminMembersPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/investments">
-        <Suspense fallback={null}><AdminInvestmentsPage /></Suspense>
+        <RequireAdmin><Suspense fallback={null}><AdminInvestmentsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/withdrawals">
-        <Suspense fallback={null}><AdminWithdrawalsPage /></Suspense>
+        <RequireAdmin><Suspense fallback={null}><AdminWithdrawalsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/wallets">
-        <Suspense fallback={null}><AdminWalletsPage /></Suspense>
+        <RequireAdmin><Suspense fallback={null}><AdminWalletsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/binary">
-        <Suspense fallback={null}><AdminBinaryNetworkPage /></Suspense>
+        <RequireAdmin><Suspense fallback={null}><AdminBinaryNetworkPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/income">
-        <Suspense fallback={null}><AdminIncomeEnginePage /></Suspense>
+        <RequireAdmin><Suspense fallback={null}><AdminIncomeEnginePage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/plans">
-        <Suspense fallback={null}><AdminPlansPage /></Suspense>
+        <RequireAdmin><Suspense fallback={null}><AdminPlansPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/reports">
-        <Suspense fallback={null}><AdminOperationsPage /></Suspense>
+        <RequireAdmin><Suspense fallback={null}><AdminOperationsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/:rest*">
-        <Suspense fallback={null}><AdminDashboardPage /></Suspense>
+        <RequireAdmin><Suspense fallback={null}><AdminDashboardPage /></Suspense></RequireAdmin>
       </Route>
 
       {/* ── Dev Toolkit (dev only) ── */}

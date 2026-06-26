@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Loader2 } from "lucide-react";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { AuthHeader } from "@/components/auth/AuthHeader";
@@ -12,8 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { login } from "@/lib/api";
+import { login, adminLogin } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
+import type { StoredUser } from "@/lib/auth";
 
 const loginSchema = z.object({
   identifier: z.string().min(1, "Email or username is required"),
@@ -23,10 +24,20 @@ const loginSchema = z.object({
 
 type LoginData = z.infer<typeof loginSchema>;
 
+function isEmail(s: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
 export default function LoginPage() {
   const [formError, setFormError] = useState<string>();
   const { authLogin } = useAuth();
   const [, navigate] = useLocation();
+  const search = useSearch();
+
+  const redirect = (() => {
+    const params = new URLSearchParams(search);
+    return params.get("redirect") ?? null;
+  })();
 
   const {
     register,
@@ -43,13 +54,43 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginData) => {
     setFormError(undefined);
+
+    /* ── Try user login first ── */
     try {
       const result = await login(data.identifier, data.password);
-      authLogin(result.token, result.user);
-      navigate("/dashboard");
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Login failed. Please check your credentials.");
+      const storedUser: StoredUser = {
+        ...result.user,
+        type: "user",
+      };
+      authLogin(result.token, storedUser);
+      navigate(redirect ?? "/dashboard");
+      return;
+    } catch {
+      /* user login failed — fall through to admin login if identifier is an email */
     }
+
+    /* ── Fallback: try admin login (requires email, not username) ── */
+    if (isEmail(data.identifier)) {
+      try {
+        const result = await adminLogin(data.identifier, data.password);
+        const storedUser: StoredUser = {
+          id: result.admin.id,
+          email: result.admin.email,
+          username: result.admin.email,
+          firstName: result.admin.firstName,
+          lastName: result.admin.lastName,
+          type: "admin",
+          role: result.admin.role,
+        };
+        authLogin(result.token, storedUser);
+        navigate("/admin");
+        return;
+      } catch {
+        /* admin login also failed */
+      }
+    }
+
+    setFormError("Invalid credentials. Please check your email/username and password.");
   };
 
   return (

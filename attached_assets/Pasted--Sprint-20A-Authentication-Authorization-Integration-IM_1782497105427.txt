@@ -1,0 +1,287 @@
+# Sprint 20A
+
+## Authentication & Authorization Integration
+
+IMPORTANT
+
+This sprint replaces the mock authentication layer with the real backend.
+
+This is NOT a UI sprint.
+
+Do NOT redesign any page.
+
+Do NOT modify layouts.
+
+Do NOT modify styling.
+
+Do NOT modify navigation.
+
+The objective is to connect the existing authentication UI to the backend while preserving all current user experience.
+
+---
+
+## OBJECTIVES
+
+Replace all mock authentication with real backend authentication.
+
+Use the existing backend architecture.
+
+Do not create duplicate authentication systems.
+
+---
+
+## LOGIN
+
+Connect the existing login form to the backend.
+
+On success:
+
+• Create authenticated session.
+
+• Store authentication securely.
+
+• Redirect to correct dashboard.
+
+On failure:
+
+Display proper validation errors.
+
+No generic alerts.
+
+---
+
+## REGISTRATION
+
+Connect registration.
+
+Validate all required fields.
+
+Prevent duplicate usernames.
+
+Prevent duplicate emails.
+
+Prevent duplicate wallet addresses if applicable.
+
+Return proper validation messages.
+
+---
+
+## SESSION MANAGEMENT
+
+Persist authenticated session.
+
+Refreshing the page should NOT log the user out.
+
+Restore session automatically.
+
+Handle expired sessions gracefully.
+
+---
+
+## LOGOUT
+
+Destroy session securely.
+
+Clear authentication state.
+
+Redirect to login.
+
+---
+
+## ROLE-BASED ACCESS CONTROL
+
+Implement role-based routing.
+
+Roles:
+
+Super Admin
+
+Admin
+
+Finance
+
+Support
+
+Compliance
+
+Member
+
+Guest
+
+Each role should only access authorized routes.
+
+Unauthorized routes should display an Access Denied page.
+
+---
+
+## PROTECTED ROUTES
+
+Protect:
+
+Admin Control Center
+
+Member Portal
+
+Wallet Pages
+
+Investment Pages
+
+Income Center
+
+Configuration Pages
+
+Operations Center
+
+Guests cannot access protected routes.
+
+---
+
+## PERMISSIONS
+
+Introduce a permission layer.
+
+Examples:
+
+view_members
+
+edit_members
+
+approve_withdrawals
+
+approve_investments
+
+manage_wallets
+
+manage_configuration
+
+view_reports
+
+manage_roles
+
+Permissions should be centralized and reusable.
+
+---
+
+## TOKEN HANDLING
+
+Use secure authentication.
+
+Avoid storing sensitive tokens insecurely.
+
+Support automatic session restoration.
+
+Handle token expiration.
+
+Handle unauthorized responses.
+
+---
+
+## AUTH CONTEXT
+
+Centralize authentication state.
+
+Expose:
+
+Current User
+
+Current Role
+
+Permissions
+
+Authentication Status
+
+Loading State
+
+Logout Function
+
+Reusable throughout the application.
+
+---
+
+## ERROR HANDLING
+
+Gracefully handle:
+
+Invalid credentials
+
+Expired session
+
+Unauthorized access
+
+Network failures
+
+Server unavailable
+
+Show user-friendly messages.
+
+---
+
+## AUDIT
+
+Log authentication events.
+
+Login
+
+Logout
+
+Failed Login
+
+Password Reset
+
+Session Expired
+
+Mock audit is acceptable if backend support is incomplete.
+
+---
+
+## DO NOT TOUCH
+
+Dashboard UI
+
+Members UI
+
+Withdrawals UI
+
+Wallet UI
+
+Binary UI
+
+Income Engine UI
+
+Configuration UI
+
+Charts
+
+Design
+
+Animations
+
+Component layouts
+
+---
+
+## TESTING
+
+Verify:
+
+✓ Login works.
+
+✓ Registration works.
+
+✓ Logout works.
+
+✓ Refresh preserves session.
+
+✓ Unauthorized users cannot access protected routes.
+
+✓ Correct roles reach correct dashboards.
+
+✓ Permissions are enforced.
+
+✓ Existing UI remains unchanged.
+
+---
+
+GOAL
+
+Replace the mock authentication layer with a production-ready authentication and authorization system while preserving the existing Prime Wave user experience and architecture.

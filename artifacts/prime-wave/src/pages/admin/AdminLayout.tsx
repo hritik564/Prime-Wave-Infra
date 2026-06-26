@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/providers/AuthProvider";
 import {
   LayoutDashboard, Users, TrendingUp, ArrowDownLeft, Wallet,
   GitBranch, Zap, Package, BarChart2, FileText, Headphones,
@@ -200,6 +201,7 @@ function TopNavbar({ sidebarOpen, onToggle }: { sidebarOpen: boolean; onToggle: 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const { authLogout } = useAuth();
 
   const toggle = useCallback(() => setCollapsed(c => !c), []);
   const sidebarW = collapsed ? 52 : 210;
@@ -273,6 +275,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               borderRadius: 7, cursor: "pointer", color: MUTED,
               transition: "all 0.15s",
             }}
+            onClick={authLogout}
             onMouseEnter={e => {
               (e.currentTarget as HTMLDivElement).style.color = "#f87171";
               (e.currentTarget as HTMLDivElement).style.background = "rgba(248,113,113,0.06)";

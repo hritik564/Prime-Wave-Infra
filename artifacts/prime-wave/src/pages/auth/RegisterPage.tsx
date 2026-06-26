@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { register as apiRegister } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
+import type { StoredUser } from "@/lib/auth";
 
 const registerSchema = z
   .object({
@@ -189,7 +190,8 @@ export default function RegisterPage() {
         referralCode: data.referralCode || undefined,
         binaryPlacement: data.binaryPlacement,
       });
-      authLogin(result.token, result.user);
+      const storedUser: StoredUser = { ...result.user, type: "user" };
+      authLogin(result.token, storedUser);
       navigate("/dashboard");
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Registration failed. This username or email may already exist.");

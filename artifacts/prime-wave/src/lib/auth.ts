@@ -4,6 +4,8 @@ export interface StoredUser {
   username: string;
   firstName: string;
   lastName: string;
+  type: "user" | "admin";
+  role?: string;
 }
 
 const TOKEN_KEY = "pw:token";
@@ -33,4 +35,16 @@ export function clearAuth(): void {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
   } catch {}
+}
+
+/* ── 401 interceptor hook ──────────────────────────────────────────────────── */
+
+let _onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedCallback(cb: () => void): void {
+  _onUnauthorized = cb;
+}
+
+export function fireUnauthorized(): void {
+  _onUnauthorized?.();
 }

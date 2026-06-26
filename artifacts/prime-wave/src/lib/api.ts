@@ -1,4 +1,4 @@
-import { getToken } from "./auth";
+import { getToken, fireUnauthorized } from "./auth";
 
 const BASE = "";
 
@@ -14,6 +14,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   let body: unknown;
   try { body = await res.json(); } catch { body = null; }
+
+  if (res.status === 401) {
+    fireUnauthorized();
+    throw new Error("Session expired. Please sign in again.");
+  }
 
   if (!res.ok) {
     const data = body as { message?: string; error?: string } | null;
@@ -42,6 +47,24 @@ export function login(identifier: string, password: string) {
   return request<AuthResponse>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ identifier, password }),
+  });
+}
+
+export interface AdminAuthResponse {
+  token: string;
+  admin: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+  };
+}
+
+export function adminLogin(email: string, password: string) {
+  return request<AdminAuthResponse>("/api/admin/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
   });
 }
 
