@@ -10,9 +10,7 @@ import {
   getNetworkInsights,
   getTopPerformers,
   getTeamActivity,
-  getMemberJourney,
 } from "./network.service";
-import { getDecisionEngine } from "./decision-engine.service";
 
 const router = Router();
 
@@ -68,29 +66,6 @@ router.get("/activity", async (req, res, next) => {
   try {
     const { user } = req as AuthenticatedRequest;
     const data = await getTeamActivity(user.sub);
-    sendSuccess(res, data);
-  } catch (err) {
-    next(err);
-  }
-});
-
-// GET /api/network/decision-engine
-router.get("/decision-engine", async (req, res, next) => {
-  try {
-    const { user } = req as unknown as AuthenticatedRequest;
-    const data = await getDecisionEngine(user.sub);
-    sendSuccess(res, data);
-  } catch (err) {
-    next(err);
-  }
-});
-
-// GET /api/network/member/:memberId/journey
-router.get("/member/:memberId/journey", async (req, res, next) => {
-  try {
-    const { user } = req as unknown as AuthenticatedRequest;
-    const { memberId } = req.params;
-    const data = await getMemberJourney(user.sub, memberId);
     sendSuccess(res, data);
   } catch (err) {
     next(err);
