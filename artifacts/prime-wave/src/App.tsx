@@ -12,41 +12,14 @@ import WithdrawalWalletPage from "@/pages/wallet/WithdrawalWalletPage";
 import InvestmentsPage from "@/pages/investments/InvestmentsPage";
 import InvestmentHistoryPage from "@/pages/investments/InvestmentHistoryPage";
 import NetworkIntelligencePage from "@/pages/network/NetworkIntelligencePage";
+import NetworkTeamPage from "@/pages/network/NetworkTeamPage";
+import NetworkBusinessHealthPage from "@/pages/network/NetworkBusinessHealthPage";
+import NetworkForecastsPage from "@/pages/network/NetworkForecastsPage";
+import NetworkActivityPage from "@/pages/network/NetworkActivityPage";
 import NotificationsPage from "@/pages/notifications/NotificationsPage";
 import SettingsPage from "@/pages/settings/SettingsPage";
 import DevToolsPage from "@/pages/DevToolsPage";
 import IncomeCenterPage from "@/pages/income/IncomeCenterPage";
-import AppLayout from "@/components/layout/AppLayout";
-import PageContainer from "@/components/shared/PageContainer";
-import SectionHeader from "@/components/shared/SectionHeader";
-import { Inbox } from "lucide-react";
-
-function ComingSoon({ title }: { title: string }) {
-  return (
-    <AppLayout pageTitle={title} notificationCount={0}>
-      <PageContainer>
-        <SectionHeader title={title} />
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div
-            className="flex h-16 w-16 items-center justify-center rounded-2xl mb-4"
-            style={{
-              background: "rgba(212, 175, 55, 0.08)",
-              border: "1px solid rgba(212, 175, 55, 0.15)",
-            }}
-          >
-            <Inbox className="h-8 w-8 text-gold" />
-          </div>
-          <h3 className="text-lg font-semibold font-heading text-foreground">
-            Coming in a future sprint
-          </h3>
-          <p className="mt-1 text-sm text-muted-foreground max-w-xs">
-            This page will be fully built out in subsequent sprints.
-          </p>
-        </div>
-      </PageContainer>
-    </AppLayout>
-  );
-}
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -105,19 +78,33 @@ function AppRoutes() {
         <RequireAuth><SettingsPage /></RequireAuth>
       </Route>
 
-      <Route path="/binary-tree">
-        <Redirect to="/team" />
+      {/* ── Network Intelligence ── (sub-routes registered before parent) */}
+      <Route path="/team/members">
+        <RequireAuth><NetworkTeamPage /></RequireAuth>
       </Route>
-      <Route path="/network">
-        <RequireAuth><NetworkIntelligencePage /></RequireAuth>
+      <Route path="/team/health">
+        <RequireAuth><NetworkBusinessHealthPage /></RequireAuth>
+      </Route>
+      <Route path="/team/forecasts">
+        <RequireAuth><NetworkForecastsPage /></RequireAuth>
+      </Route>
+      <Route path="/team/activity">
+        <RequireAuth><NetworkActivityPage /></RequireAuth>
       </Route>
       <Route path="/team">
         <RequireAuth><NetworkIntelligencePage /></RequireAuth>
       </Route>
+      {/* Legacy aliases */}
+      <Route path="/binary-tree">
+        <Redirect to="/team" />
+      </Route>
+      <Route path="/network">
+        <Redirect to="/team" />
+      </Route>
+
       <Route path="/income">
         <RequireAuth><IncomeCenterPage /></RequireAuth>
       </Route>
-      {/* Legacy sub-routes redirect to Income Center */}
       <Route path="/income/binary">
         <Redirect to="/income" />
       </Route>

@@ -1,7 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
-import { X } from "lucide-react";
+import { X, ChevronDown } from "lucide-react";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -14,6 +15,9 @@ import {
   Bell,
   Settings,
   FlaskConical,
+  Shield,
+  Activity,
+  BarChart2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -29,6 +33,14 @@ interface NavGroup {
   items: NavItem[];
 }
 
+const NETWORK_CHILDREN: NavItem[] = [
+  { label: "Overview",        href: "/team",             icon: LayoutDashboard },
+  { label: "Team",            href: "/team/members",     icon: Users },
+  { label: "Business Health", href: "/team/health",      icon: Shield },
+  { label: "Forecasts",       href: "/team/forecasts",   icon: BarChart2 },
+  { label: "Activity",        href: "/team/activity",    icon: Activity },
+];
+
 const navGroups: NavGroup[] = [
   {
     label: "Overview",
@@ -43,12 +55,6 @@ const navGroups: NavGroup[] = [
       { label: "Deposit Wallet",    href: "/wallets/deposit",   icon: Wallet },
       { label: "Income Wallet",     href: "/wallets/income",    icon: PiggyBank },
       { label: "Withdrawal Wallet", href: "/wallets/withdrawal", icon: ArrowDownToLine },
-    ],
-  },
-  {
-    label: "Network",
-    items: [
-      { label: "Network Intelligence", href: "/team", icon: GitFork },
     ],
   },
   {
@@ -72,6 +78,16 @@ interface SidebarProps {
 
 export default function Sidebar({ onClose }: SidebarProps) {
   const [location] = useLocation();
+  const isNetworkRoute = location === "/team" || location.startsWith("/team/");
+  const [networkOpen, setNetworkOpen] = useState(isNetworkRoute);
+
+  useEffect(() => {
+    if (isNetworkRoute) setNetworkOpen(true);
+  }, [isNetworkRoute]);
+
+  const handleNavClick = () => {
+    if (onClose) onClose();
+  };
 
   return (
     <div
@@ -127,7 +143,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
       {/* Navigation */}
       <ScrollArea className="flex-1 px-3 py-2">
         <nav className="space-y-5">
-          {navGroups.map((group) => (
+
+          {/* ── Standard nav groups (before Network) ──────────────────────── */}
+          {navGroups.slice(0, 2).map((group) => (
             <div key={group.label}>
               <p
                 className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest"
@@ -139,24 +157,20 @@ export default function Sidebar({ onClose }: SidebarProps) {
                 {group.items.map((item) => {
                   const isActive =
                     location === item.href ||
-                    (item.href !== "/dashboard" &&
-                      location.startsWith(item.href));
+                    (item.href !== "/dashboard" && location.startsWith(item.href));
                   const Icon = item.icon;
                   return (
                     <li key={item.href}>
                       <Link
                         href={item.href}
+                        onClick={handleNavClick}
                         className={cn(
                           "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-150",
                           isActive
                             ? "sidebar-active font-medium"
                             : "border-l-2 border-transparent hover:bg-white/5",
                         )}
-                        style={
-                          isActive
-                            ? undefined
-                            : { color: "hsl(var(--muted-foreground))" }
-                        }
+                        style={isActive ? undefined : { color: "hsl(var(--muted-foreground))" }}
                       >
                         <Icon
                           className="h-4 w-4 shrink-0"
@@ -170,6 +184,127 @@ export default function Sidebar({ onClose }: SidebarProps) {
               </ul>
             </div>
           ))}
+
+          {/* ── Network Intelligence (expandable) ────────────────────────── */}
+          <div>
+            <p
+              className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest"
+              style={{ color: "rgba(170, 179, 197, 0.5)" }}
+            >
+              Network
+            </p>
+
+            {/* Parent toggle button */}
+            <button
+              onClick={() => setNetworkOpen((o) => !o)}
+              className={cn(
+                "w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-150",
+                isNetworkRoute
+                  ? "font-medium"
+                  : "border-l-2 border-transparent hover:bg-white/5",
+              )}
+              style={{
+                color: isNetworkRoute ? "#D4AF37" : "hsl(var(--muted-foreground))",
+                background: isNetworkRoute ? "rgba(212,175,55,0.08)" : undefined,
+                borderLeft: isNetworkRoute ? "2px solid #D4AF37" : undefined,
+              }}
+            >
+              <GitFork
+                className="h-4 w-4 shrink-0"
+                style={{ color: isNetworkRoute ? "#D4AF37" : undefined }}
+              />
+              <span className="flex-1 text-left">Network Intelligence</span>
+              <ChevronDown
+                className="h-3.5 w-3.5 shrink-0 transition-transform duration-200"
+                style={{
+                  transform: networkOpen ? "rotate(180deg)" : "rotate(0deg)",
+                  color: isNetworkRoute ? "#D4AF37" : "rgba(170,179,197,0.45)",
+                }}
+              />
+            </button>
+
+            {/* Children */}
+            <div
+              style={{
+                overflow: "hidden",
+                maxHeight: networkOpen ? 300 : 0,
+                transition: "max-height 0.22s ease",
+              }}
+            >
+              <ul className="mt-1 space-y-0.5 pl-4">
+                {NETWORK_CHILDREN.map((child) => {
+                  const isActive =
+                    child.href === "/team"
+                      ? location === "/team"
+                      : location.startsWith(child.href);
+                  const Icon = child.icon;
+                  return (
+                    <li key={child.href}>
+                      <Link
+                        href={child.href}
+                        onClick={handleNavClick}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-all duration-150",
+                          isActive
+                            ? "sidebar-active font-medium"
+                            : "border-l-2 border-transparent hover:bg-white/5",
+                        )}
+                        style={isActive ? undefined : { color: "hsl(var(--muted-foreground))" }}
+                      >
+                        <Icon
+                          className="h-3.5 w-3.5 shrink-0"
+                          style={{ color: isActive ? "#D4AF37" : undefined }}
+                        />
+                        <span className="text-[13px]">{child.label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+
+          {/* ── Remaining nav groups (after Network) ─────────────────────── */}
+          {navGroups.slice(2).map((group) => (
+            <div key={group.label}>
+              <p
+                className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest"
+                style={{ color: "rgba(170, 179, 197, 0.5)" }}
+              >
+                {group.label}
+              </p>
+              <ul className="space-y-0.5">
+                {group.items.map((item) => {
+                  const isActive =
+                    location === item.href ||
+                    (item.href !== "/dashboard" && location.startsWith(item.href));
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        onClick={handleNavClick}
+                        className={cn(
+                          "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-150",
+                          isActive
+                            ? "sidebar-active font-medium"
+                            : "border-l-2 border-transparent hover:bg-white/5",
+                        )}
+                        style={isActive ? undefined : { color: "hsl(var(--muted-foreground))" }}
+                      >
+                        <Icon
+                          className="h-4 w-4 shrink-0"
+                          style={{ color: isActive ? "#D4AF37" : undefined }}
+                        />
+                        {item.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+
         </nav>
       </ScrollArea>
 
