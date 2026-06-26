@@ -1,5 +1,7 @@
 import { Bell, Sun, Moon, ChevronDown, LogOut, User, Settings } from "lucide-react";
 import { useTheme } from "@/providers/ThemeProvider";
+import { useAuth } from "@/providers/AuthProvider";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface TopNavbarProps {
   pageTitle?: string;
@@ -21,6 +23,20 @@ export default function TopNavbar({
   notificationCount = 0,
 }: TopNavbarProps) {
   const { theme, toggleTheme } = useTheme();
+  const { user, authLogout } = useAuth();
+  const [, navigate] = useLocation();
+
+  const initials = user
+    ? `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase()
+    : "?";
+
+  const displayName = user ? `${user.firstName} ${user.lastName}` : "Account";
+  const displayEmail = user?.email ?? "";
+
+  function handleSignOut() {
+    authLogout();
+    navigate("/login");
+  }
 
   return (
     <header className="flex h-14 lg:h-16 shrink-0 items-center justify-between border-b border-border bg-background/95 backdrop-blur-sm px-4 lg:px-6">
@@ -54,6 +70,7 @@ export default function TopNavbar({
         <Button
           variant="ghost"
           size="icon"
+          onClick={() => navigate("/notifications")}
           className="relative h-9 w-9 text-muted-foreground hover:text-foreground"
           aria-label="Notifications"
         >
@@ -73,7 +90,6 @@ export default function TopNavbar({
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 rounded-lg px-1.5 lg:px-2 py-1.5 hover:bg-secondary transition-colors outline-none">
               <Avatar className="h-8 w-8">
-                <AvatarImage src="" alt="User" />
                 <AvatarFallback
                   className="text-xs font-bold"
                   style={{
@@ -81,12 +97,12 @@ export default function TopNavbar({
                     color: "#0E1B37",
                   }}
                 >
-                  JD
+                  {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden sm:flex flex-col items-start">
                 <span className="text-sm font-medium text-foreground leading-none">
-                  John Doe
+                  {displayName}
                 </span>
                 <span className="text-xs text-muted-foreground leading-tight">
                   Pro Member
@@ -98,21 +114,24 @@ export default function TopNavbar({
           <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-semibold text-foreground">John Doe</p>
-                <p className="text-xs text-muted-foreground">john@primewave.io</p>
+                <p className="text-sm font-semibold text-foreground">{displayName}</p>
+                <p className="text-xs text-muted-foreground truncate">{displayEmail}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/settings")}>
               <User className="h-4 w-4" />
               Profile
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/settings")}>
               <Settings className="h-4 w-4" />
               Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
+            <DropdownMenuItem
+              onClick={handleSignOut}
+              className="text-destructive focus:text-destructive"
+            >
               <LogOut className="h-4 w-4" />
               Sign out
             </DropdownMenuItem>
