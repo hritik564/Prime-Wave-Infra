@@ -79,14 +79,6 @@ function computeGrowthScore(stats: NetworkStats | null, bvSummary: BvSummary | n
   );
 }
 
-// Ancestor path for tree hover highlighting
-function getAncestorSet(nodeId: string, parentMap: Map<string, string>): Set<string> {
-  const set = new Set<string>();
-  let cur: string | undefined = nodeId;
-  while (cur) { set.add(cur); cur = parentMap.get(cur); }
-  return set;
-}
-
 // ── Inline Avatar ─────────────────────────────────────────────────────────────
 function Av({ first, last, size = 36 }: { first: string; last: string; size?: number }) {
   return (
@@ -108,7 +100,6 @@ function treeToFlowElements(
   currentUserId: string,
   maxDepth:      number,
   onSelect:      (data: TreeNodeData) => void,
-  hoveredAncestors: Set<string>,
 ): { nodes: Node[]; edges: Edge[]; parentMap: Map<string, string> } {
   const nodes:     Node[]              = [];
   const edges:     Edge[]              = [];
@@ -116,8 +107,6 @@ function treeToFlowElements(
 
   const V_GAP  = 140;
   const H_BASE = 80 * Math.pow(2, maxDepth - 1);
-
-  const hasHover = hoveredAncestors.size > 0;
 
   function walk(
     node:     BinaryTreeNode | null,
@@ -128,8 +117,6 @@ function treeToFlowElements(
   ) {
     if (depth > maxDepth) return;
     const hOffset = H_BASE / Math.pow(2, depth);
-    const onPath  = (id: string) => hasHover && hoveredAncestors.has(id);
-    const faded   = (id: string) => hasHover && !hoveredAncestors.has(id);
 
     if (!node) {
       if (parentId && depth <= maxDepth) {
@@ -137,10 +124,9 @@ function treeToFlowElements(
         nodes.push({
           id: emptyId, type: "emptySlot",
           position: { x, y: depth * V_GAP },
-          data: { side, faded: hasHover ? 0.15 : 1 },
+          data: { side },
           draggable: false,
         } as Node);
-        const edgeFaded = parentId ? faded(parentId) : hasHover;
         edges.push({
           id: `e-${parentId}-${emptyId}`,
           source: parentId!, target: emptyId,
@@ -148,7 +134,6 @@ function treeToFlowElements(
           style: {
             stroke: side === "LEFT" ? "rgba(96,165,250,0.16)" : "rgba(167,139,250,0.16)",
             strokeDasharray: "4,4", strokeWidth: 1.5,
-            opacity: edgeFaded ? 0.15 : 1,
           },
         } as Edge);
       }
@@ -157,8 +142,7 @@ function treeToFlowElements(
 
     if (parentId) parentMap.set(node.id, parentId);
 
-    const isRoot   = node.id === currentUserId;
-    const nodeFaded = faded(node.id);
+    const isRoot = node.id === currentUserId;
 
     nodes.push({
       id: node.id,
@@ -169,14 +153,13 @@ function treeToFlowElements(
         firstName: node.firstName, lastName: node.lastName,
         status: node.status, position: node.position,
         directReferralCount: node.directReferralCount,
-        depth, faded: nodeFaded, onSelect,
+        depth, onSelect,
       },
       draggable: false,
     } as Node);
 
     if (parentId && side) {
-      const isLeft     = side === "LEFT";
-      const edgeOnPath = onPath(parentId) && onPath(node.id);
+      const isLeft = side === "LEFT";
       edges.push({
         id: `e-${parentId}-${node.id}`,
         source: parentId, target: node.id,
@@ -186,12 +169,8 @@ function treeToFlowElements(
         labelBgStyle: { fill: "hsl(221 59% 10%)", fillOpacity: 0.9 },
         labelBgPadding: [2, 4] as [number, number],
         style: {
-          stroke: edgeOnPath
-            ? (isLeft ? "#60a5fa" : "#a78bfa")
-            : (isLeft ? "rgba(96,165,250,0.45)" : "rgba(167,139,250,0.45)"),
-          strokeWidth: edgeOnPath ? 2.5 : 2,
-          opacity: hasHover && !edgeOnPath ? 0.12 : 1,
-          transition: "all 0.2s ease",
+          stroke: isLeft ? "rgba(96,165,250,0.45)" : "rgba(167,139,250,0.45)",
+          strokeWidth: 2,
         },
       } as Edge);
     }
@@ -694,14 +673,10 @@ export default function NetworkIntelligencePage() {
   const [search, setSearch]             = useState("");
   const [filter, setFilter]             = useState<MemberFilter>("all");
   const [treeDepth, setTreeDepth]       = useState(3);
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<NetworkMember | null>(null);
   const [journeyOpen, setJourneyOpen]   = useState(false);
   const [copied, setCopied]             = useState<"code" | "link" | null>(null);
   const [memberLoading, setMemberLoading] = useState(false);
-
-  // stable ref to parentMap (updated without triggering re-render of everything)
-  const parentMapRef = useRef<Map<string, string>>(new Map());
 
   // ── Initial parallel load ──────────────────────────────────────────────────
   useEffect(() => {
@@ -762,19 +737,11 @@ export default function NetworkIntelligencePage() {
     });
   }, []);
 
-  // ── Ancestor set for path highlighting ────────────────────────────────────
-  const hoveredAncestors = useMemo<Set<string>>(() => {
-    if (!hoveredNodeId) return new Set();
-    return getAncestorSet(hoveredNodeId, parentMapRef.current);
-  }, [hoveredNodeId]);
-
   // ── Flow elements ──────────────────────────────────────────────────────────
   const { nodes: flowNodes, edges: flowEdges } = useMemo(() => {
     if (!tree || !profile) return { nodes: [], edges: [] };
-    const result = treeToFlowElements(tree, profile.id, treeDepth, handleNodeSelect, hoveredAncestors);
-    parentMapRef.current = result.parentMap;
-    return result;
-  }, [tree, profile?.id, treeDepth, handleNodeSelect, hoveredAncestors]);
+    return treeToFlowElements(tree, profile.id, treeDepth, handleNodeSelect);
+  }, [tree, profile?.id, treeDepth, handleNodeSelect]);
 
   // ── Copy helpers ───────────────────────────────────────────────────────────
   const copyCode = useCallback(() => {
@@ -1043,15 +1010,11 @@ export default function NetworkIntelligencePage() {
                   nodesConnectable={false}
                   elementsSelectable={false}
                   proOptions={{ hideAttribution: true }}
-                  onNodeMouseEnter={(_, node: { type?: string; id: string }) => {
-                    if (node.type !== "emptySlot") setHoveredNodeId(node.id);
-                  }}
-                  onNodeMouseLeave={() => setHoveredNodeId(null)}
                 >
                   <Background color="rgba(212,175,55,0.025)" gap={28} size={1} />
                   <TreeInnerControls
                     depth={treeDepth}
-                    setDepth={(d) => { setTreeDepth(d); setHoveredNodeId(null); }}
+                    setDepth={(d) => { setTreeDepth(d); }}
                     onFit={() => {}}
                   />
                 </ReactFlow>
@@ -1064,7 +1027,7 @@ export default function NetworkIntelligencePage() {
             }
           </div>
           <p className="mt-2 text-xs text-center" style={{ color: "rgba(170,179,197,0.35)" }}>
-            Hover a card to highlight the path to root · Click to open member profile
+            Click a card to open member profile
           </p>
         </Section>
 

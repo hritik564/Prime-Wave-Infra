@@ -1,0 +1,162 @@
+The Binary Tree architecture needs a performance refactor before any further UI work.
+
+This is NOT a redesign.
+
+Do NOT change the visual appearance.
+
+Do NOT change the layout.
+
+Do NOT change the member cards.
+
+Do NOT change the sidebar.
+
+Do NOT change React Flow configuration unless required to solve the issue.
+
+The only objective of this sprint is to eliminate the expensive full-tree re-render that happens when hovering over member cards.
+
+---
+
+## Current Problem
+
+Hovering over a member card currently performs this chain:
+
+onNodeMouseEnter
+
+↓
+
+setHoveredNodeId()
+
+↓
+
+Recalculate ancestor set
+
+↓
+
+Rebuild all React Flow nodes
+
+↓
+
+Rebuild all React Flow edges
+
+↓
+
+React Flow re-renders the entire graph
+
+↓
+
+ResizeObserver loop
+
+↓
+
+Cursor flickers / Preview becomes unstable
+
+This architecture is incorrect.
+
+Hovering a node should NEVER rebuild the entire graph.
+
+---
+
+## Required Refactor
+
+Refactor the hover implementation so that:
+
+• Hovering a member card does NOT trigger React state updates that rebuild the node array.
+
+• Hovering does NOT recreate the edge array.
+
+• Hovering does NOT regenerate treeToFlowElements().
+
+• Hovering does NOT cause React Flow to receive a brand-new nodes[] or edges[] array.
+
+The React Flow graph should remain completely stable during hover.
+
+---
+
+## Hover Behaviour
+
+Implement hover using lightweight presentation only.
+
+Examples include:
+
+* CSS :hover
+* Tailwind hover classes
+* Local DOM class changes
+* Memoized node components
+
+The implementation choice is yours, but it must NOT rebuild the graph.
+
+---
+
+## Clicking Behaviour
+
+Do NOT change current click behaviour.
+
+The entire member card should remain clickable.
+
+Clicking anywhere on the card must continue opening the existing Member Details drawer.
+
+This behaviour already works correctly.
+
+Preserve it.
+
+---
+
+## Path Highlighting
+
+Temporarily disable the hover path-highlighting feature if it requires rebuilding the graph.
+
+Performance is more important than decorative hover effects.
+
+We will implement an optimized path-highlighting system in a future sprint.
+
+The priority today is stability.
+
+---
+
+## React Performance
+
+Ensure:
+
+• Nodes array remains stable while hovering.
+
+• Edges array remains stable while hovering.
+
+• Node identity is preserved.
+
+• React Flow is not forced to remount nodes.
+
+• Cursor should never flicker.
+
+• Hover should feel instant.
+
+---
+
+## Validation
+
+Verify all of the following:
+
+✓ Hovering a node no longer rebuilds React Flow.
+
+✓ No ResizeObserver loop warnings.
+
+✓ No cursor flickering.
+
+✓ No preview crashes.
+
+✓ New browser tab behaviour remains unchanged.
+
+✓ Clicking still opens the Member Drawer.
+
+✓ Zoom still works.
+
+✓ Pan still works.
+
+✓ Fit View still works.
+
+✓ Tree performance is noticeably smoother.
+
+---
+
+Do NOT redesign anything during this sprint.
+
+This is purely a performance and architecture stabilization sprint for the Binary Tree.

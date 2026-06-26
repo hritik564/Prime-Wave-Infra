@@ -18,7 +18,6 @@ export interface TreeNodeData extends Record<string, unknown> {
   position:            "LEFT" | "RIGHT" | null;
   directReferralCount: number;
   depth:               number;
-  faded:               boolean;
   onSelect?:           (data: TreeNodeData) => void;
 }
 
@@ -30,8 +29,6 @@ function RootNode({ data }: { data: TreeNodeData }) {
         border: "2px solid rgba(212,175,55,0.55)", borderRadius: 14,
         padding: "10px 14px", minWidth: 155,
         boxShadow: "0 0 28px rgba(212,175,55,0.2),0 4px 20px rgba(0,0,0,0.5)",
-        opacity: data.faded ? 0.18 : 1,
-        transition: "opacity 0.18s ease",
       }}>
       <Handle type="source" position={Position.Bottom}
         style={{ background: "rgba(212,175,55,0.6)", width: 8, height: 8, border: "none" }} />
@@ -73,8 +70,7 @@ function MemberNode({ data }: { data: TreeNodeData }) {
           ? `0 8px 28px rgba(0,0,0,0.55),0 0 16px ${armColor}28`
           : "0 4px 18px rgba(0,0,0,0.4)",
         transform: hovered ? "translateY(-2px)" : "translateY(0)",
-        opacity: data.faded ? 0.18 : 1,
-        transition: "border-color 0.18s,box-shadow 0.18s,transform 0.18s,opacity 0.18s",
+        transition: "border-color 0.18s,box-shadow 0.18s,transform 0.18s",
       }}>
       <Handle type="target" position={Position.Top}
         style={{ background: "rgba(255,255,255,0.15)", width: 6, height: 6, border: "none" }} />
