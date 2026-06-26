@@ -1009,6 +1009,9 @@ export default function NetworkIntelligencePage() {
                   nodesDraggable={false}
                   nodesConnectable={false}
                   elementsSelectable={false}
+                  onNodeClick={(_, node) => {
+                    if (node.type !== "emptySlot") handleNodeSelect(node.data as TreeNodeData);
+                  }}
                   proOptions={{ hideAttribution: true }}
                 >
                   <Background color="rgba(212,175,55,0.025)" gap={28} size={1} />
