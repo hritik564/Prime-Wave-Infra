@@ -1,0 +1,428 @@
+# Sprint 19 — Phase 3
+
+Build the **Investment Center** for the Prime Wave Control Center.
+
+IMPORTANT
+
+This is the administrative investment management module.
+
+Do NOT modify:
+
+* Dashboard
+* Member Management
+* Existing backend
+* Existing APIs
+* Existing authentication
+* Database schema
+
+Use mock data only.
+
+No backend integration yet.
+
+Maintain the same premium design language established in the Control Center.
+
+---
+
+# Page Layout
+
+Header
+
+Investment Center
+
+Subtitle
+
+Monitor, approve and manage every investment across the platform.
+
+Top Right Actions
+
+Create Investment
+
+Export
+
+Refresh
+
+---
+
+# Statistics Overview
+
+Top cards
+
+Total Investments
+
+Today's Investments
+
+Pending Approval
+
+Rejected
+
+Total Capital
+
+Average Investment
+
+Active Plans
+
+ROI Liability
+
+Cards should match the dashboard style.
+
+---
+
+# Search
+
+Global search
+
+Search by:
+
+Username
+
+Member ID
+
+Investment ID
+
+Transaction ID
+
+Wallet Address
+
+Reference Number
+
+---
+
+# Filters
+
+Status
+
+All
+
+Pending
+
+Approved
+
+Rejected
+
+Cancelled
+
+Plan
+
+Starter
+
+Alpha
+
+Premium
+
+VIP
+
+Payment Method
+
+USDT
+
+Bank Transfer
+
+Crypto
+
+Manual
+
+Amount
+
+Custom range
+
+Date
+
+Today
+
+7 Days
+
+30 Days
+
+Custom
+
+Sort
+
+Newest
+
+Oldest
+
+Highest Amount
+
+Lowest Amount
+
+---
+
+# Investment Table
+
+Columns
+
+Investment ID
+
+Member
+
+Plan
+
+Amount
+
+ROI %
+
+Duration
+
+Payment Method
+
+Transaction ID
+
+Status
+
+Created
+
+Approved By
+
+Actions
+
+Premium table
+
+Sticky header
+
+Pagination
+
+20 rows per page
+
+Hover effects
+
+---
+
+# Row Actions
+
+View Details
+
+Approve
+
+Reject
+
+Edit
+
+View Member
+
+Download Receipt
+
+Audit History
+
+Dropdown menu
+
+---
+
+# Clicking Row
+
+Clicking a row opens a right-side Investment Drawer.
+
+Do NOT navigate away.
+
+---
+
+# Investment Drawer
+
+Sections
+
+Investment Summary
+
+Investment ID
+
+Amount
+
+Plan
+
+Duration
+
+ROI
+
+Status
+
+Member
+
+Avatar
+
+Username
+
+Member ID
+
+Sponsor
+
+Wallet Details
+
+Payment Method
+
+Transaction Hash
+
+Wallet Address
+
+Reference Number
+
+Timeline
+
+Submitted
+
+Verified
+
+Approved
+
+Activated
+
+Audit Trail
+
+Created By
+
+Approved By
+
+Last Modified
+
+Notes
+
+Admin comments
+
+Actions
+
+Approve Investment
+
+Reject Investment
+
+Edit
+
+Download Receipt
+
+View Member
+
+Drawer scrolls independently.
+
+---
+
+# Approval Workflow
+
+Approval modal
+
+Confirmation required
+
+Admin comment required
+
+Approval timestamp
+
+Approved By
+
+Reject modal
+
+Reason required
+
+Optional notes
+
+---
+
+# Bulk Actions
+
+Approve
+
+Reject
+
+Export
+
+Assign Reviewer
+
+---
+
+# Investment Analytics
+
+Charts
+
+Investment Growth
+
+Plan Distribution
+
+Payment Method Distribution
+
+Approval Time
+
+Use mock data.
+
+---
+
+# Recent High Value Investments
+
+Separate card
+
+Top 5
+
+View All
+
+---
+
+# Flagged Transactions
+
+Card
+
+Large investments
+
+Duplicate transactions
+
+Manual reviews
+
+Suspicious activity
+
+---
+
+# Components
+
+InvestmentTable
+
+InvestmentDrawer
+
+ApprovalModal
+
+StatusBadge
+
+PlanBadge
+
+AmountBadge
+
+AnalyticsCard
+
+Timeline
+
+AuditCard
+
+ActionDropdown
+
+---
+
+# Empty States
+
+Premium illustrations
+
+Never plain text
+
+---
+
+# Loading
+
+Skeleton loaders
+
+---
+
+# Performance
+
+Memoize table
+
+Virtualize rows if possible
+
+Lazy load analytics
+
+Minimal rerenders
+
+---
+
+# Responsive
+
+Desktop first
+
+Tablet supported
+
+Mobile functional
+
+---
+
+# Goal
+
+Build a premium fintech Investment Center that gives administrators complete visibility into every investment while remaining clean, fast, and ready for backend integration later.
