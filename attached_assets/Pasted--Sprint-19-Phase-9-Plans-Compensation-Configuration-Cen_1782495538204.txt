@@ -1,0 +1,467 @@
+# Sprint 19 — Phase 9
+
+## Plans & Compensation Configuration Center
+
+IMPORTANT
+
+This is the configuration center of Prime Wave.
+
+Every value on this page directly controls platform compensation.
+
+Design this as an enterprise configuration system, not a CRUD page.
+
+Use realistic mock data only.
+
+Do NOT connect backend.
+
+Do NOT modify previous modules.
+
+Continue using the Prime Wave Admin design language.
+
+---
+
+## PAGE HEADER
+
+Title
+
+Plans & Compensation Configuration
+
+Subtitle
+
+Configure investment plans, compensation rules and platform reward systems.
+
+Top Right
+
+Create Plan
+
+Export Configuration
+
+Restore Defaults
+
+Publish Changes (Mock)
+
+---
+
+## CONFIGURATION NAVIGATION
+
+Instead of one long page,
+
+create a left navigation.
+
+Sections
+
+Investment Plans
+
+ROI Engine
+
+Binary Matching
+
+Binary Orbit
+
+Level Income
+
+Salary Income
+
+Ranks
+
+Transfer Rules
+
+Platform Limits
+
+Global Configuration
+
+Only one section visible at a time.
+
+---
+
+SECTION 1
+
+## Investment Plans
+
+Premium table.
+
+Columns
+
+Plan Name
+
+Investment Range
+
+ROI %
+
+Duration
+
+Auto Compound
+
+Status
+
+Members
+
+Actions
+
+Actions
+
+View
+
+Edit
+
+Duplicate
+
+Archive
+
+Delete
+
+---
+
+## PLAN DRAWER
+
+Display
+
+Plan Name
+
+Minimum Investment
+
+Maximum Investment
+
+ROI
+
+Duration
+
+Claim Rules
+
+Auto Compound
+
+Status
+
+Benefits
+
+Notes
+
+---
+
+SECTION 2
+
+## ROI ENGINE
+
+Configuration cards.
+
+Examples
+
+Default ROI %
+
+Execution Frequency
+
+Maximum ROI
+
+ROI Duration
+
+Claim Window
+
+Processing Time
+
+Preview panel
+
+---
+
+SECTION 3
+
+## BINARY MATCHING
+
+Display
+
+Matching %
+
+Reward Cap
+
+Daily Cap
+
+Flush Rules
+
+Carry Forward Rules
+
+Execution Schedule
+
+Preview Example
+
+Mock only.
+
+---
+
+SECTION 4
+
+## BINARY ORBIT
+
+Display
+
+Orbit Reward
+
+Matching Requirement
+
+Flush Logic
+
+Carry Forward
+
+Execution Schedule
+
+Mock preview.
+
+---
+
+SECTION 5
+
+## LEVEL INCOME
+
+Configuration table.
+
+Levels
+
+Commission %
+
+Qualification
+
+Maximum Depth
+
+Status
+
+---
+
+SECTION 6
+
+## SALARY INCOME
+
+Display
+
+Ranks
+
+Salary Amount
+
+Qualification
+
+Retention Requirement
+
+Monthly Payout
+
+---
+
+SECTION 7
+
+## RANK CONFIGURATION
+
+Premium cards.
+
+Examples
+
+Bronze
+
+Silver
+
+Gold
+
+Diamond
+
+Crown
+
+Each card
+
+Qualification
+
+Benefits
+
+Bonus
+
+Requirements
+
+---
+
+SECTION 8
+
+## TRANSFER RULES
+
+Display
+
+72 Hour Release
+
+Hourly %
+
+Processing Window
+
+Maximum Queue
+
+Fee %
+
+Minimum Transfer
+
+Maximum Transfer
+
+---
+
+SECTION 9
+
+## PLATFORM LIMITS
+
+Examples
+
+Maximum Investment
+
+Minimum Withdrawal
+
+Maximum Withdrawal
+
+Maximum Daily Payout
+
+Maximum Binary Reward
+
+Maximum Salary
+
+---
+
+SECTION 10
+
+## GLOBAL CONFIGURATION
+
+Examples
+
+Maintenance Mode
+
+Registration Enabled
+
+Investment Enabled
+
+Withdrawal Enabled
+
+Binary Enabled
+
+Notifications Enabled
+
+Feature flags.
+
+---
+
+## CHANGE PREVIEW
+
+Every edit should display
+
+Current Value
+
+↓
+
+New Value
+
+before saving.
+
+---
+
+## SAVE CHANGES
+
+Every configuration change
+
+opens a confirmation modal.
+
+Display
+
+Configuration Name
+
+Old Value
+
+New Value
+
+Reason
+
+Admin Notes
+
+Confirmation checkbox
+
+Save Changes
+
+---
+
+## VERSION HISTORY
+
+Dedicated panel.
+
+Display
+
+Configuration Version
+
+Published By
+
+Published Time
+
+Rollback (Mock)
+
+Compare Versions
+
+---
+
+## AUDIT LOG
+
+Every change creates a local audit entry.
+
+Display
+
+Admin
+
+Time
+
+Old Value
+
+New Value
+
+Reason
+
+---
+
+## LOCAL INTERACTIVITY
+
+All configuration changes update local mock state.
+
+Show success toast.
+
+Update preview.
+
+Update audit log.
+
+No backend.
+
+---
+
+## COMPONENTS
+
+PlanTable
+
+ConfigurationDrawer
+
+ConfigCard
+
+VersionHistory
+
+AuditTable
+
+ChangePreview
+
+ConfirmationModal
+
+Reusable only.
+
+---
+
+## PERFORMANCE
+
+Lazy load configuration sections.
+
+Memoize heavy tables.
+
+Minimal rerenders.
+
+---
+
+IMPORTANT
+
+Do NOT connect backend.
+
+Do NOT modify business logic.
+
+Do NOT calculate real payouts.
+
+Only build the production-ready configuration interface.
+
+The goal is to create an enterprise-grade configuration center where platform administrators can safely manage every compensation rule while preserving a clear audit trail and future backend integration.
