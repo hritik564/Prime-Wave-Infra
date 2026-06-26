@@ -1,0 +1,411 @@
+# Sprint 19 — Phase 8
+
+## Income Engine Control Center
+
+IMPORTANT
+
+This is the administrative command center for the Prime Wave compensation engine.
+
+It controls and monitors every income source on the platform.
+
+This is NOT a finance dashboard.
+
+This is the operational engine used to monitor, audit and manage all income generation.
+
+Use realistic mock data only.
+
+Do NOT connect backend.
+
+Do NOT modify existing modules.
+
+Continue using the Prime Wave Admin design language.
+
+---
+
+## PAGE HEADER
+
+Title
+
+Income Engine Control Center
+
+Subtitle
+
+Monitor, simulate and manage every compensation engine across the platform.
+
+Top Right
+
+Refresh
+
+Run Income Cycle (Mock)
+
+Export
+
+Engine Settings
+
+---
+
+## SUMMARY CARDS
+
+Create KPI cards.
+
+Today's Total Payout
+
+ROI Generated
+
+Binary Income
+
+Level Income
+
+Salary Income
+
+Orbit Income
+
+Pending 72-Hour Releases
+
+Income Processing Health
+
+---
+
+## ENGINE STATUS
+
+Create a dedicated status panel.
+
+Each engine displays:
+
+Status
+
+Last Run
+
+Next Run
+
+Processing Time
+
+Health
+
+Rows
+
+ROI Engine
+
+Binary Matching
+
+Binary Orbit
+
+Salary Engine
+
+Level Income
+
+Transfer Release Engine
+
+Notification Engine
+
+Green / Yellow / Red indicators.
+
+---
+
+## INCOME SOURCE TABLE
+
+Columns
+
+Income Type
+
+Today's Payout
+
+This Week
+
+This Month
+
+Beneficiaries
+
+Last Execution
+
+Status
+
+Actions
+
+Rows
+
+ROI
+
+Binary
+
+Level
+
+Salary
+
+Orbit
+
+Referral
+
+Transfer Release
+
+---
+
+## ROW ACTIONS
+
+View Details
+
+Run Mock Cycle
+
+View Audit
+
+Engine Health
+
+Settings
+
+---
+
+## CLICKING A ROW
+
+Open a large right-side Engine Drawer.
+
+---
+
+## ENGINE DRAWER
+
+Sections
+
+Engine Summary
+
+Current Configuration
+
+Execution History
+
+Recent Payouts
+
+Warnings
+
+Audit Log
+
+---
+
+## ENGINE SUMMARY
+
+Display
+
+Engine Name
+
+Status
+
+Last Execution
+
+Next Execution
+
+Average Runtime
+
+Total Payout Today
+
+Failed Jobs
+
+Successful Jobs
+
+---
+
+## EXECUTION HISTORY
+
+Timeline
+
+Display
+
+Started
+
+Completed
+
+Duration
+
+Members Processed
+
+Total Paid
+
+Status
+
+Latest 10 executions.
+
+---
+
+## CURRENT CONFIGURATION
+
+Mock configuration values.
+
+Examples
+
+ROI %
+
+Matching %
+
+Salary Limits
+
+Orbit Cap
+
+Daily Limits
+
+Processing Window
+
+Read-only.
+
+---
+
+## RECENT PAYOUTS
+
+Table
+
+Username
+
+Income Type
+
+Amount
+
+Time
+
+Status
+
+Top 10.
+
+---
+
+## WARNINGS
+
+Examples
+
+Large payout spike
+
+Matching delay
+
+Engine paused
+
+Transfer backlog
+
+Unusually high ROI generation
+
+Color-coded alert cards.
+
+---
+
+## 72-HOUR RELEASE MONITOR
+
+Dedicated widget.
+
+Display
+
+Transfers Waiting
+
+Currently Processing
+
+Completed Today
+
+Average Release Time
+
+Progress visualization
+
+Latest Release Queue
+
+---
+
+## ENGINE HEALTH
+
+Mini dashboard.
+
+CPU
+
+Queue
+
+Workers
+
+Cron
+
+Memory
+
+Database Connection
+
+Mock values.
+
+---
+
+## ADMIN ACTIONS
+
+Run Mock Cycle
+
+Pause Engine (UI only)
+
+Resume Engine (UI only)
+
+View Logs
+
+Open Settings
+
+All actions update local mock state.
+
+---
+
+## LOCAL INTERACTIVITY
+
+Run Mock Cycle
+
+↓
+
+Execution Timeline updates
+
+↓
+
+Engine Status changes
+
+↓
+
+Recent Payouts update
+
+↓
+
+Toast notification
+
+↓
+
+Activity log updated
+
+Mock only.
+
+---
+
+## COMPONENTS
+
+EngineStatusCard
+
+IncomeTable
+
+EngineDrawer
+
+ExecutionTimeline
+
+HealthWidget
+
+ReleaseQueue
+
+PayoutTable
+
+AuditLog
+
+Reusable only.
+
+---
+
+## PERFORMANCE
+
+Memoized tables.
+
+Lazy render heavy widgets.
+
+Minimal rerenders.
+
+---
+
+IMPORTANT
+
+Do NOT connect backend.
+
+Do NOT implement business logic.
+
+Do NOT connect cron jobs.
+
+Do NOT connect APIs.
+
+This sprint builds a production-ready operational UI only.
+
+The final result should feel like the control room used by a fintech company's compensation operations team, providing complete visibility into every income engine without modifying any production logic.
