@@ -1,0 +1,331 @@
+# Sprint 19 — Phase 7
+
+## Binary Network Control Center
+
+IMPORTANT
+
+Build the administrative Binary Network Control Center.
+
+This is NOT the user-facing Network Intelligence page.
+
+This is the operational interface used by administrators to monitor, inspect and manage the binary network.
+
+Use realistic mock data only.
+
+Do NOT connect backend.
+
+Do NOT modify existing modules.
+
+Continue using the existing Prime Wave Admin design language.
+
+---
+
+## PAGE HEADER
+
+Title
+
+Binary Network Control Center
+
+Subtitle
+
+Monitor, inspect and manage the Prime Wave binary network.
+
+Top Right
+
+Refresh
+
+Export
+
+Network Settings
+
+Run Binary Cycle (mock)
+
+---
+
+## SUMMARY CARDS
+
+Create KPI cards.
+
+Total Members in Network
+
+Total Active Nodes
+
+Total BV Left
+
+Total BV Right
+
+Today's Matching Volume
+
+Carry Forward BV
+
+Today's Binary Rewards
+
+Network Health Score
+
+---
+
+## SEARCH
+
+Global Search
+
+Search by:
+
+Username
+
+Member ID
+
+Sponsor
+
+Referral Code
+
+Binary Position
+
+---
+
+## FILTERS
+
+Status
+
+Rank
+
+Plan
+
+Placement
+
+Weak Leg
+
+Strong Leg
+
+Carry Forward
+
+Inactive Members
+
+---
+
+## MAIN NETWORK TABLE
+
+Columns
+
+Username
+
+Member ID
+
+Sponsor
+
+Binary Position
+
+Left BV
+
+Right BV
+
+Carry Forward
+
+Current Rank
+
+Today's Match
+
+Status
+
+Actions
+
+Sticky header
+
+Pagination
+
+Hover effects
+
+---
+
+## ROW ACTIONS
+
+View Network
+
+View Binary Tree
+
+Inspect Member
+
+View Income
+
+View Team
+
+Audit
+
+---
+
+## CLICK ROW
+
+Clicking a row opens a large right-side Network Drawer.
+
+---
+
+## NETWORK DRAWER
+
+Sections
+
+Member Summary
+
+Network Statistics
+
+Binary Statistics
+
+Current Carry Forward
+
+Rank Progress
+
+Matching History
+
+Recent Binary Events
+
+Warnings
+
+Audit Log
+
+---
+
+## NETWORK VISUALIZATION
+
+Embed a compact React Flow binary tree.
+
+Display only:
+
+Selected member
+
+Parent
+
+Direct children
+
+This is NOT the full explorer.
+
+Clicking "Open Full Tree" opens the dedicated tree view (placeholder for now).
+
+---
+
+## BINARY STATISTICS
+
+Display:
+
+Left BV
+
+Right BV
+
+Matched BV
+
+Carry Forward
+
+Today's Match
+
+Weekly Match
+
+Monthly Match
+
+Lifetime Match
+
+---
+
+## RANK PROGRESSION
+
+Current Rank
+
+Next Rank
+
+Progress Bar
+
+Requirements Remaining
+
+---
+
+## WARNINGS
+
+Examples
+
+Weak left leg
+
+Inactive sponsor
+
+No referrals in 30 days
+
+Carry forward unusually high
+
+Large imbalance
+
+Color-coded alert cards.
+
+---
+
+## MATCHING HISTORY
+
+Timeline
+
+Last 10 matching events.
+
+Mock only.
+
+---
+
+## ADMIN ACTIONS
+
+View Full Tree
+
+View Member
+
+Adjust Placement (disabled with "Coming Soon")
+
+Recalculate Binary (mock)
+
+Reset Carry Forward (mock)
+
+---
+
+## LOCAL INTERACTIVITY
+
+Mock state only.
+
+Buttons should update local state where appropriate.
+
+Display success toasts.
+
+Append mock audit entries.
+
+---
+
+## COMPONENTS
+
+NetworkTable
+
+NetworkDrawer
+
+BinaryStatsCard
+
+MiniTree
+
+RankProgress
+
+MatchingTimeline
+
+AlertCard
+
+AuditLog
+
+Reusable only.
+
+---
+
+## PERFORMANCE
+
+Lazy render the mini tree.
+
+Memoize tables.
+
+Keep the page responsive.
+
+---
+
+IMPORTANT
+
+No backend.
+
+No APIs.
+
+No business logic.
+
+Only build a production-quality Binary Network Control Center that will later integrate with the existing binary engine.

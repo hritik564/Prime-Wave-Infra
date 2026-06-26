@@ -22,6 +22,7 @@ const AdminMembersPage       = lazy(() => import("@/pages/admin/MembersPage"));
 const AdminInvestmentsPage   = lazy(() => import("@/pages/admin/InvestmentsPage"));
 const AdminWithdrawalsPage   = lazy(() => import("@/pages/admin/WithdrawalsPage"));
 const AdminWalletsPage       = lazy(() => import("@/pages/admin/WalletsPage"));
+const AdminBinaryNetworkPage = lazy(() => import("@/pages/admin/BinaryNetworkPage"));
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
@@ -152,6 +153,9 @@ function AppRoutes() {
       </Route>
       <Route path="/admin/wallets">
         <Suspense fallback={null}><AdminWalletsPage /></Suspense>
+      </Route>
+      <Route path="/admin/binary">
+        <Suspense fallback={null}><AdminBinaryNetworkPage /></Suspense>
       </Route>
       <Route path="/admin/:rest*">
         <Suspense fallback={null}><AdminDashboardPage /></Suspense>
