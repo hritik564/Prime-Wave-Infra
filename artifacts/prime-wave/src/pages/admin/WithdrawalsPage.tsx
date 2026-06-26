@@ -10,6 +10,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
+import AdminLayout from "./AdminLayout";
 import WithdrawalDrawer, { type DrawerWithdrawal } from "./WithdrawalDrawer";
 import { ApprovalModal, RejectModal, HoldModal } from "./WithdrawalModals";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
@@ -514,6 +515,7 @@ export default function WithdrawalsPage() {
   const sel:React.CSSProperties={background:"rgba(255,255,255,0.04)",border:`1px solid ${BORDER}`,borderRadius:8,padding:"7px 11px",fontSize:11,color:"rgba(255,255,255,0.7)",outline:"none",cursor:"pointer"};
 
   return (
+    <AdminLayout>
     <div style={{padding:"24px 28px",minHeight:"100vh",background:BG,boxSizing:"border-box"}}>
       {/* Header */}
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:24,gap:12}}>
@@ -718,5 +720,6 @@ export default function WithdrawalsPage() {
 
       <ToastContainer toasts={toasts} onDismiss={dismiss}/>
     </div>
+    </AdminLayout>
   );
 }
