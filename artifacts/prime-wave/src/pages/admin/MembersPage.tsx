@@ -2,11 +2,14 @@ import {
   useState, useMemo, useCallback, useEffect, useRef, memo,
 } from "react";
 import AdminLayout from "./AdminLayout";
+import MemberDrawer, { type DrawerMember } from "./MemberDrawer";
+import MemberModal from "./MemberModal";
+import { SuspendDialog, DeleteDialog, ResetPasswordDialog, ApproveKYCDialog, LoginAsUserDialog } from "./MemberDialogs";
 import {
   Search, Download, Plus, ChevronLeft, ChevronRight,
   MoreHorizontal, Eye, Pencil, BadgeCheck, ShieldX, KeyRound,
   LogIn, Trash2, X, ChevronDown, Users, UserCheck, UserX,
-  Clock, UserPlus, Crown, Filter, Copy, ArrowUpRight,
+  Clock, UserPlus, Crown, Filter, RotateCw,
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -27,32 +30,7 @@ type Position = "LEFT" | "RIGHT";
 type Rank     = "BRONZE" | "SILVER" | "GOLD" | "DIAMOND";
 type KYC      = "VERIFIED" | "PENDING" | "REJECTED" | "UNSUBMITTED";
 
-interface Member {
-  id:               string;
-  username:         string;
-  firstName:        string;
-  lastName:         string;
-  email:            string;
-  phone:            string;
-  country:          string;
-  status:           Status;
-  plan:             Plan | null;
-  investment:       number;
-  position:         Position | null;
-  rank:             Rank | null;
-  sponsor:          string | null;
-  joinedAt:         Date;
-  referralCode:     string;
-  kyc:              KYC;
-  directReferrals:  number;
-  totalTeam:        number;
-  leftBV:           number;
-  rightBV:          number;
-  carryForward:     number;
-  depositWallet:    number;
-  incomeWallet:     number;
-  withdrawalWallet: number;
-}
+interface Member extends DrawerMember {}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock data — 80 members
@@ -60,11 +38,11 @@ interface Member {
 const FN = ["James","Emma","Liam","Sophia","Noah","Olivia","Mason","Ava","Ethan","Isabella","Logan","Mia","Lucas","Amelia","Jackson","Harper","Aiden","Evelyn","Carter","Abigail","Sebastian","Emily","Owen","Ella","Ryan","Avery","Nathan","Scarlett","Caleb","Grace","Dylan","Zoe","Tyler","Lily","Hunter","Chloe","Andrew","Victoria","Christian","Madison"];
 const LN = ["Smith","Johnson","Williams","Brown","Davis","Miller","Wilson","Moore","Taylor","Anderson","Thomas","Jackson","White","Harris","Martin","Thompson","Garcia","Martinez","Robinson","Clark","Lewis","Walker","Hall","Allen","Young","King","Wright","Scott","Green","Baker","Nelson","Hill","Ramirez","Campbell","Mitchell","Roberts","Carter","Phillips","Evans","Turner"];
 const COUNTRIES = ["United States","United Kingdom","Canada","Australia","Germany","France","Singapore","UAE","Nigeria","India","Philippines","Malaysia","South Africa","Brazil","Mexico"];
-const PLANS: (Plan | null)[]     = [null,null,"STARTER","STARTER","STARTER","ALPHA","ALPHA","PREMIUM","PREMIUM","VIP"];
-const STATUSES: Status[]         = ["ACTIVE","ACTIVE","ACTIVE","ACTIVE","ACTIVE","INACTIVE","SUSPENDED"];
-const RANKS: (Rank | null)[]     = [null,"BRONZE","BRONZE","SILVER","SILVER","GOLD","DIAMOND"];
-const POSITIONS: (Position | null)[] = ["LEFT","RIGHT","LEFT","RIGHT",null];
-const KYCS: KYC[]                = ["VERIFIED","VERIFIED","VERIFIED","PENDING","PENDING","REJECTED","UNSUBMITTED"];
+const PLANS: (Plan | null)[]          = [null,null,"STARTER","STARTER","STARTER","ALPHA","ALPHA","PREMIUM","PREMIUM","VIP"];
+const STATUSES: Status[]              = ["ACTIVE","ACTIVE","ACTIVE","ACTIVE","ACTIVE","INACTIVE","SUSPENDED"];
+const RANKS: (Rank | null)[]          = [null,"BRONZE","BRONZE","SILVER","SILVER","GOLD","DIAMOND"];
+const POSITIONS: (Position | null)[]  = ["LEFT","RIGHT","LEFT","RIGHT",null];
+const KYCS: KYC[]                     = ["VERIFIED","VERIFIED","VERIFIED","PENDING","PENDING","REJECTED","UNSUBMITTED"];
 
 function pick<T>(arr: T[], seed: number): T { return arr[seed % arr.length]; }
 function seeded(n: number, max: number, min = 0) {
@@ -116,9 +94,8 @@ const MOCK: Member[] = Array.from({ length: 80 }, (_, i) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Formatters
 // ─────────────────────────────────────────────────────────────────────────────
-const $   = (n: number) => n === 0 ? "—" : `$${n.toLocaleString()}`;
-const dt  = (d: Date)   => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-const dtt = (d: Date)   => d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const $  = (n: number) => n === 0 ? "—" : `$${n.toLocaleString()}`;
+const dt = (d: Date)   => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 const initials = (f: string, l: string) => `${f[0] ?? "?"}${l[0] ?? ""}`.toUpperCase();
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -214,8 +191,8 @@ const ROW_ACTIONS = [
 ];
 
 const ActionDropdown = memo(function ActionDropdown({
-  open, onToggle, onClose,
-}: { open: boolean; onToggle: () => void; onClose: () => void }) {
+  open, onToggle, onClose, onAction,
+}: { open: boolean; onToggle: () => void; onClose: () => void; onAction: (label: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -225,7 +202,10 @@ const ActionDropdown = memo(function ActionDropdown({
   }, [open, onClose]);
   return (
     <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
-      <button onClick={e => { e.stopPropagation(); onToggle(); }} style={{ background: open ? "rgba(255,255,255,0.06)" : "none", border: `1px solid ${open ? BORDER : "transparent"}`, borderRadius: 6, cursor: "pointer", padding: "4px 7px", color: MUTED, display: "flex", alignItems: "center", transition: "all 0.15s" }}>
+      <button
+        onClick={e => { e.stopPropagation(); onToggle(); }}
+        style={{ background: open ? "rgba(255,255,255,0.06)" : "none", border: `1px solid ${open ? BORDER : "transparent"}`, borderRadius: 6, cursor: "pointer", padding: "4px 7px", color: MUTED, display: "flex", alignItems: "center", transition: "all 0.15s" }}
+      >
         <MoreHorizontal size={14} />
       </button>
       {open && (
@@ -233,7 +213,9 @@ const ActionDropdown = memo(function ActionDropdown({
           {ROW_ACTIONS.map((a, i) => (
             <div key={a.label}>
               {(i === 2 || i === 5) && <div style={{ height: 1, background: BORDER }} />}
-              <div onClick={e => { e.stopPropagation(); onClose(); }} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 13px", cursor: "pointer", color: a.color, fontSize: 12, transition: "background 0.12s" }}
+              <div
+                onClick={e => { e.stopPropagation(); onAction(a.label); onClose(); }}
+                style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 13px", cursor: "pointer", color: a.color, fontSize: 12, transition: "background 0.12s" }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
               >
@@ -254,8 +236,9 @@ interface MemberRowProps {
   m: Member; selected: boolean; onSelect: (id: string) => void;
   onOpen: (m: Member) => void; dropdownOpen: boolean;
   onDropdownToggle: () => void; onDropdownClose: () => void;
+  onAction: (m: Member, label: string) => void;
 }
-export const MemberRow = memo(function MemberRow({ m, selected, onSelect, onOpen, dropdownOpen, onDropdownToggle, onDropdownClose }: MemberRowProps) {
+export const MemberRow = memo(function MemberRow({ m, selected, onSelect, onOpen, dropdownOpen, onDropdownToggle, onDropdownClose, onAction }: MemberRowProps) {
   const ref = useRef<HTMLTableRowElement>(null);
   const onEnter = useCallback(() => { if (ref.current) ref.current.style.background = "rgba(255,255,255,0.025)"; }, []);
   const onLeave = useCallback(() => { if (ref.current) ref.current.style.background = selected ? "rgba(212,175,55,0.04)" : "transparent"; }, [selected]);
@@ -279,191 +262,21 @@ export const MemberRow = memo(function MemberRow({ m, selected, onSelect, onOpen
       <td style={{ ...TD, fontWeight: 600, fontFamily: "monospace", color: "rgba(255,255,255,0.82)" }}>{$(m.investment)}</td>
       <td style={TD}>{m.sponsor ? <span style={{ fontSize: 11, color: "#60a5fa" }}>@{m.sponsor}</span> : <span style={{ color: MUTED }}>—</span>}</td>
       <td style={TD}>{m.position ? <span style={{ fontSize: 10, fontWeight: 700, color: m.position === "LEFT" ? "#60a5fa" : "#a78bfa", background: m.position === "LEFT" ? "rgba(96,165,250,0.1)" : "rgba(167,139,250,0.1)", padding: "2px 7px", borderRadius: 4 }}>{m.position}</span> : <span style={{ color: MUTED, fontSize: 11 }}>—</span>}</td>
-      <td style={{ ...TD, fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>{m.directReferrals}</td>
+      <td style={{ ...TD, fontSize: 12, fontWeight: 600 }}>{m.directReferrals}</td>
       <td style={TD}><StatusBadge status={m.status} /></td>
       <td style={TD}><KYCBadge kyc={m.kyc} /></td>
       <td style={{ ...TD, fontSize: 11, color: MUTED, whiteSpace: "nowrap" }}>{dt(m.joinedAt)}</td>
       <td style={{ ...TD, width: 44 }} onClick={e => e.stopPropagation()}>
-        <ActionDropdown open={dropdownOpen} onToggle={onDropdownToggle} onClose={onDropdownClose} />
+        <ActionDropdown
+          open={dropdownOpen}
+          onToggle={onDropdownToggle}
+          onClose={onDropdownClose}
+          onAction={label => onAction(m, label)}
+        />
       </td>
     </tr>
   );
 });
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Activity timeline entry
-// ─────────────────────────────────────────────────────────────────────────────
-function ActivityEntry({ label, date, color = "#60a5fa" }: { label: string; date: Date; color?: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0, marginTop: 3 }} />
-      </div>
-      <div style={{ paddingBottom: 12 }}>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }}>{label}</div>
-        <div style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>{dtt(date)}</div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Member drawer
-// ─────────────────────────────────────────────────────────────────────────────
-function DrawerRow({ label, value, accent }: { label: string; value: React.ReactNode; accent?: boolean }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
-      <span style={{ fontSize: 12, color: MUTED }}>{label}</span>
-      <span style={{ fontSize: 12, fontWeight: 500, color: accent ? GOLD_L : "rgba(255,255,255,0.8)" }}>{value}</span>
-    </div>
-  );
-}
-
-function DrawerSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 22 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: MUTED, marginBottom: 10 }}>{title}</div>
-      {children}
-    </div>
-  );
-}
-
-function MemberDrawer({ member, onClose }: { member: Member | null; onClose: () => void }) {
-  const visible = !!member;
-
-  const activityEvents = useMemo(() => {
-    if (!member) return [];
-    const base = member.joinedAt.getTime();
-    return [
-      { label: "Account created & wallet initialized",         date: new Date(base),              color: "#34d399" },
-      { label: "Profile completed",                            date: new Date(base + 3600000),    color: "#60a5fa" },
-      { label: member.kyc === "VERIFIED" ? "KYC verified" : "KYC submission uploaded", date: new Date(base + 86400000 * 2), color: member.kyc === "VERIFIED" ? "#34d399" : "#fbbf24" },
-      { label: member.plan ? `${member.plan} plan activated` : "Browsed investment plans", date: new Date(base + 86400000 * 5), color: member.plan ? GOLD : MUTED },
-      { label: "Last login",                                   date: new Date(Date.now() - 3600000 * seeded(member.directReferrals, 48, 1)), color: "#a78bfa" },
-    ];
-  }, [member]);
-
-  return (
-    <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.45)", opacity: visible ? 1 : 0, pointerEvents: visible ? "auto" : "none", transition: "opacity 0.22s ease" }} />
-      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 201, width: 520, background: "hsl(222 62% 7%)", borderLeft: `1px solid ${BORDER}`, boxShadow: "-20px 0 60px rgba(0,0,0,0.5)", transform: visible ? "translateX(0)" : "translateX(100%)", transition: "transform 0.25s cubic-bezier(0.32,0.72,0,1)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
-        {member && (
-          <>
-            {/* Sticky header */}
-            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "hsl(222 62% 7%)", zIndex: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <Avatar m={member} size={42} />
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>@{member.username}</div>
-                  <div style={{ fontSize: 11, color: MUTED, display: "flex", gap: 6, marginTop: 4 }}>
-                    <StatusBadge status={member.status} />
-                    <KYCBadge kyc={member.kyc} />
-                  </div>
-                </div>
-              </div>
-              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: MUTED, padding: 4 }}>
-                <X size={16} />
-              </button>
-            </div>
-
-            <div style={{ padding: "20px 20px 28px", flex: 1 }}>
-              {/* Profile */}
-              <DrawerSection title="PROFILE">
-                <DrawerRow label="Full Name"     value={`${member.firstName} ${member.lastName}`} />
-                <DrawerRow label="Member ID"     value={<span style={{ fontFamily: "monospace", fontSize: 11 }}>{member.id}</span>} />
-                <DrawerRow label="Email"         value={<span style={{ fontSize: 11 }}>{member.email}</span>} />
-                <DrawerRow label="Phone"         value={member.phone} />
-                <DrawerRow label="Country"       value={member.country} />
-                <DrawerRow label="Referral Code" value={
-                  <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                    <span style={{ fontFamily: "monospace", color: GOLD }}>{member.referralCode}</span>
-                    <Copy size={10} style={{ color: MUTED, cursor: "pointer" }} />
-                  </span>
-                } />
-                <DrawerRow label="Sponsor"       value={member.sponsor ? `@${member.sponsor}` : "—"} />
-                <DrawerRow label="Position"      value={member.position ?? "—"} />
-                <DrawerRow label="Joined"        value={dt(member.joinedAt)} />
-              </DrawerSection>
-
-              {/* Investment Summary */}
-              <DrawerSection title="INVESTMENT SUMMARY">
-                <DrawerRow label="Current Plan"   value={member.plan ? <PlanBadge plan={member.plan} amount={0} /> : "No Plan"} />
-                <DrawerRow label="Total Invested" value={$(member.investment)} accent />
-                <DrawerRow label="Rank"           value={member.rank ?? "Unranked"} />
-                <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.025)", border: `1px solid ${BORDER}` }}>
-                  <span style={{ fontSize: 11, color: MUTED }}>ROI history · transaction records available after API integration.</span>
-                </div>
-              </DrawerSection>
-
-              {/* Wallet Balances */}
-              <DrawerSection title="WALLET BALANCES">
-                {[
-                  { label: "Deposit Wallet",    value: member.depositWallet    },
-                  { label: "Income Wallet",     value: member.incomeWallet     },
-                  { label: "Withdrawal Wallet", value: member.withdrawalWallet },
-                ].map(w => (
-                  <div key={w.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
-                    <span style={{ fontSize: 12, color: MUTED }}>{w.label}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: GOLD_L, fontFamily: "monospace" }}>{$(w.value)}</span>
-                  </div>
-                ))}
-              </DrawerSection>
-
-              {/* Network Summary */}
-              <DrawerSection title="NETWORK SUMMARY">
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-                  {[
-                    { label: "Left BV",     value: member.leftBV.toLocaleString()  },
-                    { label: "Right BV",    value: member.rightBV.toLocaleString() },
-                    { label: "Carry Fwd",  value: member.carryForward.toLocaleString() },
-                    { label: "Direct Refs",value: member.directReferrals           },
-                  ].map(n => (
-                    <div key={n.label} style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 12px" }}>
-                      <div style={{ fontSize: 10, color: MUTED, marginBottom: 4 }}>{n.label}</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: "rgba(255,255,255,0.85)", fontFamily: "monospace" }}>{n.value}</div>
-                    </div>
-                  ))}
-                </div>
-                <DrawerRow label="Total Team" value={member.totalTeam} />
-              </DrawerSection>
-
-              {/* Recent Activity */}
-              <DrawerSection title="RECENT ACTIVITY">
-                <div style={{ position: "relative", paddingLeft: 4 }}>
-                  <div style={{ position: "absolute", left: 7, top: 8, bottom: 16, width: 1, background: BORDER }} />
-                  {activityEvents.map((e, i) => (
-                    <ActivityEntry key={i} label={e.label} date={e.date} color={e.color} />
-                  ))}
-                </div>
-              </DrawerSection>
-
-              {/* Quick actions */}
-              <DrawerSection title="ACTIONS">
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {[
-                    { icon: ShieldX,      label: "Suspend Member",    color: "#f87171", bg: "rgba(248,113,113,0.08)" },
-                    { icon: KeyRound,     label: "Reset Password",    color: "#60a5fa", bg: "rgba(96,165,250,0.08)"  },
-                    { icon: BadgeCheck,   label: "Approve KYC",       color: "#34d399", bg: "rgba(52,211,153,0.08)"  },
-                    { icon: LogIn,        label: "Login As User",     color: GOLD,      bg: "rgba(212,175,55,0.08)"  },
-                    { icon: ArrowUpRight, label: "View Full Profile",  color: "rgba(255,255,255,0.6)", bg: "rgba(255,255,255,0.04)" },
-                  ].map(a => (
-                    <div key={a.label} style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 12px", borderRadius: 8, cursor: "pointer", background: a.bg, border: `1px solid rgba(255,255,255,0.05)`, transition: "opacity 0.15s" }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "0.7"}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "1"}
-                    >
-                      <a.icon size={13} style={{ color: a.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, color: a.color, fontWeight: 500 }}>{a.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </DrawerSection>
-            </div>
-          </>
-        )}
-      </div>
-    </>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Skeleton row
@@ -497,12 +310,12 @@ function EmptyState({ search }: { search: string }) {
 interface Filters { status: string; plan: string; country: string; kyc: string; investStatus: string; date: string }
 const SEL: React.CSSProperties = { background: CARD, border: `1px solid ${BORDER}`, borderRadius: 7, padding: "6px 28px 6px 10px", fontSize: 12, color: "rgba(255,255,255,0.7)", cursor: "pointer", outline: "none", appearance: "none" as never };
 const FILTER_OPTS = [
-  { key: "status",      opts: ["All Status","ACTIVE","INACTIVE","SUSPENDED"]         },
-  { key: "plan",        opts: ["All Plans","No Plan","STARTER","ALPHA","PREMIUM","VIP"] },
-  { key: "country",     opts: ["All Countries", ...Array.from(new Set(MOCK.map(m => m.country))).sort()] },
-  { key: "kyc",         opts: ["All KYC","VERIFIED","PENDING","REJECTED","UNSUBMITTED"] },
-  { key: "investStatus",opts: ["All Investment","With Plan","No Plan"]               },
-  { key: "date",        opts: ["All Time","Today","7 Days","30 Days"]                },
+  { key: "status",       opts: ["All Status","ACTIVE","INACTIVE","SUSPENDED"]              },
+  { key: "plan",         opts: ["All Plans","No Plan","STARTER","ALPHA","PREMIUM","VIP"]   },
+  { key: "country",      opts: ["All Countries",...Array.from(new Set(MOCK.map(m => m.country))).sort()] },
+  { key: "kyc",          opts: ["All KYC","VERIFIED","PENDING","REJECTED","UNSUBMITTED"]  },
+  { key: "investStatus", opts: ["All Investment","With Plan","No Plan"]                    },
+  { key: "date",         opts: ["All Time","Today","7 Days","30 Days"]                     },
 ] as const;
 
 function FilterBar({ filters, onChange }: { filters: Filters; onChange: (f: Filters) => void }) {
@@ -535,30 +348,54 @@ function FilterBar({ filters, onChange }: { filters: Filters; onChange: (f: Filt
 const DEFAULT_PER_PAGE = 25;
 
 export default function MembersPage() {
+  // Table state
   const [search,      setSearch]      = useState("");
   const [filters,     setFilters]     = useState<Filters>({ status: "All Status", plan: "All Plans", country: "All Countries", kyc: "All KYC", investStatus: "All Investment", date: "All Time" });
   const [perPage,     setPerPage]     = useState(DEFAULT_PER_PAGE);
   const [page,        setPage]        = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [drawer,      setDrawer]      = useState<Member | null>(null);
   const [dropdown,    setDropdown]    = useState<string | null>(null);
   const [loading,     setLoading]     = useState(true);
   const [showFilters, setShowFilters] = useState(false);
 
+  // Drawer
+  const [drawer, setDrawer] = useState<Member | null>(null);
+
+  // Modals / dialogs
+  const [createOpen,    setCreateOpen]    = useState(false);
+  const [editTarget,    setEditTarget]    = useState<Member | null>(null);
+  const [suspendTarget, setSuspendTarget] = useState<Member | null>(null);
+  const [deleteTarget,  setDeleteTarget]  = useState<Member | null>(null);
+  const [resetTarget,   setResetTarget]   = useState<Member | null>(null);
+  const [kycTarget,     setKycTarget]     = useState<Member | null>(null);
+  const [loginAsTarget, setLoginAsTarget] = useState<Member | null>(null);
+
   useEffect(() => { const t = setTimeout(() => setLoading(false), 600); return () => clearTimeout(t); }, []);
 
+  // ── Row action handler ────────────────────────────────────────────────────
+  const handleRowAction = useCallback((m: Member, label: string) => {
+    if (label === "View Profile")   { setDrawer(m);         return; }
+    if (label === "Edit Member")    { setEditTarget(m);     return; }
+    if (label === "Approve KYC")    { setKycTarget(m);      return; }
+    if (label === "Suspend Member") { setSuspendTarget(m);  return; }
+    if (label === "Reset Password") { setResetTarget(m);    return; }
+    if (label === "Login As User")  { setLoginAsTarget(m);  return; }
+    if (label === "Delete Member")  { setDeleteTarget(m);   return; }
+  }, []);
+
+  // ── Filter ────────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const now = Date.now();
     return MOCK.filter(m => {
       const q = search.toLowerCase();
       if (q && !m.username.includes(q) && !m.email.includes(q) && !m.id.includes(q) && !m.phone.includes(q) && !m.referralCode.toLowerCase().includes(q) && !(m.sponsor ?? "").includes(q) && !`${m.firstName} ${m.lastName}`.toLowerCase().includes(q)) return false;
-      if (filters.status  !== "All Status"     && m.status !== filters.status) return false;
-      if (filters.plan    === "No Plan"         && m.plan   !== null)           return false;
+      if (filters.status  !== "All Status"     && m.status !== filters.status)   return false;
+      if (filters.plan    === "No Plan"         && m.plan   !== null)             return false;
       if (filters.plan    !== "All Plans" && filters.plan !== "No Plan" && m.plan !== filters.plan) return false;
       if (filters.country !== "All Countries"  && m.country !== filters.country) return false;
-      if (filters.kyc     !== "All KYC"        && m.kyc    !== filters.kyc)    return false;
-      if (filters.investStatus === "With Plan"  && m.plan   === null)           return false;
-      if (filters.investStatus === "No Plan"    && m.plan   !== null)           return false;
+      if (filters.kyc     !== "All KYC"        && m.kyc    !== filters.kyc)      return false;
+      if (filters.investStatus === "With Plan"  && m.plan   === null)             return false;
+      if (filters.investStatus === "No Plan"    && m.plan   !== null)             return false;
       if (filters.date    === "Today"  && (now - m.joinedAt.getTime()) > 86400000)    return false;
       if (filters.date    === "7 Days" && (now - m.joinedAt.getTime()) > 7*86400000)  return false;
       if (filters.date    === "30 Days"&& (now - m.joinedAt.getTime()) > 30*86400000) return false;
@@ -572,7 +409,8 @@ export default function MembersPage() {
 
   const toggleAll    = useCallback(() => { setSelectedIds(prev => { const n = new Set(prev); allOnPage ? paginated.forEach(m => n.delete(m.id)) : paginated.forEach(m => n.add(m.id)); return n; }); }, [allOnPage, paginated]);
   const toggleSelect = useCallback((id: string) => { setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }); }, []);
-  const handleSearch = useCallback((v: string) => { setSearch(v); setPage(1); }, []);
+
+  const handleSearch  = useCallback((v: string) => { setSearch(v); setPage(1); }, []);
   const handleFilters = useCallback((f: Filters) => { setFilters(f); setPage(1); }, []);
 
   const stats = useMemo(() => ({
@@ -597,12 +435,17 @@ export default function MembersPage() {
           <p style={{ fontSize: 12, color: MUTED }}>Manage every registered member across the platform.</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button style={{ display: "flex", alignItems: "center", gap: 6, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 12, color: "rgba(255,255,255,0.65)" }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "0.75"} onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "1"}>
+          <button
+            onClick={() => { setLoading(true); setTimeout(() => setLoading(false), 600); }}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
+            <RotateCw size={13} /> Refresh
+          </button>
+          <button style={{ display: "flex", alignItems: "center", gap: 6, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
             <Download size={13} /> Export CSV
           </button>
-          <button style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(212,175,55,0.12)", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 12, color: GOLD_L }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "0.75"} onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "1"}>
+          <button
+            onClick={() => setCreateOpen(true)}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(212,175,55,0.12)", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 12, color: GOLD_L, fontWeight: 600 }}>
             <Plus size={13} /> Create Member
           </button>
         </div>
@@ -670,10 +513,12 @@ export default function MembersPage() {
                   : paginated.map(m => (
                     <MemberRow key={m.id} m={m}
                       selected={selectedIds.has(m.id)}
-                      onSelect={toggleSelect} onOpen={setDrawer}
+                      onSelect={toggleSelect}
+                      onOpen={setDrawer}
                       dropdownOpen={dropdown === m.id}
                       onDropdownToggle={() => setDropdown(p => p === m.id ? null : m.id)}
                       onDropdownClose={() => setDropdown(null)}
+                      onAction={handleRowAction}
                     />
                   ))
               }
@@ -681,10 +526,9 @@ export default function MembersPage() {
           </table>
         </div>
 
-        {/* Footer: pagination + rows per page */}
+        {/* Footer */}
         {!loading && filtered.length > 0 && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderTop: `1px solid ${BORDER}` }}>
-            {/* Rows per page */}
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 11, color: MUTED }}>Rows per page</span>
               <div style={{ position: "relative" }}>
@@ -697,8 +541,6 @@ export default function MembersPage() {
                 Showing {(page-1)*perPage+1}–{Math.min(page*perPage, filtered.length)} of {filtered.length} Members
               </span>
             </div>
-
-            {/* Page buttons */}
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page===1} style={{ width: 30, height: 30, borderRadius: 6, border: `1px solid ${BORDER}`, background: "transparent", color: MUTED, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <ChevronLeft size={14} />
@@ -717,8 +559,39 @@ export default function MembersPage() {
         )}
       </div>
 
-      {/* Drawer */}
+      {/* ── Drawer ────────────────────────────────────────────────────────── */}
       <MemberDrawer member={drawer} onClose={() => setDrawer(null)} />
+
+      {/* ── Create modal ──────────────────────────────────────────────────── */}
+      {createOpen && (
+        <MemberModal mode="create" onClose={() => setCreateOpen(false)} />
+      )}
+
+      {/* ── Edit modal ────────────────────────────────────────────────────── */}
+      {editTarget && (
+        <MemberModal
+          mode="edit"
+          initial={{
+            firstName: editTarget.firstName, lastName: editTarget.lastName,
+            username: editTarget.username, email: editTarget.email,
+            phone: editTarget.phone, country: editTarget.country,
+            sponsor: editTarget.sponsor ?? "",
+            placement: editTarget.position ?? "",
+            status: editTarget.status,
+            plan: editTarget.plan ?? "",
+            investment: String(editTarget.investment),
+            emailVerified: true,
+          }}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
+
+      {/* ── Dialogs ───────────────────────────────────────────────────────── */}
+      {suspendTarget && <SuspendDialog  member={suspendTarget} onClose={() => setSuspendTarget(null)} />}
+      {deleteTarget  && <DeleteDialog   member={deleteTarget}  onClose={() => setDeleteTarget(null)}  />}
+      {resetTarget   && <ResetPasswordDialog member={resetTarget} onClose={() => setResetTarget(null)} />}
+      {kycTarget     && <ApproveKYCDialog    member={kycTarget}   onClose={() => setKycTarget(null)}   />}
+      {loginAsTarget && <LoginAsUserDialog   member={loginAsTarget} onClose={() => setLoginAsTarget(null)} />}
     </AdminLayout>
   );
 }

@@ -1,0 +1,337 @@
+# Sprint 19 — Phase 4B
+
+## Member Management Workflows
+
+IMPORTANT
+
+Do NOT redesign the Members page.
+
+Do NOT modify the dashboard.
+
+Do NOT modify routing.
+
+Do NOT modify the sidebar.
+
+Do NOT connect any backend APIs.
+
+Use mock data only.
+
+This sprint is focused entirely on creating premium administrative workflows.
+
+---
+
+# 1. Create Member Modal
+
+Clicking:
+
+* Create Member
+
+should open a large modal.
+
+Sections
+
+---
+
+Personal Information
+
+• First Name
+
+• Last Name
+
+• Username
+
+• Email
+
+• Phone
+
+• Country
+
+---
+
+Sponsor Information
+
+• Sponsor Username
+
+• Binary Placement
+
+○ Left
+
+○ Right
+
+---
+
+Account
+
+• Password
+
+• Confirm Password
+
+• Account Status
+
+• Email Verified
+
+---
+
+Plan
+
+• Select Investment Plan
+
+• Initial Investment
+
+---
+
+Buttons
+
+Cancel
+
+Create Member
+
+No backend.
+
+UI only.
+
+---
+
+# 2. Edit Member
+
+Clicking
+
+Edit Member
+
+opens the same modal.
+
+Fields pre-filled using mock data.
+
+Save Changes button.
+
+No backend.
+
+---
+
+# 3. Suspend Member
+
+Confirmation dialog.
+
+Reason textbox.
+
+Buttons
+
+Cancel
+
+Suspend
+
+Premium warning design.
+
+---
+
+# 4. Delete Member
+
+Danger confirmation.
+
+Require typing
+
+DELETE
+
+before enabling the button.
+
+No backend.
+
+---
+
+# 5. Reset Password
+
+Small modal.
+
+Generate Password button.
+
+Manual Password field.
+
+Send Reset Email checkbox.
+
+UI only.
+
+---
+
+# 6. Approve KYC
+
+Approval dialog.
+
+Display
+
+Submitted Documents
+
+Status
+
+Approve
+
+Reject
+
+Reject requires reason.
+
+Mock documents only.
+
+---
+
+# 7. Login As User
+
+Confirmation dialog.
+
+Large warning.
+
+"This action will be logged."
+
+Buttons
+
+Cancel
+
+Login
+
+No functionality.
+
+---
+
+# 8. Member Timeline
+
+Improve the timeline inside the Member Drawer.
+
+Show:
+
+Registration
+
+Investment
+
+ROI
+
+Withdrawals
+
+Referral Joined
+
+Rank Upgrade
+
+Wallet Transfers
+
+Timeline should be visually attractive.
+
+---
+
+# 9. Member Notes
+
+Add Admin Notes.
+
+Textarea.
+
+Add Note button.
+
+Timestamp.
+
+Admin avatar.
+
+Mock only.
+
+---
+
+# 10. Audit Log
+
+New tab inside drawer.
+
+Examples
+
+Account Created
+
+Password Changed
+
+KYC Approved
+
+Investment Approved
+
+Withdrawal Approved
+
+Admin Login
+
+Every action:
+
+Time
+
+Admin
+
+IP
+
+Action
+
+Mock data.
+
+---
+
+# 11. Drawer Tabs
+
+Instead of a long scroll.
+
+Split drawer into tabs.
+
+Overview
+
+Investments
+
+Wallets
+
+Network
+
+Activity
+
+Audit Log
+
+Notes
+
+Each tab loads smoothly.
+
+---
+
+# 12. Design
+
+Continue the existing Prime Wave Admin design.
+
+No new colors.
+
+No new typography.
+
+No Bootstrap look.
+
+Enterprise quality.
+
+---
+
+# Components
+
+MemberModal
+
+MemberTabs
+
+SuspendDialog
+
+DeleteDialog
+
+ResetPasswordDialog
+
+ApproveKYCDialog
+
+AuditTimeline
+
+AdminNotes
+
+Reusable.
+
+---
+
+# Performance
+
+Lazy render drawer tabs.
+
+Do not render inactive tabs.
+
+Keep animations smooth.
+
+---
+
+# Goal
+
+Transform Member Management from a data table into a complete CRM-style administrative workspace while keeping all existing functionality intact and using only mock data.
