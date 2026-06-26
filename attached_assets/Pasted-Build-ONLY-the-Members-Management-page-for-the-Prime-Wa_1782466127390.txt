@@ -1,0 +1,205 @@
+Build ONLY the Members Management page for the Prime Wave Admin Control Center.
+
+IMPORTANT:
+Do NOT modify any existing pages, layouts, routing, sidebar, top navigation, design system, colors, typography, charts, dashboard widgets, or global components.
+
+Only build the Members page.
+
+Follow the existing Prime Wave design language exactly.
+
+--------------------------------------------------
+PAGE HEADER
+--------------------------------------------------
+
+Title:
+Members
+
+Subtitle:
+Manage every registered member across the platform.
+
+Top right buttons:
+
++ Create Member
+
+Export CSV
+
+Search box:
+Search members, email, phone, username or member ID...
+
+--------------------------------------------------
+SUMMARY CARDS
+--------------------------------------------------
+
+Create six compact statistic cards:
+
+• Total Members
+• Active Members
+• Pending KYC
+• Suspended
+• Premium Members
+• New Today
+
+Each card should match the dashboard KPI design.
+
+--------------------------------------------------
+FILTER BAR
+--------------------------------------------------
+
+Below the summary cards create a filter row.
+
+Filters:
+
+Status
+
+Plan
+
+Country
+
+KYC
+
+Investment Status
+
+Joined Date
+
+Clear Filters
+
+These should look like premium SaaS filter chips/dropdowns.
+
+--------------------------------------------------
+MAIN MEMBERS TABLE
+--------------------------------------------------
+
+Large responsive table.
+
+Columns:
+
+Avatar
+
+Username
+
+Full Name
+
+Email
+
+Country
+
+Current Plan
+
+Investment
+
+Sponsor
+
+Binary Position
+
+Direct Referrals
+
+Status
+
+KYC
+
+Joined
+
+Actions
+
+Use realistic mock data.
+
+Rows should have hover effects.
+
+Status uses colored pills.
+
+KYC uses colored badges.
+
+Investment formatted as currency.
+
+--------------------------------------------------
+ROW ACTIONS
+--------------------------------------------------
+
+Three-dot menu.
+
+Menu options:
+
+View Profile
+
+Edit Member
+
+Approve KYC
+
+Suspend Member
+
+Reset Password
+
+Login As User
+
+Delete Member
+
+Only build UI.
+
+No backend.
+
+--------------------------------------------------
+RIGHT SIDE MEMBER DRAWER
+--------------------------------------------------
+
+Clicking anywhere on the member row should open a right-side drawer.
+
+Drawer width approximately 520px.
+
+Drawer should slide smoothly.
+
+Sections:
+
+Profile
+
+Investment Summary
+
+Wallet Balances
+
+Network Summary
+
+Recent Activity Timeline
+
+Everything uses realistic mock data.
+
+The drawer should match the premium style already used in the platform.
+
+--------------------------------------------------
+TABLE FOOTER
+--------------------------------------------------
+
+Pagination
+
+Rows per page selector
+
+Showing 1–25 of XXX Members
+
+--------------------------------------------------
+UX
+--------------------------------------------------
+
+Hover animations
+
+Smooth transitions
+
+Skeleton loading state
+
+Empty state
+
+Responsive table
+
+Sticky table header while scrolling
+
+--------------------------------------------------
+IMPORTANT
+
+Do NOT connect backend.
+
+Do NOT connect database.
+
+Do NOT implement business logic.
+
+Only create production-quality UI architecture using mock data.
+
+All components should be reusable for future backend integration.
+
+The finished page should feel like Stripe, Linear or Vercel Admin, while remaining consistent with the existing Prime Wave design language.
