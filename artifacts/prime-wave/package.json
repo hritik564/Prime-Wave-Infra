@@ -38,6 +38,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
     "@xyflow/react": "^12.11.1",
     "recharts": "^2.15.4"
   }

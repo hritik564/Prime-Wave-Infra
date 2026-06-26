@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import dagre from "@dagrejs/dagre";
 import {
   ReactFlow, Background, Controls,
   Handle, Position,
@@ -38,8 +39,40 @@ const C_WARN = "#fb923c"; // warning orange
 const CARD   = { background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "20px" } as const;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-function fmtUSD(n: string | number) {
-  return `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+function safeNum(n: string | number | null | undefined): number {
+  const v = Number(n ?? 0);
+  return isNaN(v) ? 0 : v;
+}
+function fmtUSD(n: string | number | null | undefined) {
+  return `$${safeNum(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+function weakLegLabel(leg: "LEFT" | "RIGHT" | "BALANCED" | null | undefined): string {
+  if (leg === "BALANCED") return "Perfectly Balanced";
+  if (leg === "LEFT")     return "Weak Leg: LEFT";
+  if (leg === "RIGHT")    return "Weak Leg: RIGHT";
+  return "Not Qualified Yet";
+}
+function weakLegColor(leg: "LEFT" | "RIGHT" | "BALANCED" | null | undefined): string {
+  if (leg === "BALANCED") return C_OK;
+  if (leg)                return C_ERR;
+  return MUTED;
+}
+function growthLabel(score: number): string {
+  if (score >= 75) return "Healthy Growth";
+  if (score >= 50) return "Good Progress";
+  if (score >= 25) return "Building Momentum";
+  return "Getting Started";
+}
+function heroMessage(stats: NetworkStats): string {
+  if (stats.totalTeam === 0) return "Start inviting members to grow your binary network.";
+  if (stats.weeklyNew > 0 && stats.weakLeg === "BALANCED")
+    return `Your network grew by ${stats.weeklyNew} member${stats.weeklyNew !== 1 ? "s" : ""} this week and is perfectly balanced.`;
+  if (stats.weeklyNew > 0)
+    return `Your network grew by ${stats.weeklyNew} member${stats.weeklyNew !== 1 ? "s" : ""} this week.`;
+  if (stats.weakLeg === "LEFT")  return "Grow your left leg to unlock your next binary payout.";
+  if (stats.weakLeg === "RIGHT") return "Grow your right leg to unlock your next binary payout.";
+  if (stats.weakLeg === "BALANCED") return "Your network is balanced and ready for binary rewards.";
+  return "Keep building your network to maximise binary rewards.";
 }
 function initials(first: string, last: string) {
   return `${first[0] ?? "?"}${last[0] ?? ""}`.toUpperCase();
@@ -222,60 +255,71 @@ const nodeTypes: NodeTypes = {
   emptySlot: EmptySlotNode as never,
 };
 
-// ── Tree → Flow elements ──────────────────────────────────────────────────────
-let _nodeId = 0;
+// ── Tree → Flow elements (Dagre layout) ───────────────────────────────────────
+const N_W = 150; const N_H = 92; const R_W = 148; const R_H = 70;
+const S_W = 114; const S_H = 60;
+
 function treeToFlow(
-  node:      BinaryTreeNode | null,
+  root:      BinaryTreeNode | null,
   memberMap: Map<string, NetworkMember>,
   onSelect:  (d: TreeNodeData) => void,
-  x = 0, y = 0, depth = 0, parentId?: string,
 ): { nodes: Node[]; edges: Edge[] } {
-  if (!node) return { nodes: [], edges: [] };
-  const id     = `n-${node.id}`;
-  const isRoot = depth === 0;
-  const member = memberMap.get(node.id);
+  if (!root) return { nodes: [], edges: [] };
 
-  const data: TreeNodeData = {
-    id: node.id, username: node.username,
-    firstName: node.firstName, lastName: node.lastName,
-    status: node.status, position: node.position,
-    directReferralCount: node.directReferralCount,
-    isPersonallySponsored: member?.isPersonallySponsored ?? false,
-    isSpillover:           member?.isSpillover           ?? false,
-    totalInvested:         member?.investedAmount        ?? "0",
-    currentPlan:           member?.currentPlan           ?? null,
-    generatedBV:           member?.generatedBV           ?? "0",
-    onSelect,
-  };
+  type RN = { id: string; type: "root" | "member" | "emptySlot"; data: TreeNodeData | { position: "LEFT" | "RIGHT" }; w: number; h: number };
+  type RE = { src: string; tgt: string; dashed?: boolean; col?: string };
 
-  const nw = isRoot ? 140 : 145;
-  const nh = isRoot ? 68  : 90;
-  const nodes: Node[] = [{ id, type: isRoot ? "root" : "member", position: { x: x - nw / 2, y }, data }];
-  const edges: Edge[] = parentId
-    ? [{ id: `e-${parentId}-${id}`, source: parentId, target: id,
-         style: { stroke: "rgba(255,255,255,0.12)", strokeWidth: 1.5 }, type: "smoothstep" }]
-    : [];
+  const rns: RN[] = [];
+  const res: RE[] = [];
+  let sc = 0;
 
-  const childY  = y + nh + 24;
-  const spread  = Math.max(180, 200 - depth * 15);
+  function walk(node: BinaryTreeNode, depth: number, parentId?: string) {
+    const id     = `n-${node.id}`;
+    const isRoot = depth === 0;
+    const member = memberMap.get(node.id);
+    const data: TreeNodeData = {
+      id: node.id, username: node.username,
+      firstName: node.firstName, lastName: node.lastName,
+      status: node.status, position: node.position,
+      directReferralCount: node.directReferralCount,
+      isPersonallySponsored: member?.isPersonallySponsored ?? false,
+      isSpillover:           member?.isSpillover           ?? false,
+      totalInvested:         member?.investedAmount        ?? "0",
+      currentPlan:           member?.currentPlan           ?? null,
+      generatedBV:           member?.generatedBV           ?? "0",
+      onSelect,
+    };
+    rns.push({ id, type: isRoot ? "root" : "member", data, w: isRoot ? R_W : N_W, h: isRoot ? R_H : N_H });
+    if (parentId) res.push({ src: parentId, tgt: id });
 
-  const addSlot = (side: "LEFT" | "RIGHT", sx: number) => {
-    const slotId = `slot-${_nodeId++}`;
-    nodes.push({ id: slotId, type: "emptySlot", position: { x: sx - 55, y: childY }, data: { position: side } });
-    edges.push({ id: `e-${id}-${slotId}`, source: id, target: slotId,
-      style: { stroke: `${side === "LEFT" ? C_L : C_R}25`, strokeWidth: 1, strokeDasharray: "4 4" }, type: "smoothstep" });
-  };
+    const addSlot = (pos: "LEFT" | "RIGHT") => {
+      const sid = `slot-${sc++}`;
+      rns.push({ id: sid, type: "emptySlot", data: { position: pos }, w: S_W, h: S_H });
+      res.push({ src: id, tgt: sid, dashed: true, col: pos === "LEFT" ? C_L : C_R });
+    };
+    if (node.left)  walk(node.left,  depth + 1, id); else addSlot("LEFT");
+    if (node.right) walk(node.right, depth + 1, id); else addSlot("RIGHT");
+  }
+  walk(root, 0);
 
-  if (node.left) {
-    const { nodes: ln, edges: le } = treeToFlow(node.left, memberMap, onSelect, x - spread, childY, depth + 1, id);
-    nodes.push(...ln); edges.push(...le);
-  } else { addSlot("LEFT", x - spread); }
+  // Dagre auto-layout
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({ rankdir: "TB", ranksep: 80, nodesep: 48, edgesep: 20 });
+  g.setDefaultEdgeLabel(() => ({}));
+  rns.forEach(n => g.setNode(n.id, { width: n.w, height: n.h }));
+  res.forEach(e => g.setEdge(e.src, e.tgt));
+  dagre.layout(g);
 
-  if (node.right) {
-    const { nodes: rn, edges: re } = treeToFlow(node.right, memberMap, onSelect, x + spread, childY, depth + 1, id);
-    nodes.push(...rn); edges.push(...re);
-  } else { addSlot("RIGHT", x + spread); }
-
+  const nodes: Node[] = rns.map(n => {
+    const pos = g.node(n.id);
+    return { id: n.id, type: n.type, position: { x: pos.x - n.w / 2, y: pos.y - n.h / 2 }, data: n.data };
+  });
+  const edges: Edge[] = res.map(e => ({
+    id: `e-${e.src}-${e.tgt}`, source: e.src, target: e.tgt, type: "smoothstep",
+    style: e.dashed
+      ? { stroke: `${e.col}30`, strokeWidth: 1, strokeDasharray: "4 4" }
+      : { stroke: "rgba(255,255,255,0.14)", strokeWidth: 1.5 },
+  }));
   return { nodes, edges };
 }
 
@@ -809,11 +853,10 @@ export default function NetworkIntelligencePage() {
     setDrawer({ id: data.id, username: data.username, firstName: data.firstName, lastName: data.lastName, status: data.status, position: data.position });
   }, []);
 
-  const { nodes: flowNodes, edges: flowEdges } = useMemo(() => {
-    if (!treeData) return { nodes: [], edges: [] };
-    _nodeId = 0;
-    return treeToFlow(treeData, memberMap, handleNodeSelect);
-  }, [treeData, memberMap, handleNodeSelect]);
+  const { nodes: flowNodes, edges: flowEdges } = useMemo(
+    () => treeToFlow(treeData, memberMap, handleNodeSelect),
+    [treeData, memberMap, handleNodeSelect],
+  );
 
   // ── Copy helpers ─────────────────────────────────────────────────────────────
   const copy = (text: string, which: "code" | "link") => {
@@ -824,9 +867,9 @@ export default function NetworkIntelligencePage() {
 
   // ── Derived values ───────────────────────────────────────────────────────────
   const powerLeg = stats
-    ? (Number(stats.leftBV) >= Number(stats.rightBV) ? "LEFT" : "RIGHT")
+    ? (safeNum(stats.leftBV) >= safeNum(stats.rightBV) ? "LEFT" : "RIGHT")
     : "—";
-  const carryFwd  = bvSummary ? Number(bvSummary.carryForwardBV).toFixed(0) : "0";
+  const carryFwd  = bvSummary ? safeNum(bvSummary.carryForwardBV).toFixed(0) : "0";
   const refCode   = profile?.referralCode ?? "";
   const refLink   = refCode ? `${window.location.origin}/register?ref=${refCode}` : "";
   const scoreC    = stats ? scoreColor(stats.growthScore) : MUTED;
@@ -861,15 +904,16 @@ export default function NetworkIntelligencePage() {
                 <p style={{ fontSize: 13, color: GOLD, fontWeight: 600 }}>
                   {getGreeting()}, {profile.firstName} 👋
                 </p>
-                <h1 style={{ fontSize: 20, fontWeight: 700, color: "rgba(255,255,255,0.95)", marginTop: 4 }}>
-                  Your Network is Growing
+                <h1 style={{ fontSize: 18, fontWeight: 700, color: "rgba(255,255,255,0.95)", marginTop: 4, lineHeight: 1.35, maxWidth: 220 }}>
+                  {heroMessage(stats)}
                 </h1>
               </div>
-              {/* Growth score ring */}
-              <div style={{ textAlign: "center", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "10px 14px" }}>
-                <p style={{ fontSize: 9, color: MUTED, marginBottom: 2, fontWeight: 600, letterSpacing: "0.05em" }}>SCORE</p>
+              {/* Growth score card */}
+              <div style={{ textAlign: "center", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "10px 14px", minWidth: 96, flexShrink: 0 }}>
+                <p style={{ fontSize: 9, color: MUTED, marginBottom: 2, fontWeight: 600, letterSpacing: "0.05em" }}>GROWTH SCORE</p>
                 <p style={{ fontSize: 26, fontWeight: 800, color: scoreC, lineHeight: 1 }}>{stats.growthScore}</p>
-                <p style={{ fontSize: 9, color: MUTED }}>/ 100</p>
+                <p style={{ fontSize: 9, color: MUTED, marginBottom: 6 }}>/ 100</p>
+                <p style={{ fontSize: 9, fontWeight: 700, color: scoreC, background: `${scoreC}15`, borderRadius: 6, padding: "2px 6px", display: "inline-block" }}>{growthLabel(stats.growthScore)}</p>
               </div>
             </div>
 
@@ -899,8 +943,8 @@ export default function NetworkIntelligencePage() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div style={{ padding: "14px", background: "rgba(248,113,113,0.05)", borderRadius: 12, border: "1px solid rgba(248,113,113,0.12)" }}>
                 <p style={{ fontSize: 10, color: MUTED, marginBottom: 4, fontWeight: 600 }}>WEAK LEG</p>
-                <p style={{ fontSize: 18, fontWeight: 700, color: stats.weakLeg === "BALANCED" ? C_OK : C_ERR }}>
-                  {stats.weakLeg === "BALANCED" ? "Balanced ✓" : stats.weakLeg}
+                <p style={{ fontSize: 13, fontWeight: 700, color: weakLegColor(stats.weakLeg), lineHeight: 1.35 }}>
+                  {weakLegLabel(stats.weakLeg)}
                 </p>
                 {stats.weakLeg !== "BALANCED" && stats.bvNeededForOrbit !== null && stats.bvNeededForOrbit > 0 && (
                   <p style={{ fontSize: 11, color: MUTED, marginTop: 5 }}>
@@ -969,7 +1013,7 @@ export default function NetworkIntelligencePage() {
                 </div>
                 <div style={{ padding: "4px 14px 10px" }}>
                   <HealthRow label="Members"      value={stats.leftTeam}               />
-                  <HealthRow label="Business Vol" value={`${Number(stats.leftBV).toFixed(0)} BV`} color={GOLD_L} />
+                  <HealthRow label="Business Vol" value={`${safeNum(stats.leftBV).toFixed(0)} BV`} color={GOLD_L} />
                   <HealthRow label="New This Week" value={`+${stats.leftWeeklyNew}`}   color={C_OK} />
                   <HealthRow label="Active Inv."   value={stats.leftActiveInvestments} />
                 </div>
@@ -981,7 +1025,7 @@ export default function NetworkIntelligencePage() {
                 </div>
                 <div style={{ padding: "4px 14px 10px" }}>
                   <HealthRow label="Members"      value={stats.rightTeam}              />
-                  <HealthRow label="Business Vol" value={`${Number(stats.rightBV).toFixed(0)} BV`} color={GOLD_L} />
+                  <HealthRow label="Business Vol" value={`${safeNum(stats.rightBV).toFixed(0)} BV`} color={GOLD_L} />
                   <HealthRow label="New This Week" value={`+${stats.rightWeeklyNew}`}  color={C_OK} />
                   <HealthRow label="Active Inv."   value={stats.rightActiveInvestments} />
                 </div>
@@ -996,8 +1040,8 @@ export default function NetworkIntelligencePage() {
                 </div>
                 <div>
                   <p style={{ fontSize: 10, color: MUTED }}>Weak Leg</p>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: stats.weakLeg === "BALANCED" ? C_OK : C_ERR }}>
-                    {stats.weakLeg === "BALANCED" ? "Balanced" : stats.weakLeg}
+                  <p style={{ fontSize: 13, fontWeight: 700, color: weakLegColor(stats.weakLeg) }}>
+                    {weakLegLabel(stats.weakLeg)}
                   </p>
                 </div>
                 <div>

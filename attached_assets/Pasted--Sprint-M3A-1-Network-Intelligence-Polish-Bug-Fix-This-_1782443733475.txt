@@ -1,0 +1,198 @@
+# Sprint M3A.1 — Network Intelligence Polish & Bug Fix
+
+This sprint is strictly for polishing the existing Network Intelligence page and fixing the remaining issues discovered during QA.
+
+No new features should be added in this sprint.
+
+---
+
+## 1. Fix Binary Tree Layout (Highest Priority)
+
+The React Flow tree is currently broken.
+
+Problems observed:
+- Nodes overlap each other.
+- Text overlaps between adjacent nodes.
+- Child nodes collide.
+- Edge routing is inconsistent.
+- Layout spacing changes depending on data.
+- Initial zoom/FitView does not always produce a clean layout.
+
+Requirements:
+
+- Use an automatic tree layout (Dagre, ELK or equivalent).
+- Parent-child spacing must remain consistent regardless of tree size.
+- No node should ever overlap another.
+- Edges should never cross unnecessarily.
+- Automatically fit the entire tree on initial load.
+- Smooth zoom and pan.
+- Clicking a node should continue opening the Member Drawer.
+- Tree must remain readable on desktop, tablet and mobile.
+
+Success Criteria:
+- Test with 2 members.
+- Test with 20 members.
+- Test with 100+ members.
+- Layout must remain clean without manual adjustment.
+
+---
+
+## 2. Fix NaN Values
+
+Currently some statistics display:
+
+NaN BV
+
+This should never happen.
+
+Anywhere a value is undefined, null or not yet calculated, display:
+
+0 BV
+
+instead of:
+
+NaN BV
+
+Apply this throughout the entire Network Intelligence page.
+
+---
+
+## 3. Improve Weak Leg Status
+
+Replace the current generic status with meaningful labels.
+
+Examples:
+
+If both legs are equal:
+"Perfectly Balanced"
+
+If left leg is weaker:
+"Weak Leg: LEFT"
+
+If right leg is weaker:
+"Weak Leg: RIGHT"
+
+If the user has not yet qualified:
+"Not Qualified Yet"
+
+The status should always clearly communicate the user's network health.
+
+---
+
+## 4. Improve Hero Messaging
+
+The hero currently displays a static message.
+
+Replace it with contextual messaging generated from live network data.
+
+Examples:
+
+- "Your network grew by 6 members this week."
+- "Your network generated $250 since your previous login."
+- "Your network is balanced and ready for Binary rewards."
+- "Grow your right leg to unlock your next Binary payout."
+
+The hero should always feel intelligent and personalized.
+
+---
+
+## 5. Improve Growth Score
+
+Instead of showing only:
+
+61 / 100
+
+Display:
+
+Growth Score
+
+61 / 100
+
+Healthy Growth
+
++12 this month
+
+(or an equivalent contextual summary generated from backend data)
+
+The Growth Score should feel meaningful rather than just another statistic.
+
+---
+
+## 6. Polish Binary Tree Nodes
+
+Ensure every node displays consistently:
+
+- Avatar
+- Username
+- Investment Amount
+- Business Volume (BV)
+- Leg Indicator
+- Status Badge
+
+Requirements:
+
+- No text clipping
+- No overlapping
+- Consistent spacing
+- Proper alignment
+- Responsive sizing
+
+---
+
+## 7. Responsive UI Polish
+
+Review the complete Network Intelligence page for:
+
+- Card spacing
+- Typography
+- Alignment
+- Overflow
+- Scroll behaviour
+- Mobile responsiveness
+- Tablet responsiveness
+- Desktop responsiveness
+
+There should be no horizontal scrolling or broken layouts.
+
+---
+
+## 8. Performance Optimisation
+
+Ensure the Binary Tree remains smooth while:
+
+- Zooming
+- Panning
+- Opening Member Drawers
+- Rendering larger trees
+
+Optimise React rendering where appropriate using memoisation and efficient state management.
+
+---
+
+## 9. Final QA
+
+Verify all of the following:
+
+✅ No NaN values anywhere
+
+✅ Binary Tree renders correctly for small, medium and large networks
+
+✅ Hero messaging updates dynamically
+
+✅ Growth Score displays correctly
+
+✅ Weak Leg labels are correct
+
+✅ Responsive layout works on mobile, tablet and desktop
+
+✅ No console errors
+
+✅ No TypeScript errors
+
+---
+
+This sprint is a polish sprint only.
+
+Do NOT begin Milestone 3B yet.
+
+The objective is to make Milestone 3A production-quality before adding the next set of intelligent features.
