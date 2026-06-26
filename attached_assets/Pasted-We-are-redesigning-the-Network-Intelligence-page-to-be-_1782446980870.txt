@@ -1,0 +1,241 @@
+We are redesigning the Network Intelligence page to be mobile-first.
+
+IMPORTANT:
+Do NOT remove any backend logic, API endpoints, calculations, business rules or existing components.
+
+This is a UI/UX restructuring only.
+
+The goal is to transform Network Intelligence into a concise "command center" instead of a long scrolling dashboard.
+
+====================================================
+NEW STRUCTURE
+====================================================
+
+Replace the current page with only SIX primary cards.
+
+----------------------------------------------------
+1. HERO
+----------------------------------------------------
+
+Keep the existing hero section.
+
+Keep:
+
+- Greeting
+- Growth Score
+- Total Members
+- Personally Sponsored
+- This Week
+- Weak Leg
+- Next Binary
+
+No changes.
+
+----------------------------------------------------
+2. TODAY'S ACTION PLAN
+----------------------------------------------------
+
+Keep this section directly below the hero.
+
+This should become the highest priority section.
+
+Show only the top 3 recommended actions ranked by business impact.
+
+Examples:
+
+• Add 50 BV to Right Leg
+• Personally Sponsor 1 Member
+• Help Team Member Invest
+
+Show estimated reward if applicable.
+
+Keep it compact.
+
+----------------------------------------------------
+3. BUSINESS HEALTH
+----------------------------------------------------
+
+Replace the large health dashboard with a compact summary card.
+
+Display only:
+
+Overall Health Score
+
+Recruitment
+
+Investment Activity
+
+Balance
+
+Retention
+
+Growth
+
+Each row should show:
+
+Progress bar
+
+Current score
+
+Status color
+
+Add:
+
+"View Detailed Health"
+
+This button should navigate to a dedicated Health page later.
+
+Do NOT build that page yet.
+
+----------------------------------------------------
+4. INCOME OPPORTUNITIES
+----------------------------------------------------
+
+Merge:
+
+Opportunity Cards
+
+Qualification Progress
+
+Into ONE compact card.
+
+Show:
+
+Binary Match
+
+Binary Orbit
+
+Salary Rank
+
+Current progress
+
+Potential reward
+
+Add:
+
+"View All Opportunities"
+
+No large cards.
+
+Keep everything concise.
+
+----------------------------------------------------
+5. MY TEAM
+----------------------------------------------------
+
+Replace all of these:
+
+Binary Tree
+
+Team Explorer
+
+Top Performers
+
+Timeline
+
+Referral Section
+
+with ONE summary card.
+
+Display:
+
+Total Team Members
+
+Direct Referrals
+
+Active Members
+
+Current Business Volume
+
+Latest Activity
+
+Referral Code
+
+Buttons:
+
+View Team
+
+Share Referral
+
+DO NOT show React Flow tree on the main page anymore.
+
+Tree moves into its own future page.
+
+----------------------------------------------------
+6. RECENT ACTIVITY
+----------------------------------------------------
+
+Keep only the latest 5 activities.
+
+Add:
+
+View Complete Timeline
+
+====================================================
+REMOVE FROM MAIN PAGE
+====================================================
+
+Remove these sections from Network Intelligence.
+
+Do NOT delete their components.
+
+Only remove them from this page.
+
+- Binary Tree
+- Team Explorer
+- Top Performers
+- Income Forecast
+- Growth Forecast
+- Daily Missions
+- Weekly Objectives
+- Qualification Progress (merged)
+- Opportunity Cards (merged)
+- Referral Section (merged)
+- Full Timeline
+
+====================================================
+DESIGN GOALS
+====================================================
+
+The page should fit naturally on mobile.
+
+A user should understand their business within 15 seconds.
+
+Every section should answer one question.
+
+1.
+What should I do today?
+
+2.
+How healthy is my business?
+
+3.
+Where is my next income?
+
+4.
+How is my team doing?
+
+5.
+What happened recently?
+
+Everything else should eventually become dedicated pages.
+
+====================================================
+DO NOT CHANGE
+====================================================
+
+No backend changes.
+
+No API changes.
+
+No business logic changes.
+
+No compensation engine changes.
+
+No calculations.
+
+No database changes.
+
+No routing changes.
+
+Only reorganize the UI into a premium mobile-first command center while preserving all existing functionality.
