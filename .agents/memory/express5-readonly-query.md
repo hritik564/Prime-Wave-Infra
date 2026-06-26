@@ -23,3 +23,9 @@ const query = getParsed<HistoryQueryInput>(res, "query");
 ```
 
 `getParsed` is exported from `validate.middleware.ts` and falls back to `{}` if the middleware was not used.
+
+## Parameterized route AuthenticatedRequest cast
+
+For routes with URL params (`:memberId`, etc.), TypeScript infers `Request<{memberId:string}, ...>` which does not overlap with the plain `Request` in `AuthenticatedRequest`. The direct cast `req as AuthenticatedRequest` fails with TS2352.
+
+**Fix:** use a double cast — `req as unknown as AuthenticatedRequest` — on parameterized routes only.

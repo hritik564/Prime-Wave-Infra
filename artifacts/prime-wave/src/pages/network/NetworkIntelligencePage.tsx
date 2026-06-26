@@ -1,40 +1,43 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
-  ReactFlow,
-  Background,
-  Controls,
-  Handle,
-  Position,
-  type Node,
-  type Edge,
-  type NodeTypes,
+  ReactFlow, Background, Controls,
+  Handle, Position,
+  type Node, type Edge, type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Users, TrendingUp, UserCheck, UserX, Copy, CheckCheck,
-  Search, Award, Activity, Brain, GitBranch, UserPlus,
-  X, ChevronLeft, ChevronRight, Link2, Target, Zap,
+  Search, Award, Activity, GitBranch, UserPlus, Zap,
+  X, ChevronLeft, ChevronRight, Link2, Target, Star,
+  Wallet, BarChart2, ArrowRight, Clock, Shield, ArrowUpRight,
+  Radio,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import {
   getProfile, getNetworkStats, getNetworkInsights,
   getBinaryTree, getBvSummary, getNetworkMembers,
-  getTopPerformers, getTeamActivity,
+  getTopPerformers, getTeamActivity, getNetworkMemberJourney,
 } from "@/lib/api";
 import type {
   ProfileData, NetworkStats, NetworkInsight, BinaryTreeNode,
   BvSummary, NetworkMember, TopPerformer, TeamActivityItem,
+  MemberJourney,
 } from "@/lib/api";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const GOLD   = "#D4AF37";
 const GOLD_L = "#F3D37A";
 const MUTED  = "rgba(170,179,197,0.55)";
+const C_L    = "#60a5fa"; // LEFT arm blue
+const C_R    = "#a78bfa"; // RIGHT arm violet
+const C_OK   = "#34d399"; // active/success green
+const C_ERR  = "#f87171"; // alert red
+const C_WARN = "#fb923c"; // warning orange
+const CARD   = { background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "20px" } as const;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-function fmtK(n: number) { return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n); }
 function fmtUSD(n: string | number) {
   return `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
@@ -48,925 +51,1194 @@ function timeAgo(iso: string) {
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+function planLabel(p: string | null | undefined) {
+  if (!p) return null;
+  return p.replace("PLAN_", "") + "d";
+}
+function scoreColor(s: number) {
+  if (s >= 75) return C_OK;
+  if (s >= 50) return GOLD;
+  if (s >= 25) return C_WARN;
+  return C_ERR;
+}
 
-// ── Inline Avatar ─────────────────────────────────────────────────────────────
-function Av({ first, last, size = 36 }: { first: string; last: string; size?: number }) {
+// ── Types ──────────────────────────────────────────────────────────────────────
+type FilterType = "all" | "active" | "inactive" | "sponsored" | "spillover" | "new" | "high_producers" | "vip";
+type SortType   = "recent" | "highest_investment" | "highest_bv";
+type DrawerTarget = { id: string; username: string; firstName: string; lastName: string; status: string; position: "LEFT" | "RIGHT" | null; directReferralCount?: number };
+
+// ── Avatar ─────────────────────────────────────────────────────────────────────
+function Av({ first, last, size = 36, color }: { first: string; last: string; size?: number; color?: string }) {
   return (
     <div style={{
       width: size, height: size, borderRadius: size / 2, flexShrink: 0,
       display: "flex", alignItems: "center", justifyContent: "center",
-      background: "linear-gradient(135deg, rgba(212,175,55,0.2), rgba(212,175,55,0.07))",
-      border: "1px solid rgba(212,175,55,0.2)", color: GOLD,
-      fontWeight: 700, fontSize: size < 36 ? 10 : 12,
+      background: color ? `${color}18` : `${GOLD}18`,
+      border: `1px solid ${color ? `${color}30` : `${GOLD}30`}`,
+      color: color ?? GOLD, fontWeight: 700,
+      fontSize: size < 36 ? 10 : size < 48 ? 12 : 16,
     }}>
       {initials(first, last)}
     </div>
   );
 }
 
-// ── Custom RF Node Data type ───────────────────────────────────────────────────
+// ── RF Node Types ──────────────────────────────────────────────────────────────
 interface TreeNodeData extends Record<string, unknown> {
-  id:                  string;
-  username:            string;
-  firstName:           string;
-  lastName:            string;
-  status:              string;
-  position:            "LEFT" | "RIGHT" | null;
-  directReferralCount: number;
-  onSelect?:           (data: TreeNodeData) => void;
+  id:                    string;
+  username:              string;
+  firstName:             string;
+  lastName:              string;
+  status:                string;
+  position:              "LEFT" | "RIGHT" | null;
+  directReferralCount:   number;
+  isPersonallySponsored?: boolean;
+  isSpillover?:           boolean;
+  totalInvested?:         string;
+  currentPlan?:           string | null;
+  generatedBV?:           string;
+  onSelect?:              (data: TreeNodeData) => void;
 }
 
-// ── RF Custom Nodes — MUST be outside component ────────────────────────────────
+// ── Root Node ──────────────────────────────────────────────────────────────────
 function RootNode({ data }: { data: TreeNodeData }) {
   return (
-    <div style={{
-      background: "linear-gradient(135deg, rgba(212,175,55,0.14) 0%, rgba(212,175,55,0.05) 100%)",
-      border: "2px solid rgba(212,175,55,0.5)", borderRadius: 14,
-      padding: "10px 14px", minWidth: 155,
-      boxShadow: "0 0 24px rgba(212,175,55,0.18), 0 4px 20px rgba(0,0,0,0.5)",
+    <div onClick={() => data.onSelect?.(data)} style={{
+      width: 140, padding: "10px 12px", borderRadius: 12, cursor: "pointer",
+      background: `linear-gradient(135deg, ${GOLD}22, ${GOLD}0a)`,
+      border: `2px solid ${GOLD}55`,
+      boxShadow: `0 0 18px ${GOLD}22`,
     }}>
-      <Handle type="source" position={Position.Bottom}
-        style={{ background: "rgba(212,175,55,0.55)", width: 8, height: 8, border: "none" }} />
+      <Handle type="source" position={Position.Bottom} style={{ background: GOLD, width: 8, height: 8 }} />
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{
-          width: 30, height: 30, borderRadius: 15, flexShrink: 0,
-          background: "rgba(212,175,55,0.14)", border: "1px solid rgba(212,175,55,0.4)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          color: GOLD_L, fontSize: 10, fontWeight: 800,
-        }}>{initials(data.firstName, data.lastName)}</div>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: GOLD_L, lineHeight: 1.2 }}>You</div>
-          <div style={{ fontSize: 9, color: "rgba(212,175,55,0.5)", lineHeight: 1.3 }}>@{data.username}</div>
+        <Av first={data.firstName} last={data.lastName} size={30} />
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: GOLD_L, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            @{data.username}
+          </p>
+          <p style={{ fontSize: 9, color: MUTED, marginTop: 1 }}>Root · You</p>
         </div>
       </div>
-      <div style={{ marginTop: 7, fontSize: 9, color: "rgba(212,175,55,0.5)", textAlign: "center" }}>
-        {data.directReferralCount} direct ref{data.directReferralCount !== 1 ? "s" : ""}
-      </div>
+      {data.currentPlan && (
+        <span style={{ fontSize: 9, color: GOLD, background: `${GOLD}18`, borderRadius: 4, padding: "1px 5px", marginTop: 5, display: "inline-block" }}>
+          {planLabel(data.currentPlan)}
+        </span>
+      )}
     </div>
   );
 }
 
+// ── Member Node ────────────────────────────────────────────────────────────────
 function MemberNode({ data }: { data: TreeNodeData }) {
   const isActive = data.status === "ACTIVE";
-  const isLeft   = data.position === "LEFT";
+  const bv       = Number(data.generatedBV ?? 0);
+  const invested = Number(data.totalInvested ?? 0);
+  const posColor = data.position === "LEFT" ? C_L : C_R;
+  const border   = data.isPersonallySponsored ? `1.5px solid ${GOLD}50` : "1px solid rgba(255,255,255,0.08)";
+
   return (
-    <div
-      onClick={() => data.onSelect?.(data)}
-      style={{
-        background: "hsl(221 59% 10%)",
-        border: `1.5px solid ${isActive ? "rgba(52,211,153,0.28)" : "rgba(255,255,255,0.08)"}`,
-        borderRadius: 12, padding: "8px 12px", minWidth: 140,
-        cursor: "pointer", boxShadow: "0 4px 18px rgba(0,0,0,0.4)",
-        transition: "border-color 0.15s",
-      }}
-    >
-      <Handle type="target" position={Position.Top}
-        style={{ background: "rgba(255,255,255,0.14)", width: 6, height: 6, border: "none" }} />
-      <Handle type="source" position={Position.Bottom}
-        style={{ background: "rgba(255,255,255,0.14)", width: 6, height: 6, border: "none" }} />
-      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
-        <div style={{ position: "relative", flexShrink: 0 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 14,
-            background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.15)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: GOLD, fontSize: 9, fontWeight: 800,
-          }}>{initials(data.firstName, data.lastName)}</div>
-          <div style={{
-            position: "absolute", bottom: 0, right: 0, width: 7, height: 7,
-            borderRadius: "50%", background: isActive ? "#34d399" : "rgba(170,179,197,0.3)",
-            border: "1.5px solid hsl(221 59% 10%)",
-          }} />
+    <div onClick={() => data.onSelect?.(data)} style={{
+      width: 145, padding: "9px 11px", borderRadius: 12, cursor: "pointer",
+      background: "rgba(255,255,255,0.03)", border, position: "relative",
+      transition: "box-shadow 0.2s",
+    }}>
+      <Handle type="target" position={Position.Top}    style={{ background: "rgba(255,255,255,0.2)", width: 6, height: 6 }} />
+      <Handle type="source" position={Position.Bottom} style={{ background: "rgba(255,255,255,0.2)", width: 6, height: 6 }} />
+
+      {/* Header row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7 }}>
+        <div style={{ position: "relative" }}>
+          <Av first={data.firstName} last={data.lastName} size={26} color={data.isPersonallySponsored ? GOLD : undefined} />
+          <div style={{ position: "absolute", bottom: -1, right: -1, width: 7, height: 7, borderRadius: 4,
+            background: isActive ? C_OK : "rgba(170,179,197,0.4)", border: "1px solid rgba(0,0,0,0.4)" }} />
         </div>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "hsl(var(--foreground))", lineHeight: 1.2 }}>
-            @{data.username}
-          </div>
-          <div style={{ fontSize: 9, color: MUTED, lineHeight: 1.3, marginTop: 1 }}>
-            {data.directReferralCount} ref{data.directReferralCount !== 1 ? "s" : ""}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <p style={{ fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.88)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            @{data.username.length > 11 ? data.username.slice(0, 10) + "…" : data.username}
+          </p>
+          <div style={{ display: "flex", gap: 3, marginTop: 2, flexWrap: "wrap" }}>
+            {data.position && (
+              <span style={{ fontSize: 8, fontWeight: 700, color: posColor, background: `${posColor}18`, borderRadius: 3, padding: "0 4px" }}>
+                {data.position[0]}
+              </span>
+            )}
+            {data.isPersonallySponsored && (
+              <span style={{ fontSize: 8, color: GOLD, background: `${GOLD}18`, borderRadius: 3, padding: "0 4px" }}>S</span>
+            )}
+            {data.currentPlan && (
+              <span style={{ fontSize: 8, color: "#94a3b8", background: "rgba(255,255,255,0.06)", borderRadius: 3, padding: "0 4px" }}>
+                {planLabel(data.currentPlan)}
+              </span>
+            )}
           </div>
         </div>
       </div>
-      <span style={{
-        fontSize: 8, fontWeight: 700, letterSpacing: "0.08em",
-        color: isLeft ? "#60a5fa" : "#a78bfa",
-        background: isLeft ? "rgba(96,165,250,0.1)" : "rgba(167,139,250,0.1)",
-        padding: "2px 6px", borderRadius: 4,
-      }}>
-        {data.position ?? "—"} ARM
-      </span>
+
+      {/* Stats row */}
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <div>
+          <p style={{ fontSize: 8, color: MUTED }}>Invested</p>
+          <p style={{ fontSize: 10, fontWeight: 600, color: invested > 0 ? "rgba(255,255,255,0.85)" : MUTED }}>
+            {invested > 0 ? fmtUSD(invested) : "—"}
+          </p>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <p style={{ fontSize: 8, color: MUTED }}>BV</p>
+          <p style={{ fontSize: 10, fontWeight: 600, color: bv > 0 ? GOLD_L : MUTED }}>
+            {bv > 0 ? `${bv.toFixed(0)} BV` : "—"}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
 
-function EmptySlotNode({ data }: { data: { side: string } }) {
-  const isLeft = data.side === "LEFT";
+// ── Empty Slot Node ────────────────────────────────────────────────────────────
+function EmptySlotNode({ data }: { data: { position: "LEFT" | "RIGHT" } }) {
+  const col = data.position === "LEFT" ? C_L : C_R;
   return (
     <div style={{
-      background: "rgba(255,255,255,0.015)",
-      border: `1px dashed ${isLeft ? "rgba(96,165,250,0.2)" : "rgba(167,139,250,0.2)"}`,
-      borderRadius: 12, padding: "10px 16px", minWidth: 120,
-      display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", gap: 4,
+      width: 110, height: 60, borderRadius: 12, cursor: "default",
+      border: `1.5px dashed ${col}30`, background: `${col}06`,
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
     }}>
-      <Handle type="target" position={Position.Top}
-        style={{ background: "rgba(255,255,255,0.08)", width: 6, height: 6, border: "none" }} />
-      <Handle type="source" position={Position.Bottom}
-        style={{ background: "rgba(255,255,255,0.08)", width: 6, height: 6, border: "none" }} />
-      <span style={{ fontSize: 16, color: isLeft ? "rgba(96,165,250,0.35)" : "rgba(167,139,250,0.35)", lineHeight: 1 }}>+</span>
-      <span style={{ fontSize: 9, fontWeight: 600, color: isLeft ? "rgba(96,165,250,0.4)" : "rgba(167,139,250,0.4)" }}>
-        Open {data.side}
-      </span>
+      <Handle type="target" position={Position.Top} style={{ background: "transparent", border: "none" }} />
+      <UserPlus size={14} color={`${col}60`} />
+      <span style={{ fontSize: 9, color: `${col}60` }}>{data.position[0]} Open</span>
     </div>
   );
 }
 
+// ── nodeTypes (stable — outside component) ────────────────────────────────────
 const nodeTypes: NodeTypes = {
-  rootNode:   RootNode   as never,
-  memberNode: MemberNode as never,
-  emptySlot:  EmptySlotNode as never,
+  root:      RootNode      as never,
+  member:    MemberNode    as never,
+  emptySlot: EmptySlotNode as never,
 };
 
-// ── Tree → React Flow elements ────────────────────────────────────────────────
-function treeToFlowElements(
-  root:          BinaryTreeNode,
-  currentUserId: string,
-  maxDepth:      number,
-  onSelect:      (data: TreeNodeData) => void,
+// ── Tree → Flow elements ──────────────────────────────────────────────────────
+let _nodeId = 0;
+function treeToFlow(
+  node:      BinaryTreeNode | null,
+  memberMap: Map<string, NetworkMember>,
+  onSelect:  (d: TreeNodeData) => void,
+  x = 0, y = 0, depth = 0, parentId?: string,
 ): { nodes: Node[]; edges: Edge[] } {
-  const nodes: Node[] = [];
-  const edges: Edge[] = [];
-  const V_GAP  = 130;
-  const H_BASE = 75 * Math.pow(2, maxDepth - 1);
+  if (!node) return { nodes: [], edges: [] };
+  const id     = `n-${node.id}`;
+  const isRoot = depth === 0;
+  const member = memberMap.get(node.id);
 
-  function walk(
-    node:     BinaryTreeNode | null,
-    depth:    number,
-    x:        number,
-    parentId: string | null,
-    side:     "LEFT" | "RIGHT" | null,
-  ) {
-    if (depth > maxDepth) return;
-    const hOffset = H_BASE / Math.pow(2, depth);
+  const data: TreeNodeData = {
+    id: node.id, username: node.username,
+    firstName: node.firstName, lastName: node.lastName,
+    status: node.status, position: node.position,
+    directReferralCount: node.directReferralCount,
+    isPersonallySponsored: member?.isPersonallySponsored ?? false,
+    isSpillover:           member?.isSpillover           ?? false,
+    totalInvested:         member?.investedAmount        ?? "0",
+    currentPlan:           member?.currentPlan           ?? null,
+    generatedBV:           member?.generatedBV           ?? "0",
+    onSelect,
+  };
 
-    if (!node) {
-      if (parentId && depth <= maxDepth) {
-        const emptyId = `empty-${parentId}-${side}`;
-        nodes.push({
-          id: emptyId,
-          position: { x, y: depth * V_GAP },
-          type: "emptySlot",
-          data: { side },
-          draggable: false,
-        } as Node);
-        edges.push({
-          id: `e-${parentId}-${emptyId}`,
-          source: parentId,
-          target: emptyId,
-          type: "smoothstep",
-          style: {
-            stroke: side === "LEFT" ? "rgba(96,165,250,0.16)" : "rgba(167,139,250,0.16)",
-            strokeDasharray: "4,4",
-            strokeWidth: 1.5,
-          },
-        } as Edge);
-      }
-      return;
-    }
+  const nw = isRoot ? 140 : 145;
+  const nh = isRoot ? 68  : 90;
+  const nodes: Node[] = [{ id, type: isRoot ? "root" : "member", position: { x: x - nw / 2, y }, data }];
+  const edges: Edge[] = parentId
+    ? [{ id: `e-${parentId}-${id}`, source: parentId, target: id,
+         style: { stroke: "rgba(255,255,255,0.12)", strokeWidth: 1.5 }, type: "smoothstep" }]
+    : [];
 
-    const isRoot = node.id === currentUserId;
-    nodes.push({
-      id: node.id,
-      position: { x, y: depth * V_GAP },
-      type: isRoot ? "rootNode" : "memberNode",
-      data: {
-        id:                  node.id,
-        username:            node.username,
-        firstName:           node.firstName,
-        lastName:            node.lastName,
-        status:              node.status,
-        position:            node.position,
-        directReferralCount: node.directReferralCount,
-        onSelect,
-      },
-      draggable: false,
-    } as Node);
+  const childY  = y + nh + 24;
+  const spread  = Math.max(180, 200 - depth * 15);
 
-    if (parentId && side) {
-      const isLeft = side === "LEFT";
-      edges.push({
-        id: `e-${parentId}-${node.id}`,
-        source: parentId,
-        target: node.id,
-        type: "smoothstep",
-        label: side,
-        labelStyle: { fill: isLeft ? "#60a5fa" : "#a78bfa", fontSize: 9, fontWeight: 700 },
-        labelBgStyle: { fill: "hsl(221 59% 10%)", fillOpacity: 0.9 },
-        labelBgPadding: [2, 4] as [number, number],
-        style: {
-          stroke: isLeft ? "rgba(96,165,250,0.5)" : "rgba(167,139,250,0.5)",
-          strokeWidth: 2,
-        },
-      } as Edge);
-    }
+  const addSlot = (side: "LEFT" | "RIGHT", sx: number) => {
+    const slotId = `slot-${_nodeId++}`;
+    nodes.push({ id: slotId, type: "emptySlot", position: { x: sx - 55, y: childY }, data: { position: side } });
+    edges.push({ id: `e-${id}-${slotId}`, source: id, target: slotId,
+      style: { stroke: `${side === "LEFT" ? C_L : C_R}25`, strokeWidth: 1, strokeDasharray: "4 4" }, type: "smoothstep" });
+  };
 
-    walk(node.left,  depth + 1, x - hOffset, node.id, "LEFT");
-    walk(node.right, depth + 1, x + hOffset, node.id, "RIGHT");
-  }
+  if (node.left) {
+    const { nodes: ln, edges: le } = treeToFlow(node.left, memberMap, onSelect, x - spread, childY, depth + 1, id);
+    nodes.push(...ln); edges.push(...le);
+  } else { addSlot("LEFT", x - spread); }
 
-  walk(root, 0, 0, null, null);
+  if (node.right) {
+    const { nodes: rn, edges: re } = treeToFlow(node.right, memberMap, onSelect, x + spread, childY, depth + 1, id);
+    nodes.push(...rn); edges.push(...re);
+  } else { addSlot("RIGHT", x + spread); }
+
   return { nodes, edges };
 }
 
-// ── Insight meta ──────────────────────────────────────────────────────────────
-const INSIGHT_STYLE = {
-  success: { bg: "rgba(52,211,153,0.07)",  border: "rgba(52,211,153,0.22)",  color: "#34d399" },
-  warning: { bg: "rgba(251,146,60,0.07)",  border: "rgba(251,146,60,0.22)",  color: "#fb923c" },
-  alert:   { bg: "rgba(239,68,68,0.07)",   border: "rgba(239,68,68,0.22)",   color: "#ef4444" },
-  info:    { bg: "rgba(96,165,250,0.07)",  border: "rgba(96,165,250,0.22)",  color: "#60a5fa" },
-  gold:    { bg: "rgba(212,175,55,0.07)",  border: "rgba(212,175,55,0.25)",  color: GOLD },
-};
-const INSIGHT_ICON = {
-  success: UserCheck,
-  warning: Zap,
-  alert:   Target,
-  info:    Activity,
-  gold:    Award,
+// ── Insight card ──────────────────────────────────────────────────────────────
+const INSIGHT_STYLE: Record<string, { bg: string; border: string; icon: string }> = {
+  success: { bg: `${C_OK}0d`,   border: `${C_OK}25`,   icon: C_OK   },
+  warning: { bg: `${C_WARN}0d`, border: `${C_WARN}25`, icon: C_WARN },
+  alert:   { bg: `${C_ERR}0d`,  border: `${C_ERR}25`,  icon: C_ERR  },
+  info:    { bg: "rgba(96,165,250,0.07)",  border: "rgba(96,165,250,0.22)", icon: C_L },
+  gold:    { bg: `${GOLD}0d`,   border: `${GOLD}25`,   icon: GOLD   },
 };
 
-// ── InsightCard ───────────────────────────────────────────────────────────────
 function InsightCard({ insight }: { insight: NetworkInsight }) {
-  const s    = INSIGHT_STYLE[insight.type];
-  const Icon = INSIGHT_ICON[insight.type];
+  const s = INSIGHT_STYLE[insight.type] ?? INSIGHT_STYLE.info;
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-      className="shrink-0 w-64 rounded-2xl p-4"
-      style={{ background: s.bg, border: `1px solid ${s.border}` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <div style={{
-          width: 30, height: 30, borderRadius: 10, flexShrink: 0,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          background: `${s.color}18`,
-        }}>
-          <Icon style={{ width: 14, height: 14, color: s.color }} />
-        </div>
-        <p style={{ fontSize: 12, fontWeight: 700, color: "hsl(var(--foreground))", lineHeight: 1.3 }}>
+    <div style={{ padding: "14px 16px", borderRadius: 14, background: s.bg, border: `1px solid ${s.border}`, minWidth: 220 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+        <p style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)", lineHeight: 1.3 }}>
           {insight.title}
         </p>
-      </div>
-      <p style={{ fontSize: 11, color: "rgba(170,179,197,0.7)", lineHeight: 1.65, marginBottom: 10 }}>
-        {insight.message}
-      </p>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: s.color, background: `${s.color}14`, padding: "2px 8px", borderRadius: 6 }}>
+        <span style={{ fontSize: 9, fontWeight: 600, color: s.icon, background: `${s.icon}18`, borderRadius: 6, padding: "2px 7px", whiteSpace: "nowrap", flexShrink: 0 }}>
           {insight.metric}
         </span>
-        <span style={{ fontSize: 10, color: s.color, fontWeight: 600 }}>{insight.action} →</span>
+      </div>
+      <p style={{ fontSize: 11, color: MUTED, lineHeight: 1.5 }}>{insight.message}</p>
+      <p style={{ fontSize: 10, color: s.icon, marginTop: 8, fontWeight: 600 }}>→ {insight.action}</p>
+    </div>
+  );
+}
+
+// ── Network Pulse ──────────────────────────────────────────────────────────────
+function PulseRow({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string | number; color?: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Icon size={13} color={color ?? MUTED} />
+        <span style={{ fontSize: 12, color: MUTED }}>{label}</span>
+      </div>
+      <span style={{ fontSize: 12, fontWeight: 600, color: color ?? "rgba(255,255,255,0.8)" }}>{value}</span>
+    </div>
+  );
+}
+
+// ── Binary Health Row ──────────────────────────────────────────────────────────
+function HealthRow({ label, value, color }: { label: string; value: string | number; color?: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
+      <span style={{ fontSize: 11, color: MUTED }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: color ?? "rgba(255,255,255,0.85)" }}>{value}</span>
+    </div>
+  );
+}
+
+// ── Quick stat card ────────────────────────────────────────────────────────────
+function QStat({ label, value, icon: Icon, color }: { label: string; value: string | number; icon: React.ElementType; color: string }) {
+  return (
+    <div style={{ ...CARD, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ width: 36, height: 36, borderRadius: 10, background: `${color}15`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Icon size={16} color={color} />
+      </div>
+      <div>
+        <p style={{ fontSize: 18, fontWeight: 700, color }}>{value}</p>
+        <p style={{ fontSize: 10, color: MUTED, marginTop: 1 }}>{label}</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Filter chips config ────────────────────────────────────────────────────────
+const CHIPS: { label: string; filter: FilterType; sort: SortType }[] = [
+  { label: "All",                  filter: "all",            sort: "recent"             },
+  { label: "Active",               filter: "active",         sort: "recent"             },
+  { label: "Inactive",             filter: "inactive",       sort: "recent"             },
+  { label: "Personally Sponsored", filter: "sponsored",      sort: "recent"             },
+  { label: "Spillover",            filter: "spillover",      sort: "recent"             },
+  { label: "VIP",                  filter: "vip",            sort: "recent"             },
+  { label: "High Producers",       filter: "high_producers", sort: "recent"             },
+  { label: "New Members",          filter: "new",            sort: "recent"             },
+  { label: "Highest Investment",   filter: "all",            sort: "highest_investment" },
+  { label: "Highest BV",           filter: "all",            sort: "highest_bv"         },
+];
+
+// ── Member card ────────────────────────────────────────────────────────────────
+function MemberCard({ m, onClick }: { m: NetworkMember; onClick: () => void }) {
+  const isActive = m.status === "ACTIVE";
+  const posColor = m.position === "LEFT" ? C_L : m.position === "RIGHT" ? C_R : MUTED;
+  return (
+    <motion.div whileHover={{ scale: 1.005, x: 2 }} onClick={onClick} style={{
+      display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
+      borderRadius: 12, cursor: "pointer",
+      background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)",
+      transition: "background 0.15s",
+    }}>
+      <div style={{ position: "relative" }}>
+        <Av first={m.firstName} last={m.lastName} size={36} color={m.isPersonallySponsored ? GOLD : undefined} />
+        <div style={{ position: "absolute", bottom: 0, right: 0, width: 9, height: 9, borderRadius: 5,
+          background: isActive ? C_OK : "rgba(170,179,197,0.3)", border: "1.5px solid rgba(0,0,0,0.4)" }} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.9)" }}>
+            {m.firstName} {m.lastName}
+          </span>
+          {m.isPersonallySponsored && (
+            <span style={{ fontSize: 9, color: GOLD, background: `${GOLD}18`, border: `1px solid ${GOLD}25`, borderRadius: 6, padding: "1px 6px", fontWeight: 600 }}>
+              Sponsored
+            </span>
+          )}
+          {m.currentPlan && (
+            <span style={{ fontSize: 9, color: "#94a3b8", background: "rgba(255,255,255,0.06)", borderRadius: 6, padding: "1px 6px" }}>
+              {planLabel(m.currentPlan)}
+            </span>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 3 }}>
+          <span style={{ fontSize: 11, color: MUTED }}>@{m.username}</span>
+          {m.position && (
+            <span style={{ fontSize: 11, color: posColor }}>
+              {m.position === "LEFT" ? "← L" : "R →"}
+            </span>
+          )}
+        </div>
+      </div>
+      <div style={{ textAlign: "right", flexShrink: 0 }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>
+          {Number(m.investedAmount) > 0 ? fmtUSD(m.investedAmount) : "—"}
+        </p>
+        <p style={{ fontSize: 10, color: MUTED }}>
+          {Number(m.generatedBV) > 0 ? `${Number(m.generatedBV).toFixed(0)} BV` : "No investment"}
+        </p>
       </div>
     </motion.div>
   );
 }
 
-// ── MemberCard ────────────────────────────────────────────────────────────────
-function MemberCard({ m, onClick }: { m: NetworkMember; onClick: () => void }) {
-  const isActive = m.status === "ACTIVE";
+// ── Journey Step (for income journey modal) ────────────────────────────────────
+function JourneyStep({ icon: Icon, title, sub, color, date, last }: {
+  icon: React.ElementType; title: string; sub: string; color: string; date?: string; last?: boolean;
+}) {
   return (
-    <div onClick={onClick}
-      className="flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-white/[0.025]">
-      <div style={{ position: "relative", flexShrink: 0 }}>
-        <Av first={m.firstName} last={m.lastName} size={36} />
-        <div style={{
-          position: "absolute", bottom: 1, right: 1, width: 8, height: 8,
-          borderRadius: "50%", background: isActive ? "#34d399" : "rgba(170,179,197,0.35)",
-          border: "1.5px solid hsl(var(--card))",
-        }} />
+    <div style={{ display: "flex", gap: 14, paddingBottom: last ? 0 : 20, position: "relative" }}>
+      {!last && (
+        <div style={{ position: "absolute", left: 15, top: 32, bottom: 0, width: 1, background: "rgba(255,255,255,0.06)" }} />
+      )}
+      <div style={{ width: 30, height: 30, borderRadius: 15, background: `${color}18`, border: `1px solid ${color}35`,
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, zIndex: 1 }}>
+        <Icon size={13} color={color} />
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold text-foreground truncate">@{m.username}</p>
-          {m.position && (
-            <span style={{
-              fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
-              color: m.position === "LEFT" ? "#60a5fa" : "#a78bfa",
-              background: m.position === "LEFT" ? "rgba(96,165,250,0.1)" : "rgba(167,139,250,0.1)",
-              padding: "1px 5px", borderRadius: 4,
-            }}>{m.position[0]}</span>
-          )}
-        </div>
-        <p className="text-xs truncate" style={{ color: MUTED }}>
-          {m.firstName} {m.lastName} · {m.directReferrals} ref{m.directReferrals !== 1 ? "s" : ""}
-        </p>
-      </div>
-      <div className="text-right shrink-0">
-        <p className="text-xs font-bold" style={{ color: m.activeInvestments > 0 ? GOLD : MUTED }}>
-          {m.activeInvestments > 0 ? fmtUSD(m.investedAmount) : "No plan"}
-        </p>
-        <p className="text-[10px]" style={{ color: isActive ? "#34d399" : MUTED }}>
-          {isActive ? "Active" : "Inactive"}
-        </p>
+      <div style={{ flex: 1, paddingTop: 5 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.9)" }}>{title}</p>
+        <p style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>{sub}</p>
+        {date && <p style={{ fontSize: 10, color: MUTED, marginTop: 4 }}>{timeAgo(date)}</p>}
       </div>
     </div>
   );
 }
 
-// ── Member Drawer ─────────────────────────────────────────────────────────────
-function MemberDrawer({ member, onClose }: { member: NetworkMember; onClose: () => void }) {
-  const isActive = member.status === "ACTIVE";
+// ── Income Journey Modal ───────────────────────────────────────────────────────
+function IncomeJourneyModal({ journey, member, onClose }: {
+  journey: MemberJourney; member: DrawerTarget; onClose: () => void;
+}) {
+  const hasInvestments = journey.investments.length > 0;
+  const hasBV          = Number(journey.totalBVContributed) > 0;
+  const hasMatches     = journey.recentBinaryMatches.length > 0;
+  const hasLevel       = Number(journey.totalLevelIncomeGenerated) > 0;
+
   return (
-    <motion.div className="fixed inset-0 z-50 flex justify-end"
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={onClose} />
-      <motion.div className="relative w-full max-w-sm h-full overflow-y-auto"
-        initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 320 }}
-        style={{ background: "hsl(var(--card))", borderLeft: "1px solid hsl(var(--border))" }}>
-        <div className="p-5">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-5">
-            <p className="text-sm font-semibold text-foreground">Member Profile</p>
-            <button onClick={onClose}
-              className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors"
-              style={{ color: MUTED }}>
-              <X className="h-4 w-4" />
-            </button>
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      style={{ position: "fixed", inset: 0, zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+    >
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.72)" }} onClick={onClose} />
+      <motion.div
+        initial={{ scale: 0.94, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.94, y: 20 }}
+        style={{ position: "relative", width: "100%", maxWidth: 420, maxHeight: "85vh", overflowY: "auto",
+          background: "hsl(222, 28%, 10%)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, padding: "24px" }}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+          <div>
+            <p style={{ fontSize: 11, color: GOLD, fontWeight: 600, marginBottom: 2 }}>Income Journey</p>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: "rgba(255,255,255,0.95)" }}>
+              {member.firstName} {member.lastName}
+            </h3>
+            <p style={{ fontSize: 12, color: MUTED }}>How this member contributes to your income</p>
           </div>
-          {/* Avatar + names */}
-          <div className="flex flex-col items-center mb-6">
-            <div style={{ position: "relative" }}>
-              <Av first={member.firstName} last={member.lastName} size={64} />
-              <div style={{
-                position: "absolute", bottom: 2, right: 2, width: 14, height: 14,
-                borderRadius: "50%", background: isActive ? "#34d399" : "rgba(170,179,197,0.4)",
-                border: "2px solid hsl(var(--card))",
-              }} />
-            </div>
-            <p className="mt-3 text-base font-bold text-foreground">@{member.username}</p>
-            <p className="text-sm" style={{ color: MUTED }}>{member.firstName} {member.lastName}</p>
-            <span style={{
-              marginTop: 8, padding: "3px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-              background: isActive ? "rgba(52,211,153,0.1)" : "rgba(170,179,197,0.08)",
-              color: isActive ? "#34d399" : MUTED,
-              border: `1px solid ${isActive ? "rgba(52,211,153,0.25)" : "rgba(255,255,255,0.07)"}`,
-            }}>{isActive ? "Active" : "Inactive"}</span>
-          </div>
-          {/* Stats grid */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            {[
-              { label: "Position",    value: member.position ?? "—",   color: member.position === "LEFT" ? "#60a5fa" : member.position === "RIGHT" ? "#a78bfa" : MUTED },
-              { label: "Direct Refs", value: String(member.directReferrals), color: GOLD },
-              { label: "Active Plans", value: String(member.activeInvestments), color: "#34d399" },
-              { label: "Invested",    value: member.activeInvestments > 0 ? fmtUSD(member.investedAmount) : "—", color: GOLD },
-            ].map((s) => (
-              <div key={s.label} className="rounded-xl p-3 text-center"
-                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <p style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: MUTED, marginBottom: 5 }}>
-                  {s.label}
-                </p>
-                <p style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.value}</p>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-center" style={{ color: MUTED }}>
-            Joined {new Date(member.joinedAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
-          </p>
+          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 8, width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <X size={14} color={MUTED} />
+          </button>
         </div>
+
+        {/* Timeline */}
+        {!hasInvestments && !hasBV ? (
+          <div style={{ textAlign: "center", padding: "32px 0" }}>
+            <Wallet size={32} color={MUTED} style={{ margin: "0 auto 12px" }} />
+            <p style={{ color: MUTED, fontSize: 13 }}>No investment activity yet.</p>
+            <p style={{ color: MUTED, fontSize: 12, marginTop: 4 }}>Support this member to unlock binary income.</p>
+          </div>
+        ) : (
+          <div>
+            {journey.investments.slice(0, 3).map((inv, i) => (
+              <JourneyStep key={inv.id}
+                icon={TrendingUp}
+                title={`Invested ${fmtUSD(inv.amount)}`}
+                sub={`${planLabel(inv.planType)} · ${inv.status}`}
+                color={GOLD}
+                date={inv.startedAt}
+              />
+            ))}
+            {hasBV && (
+              <JourneyStep
+                icon={BarChart2}
+                title={`${Number(journey.totalBVContributed).toFixed(0)} BV Contributed`}
+                sub="Added to your binary legs"
+                color={C_L}
+              />
+            )}
+            {hasMatches && journey.recentBinaryMatches.map((m, i) => (
+              <JourneyStep key={m.id}
+                icon={Zap}
+                title={`Binary Reward ${fmtUSD(m.incomeAmount)}`}
+                sub={`${Number(m.matchedBV).toFixed(0)} BV matched`}
+                color={C_OK}
+                date={m.createdAt}
+              />
+            ))}
+            {hasLevel && (
+              <JourneyStep
+                icon={Award}
+                title={`Level Income ${fmtUSD(journey.totalLevelIncomeGenerated)}`}
+                sub="Earned from level income payouts"
+                color={C_R}
+                last
+              />
+            )}
+            {!hasMatches && !hasLevel && hasBV && (
+              <JourneyStep
+                icon={Target}
+                title="Awaiting Binary Match"
+                sub="Grow both legs to trigger binary matching"
+                color={MUTED}
+                last
+              />
+            )}
+          </div>
+        )}
+
+        {/* Summary row */}
+        {(hasInvestments || hasBV) && (
+          <div style={{ marginTop: 20, padding: "14px", background: `${GOLD}0a`, border: `1px solid ${GOLD}20`, borderRadius: 12 }}>
+            <p style={{ fontSize: 10, color: MUTED, marginBottom: 8 }}>Total Contribution Summary</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div>
+                <p style={{ fontSize: 11, color: MUTED }}>Total Invested</p>
+                <p style={{ fontSize: 14, fontWeight: 700, color: GOLD }}>{fmtUSD(journey.totalInvested)}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: 11, color: MUTED }}>BV to You</p>
+                <p style={{ fontSize: 14, fontWeight: 700, color: GOLD_L }}>
+                  {Number(journey.totalBVContributed).toFixed(0)} BV
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );
 }
 
-// ── Section wrapper ────────────────────────────────────────────────────────────
-function Section({
-  title, icon, children, extra,
-}: {
-  title:    string;
-  icon:     React.ReactNode;
-  children: React.ReactNode;
-  extra?:   React.ReactNode;
+// ── Member Drawer ──────────────────────────────────────────────────────────────
+function MemberDrawer({ target, journey, journeyLoading, onClose, onJourneyOpen }: {
+  target:         DrawerTarget;
+  journey:        MemberJourney | null;
+  journeyLoading: boolean;
+  onClose:        () => void;
+  onJourneyOpen:  () => void;
 }) {
+  const isActive = target.status === "ACTIVE";
+  const posColor = target.position === "LEFT" ? C_L : target.position === "RIGHT" ? C_R : MUTED;
+  const m = journey?.member;
+
+  const drawerRows = [
+    { label: "Placement",         value: target.position ? `${target.position} ARM` : "Root", color: posColor },
+    { label: "Status",            value: isActive ? "Active" : "Inactive", color: isActive ? C_OK : C_ERR },
+    { label: "Joined",            value: m ? new Date(m.joinedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—", color: undefined },
+    { label: "Direct Referrals",  value: m?.directReferralCount ?? target.directReferralCount ?? "—", color: undefined },
+    { label: "Binary Children",   value: m?.childrenCount ?? "—", color: undefined },
+    { label: "Total Invested",    value: journey ? fmtUSD(journey.totalInvested) : "—", color: GOLD },
+    { label: "BV Contributed",    value: journey ? `${Number(journey.totalBVContributed).toFixed(0)} BV` : "—", color: GOLD_L },
+    { label: "Level Income to You", value: journey ? fmtUSD(journey.totalLevelIncomeGenerated) : "—", color: C_R },
+    { label: "Personally Sponsored", value: m?.isPersonallySponsored ? "Yes ✓" : "Spillover", color: m?.isPersonallySponsored ? GOLD : MUTED },
+  ] as { label: string; value: string | number; color: string | undefined }[];
+
   return (
-    <div className="mb-5 lg:mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0"
-            style={{ background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.15)" }}>
-            {icon}
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", justifyContent: "flex-end" }}
+    >
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)" }} onClick={onClose} />
+      <motion.div
+        initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 26, stiffness: 300 }}
+        style={{ position: "relative", width: 340, maxWidth: "92vw", height: "100%", overflowY: "auto",
+          background: "hsl(222, 28%, 10%)", borderLeft: "1px solid rgba(255,255,255,0.08)", padding: "24px 20px" }}
+      >
+        {/* Close */}
+        <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 8, width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <X size={14} color={MUTED} />
+        </button>
+
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
+          <Av first={target.firstName} last={target.lastName} size={52} color={m?.isPersonallySponsored ? GOLD : undefined} />
+          <div>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.95)", marginBottom: 3 }}>
+              {target.firstName} {target.lastName}
+            </h3>
+            <p style={{ fontSize: 12, color: MUTED }}>@{target.username}</p>
+            <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 9, fontWeight: 600, color: isActive ? C_OK : C_ERR,
+                background: `${isActive ? C_OK : C_ERR}15`, borderRadius: 6, padding: "2px 7px" }}>
+                {isActive ? "Active" : "Inactive"}
+              </span>
+              {m?.isPersonallySponsored && (
+                <span style={{ fontSize: 9, color: GOLD, background: `${GOLD}18`, borderRadius: 6, padding: "2px 7px", fontWeight: 600 }}>
+                  ★ Sponsored
+                </span>
+              )}
+              {journey?.investments[0]?.planType && (
+                <span style={{ fontSize: 9, color: "#94a3b8", background: "rgba(255,255,255,0.06)", borderRadius: 6, padding: "2px 7px" }}>
+                  {planLabel(journey.investments[0].planType)}
+                </span>
+              )}
+            </div>
           </div>
-          <h3 className="text-base font-semibold font-heading text-foreground">{title}</h3>
         </div>
-        {extra}
+
+        {/* Stats list */}
+        {journeyLoading ? (
+          <div style={{ padding: "20px 0" }}>
+            {[0, 1, 2, 3, 4].map(i => (
+              <div key={i} style={{ height: 16, background: "rgba(255,255,255,0.05)", borderRadius: 8, marginBottom: 12,
+                width: i % 2 === 0 ? "80%" : "60%", animation: "pulse 1.5s ease-in-out infinite" }} />
+            ))}
+          </div>
+        ) : (
+          <div style={{ background: "rgba(255,255,255,0.02)", borderRadius: 14, padding: "4px 16px", marginBottom: 20 }}>
+            {drawerRows.map((row, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "9px 0", borderBottom: i < drawerRows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                <span style={{ fontSize: 12, color: MUTED }}>{row.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: row.color ?? "rgba(255,255,255,0.85)" }}>
+                  {String(row.value)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Recent investments */}
+        {journey && journey.investments.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ fontSize: 11, color: MUTED, fontWeight: 600, marginBottom: 10 }}>INVESTMENTS</p>
+            {journey.investments.slice(0, 3).map(inv => (
+              <div key={inv.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "8px 12px", background: "rgba(255,255,255,0.02)", borderRadius: 10, marginBottom: 6 }}>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>
+                    {fmtUSD(inv.amount)}
+                  </p>
+                  <p style={{ fontSize: 10, color: MUTED }}>{planLabel(inv.planType)} plan · {inv.status}</p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <p style={{ fontSize: 11, color: GOLD_L, fontWeight: 600 }}>{Number(inv.bvGenerated).toFixed(0)} BV</p>
+                  <p style={{ fontSize: 10, color: MUTED }}>{timeAgo(inv.startedAt)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Income Journey CTA */}
+        <button onClick={onJourneyOpen} style={{
+          width: "100%", padding: "14px 18px",
+          background: `linear-gradient(135deg, ${GOLD}18, ${GOLD}0a)`,
+          border: `1px solid ${GOLD}30`, borderRadius: 14,
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <div style={{ textAlign: "left" }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>View Income Journey</p>
+            <p style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>How this member earns you rewards</p>
+          </div>
+          <ArrowRight size={16} color={GOLD} />
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ── Section header ─────────────────────────────────────────────────────────────
+function SH({ title, sub, icon: Icon }: { title: string; sub?: string; icon?: React.ElementType }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+      {Icon && (
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: `${GOLD}15`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon size={14} color={GOLD} />
+        </div>
+      )}
+      <div>
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: "rgba(255,255,255,0.92)" }}>{title}</h2>
+        {sub && <p style={{ fontSize: 11, color: MUTED }}>{sub}</p>}
       </div>
-      {children}
     </div>
   );
 }
 
-// ── Skeleton rows ─────────────────────────────────────────────────────────────
-function Skeleton({ n = 4, py = "py-3" }: { n?: number; py?: string }) {
+// ── Activity entry ─────────────────────────────────────────────────────────────
+function ActivityEntry({ item }: { item: TeamActivityItem }) {
+  const isInv = item.type === "investment";
+  const color = isInv ? GOLD : C_L;
+  const Icon  = isInv ? TrendingUp : UserPlus;
+  const posColor = item.position === "LEFT" ? C_L : item.position === "RIGHT" ? C_R : MUTED;
   return (
-    <>
-      {Array.from({ length: n }).map((_, i) => (
-        <div key={i} className={`flex items-center gap-3 px-4 ${py} animate-pulse`}
-          style={{ borderBottom: i < n - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-          <div className="h-9 w-9 rounded-full shrink-0" style={{ background: "rgba(255,255,255,0.05)" }} />
-          <div className="flex-1 space-y-2">
-            <div className="h-2.5 rounded" style={{ background: "rgba(255,255,255,0.05)", width: "40%" }} />
-            <div className="h-2 rounded" style={{ background: "rgba(255,255,255,0.04)", width: "60%" }} />
-          </div>
-        </div>
-      ))}
-    </>
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", alignItems: "flex-start" }}>
+      <div style={{ width: 28, height: 28, borderRadius: 14, background: `${color}15`, border: `1px solid ${color}25`,
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+        <Icon size={12} color={color} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", lineHeight: 1.4 }}>
+          <span style={{ fontWeight: 600 }}>{item.firstName}</span>{" "}
+          <span style={{ color: MUTED }}>{item.description}</span>
+          {item.position && (
+            <span style={{ color: posColor }}>{" "}· {item.position}</span>
+          )}
+        </p>
+        <p style={{ fontSize: 10, color: MUTED, marginTop: 3 }}>{timeAgo(item.at)}</p>
+      </div>
+    </motion.div>
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
+// ── Main component ─────────────────────────────────────────────────────────────
 export default function NetworkIntelligencePage() {
-  const [loading, setLoading]           = useState(true);
-  const [profile, setProfile]           = useState<ProfileData | null>(null);
-  const [stats, setStats]               = useState<NetworkStats | null>(null);
-  const [insights, setInsights]         = useState<NetworkInsight[]>([]);
-  const [bvSummary, setBv]              = useState<BvSummary | null>(null);
-  const [tree, setTree]                 = useState<BinaryTreeNode | null>(null);
-  const [members, setMembers]           = useState<NetworkMember[]>([]);
-  const [memberTotal, setMemberTotal]   = useState(0);
-  const [memberPage, setMemberPage]     = useState(1);
-  const [performers, setPerformers]     = useState<TopPerformer[]>([]);
-  const [activity, setActivity]         = useState<TeamActivityItem[]>([]);
-  const [search, setSearch]             = useState("");
-  const [filter, setFilter]             = useState<"all" | "active" | "inactive">("all");
-  const [treeDepth, setTreeDepth]       = useState(3);
-  const [selectedMember, setSelectedMember] = useState<NetworkMember | null>(null);
-  const [copied, setCopied]             = useState<"code" | "link" | null>(null);
+  // ── Data state ───────────────────────────────────────────────────────────────
+  const [profile,    setProfile]    = useState<ProfileData | null>(null);
+  const [stats,      setStats]      = useState<NetworkStats | null>(null);
+  const [insights,   setInsights]   = useState<NetworkInsight[]>([]);
+  const [bvSummary,  setBvSummary]  = useState<BvSummary | null>(null);
+  const [treeData,   setTreeData]   = useState<BinaryTreeNode | null>(null);
+  const [performers, setPerformers] = useState<TopPerformer[]>([]);
+  const [activities, setActivities] = useState<TeamActivityItem[]>([]);
+  const [memberMap,  setMemberMap]  = useState<Map<string, NetworkMember>>(new Map());
+
+  // Team explorer
+  const [members,       setMembers]       = useState<NetworkMember[]>([]);
+  const [membersTotal,  setMembersTotal]  = useState(0);
+  const [memberPage,    setMemberPage]    = useState(1);
   const [memberLoading, setMemberLoading] = useState(false);
 
-  // ── Initial parallel load ──────────────────────────────────────────────────
+  // Filters
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<FilterType>("all");
+  const [sort,   setSort]   = useState<SortType>("recent");
+
+  // UI state
+  const [loading,         setLoading]         = useState(true);
+  const [drawer,          setDrawer]          = useState<DrawerTarget | null>(null);
+  const [journey,         setJourney]         = useState<MemberJourney | null>(null);
+  const [journeyLoading,  setJourneyLoading]  = useState(false);
+  const [journeyOpen,     setJourneyOpen]     = useState(false);
+  const [depth,           setDepth]           = useState(3);
+  const [copied,          setCopied]          = useState<"code" | "link" | null>(null);
+  const [showAllActivity, setShowAllActivity] = useState(false);
+
+  // ── Initial data load ────────────────────────────────────────────────────────
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const [r0, r1, r2, r3, r4, r5, r6] = await Promise.allSettled([
-        getProfile(),
-        getNetworkStats(),
-        getNetworkInsights(),
-        getBvSummary(),
-        getBinaryTree(3),
-        getTopPerformers(),
-        getTeamActivity(),
-      ]);
-      if (r0.status === "fulfilled") setProfile(r0.value);
-      if (r1.status === "fulfilled") setStats(r1.value);
-      if (r2.status === "fulfilled") setInsights(r2.value.insights);
-      if (r3.status === "fulfilled") setBv(r3.value);
-      if (r4.status === "fulfilled") setTree(r4.value);
-      if (r5.status === "fulfilled") setPerformers(r5.value.performers);
-      if (r6.status === "fulfilled") setActivity(r6.value.activities);
-      setLoading(false);
-    }
-    void load();
+    setLoading(true);
+    Promise.all([
+      getProfile(),
+      getNetworkStats(),
+      getNetworkInsights(),
+      getBvSummary(),
+      getTopPerformers(),
+      getTeamActivity(),
+      getNetworkMembers({ page: 1, limit: 50, filter: "all" }),
+    ]).then(([p, s, ins, bv, perf, act, allM]) => {
+      setProfile(p);
+      setStats(s);
+      setInsights(ins.insights);
+      setBvSummary(bv);
+      setPerformers(perf.performers);
+      setActivities(act.activities);
+      const map = new Map<string, NetworkMember>();
+      allM.members.forEach((m: NetworkMember) => map.set(m.id, m));
+      setMemberMap(map);
+    }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
-  // ── Members: re-load on search / filter / page change ─────────────────────
+  // ── Load tree when depth changes ────────────────────────────────────────────
   useEffect(() => {
-    if (loading) return;
-    let cancelled = false;
-    async function loadMembers() {
-      setMemberLoading(true);
-      try {
-        const res = await getNetworkMembers({ page: memberPage, limit: 10, search, filter });
-        if (!cancelled) { setMembers(res.members); setMemberTotal(res.total); }
-      } catch { /* ignore */ } finally {
-        if (!cancelled) setMemberLoading(false);
-      }
-    }
-    void loadMembers();
-    return () => { cancelled = true; };
-  }, [loading, search, filter, memberPage]);
+    getBinaryTree(depth).then(setTreeData).catch(console.error);
+  }, [depth]);
 
-  // ── Tree depth change → re-fetch ───────────────────────────────────────────
+  // ── Team explorer fetch ──────────────────────────────────────────────────────
+  const fetchMembers = useCallback(() => {
+    setMemberLoading(true);
+    getNetworkMembers({ page: memberPage, limit: 10, search, filter, sort })
+      .then(r => { setMembers(r.members); setMembersTotal(r.total); })
+      .catch(console.error)
+      .finally(() => setMemberLoading(false));
+  }, [memberPage, search, filter, sort]);
+
+  useEffect(() => { fetchMembers(); }, [fetchMembers]);
+  useEffect(() => { setMemberPage(1); }, [search, filter, sort]);
+
+  // ── Journey fetch when drawer opens ─────────────────────────────────────────
   useEffect(() => {
-    if (loading) return;
-    getBinaryTree(treeDepth).then(setTree).catch(() => {});
-  }, [treeDepth]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!drawer) { setJourney(null); return; }
+    setJourneyLoading(true);
+    setJourney(null);
+    getNetworkMemberJourney(drawer.id)
+      .then(setJourney)
+      .catch(console.error)
+      .finally(() => setJourneyLoading(false));
+  }, [drawer]);
 
-  // ── Node select callback (stable) ──────────────────────────────────────────
+  // ── Tree elements ────────────────────────────────────────────────────────────
   const handleNodeSelect = useCallback((data: TreeNodeData) => {
-    setSelectedMember({
-      id:               data.id,
-      username:         data.username,
-      firstName:        data.firstName,
-      lastName:         data.lastName,
-      status:           data.status,
-      position:         data.position,
-      joinedAt:         new Date().toISOString(),
-      directReferrals:  data.directReferralCount,
-      activeInvestments: 0,
-      investedAmount:   "0",
-      plans:            [],
-    });
+    setDrawer({ id: data.id, username: data.username, firstName: data.firstName, lastName: data.lastName, status: data.status, position: data.position });
   }, []);
 
-  // ── React Flow elements (memo) ─────────────────────────────────────────────
   const { nodes: flowNodes, edges: flowEdges } = useMemo(() => {
-    if (!tree || !profile) return { nodes: [], edges: [] };
-    return treeToFlowElements(tree, profile.id, treeDepth, handleNodeSelect);
-  }, [tree, profile?.id, treeDepth, handleNodeSelect]);
+    if (!treeData) return { nodes: [], edges: [] };
+    _nodeId = 0;
+    return treeToFlow(treeData, memberMap, handleNodeSelect);
+  }, [treeData, memberMap, handleNodeSelect]);
 
-  // ── Copy helpers ───────────────────────────────────────────────────────────
-  const copyCode = useCallback(() => {
-    if (!profile) return;
-    void navigator.clipboard.writeText(profile.referralCode);
-    setCopied("code"); setTimeout(() => setCopied(null), 2000);
-  }, [profile]);
+  // ── Copy helpers ─────────────────────────────────────────────────────────────
+  const copy = (text: string, which: "code" | "link") => {
+    navigator.clipboard.writeText(text).catch(() => {});
+    setCopied(which);
+    setTimeout(() => setCopied(null), 2000);
+  };
 
-  const copyLink = useCallback(() => {
-    if (!profile) return;
-    void navigator.clipboard.writeText(`${window.location.origin}/register?ref=${profile.referralCode}`);
-    setCopied("link"); setTimeout(() => setCopied(null), 2000);
-  }, [profile]);
+  // ── Derived values ───────────────────────────────────────────────────────────
+  const powerLeg = stats
+    ? (Number(stats.leftBV) >= Number(stats.rightBV) ? "LEFT" : "RIGHT")
+    : "—";
+  const carryFwd  = bvSummary ? Number(bvSummary.carryForwardBV).toFixed(0) : "0";
+  const refCode   = profile?.referralCode ?? "";
+  const refLink   = refCode ? `${window.location.origin}/register?ref=${refCode}` : "";
+  const scoreC    = stats ? scoreColor(stats.growthScore) : MUTED;
+  const visibleActivities = showAllActivity ? activities : activities.slice(0, 8);
 
-  // ── Derived ────────────────────────────────────────────────────────────────
-  const totalPages = Math.max(1, Math.ceil(memberTotal / 10));
-  const leftBV  = Number(bvSummary?.leftBV  ?? stats?.leftBV  ?? 0);
-  const rightBV = Number(bvSummary?.rightBV ?? stats?.rightBV ?? 0);
-  const totalBV = leftBV + rightBV;
-  const leftPct  = totalBV > 0 ? (leftBV  / totalBV) * 100 : 50;
-  const rightPct = totalBV > 0 ? (rightBV / totalBV) * 100 : 50;
-  const qualified = bvSummary?.binaryQualified ?? false;
+  // ── Loading skeleton ─────────────────────────────────────────────────────────
+  if (loading || !profile || !stats) {
+    return (
+      <AppLayout>
+        <PageContainer>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {[200, 120, 100, 240].map((h, i) => (
+              <div key={i} style={{ height: h, background: "rgba(255,255,255,0.04)", borderRadius: 16 }} />
+            ))}
+          </div>
+        </PageContainer>
+      </AppLayout>
+    );
+  }
 
-  const RANK_COLOR = [GOLD, "#a8a8a8", "#cd7f32", MUTED, MUTED];
-  const RANK_BG    = ["rgba(212,175,55,0.12)", "rgba(168,168,168,0.07)", "rgba(205,127,50,0.07)", "transparent", "transparent"];
-
+  // ── Page ─────────────────────────────────────────────────────────────────────
   return (
-    <AppLayout pageTitle="Network Intelligence" notificationCount={0}>
+    <AppLayout>
       <PageContainer>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingBottom: 48 }}>
 
-        {/* ── HERO ─────────────────────────────────────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-          className="relative mb-5 lg:mb-6 rounded-2xl overflow-hidden"
-          style={{
-            background: "linear-gradient(135deg, rgba(10,22,40,1) 0%, rgba(14,27,55,1) 55%, rgba(10,22,40,1) 100%)",
-            border: "1px solid rgba(212,175,55,0.22)", padding: "22px 20px",
-          }}>
-          <div style={{
-            position: "absolute", inset: 0, pointerEvents: "none",
-            background: "radial-gradient(ellipse 55% 45% at 8% 50%, rgba(212,175,55,0.07) 0%, transparent 70%)",
-          }} />
-          <div style={{ position: "relative" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-              <Users style={{ width: 12, height: 12, color: "rgba(212,175,55,0.6)" }} />
-              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(212,175,55,0.6)" }}>
-                Network Intelligence Center
-              </span>
-            </div>
-            <p style={{ fontSize: 36, fontWeight: 800, color: GOLD_L, lineHeight: 1.05, marginBottom: 4 }}>
-              {loading ? "—" : fmtK(stats?.totalTeam ?? 0)}
-              <span style={{ fontSize: 18, fontWeight: 500, color: "rgba(243,211,122,0.5)", marginLeft: 8 }}>members</span>
-            </p>
-            <p style={{ fontSize: 12, color: MUTED, marginBottom: 18 }}>Your binary network across all levels</p>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {[
-                { label: "Direct Refs", value: loading ? "—" : String(stats?.directReferrals ?? 0), color: "#60a5fa" },
-                { label: "Left Arm",    value: loading ? "—" : String(stats?.leftTeam ?? 0),        color: "#60a5fa" },
-                { label: "Right Arm",   value: loading ? "—" : String(stats?.rightTeam ?? 0),       color: "#a78bfa" },
-                { label: "This Week",   value: loading ? "—" : `+${stats?.weeklyNew ?? 0}`,          color: GOLD },
-              ].map((s) => (
-                <div key={s.label} className="rounded-xl p-3 text-center"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <p style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: MUTED, marginBottom: 5 }}>{s.label}</p>
-                  <p style={{ fontSize: 22, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-3 flex items-center gap-4 flex-wrap">
-              <span style={{ fontSize: 11, color: "#34d399" }}>
-                <span style={{ fontWeight: 700 }}>{loading ? "—" : (stats?.activeMembers ?? 0)}</span> active
-              </span>
-              <span style={{ width: 1, height: 12, background: "rgba(255,255,255,0.1)", display: "inline-block" }} />
-              <span style={{ fontSize: 11, color: MUTED }}>
-                <span style={{ fontWeight: 700 }}>{loading ? "—" : (stats?.inactiveMembers ?? 0)}</span> inactive
-              </span>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* ── INTELLIGENCE INSIGHTS ─────────────────────────────────────────── */}
-        <Section title="Intelligence Insights" icon={<Brain style={{ width: 15, height: 15, color: GOLD }} />}>
-          <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
-            {loading
-              ? Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="shrink-0 w-64 h-36 rounded-2xl animate-pulse"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }} />
-                ))
-              : insights.length > 0
-              ? insights.map((ins, i) => <InsightCard key={i} insight={ins} />)
-              : <p style={{ fontSize: 13, color: MUTED }}>No insights available.</p>
-            }
-          </div>
-        </Section>
-
-        {/* ── BINARY HEALTH ─────────────────────────────────────────────────── */}
-        <Section title="Binary Health" icon={<TrendingUp style={{ width: 15, height: 15, color: GOLD }} />}>
-          <div className="rounded-2xl p-5" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-            <div className="grid grid-cols-2 gap-4 mb-5">
-              {[
-                { label: "Left Arm BV",  value: loading ? "—" : `${leftBV.toFixed(2)}`,  color: "#60a5fa", icon: "←" },
-                { label: "Right Arm BV", value: loading ? "—" : `${rightBV.toFixed(2)}`, color: "#a78bfa", icon: "→" },
-              ].map((s) => (
-                <div key={s.label} className="rounded-xl p-4 text-center"
-                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                  <p style={{ fontSize: 18, marginBottom: 6 }}>{s.icon}</p>
-                  <p style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: MUTED, marginBottom: 6 }}>{s.label}</p>
-                  <p style={{ fontSize: 20, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</p>
-                  <p style={{ fontSize: 9, color: MUTED, marginTop: 2 }}>BV</p>
-                </div>
-              ))}
-            </div>
-
-            {/* BV balance bar */}
-            <div className="mb-3">
-              <div style={{ height: 10, borderRadius: 5, overflow: "hidden", display: "flex", background: "rgba(255,255,255,0.06)" }}>
-                <div style={{ width: `${leftPct}%`, background: "linear-gradient(90deg,#3b82f6,#60a5fa)", transition: "width 0.7s ease", borderRadius: "5px 0 0 5px" }} />
-                <div style={{ width: `${rightPct}%`, background: "linear-gradient(90deg,#a78bfa,#7c3aed)", transition: "width 0.7s ease", borderRadius: "0 5px 5px 0" }} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-                <span style={{ fontSize: 10, color: "#60a5fa", fontWeight: 600 }}>{leftPct.toFixed(0)}% Left</span>
-                <span style={{ fontSize: 10, color: "#a78bfa", fontWeight: 600 }}>Right {rightPct.toFixed(0)}%</span>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 8, height: 8, borderRadius: "50%", background: qualified ? "#34d399" : "rgba(170,179,197,0.35)", flexShrink: 0 }} />
-              <span style={{ fontSize: 11, color: qualified ? "#34d399" : MUTED }}>
-                {qualified ? "Binary income qualified — earning matching payouts" : "Not yet qualified — need 2+ direct referrals"}
-              </span>
-            </div>
-          </div>
-        </Section>
-
-        {/* ── BINARY TREE ───────────────────────────────────────────────────── */}
-        <Section
-          title="Binary Tree"
-          icon={<GitBranch style={{ width: 15, height: 15, color: GOLD }} />}
-          extra={
-            <div className="flex items-center gap-1.5">
-              {([2, 3, 4] as const).map((d) => (
-                <button key={d} onClick={() => setTreeDepth(d)}
-                  className="px-3 py-1.5 text-xs rounded-lg font-medium transition-all"
-                  style={treeDepth === d
-                    ? { background: "rgba(212,175,55,0.15)", color: GOLD, border: "1px solid rgba(212,175,55,0.3)" }
-                    : { background: "rgba(255,255,255,0.04)", color: MUTED, border: "1px solid rgba(255,255,255,0.07)" }}>
-                  L{d}
-                </button>
-              ))}
-            </div>
-          }
-        >
-          <div className="rounded-2xl overflow-hidden"
-            style={{ height: 430, background: "hsl(221 59% 9%)", border: "1px solid hsl(var(--border))" }}>
-            {loading
-              ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", flexDirection: "column", gap: 12 }}>
-                  <div className="animate-spin h-8 w-8 rounded-full"
-                    style={{ border: "2px solid rgba(212,175,55,0.15)", borderTopColor: GOLD }} />
-                  <p style={{ fontSize: 12, color: MUTED }}>Loading tree…</p>
-                </div>
-              : tree
-              ? <ReactFlow
-                  nodes={flowNodes} edges={flowEdges}
-                  nodeTypes={nodeTypes}
-                  fitView fitViewOptions={{ padding: 0.25 }}
-                  minZoom={0.25} maxZoom={2.5}
-                  nodesDraggable={false} nodesConnectable={false} elementsSelectable={false}
-                  proOptions={{ hideAttribution: true }}
-                >
-                  <Background color="rgba(212,175,55,0.03)" gap={24} size={1} />
-                  <Controls showInteractive={false} />
-                </ReactFlow>
-              : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10 }}>
-                  <GitBranch style={{ width: 32, height: 32, color: "rgba(212,175,55,0.25)" }} />
-                  <p style={{ fontSize: 13, color: MUTED, textAlign: "center" }}>
-                    No binary tree yet.<br />Place your first team member to begin.
-                  </p>
-                </div>
-            }
-          </div>
-        </Section>
-
-        {/* ── TEAM EXPLORER ─────────────────────────────────────────────────── */}
-        <Section title="Team Explorer" icon={<Search style={{ width: 15, height: 15, color: GOLD }} />}>
-          {/* search + filter */}
-          <div className="flex gap-2 mb-3">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none" style={{ color: MUTED }} />
-              <input value={search}
-                onChange={(e) => { setSearch(e.target.value); setMemberPage(1); }}
-                placeholder="Search username or name…"
-                className="w-full rounded-xl py-2.5 pl-9 pr-4 text-sm outline-none"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "hsl(var(--foreground))" }} />
-            </div>
-            <div className="flex gap-1 rounded-xl p-1" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              {(["all", "active", "inactive"] as const).map((f) => (
-                <button key={f} onClick={() => { setFilter(f); setMemberPage(1); }}
-                  className="px-3 py-1 text-xs font-medium rounded-lg transition-all capitalize"
-                  style={filter === f ? { background: "rgba(212,175,55,0.15)", color: GOLD } : { color: MUTED }}>
-                  {f}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* list */}
-          <div className="rounded-2xl overflow-hidden mb-2"
-            style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-            {memberLoading
-              ? <Skeleton n={5} py="py-3" />
-              : members.length === 0
-              ? <div className="py-12 text-center">
-                  <Users style={{ width: 28, height: 28, color: "rgba(212,175,55,0.2)", margin: "0 auto 10px" }} />
-                  <p style={{ fontSize: 13, color: MUTED }}>
-                    {(stats?.totalTeam ?? 0) === 0
-                      ? "No team members yet — share your referral link to start building."
-                      : "No members match your search."}
-                  </p>
-                </div>
-              : members.map((m, i) => (
-                  <div key={m.id} style={{ borderBottom: i < members.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                    <MemberCard m={m} onClick={() => setSelectedMember(m)} />
-                  </div>
-                ))
-            }
-          </div>
-
-          {/* pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <p style={{ fontSize: 11, color: MUTED }}>{memberTotal} total members</p>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setMemberPage((p) => Math.max(1, p - 1))} disabled={memberPage <= 1}
-                  className="h-7 w-7 flex items-center justify-center rounded-lg disabled:opacity-30 transition-all"
-                  style={{ background: "rgba(255,255,255,0.05)", color: MUTED }}>
-                  <ChevronLeft className="h-3 w-3" />
-                </button>
-                <span style={{ fontSize: 11, color: MUTED }}>{memberPage}/{totalPages}</span>
-                <button onClick={() => setMemberPage((p) => Math.min(totalPages, p + 1))} disabled={memberPage >= totalPages}
-                  className="h-7 w-7 flex items-center justify-center rounded-lg disabled:opacity-30 transition-all"
-                  style={{ background: "rgba(255,255,255,0.05)", color: MUTED }}>
-                  <ChevronRight className="h-3 w-3" />
-                </button>
-              </div>
-            </div>
-          )}
-        </Section>
-
-        {/* ── TOP PERFORMERS ────────────────────────────────────────────────── */}
-        <Section title="Top Performers" icon={<Award style={{ width: 15, height: 15, color: GOLD }} />}>
-          <div className="rounded-2xl overflow-hidden"
-            style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-            {loading
-              ? <Skeleton n={3} />
-              : performers.length === 0
-              ? <div className="py-12 text-center">
-                  <Award style={{ width: 28, height: 28, color: "rgba(212,175,55,0.2)", margin: "0 auto 10px" }} />
-                  <p style={{ fontSize: 13, color: MUTED }}>Top performers appear here when team members invest.</p>
-                </div>
-              : performers.map((p, i) => (
-                  <div key={p.id} className="flex items-center gap-3 p-4"
-                    style={{ borderBottom: i < performers.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                    <div style={{
-                      width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      background: RANK_BG[i],
-                    }}>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: RANK_COLOR[i] }}>#{p.rank}</span>
-                    </div>
-                    <Av first={p.firstName} last={p.lastName} size={32} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">@{p.username}</p>
-                      <p style={{ fontSize: 10, color: MUTED }}>
-                        {p.directReferrals} ref{p.directReferrals !== 1 ? "s" : ""} · {p.status === "ACTIVE" ? "Active" : "Inactive"}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p style={{ fontSize: 15, fontWeight: 700, color: GOLD }}>{fmtUSD(p.totalInvested)}</p>
-                      <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.05em" }}>invested</p>
-                    </div>
-                  </div>
-                ))
-            }
-          </div>
-        </Section>
-
-        {/* ── TEAM ACTIVITY ─────────────────────────────────────────────────── */}
-        <Section title="Team Activity" icon={<Activity style={{ width: 15, height: 15, color: GOLD }} />}>
-          <div className="rounded-2xl overflow-hidden"
-            style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-            {loading
-              ? <Skeleton n={5} />
-              : activity.length === 0
-              ? <div className="py-12 text-center">
-                  <Activity style={{ width: 28, height: 28, color: "rgba(212,175,55,0.2)", margin: "0 auto 10px" }} />
-                  <p style={{ fontSize: 13, color: MUTED }}>
-                    Activity appears when team members invest or join.
-                  </p>
-                </div>
-              : activity.map((a, i) => (
-                  <div key={a.id} className="flex items-center gap-3 px-4 py-3"
-                    style={{ borderBottom: i < activity.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                    <div style={{
-                      width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      background: a.type === "investment" ? "rgba(212,175,55,0.1)" : "rgba(52,211,153,0.1)",
-                    }}>
-                      {a.type === "investment"
-                        ? <TrendingUp style={{ width: 13, height: 13, color: GOLD }} />
-                        : <UserPlus  style={{ width: 13, height: 13, color: "#34d399" }} />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm">
-                        <span className="font-semibold text-foreground">@{a.username}</span>
-                        {" "}<span style={{ color: MUTED }}>{a.description}</span>
-                      </p>
-                    </div>
-                    <span style={{ fontSize: 10, color: MUTED, flexShrink: 0 }}>{timeAgo(a.at)}</span>
-                  </div>
-                ))
-            }
-          </div>
-        </Section>
-
-        {/* ── REFERRAL ──────────────────────────────────────────────────────── */}
-        <div className="rounded-2xl p-5 mb-2"
-          style={{
-            background: "linear-gradient(135deg, rgba(212,175,55,0.06) 0%, rgba(212,175,55,0.02) 100%)",
-            border: "1px solid rgba(212,175,55,0.2)",
-          }}>
-          <div className="flex items-center gap-2.5 mb-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg"
-              style={{ background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.15)" }}>
-              <Link2 style={{ width: 15, height: 15, color: GOLD }} />
-            </div>
-            <h3 className="text-base font-semibold font-heading text-foreground">Referral Link</h3>
-          </div>
-          <p style={{ fontSize: 12, color: MUTED, marginBottom: 14 }}>
-            Share your unique link to grow your network and unlock more income.
-          </p>
-          <div className="space-y-2.5">
-            {/* Code row */}
-            <div className="flex items-center gap-2">
-              <div className="flex-1 flex items-center gap-2 rounded-xl px-4 py-2.5"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <span style={{ fontSize: 10, color: MUTED, flexShrink: 0 }}>Code</span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: GOLD_L, letterSpacing: "0.14em" }}>
-                  {loading ? "—" : (profile?.referralCode ?? "—")}
-                </span>
-              </div>
-              <button onClick={copyCode}
-                className="h-10 w-10 flex items-center justify-center rounded-xl shrink-0 transition-all"
-                style={{
-                  background: copied === "code" ? "rgba(52,211,153,0.12)" : "rgba(212,175,55,0.09)",
-                  border: `1px solid ${copied === "code" ? "rgba(52,211,153,0.3)" : "rgba(212,175,55,0.2)"}`,
-                }}>
-                {copied === "code"
-                  ? <CheckCheck style={{ width: 14, height: 14, color: "#34d399" }} />
-                  : <Copy       style={{ width: 14, height: 14, color: GOLD }} />}
-              </button>
-            </div>
-            {/* Link row */}
-            <div className="flex items-center gap-2">
-              <div className="flex-1 rounded-xl px-4 py-2.5 overflow-hidden"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <p style={{ fontSize: 11, color: MUTED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {!loading && profile
-                    ? `${window.location.origin}/register?ref=${profile.referralCode}`
-                    : "—"}
+          {/* ── 1. HERO ──────────────────────────────────────────────────────── */}
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} style={CARD}>
+            {/* Greeting row */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+              <div>
+                <p style={{ fontSize: 13, color: GOLD, fontWeight: 600 }}>
+                  {getGreeting()}, {profile.firstName} 👋
                 </p>
+                <h1 style={{ fontSize: 20, fontWeight: 700, color: "rgba(255,255,255,0.95)", marginTop: 4 }}>
+                  Your Network is Growing
+                </h1>
               </div>
-              <button onClick={copyLink}
-                className="h-10 w-10 flex items-center justify-center rounded-xl shrink-0 transition-all"
-                style={{
-                  background: copied === "link" ? "rgba(52,211,153,0.12)" : "rgba(212,175,55,0.09)",
-                  border: `1px solid ${copied === "link" ? "rgba(52,211,153,0.3)" : "rgba(212,175,55,0.2)"}`,
-                }}>
-                {copied === "link"
-                  ? <CheckCheck style={{ width: 14, height: 14, color: "#34d399" }} />
-                  : <Copy       style={{ width: 14, height: 14, color: GOLD }} />}
-              </button>
+              {/* Growth score ring */}
+              <div style={{ textAlign: "center", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "10px 14px" }}>
+                <p style={{ fontSize: 9, color: MUTED, marginBottom: 2, fontWeight: 600, letterSpacing: "0.05em" }}>SCORE</p>
+                <p style={{ fontSize: 26, fontWeight: 800, color: scoreC, lineHeight: 1 }}>{stats.growthScore}</p>
+                <p style={{ fontSize: 9, color: MUTED }}>/ 100</p>
+              </div>
             </div>
+
+            {/* Progress bar */}
+            <div style={{ height: 3, background: "rgba(255,255,255,0.05)", borderRadius: 2, marginBottom: 20, overflow: "hidden" }}>
+              <motion.div initial={{ width: 0 }} animate={{ width: `${stats.growthScore}%` }} transition={{ duration: 1.4, ease: "easeOut" }}
+                style={{ height: "100%", background: `linear-gradient(90deg, ${scoreC}80, ${scoreC})`, borderRadius: 2 }} />
+            </div>
+
+            {/* Stats row */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
+              {[
+                { label: "Total Members", value: stats.totalTeam, color: "rgba(255,255,255,0.92)" },
+                { label: "Personally Sponsored", value: stats.personallySponsored, color: GOLD },
+                { label: "This Week", value: `+${stats.weeklyNew}`, color: C_OK },
+              ].map(s => (
+                <div key={s.label} style={{ textAlign: "center", padding: "12px 6px", background: "rgba(255,255,255,0.025)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <p style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</p>
+                  <p style={{ fontSize: 10, color: MUTED, marginTop: 3, lineHeight: 1.3 }}>{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 20 }} />
+
+            {/* Weak leg + Next reward */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ padding: "14px", background: "rgba(248,113,113,0.05)", borderRadius: 12, border: "1px solid rgba(248,113,113,0.12)" }}>
+                <p style={{ fontSize: 10, color: MUTED, marginBottom: 4, fontWeight: 600 }}>WEAK LEG</p>
+                <p style={{ fontSize: 18, fontWeight: 700, color: stats.weakLeg === "BALANCED" ? C_OK : C_ERR }}>
+                  {stats.weakLeg === "BALANCED" ? "Balanced ✓" : stats.weakLeg}
+                </p>
+                {stats.weakLeg !== "BALANCED" && stats.bvNeededForOrbit !== null && stats.bvNeededForOrbit > 0 && (
+                  <p style={{ fontSize: 11, color: MUTED, marginTop: 5 }}>
+                    ~<span style={{ color: "rgba(255,255,255,0.8)", fontWeight: 600 }}>{Math.ceil(stats.bvNeededForOrbit)} BV</span> for orbit
+                  </p>
+                )}
+                {stats.weakLeg !== "BALANCED" && (stats.bvNeededForOrbit ?? 1) <= 0 && (
+                  <p style={{ fontSize: 11, color: C_OK, marginTop: 5 }}>Orbit ready ✓</p>
+                )}
+              </div>
+              <div style={{ padding: "14px", background: `${GOLD}07`, borderRadius: 12, border: `1px solid ${GOLD}20` }}>
+                <p style={{ fontSize: 10, color: MUTED, marginBottom: 4, fontWeight: 600 }}>NEXT BINARY</p>
+                <p style={{ fontSize: 18, fontWeight: 700, color: GOLD }}>
+                  ≈ {fmtUSD(stats.estimatedNextBinaryReward)}
+                </p>
+                {Number(stats.estimatedNextBinaryReward) === 0
+                  ? <p style={{ fontSize: 11, color: MUTED, marginTop: 5 }}>Grow both legs to earn</p>
+                  : <p style={{ fontSize: 11, color: MUTED, marginTop: 5 }}>Per matching cycle</p>
+                }
+              </div>
+            </div>
+          </motion.div>
+
+          {/* ── 2. AI INSIGHTS ───────────────────────────────────────────────── */}
+          {insights.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+              <SH title="AI Insights" sub="Personalised recommendations based on your network" icon={Star} />
+              <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
+                {insights.map((ins, i) => (
+                  <motion.div key={i} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}>
+                    <InsightCard insight={ins} />
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── 3. NETWORK PULSE ─────────────────────────────────────────────── */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} style={CARD}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <div style={{ position: "relative" }}>
+                <Radio size={16} color={C_OK} />
+                <motion.div animate={{ scale: [1, 1.6, 1], opacity: [0.6, 0, 0.6] }} transition={{ duration: 2, repeat: Infinity }}
+                  style={{ position: "absolute", inset: -3, borderRadius: "50%", background: C_OK, pointerEvents: "none" }} />
+              </div>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: "rgba(255,255,255,0.92)" }}>Network Pulse</h2>
+              <span style={{ fontSize: 10, color: C_OK, background: `${C_OK}15`, borderRadius: 6, padding: "2px 8px", fontWeight: 600 }}>LIVE</span>
+            </div>
+            <PulseRow icon={UserPlus}    label="New Members Today"      value={stats.networkPulse.newMembersToday}     color={C_L} />
+            <PulseRow icon={TrendingUp}  label="Investments Today"      value={stats.networkPulse.newInvestmentsToday} color={GOLD} />
+            <PulseRow icon={Zap}         label="Last Binary Reward"     value={stats.networkPulse.lastBinaryIncomeAmount ? fmtUSD(stats.networkPulse.lastBinaryIncomeAmount) : "None yet"} color={C_OK} />
+            <PulseRow icon={Clock}       label="Last Binary Activity"   value={stats.networkPulse.lastBinaryIncomeAt ? timeAgo(stats.networkPulse.lastBinaryIncomeAt) : "—"} />
+            <div style={{ height: 1 }} />
+            <PulseRow icon={GitBranch}   label="Power Leg"              value={`${powerLeg} Arm`} color={powerLeg === "LEFT" ? C_L : C_R} />
+            <PulseRow icon={Target}      label="Carry Forward BV"       value={`${carryFwd} BV`}  color={GOLD_L} />
+          </motion.div>
+
+          {/* ── 4. BINARY HEALTH ─────────────────────────────────────────────── */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+            <SH title="Binary Health" sub="Left vs Right arm comparison" icon={BarChart2} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+              {/* LEFT */}
+              <div style={{ borderRadius: 14, border: `1px solid ${C_L}25`, overflow: "hidden" }}>
+                <div style={{ background: `${C_L}12`, padding: "10px 14px", borderBottom: `1px solid ${C_L}15` }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: C_L }}>← LEFT ARM</p>
+                </div>
+                <div style={{ padding: "4px 14px 10px" }}>
+                  <HealthRow label="Members"      value={stats.leftTeam}               />
+                  <HealthRow label="Business Vol" value={`${Number(stats.leftBV).toFixed(0)} BV`} color={GOLD_L} />
+                  <HealthRow label="New This Week" value={`+${stats.leftWeeklyNew}`}   color={C_OK} />
+                  <HealthRow label="Active Inv."   value={stats.leftActiveInvestments} />
+                </div>
+              </div>
+              {/* RIGHT */}
+              <div style={{ borderRadius: 14, border: `1px solid ${C_R}25`, overflow: "hidden" }}>
+                <div style={{ background: `${C_R}12`, padding: "10px 14px", borderBottom: `1px solid ${C_R}15` }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: C_R }}>RIGHT ARM →</p>
+                </div>
+                <div style={{ padding: "4px 14px 10px" }}>
+                  <HealthRow label="Members"      value={stats.rightTeam}              />
+                  <HealthRow label="Business Vol" value={`${Number(stats.rightBV).toFixed(0)} BV`} color={GOLD_L} />
+                  <HealthRow label="New This Week" value={`+${stats.rightWeeklyNew}`}  color={C_OK} />
+                  <HealthRow label="Active Inv."   value={stats.rightActiveInvestments} />
+                </div>
+              </div>
+            </div>
+            {/* Summary bar */}
+            <div style={{ ...CARD, padding: "14px 18px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, textAlign: "center" }}>
+                <div>
+                  <p style={{ fontSize: 10, color: MUTED }}>Power Leg</p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: powerLeg === "LEFT" ? C_L : C_R }}>{powerLeg}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 10, color: MUTED }}>Weak Leg</p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: stats.weakLeg === "BALANCED" ? C_OK : C_ERR }}>
+                    {stats.weakLeg === "BALANCED" ? "Balanced" : stats.weakLeg}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 10, color: MUTED }}>Carry Forward</p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: GOLD_L }}>{carryFwd} BV</p>
+                </div>
+              </div>
+              {stats.weakLeg !== "BALANCED" && (
+                <p style={{ textAlign: "center", marginTop: 10, fontSize: 12, color: C_WARN, fontWeight: 600 }}>
+                  → Focus on your {stats.weakLeg} leg
+                </p>
+              )}
+            </div>
+          </motion.div>
+
+          {/* ── 5. QUICK STATS ────────────────────────────────────────────────── */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <QStat label="Active Members"    value={stats.activeMembers}   icon={UserCheck}   color={C_OK}  />
+            <QStat label="Inactive"          value={stats.inactiveMembers} icon={UserX}       color={MUTED} />
+            <QStat label="Growth Score"      value={`${stats.growthScore}/100`} icon={Award}  color={scoreC} />
+            <QStat label="Direct Referrals"  value={stats.directReferrals} icon={Users}       color={C_L}   />
           </div>
+
+          {/* ── 6. BINARY TREE ───────────────────────────────────────────────── */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <SH title="Binary Tree" sub="Click a node to inspect a member" icon={GitBranch} />
+              <div style={{ display: "flex", gap: 6 }}>
+                {[2, 3, 4].map(d => (
+                  <button key={d} onClick={() => setDepth(d)} style={{
+                    padding: "5px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                    background: depth === d ? `${GOLD}18` : "rgba(255,255,255,0.04)",
+                    border: depth === d ? `1px solid ${GOLD}35` : "1px solid rgba(255,255,255,0.06)",
+                    color: depth === d ? GOLD : MUTED,
+                  }}>L{d}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ height: 460, borderRadius: 16, overflow: "hidden", border: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.2)" }}>
+              {flowNodes.length === 0
+                ? (
+                  <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
+                    <GitBranch size={32} color={MUTED} />
+                    <p style={{ color: MUTED, fontSize: 13 }}>No tree data yet.</p>
+                    <p style={{ color: MUTED, fontSize: 11 }}>Your network will appear here once members join.</p>
+                  </div>
+                ) : (
+                  <ReactFlow
+                    nodes={flowNodes} edges={flowEdges}
+                    nodeTypes={nodeTypes}
+                    fitView fitViewOptions={{ padding: 0.25 }}
+                    nodesDraggable={false} nodesConnectable={false}
+                    panOnDrag={true} zoomOnScroll={true}
+                    style={{ background: "transparent" }}
+                  >
+                    <Background color="rgba(255,255,255,0.04)" gap={24} />
+                    <Controls style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8 }} />
+                  </ReactFlow>
+                )
+              }
+            </div>
+          </motion.div>
+
+          {/* ── 7. TEAM EXPLORER ─────────────────────────────────────────────── */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
+            <SH title="Team Explorer" sub={`${membersTotal} members in your network`} icon={Users} />
+
+            {/* Search */}
+            <div style={{ position: "relative", marginBottom: 12 }}>
+              <Search size={14} color={MUTED} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
+              <input
+                value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search by name or username…"
+                style={{
+                  width: "100%", paddingLeft: 36, paddingRight: 16, paddingTop: 10, paddingBottom: 10,
+                  background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)",
+                  borderRadius: 12, fontSize: 13, color: "rgba(255,255,255,0.85)",
+                  outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            {/* Filter chips */}
+            <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 14, scrollbarWidth: "none" }}>
+              {CHIPS.map(chip => {
+                const active = filter === chip.filter && sort === chip.sort;
+                return (
+                  <button key={chip.label} onClick={() => { setFilter(chip.filter); setSort(chip.sort); }}
+                    style={{
+                      flexShrink: 0, padding: "6px 14px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+                      cursor: "pointer", whiteSpace: "nowrap",
+                      background: active ? `${GOLD}18` : "rgba(255,255,255,0.04)",
+                      border: active ? `1px solid ${GOLD}35` : "1px solid rgba(255,255,255,0.06)",
+                      color: active ? GOLD : MUTED,
+                    }}>
+                    {chip.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Member list */}
+            {memberLoading ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {[0, 1, 2, 3].map(i => (
+                  <div key={i} style={{ height: 64, background: "rgba(255,255,255,0.03)", borderRadius: 12 }} />
+                ))}
+              </div>
+            ) : members.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 0" }}>
+                <Users size={32} color={MUTED} style={{ margin: "0 auto 10px" }} />
+                <p style={{ color: MUTED, fontSize: 13 }}>No members match this filter.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {members.map(m => (
+                  <MemberCard key={m.id} m={m} onClick={() => setDrawer({
+                    id: m.id, username: m.username, firstName: m.firstName,
+                    lastName: m.lastName, status: m.status, position: m.position,
+                  })} />
+                ))}
+              </div>
+            )}
+
+            {/* Pagination */}
+            {membersTotal > 10 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
+                <button onClick={() => setMemberPage(p => Math.max(1, p - 1))} disabled={memberPage === 1}
+                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "7px 14px", borderRadius: 10, fontSize: 12, cursor: memberPage === 1 ? "not-allowed" : "pointer", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: memberPage === 1 ? MUTED : "rgba(255,255,255,0.7)", opacity: memberPage === 1 ? 0.5 : 1 }}>
+                  <ChevronLeft size={13} /> Prev
+                </button>
+                <span style={{ fontSize: 12, color: MUTED }}>
+                  {memberPage} / {Math.ceil(membersTotal / 10)}
+                </span>
+                <button onClick={() => setMemberPage(p => p + 1)} disabled={memberPage >= Math.ceil(membersTotal / 10)}
+                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "7px 14px", borderRadius: 10, fontSize: 12, cursor: memberPage >= Math.ceil(membersTotal / 10) ? "not-allowed" : "pointer", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: memberPage >= Math.ceil(membersTotal / 10) ? MUTED : "rgba(255,255,255,0.7)", opacity: memberPage >= Math.ceil(membersTotal / 10) ? 0.5 : 1 }}>
+                  Next <ChevronRight size={13} />
+                </button>
+              </div>
+            )}
+          </motion.div>
+
+          {/* ── 8. TOP PERFORMERS ────────────────────────────────────────────── */}
+          {performers.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+              <SH title="Top Performers" sub="Highest invested team members" icon={Award} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {performers.map(p => (
+                  <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12 }}>
+                    <div style={{ width: 24, height: 24, borderRadius: 12, background: p.rank === 1 ? `${GOLD}25` : "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: p.rank === 1 ? GOLD : MUTED }}>#{p.rank}</span>
+                    </div>
+                    <Av first={p.firstName} last={p.lastName} size={32} color={p.rank === 1 ? GOLD : undefined} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.9)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {p.firstName} {p.lastName}
+                      </p>
+                      <p style={{ fontSize: 11, color: MUTED }}>@{p.username}</p>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: p.rank === 1 ? GOLD : "rgba(255,255,255,0.85)" }}>
+                        {fmtUSD(p.totalInvested)}
+                      </p>
+                      <p style={{ fontSize: 10, color: MUTED }}>invested</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── 9. ACTIVITY TIMELINE ─────────────────────────────────────────── */}
+          {activities.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+              <SH title="Activity Timeline" sub="Latest network events" icon={Activity} />
+              <div style={{ ...CARD }}>
+                {visibleActivities.map(item => (
+                  <ActivityEntry key={item.id} item={item} />
+                ))}
+                {activities.length > 8 && (
+                  <button onClick={() => setShowAllActivity(v => !v)}
+                    style={{ width: "100%", padding: "12px", marginTop: 8, background: "transparent", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, fontSize: 12, color: MUTED, cursor: "pointer" }}>
+                    {showAllActivity ? "Show less" : `Show ${activities.length - 8} more`}
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── 10. REFERRAL ─────────────────────────────────────────────────── */}
+          {refCode && (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} style={CARD}>
+              <SH title="Grow Your Network" sub="Share your referral to earn level income" icon={Link2} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(255,255,255,0.03)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div>
+                    <p style={{ fontSize: 10, color: MUTED, marginBottom: 2 }}>Referral Code</p>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: GOLD, letterSpacing: "0.1em" }}>{refCode}</p>
+                  </div>
+                  <button onClick={() => copy(refCode, "code")} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", background: `${GOLD}15`, border: `1px solid ${GOLD}25`, borderRadius: 8, cursor: "pointer", color: GOLD, fontSize: 11, fontWeight: 600 }}>
+                    {copied === "code" ? <><CheckCheck size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
+                  </button>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(255,255,255,0.03)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
+                    <p style={{ fontSize: 10, color: MUTED, marginBottom: 2 }}>Referral Link</p>
+                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{refLink}</p>
+                  </div>
+                  <button onClick={() => copy(refLink, "link")} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, cursor: "pointer", color: MUTED, fontSize: 11, fontWeight: 600 }}>
+                    {copied === "link" ? <><CheckCheck size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
         </div>
 
-      </PageContainer>
+        {/* ── Member Drawer ────────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {drawer && (
+            <MemberDrawer
+              target={drawer}
+              journey={journey}
+              journeyLoading={journeyLoading}
+              onClose={() => { setDrawer(null); setJourneyOpen(false); }}
+              onJourneyOpen={() => setJourneyOpen(true)}
+            />
+          )}
+        </AnimatePresence>
 
-      {/* ── Member Drawer ─────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {selectedMember && (
-          <MemberDrawer
-            key={selectedMember.id}
-            member={selectedMember}
-            onClose={() => setSelectedMember(null)}
-          />
-        )}
-      </AnimatePresence>
+        {/* ── Income Journey Modal ─────────────────────────────────────────── */}
+        <AnimatePresence>
+          {journeyOpen && drawer && journey && (
+            <IncomeJourneyModal
+              journey={journey}
+              member={drawer}
+              onClose={() => setJourneyOpen(false)}
+            />
+          )}
+        </AnimatePresence>
+      </PageContainer>
     </AppLayout>
   );
 }
