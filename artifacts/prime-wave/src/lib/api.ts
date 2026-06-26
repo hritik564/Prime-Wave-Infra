@@ -618,3 +618,125 @@ export const devApi = {
       method: "DELETE", body: JSON.stringify({ ownerId }),
     }),
 };
+
+/* ── Binary Tree & BV ─────────────────────────────────────────────── */
+
+export interface BinaryTreeNode {
+  id:                  string;
+  username:            string;
+  firstName:           string;
+  lastName:            string;
+  status:              string;
+  position:            "LEFT" | "RIGHT" | null;
+  referralCode:        string;
+  directReferralCount: number;
+  placedAt:            string | null;
+  left:                BinaryTreeNode | null;
+  right:               BinaryTreeNode | null;
+}
+
+export interface BvSummary {
+  leftBV:          string;
+  rightBV:         string;
+  matchedBV:       string;
+  carryForwardBV:  string;
+  binaryQualified: boolean;
+}
+
+export function getBinaryTree(depth = 3) {
+  return request<BinaryTreeNode>(`/api/binary/tree?depth=${depth}`);
+}
+
+export function getBvSummary() {
+  return request<BvSummary>("/api/binary/bv-summary");
+}
+
+/* ── Network Intelligence ─────────────────────────────────────────── */
+
+export interface NetworkStats {
+  totalTeam:        number;
+  directReferrals:  number;
+  leftTeam:         number;
+  rightTeam:        number;
+  activeMembers:    number;
+  inactiveMembers:  number;
+  weeklyNew:        number;
+  leftBV:           string;
+  rightBV:          string;
+}
+
+export interface NetworkInsight {
+  type:    "success" | "warning" | "alert" | "info" | "gold";
+  title:   string;
+  message: string;
+  metric:  string;
+  action:  string;
+}
+
+export interface NetworkMember {
+  id:               string;
+  username:         string;
+  firstName:        string;
+  lastName:         string;
+  status:           string;
+  position:         "LEFT" | "RIGHT" | null;
+  joinedAt:         string;
+  directReferrals:  number;
+  activeInvestments: number;
+  investedAmount:   string;
+  plans:            string[];
+}
+
+export interface TopPerformer {
+  rank:            number;
+  id:              string;
+  username:        string;
+  firstName:       string;
+  lastName:        string;
+  status:          string;
+  directReferrals: number;
+  totalInvested:   string;
+  joinedAt:        string;
+}
+
+export interface TeamActivityItem {
+  id:          string;
+  type:        "investment" | "join";
+  username:    string;
+  firstName:   string;
+  description: string;
+  at:          string;
+}
+
+export function getNetworkStats() {
+  return request<NetworkStats>("/api/network/stats");
+}
+
+export function getNetworkInsights() {
+  return request<{ insights: NetworkInsight[] }>("/api/network/insights");
+}
+
+export function getNetworkMembers(params: {
+  page?:   number;
+  limit?:  number;
+  search?: string;
+  filter?: "all" | "active" | "inactive";
+}) {
+  const q = new URLSearchParams({
+    page:   String(params.page   ?? 1),
+    limit:  String(params.limit  ?? 20),
+    search: params.search ?? "",
+    filter: params.filter ?? "all",
+  });
+  return request<{ members: NetworkMember[]; total: number; page: number; limit: number }>(
+    `/api/network/members?${q}`,
+  );
+}
+
+export function getTopPerformers() {
+  return request<{ performers: TopPerformer[] }>("/api/network/top-performers");
+}
+
+export function getTeamActivity() {
+  return request<{ activities: TeamActivityItem[] }>("/api/network/activity");
+}

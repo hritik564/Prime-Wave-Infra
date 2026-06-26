@@ -48,8 +48,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Network",
     items: [
-      { label: "Binary Tree", href: "/binary-tree", icon: GitFork },
-      { label: "Team",        href: "/team",        icon: Users },
+      { label: "Network Intelligence", href: "/team", icon: GitFork },
     ],
   },
   {

@@ -11,7 +11,7 @@ import IncomeWalletPage from "@/pages/wallet/IncomeWalletPage";
 import WithdrawalWalletPage from "@/pages/wallet/WithdrawalWalletPage";
 import InvestmentsPage from "@/pages/investments/InvestmentsPage";
 import InvestmentHistoryPage from "@/pages/investments/InvestmentHistoryPage";
-import TeamPage from "@/pages/network/TeamPage";
+import NetworkIntelligencePage from "@/pages/network/NetworkIntelligencePage";
 import NotificationsPage from "@/pages/notifications/NotificationsPage";
 import SettingsPage from "@/pages/settings/SettingsPage";
 import DevToolsPage from "@/pages/DevToolsPage";
@@ -106,13 +106,13 @@ function AppRoutes() {
       </Route>
 
       <Route path="/binary-tree">
-        <RequireAuth><ComingSoon title="Binary Tree" /></RequireAuth>
+        <Redirect to="/team" />
       </Route>
       <Route path="/network">
-        <RequireAuth><TeamPage /></RequireAuth>
+        <RequireAuth><NetworkIntelligencePage /></RequireAuth>
       </Route>
       <Route path="/team">
-        <RequireAuth><TeamPage /></RequireAuth>
+        <RequireAuth><NetworkIntelligencePage /></RequireAuth>
       </Route>
       <Route path="/income">
         <RequireAuth><IncomeCenterPage /></RequireAuth>

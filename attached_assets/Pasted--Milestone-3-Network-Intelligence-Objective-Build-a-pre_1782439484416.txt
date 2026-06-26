@@ -1,0 +1,505 @@
+# Milestone 3 — Network Intelligence
+
+## Objective
+
+Build a premium **Network Intelligence Center** that helps users understand, grow and manage their organization.
+
+This is NOT simply a binary tree.
+
+The page must provide insights first, visualization second.
+
+The user should immediately understand:
+
+* How their network is growing
+* Which leg needs attention
+* Where the next Binary Income is likely to come from
+* Who is producing business
+* Which members require follow-up
+* How close they are to the next reward
+
+Use existing production APIs.
+
+Do not duplicate business logic.
+
+---
+
+# DESIGN
+
+Use Prime Wave premium design.
+
+Black / Charcoal
+
+Luxury Gold
+
+Glass cards
+
+Smooth animations
+
+Mobile-first
+
+Desktop responsive
+
+Framer Motion
+
+React Flow for tree visualization.
+
+---
+
+# SECTION 1 — Hero
+
+Premium hero.
+
+Example:
+
+Good Morning, John 👋
+
+Your Network is Growing
+
+248 Members
+
++14 This Week
+
+Growth Score
+
+92 / 100
+
+---
+
+Display:
+
+Total Members
+
+Personally Sponsored
+
+Left Team
+
+Right Team
+
+Today's New Members
+
+Weekly Growth
+
+---
+
+# SECTION 2 — Network Intelligence
+
+This is the most important section.
+
+Display intelligent insights.
+
+Examples:
+
+Your RIGHT leg needs approximately 60 BV for the next Binary Match.
+
+You are 1 personally sponsored RIGHT member away from your next Salary Rank.
+
+Your LEFT leg is generating 63% of your business.
+
+Your Binary Income opportunity is estimated at approximately $250 next cycle.
+
+Members inactive for more than 14 days:
+
+3
+
+New investors today:
+
+5
+
+Everything should be generated dynamically from production data.
+
+---
+
+# SECTION 3 — Network Overview
+
+Premium cards.
+
+Personally Sponsored
+
+Total Team
+
+Active Members
+
+Inactive Members
+
+Invested Members
+
+Today's Joins
+
+Weekly Joins
+
+Monthly Joins
+
+Average Investment
+
+---
+
+# SECTION 4 — Binary Health
+
+Beautiful comparison cards.
+
+LEFT
+
+Members
+
+BV
+
+Growth %
+
+New Members
+
+Investments
+
+RIGHT
+
+Members
+
+BV
+
+Growth %
+
+New Members
+
+Investments
+
+Large indicator:
+
+Power Leg
+
+Weak Leg
+
+Carry Forward BV
+
+---
+
+# SECTION 5 — Interactive Binary Tree
+
+Use React Flow.
+
+Requirements:
+
+Expand
+
+Collapse
+
+Zoom
+
+Pan
+
+Mini-map
+
+Search member
+
+Jump to Root
+
+Center on User
+
+Highlight Personally Sponsored
+
+Highlight Spillover
+
+Different node colours:
+
+You
+
+Personally Sponsored
+
+Spillover
+
+Inactive
+
+VIP
+
+---
+
+# SECTION 6 — Member Profile
+
+Click any node.
+
+Open right drawer (desktop).
+
+Bottom sheet (mobile).
+
+Display:
+
+Avatar
+
+Name
+
+Username
+
+Sponsor
+
+Placement
+
+Left / Right
+
+Personally Sponsored
+
+Spillover
+
+Join Date
+
+Investment
+
+Current Plan
+
+Total Investment
+
+Generated BV
+
+Binary Income Generated
+
+Level Income Generated
+
+Salary Rank
+
+Current Status
+
+Last Activity
+
+Children
+
+---
+
+# SECTION 7 — Income Journey
+
+This is a flagship feature.
+
+Every Binary, Orbit or Level Income transaction should explain its origin.
+
+Example:
+
+Binary Matching
+
+↓
+
+John invested
+
+↓
+
+Generated 50 BV
+
+↓
+
+Matched with Sarah
+
+↓
+
+Cycle #42
+
+↓
+
+Binary Income
+
+$250
+
+Users should understand exactly how every reward was created.
+
+---
+
+# SECTION 8 — Team Explorer
+
+Search by:
+
+Name
+
+Username
+
+Rank
+
+Investment
+
+Status
+
+Plan
+
+Sponsor
+
+Placement
+
+Filter:
+
+Active
+
+Inactive
+
+Personally Sponsored
+
+Spillover
+
+VIP
+
+High Producers
+
+New Members
+
+---
+
+# SECTION 9 — Top Performers
+
+Leaderboard.
+
+Top BV
+
+Top Investors
+
+Top Recruiters
+
+Fastest Growing
+
+Highest Binary
+
+Highest Level Income
+
+Today's Stars
+
+This Week
+
+This Month
+
+---
+
+# SECTION 10 — Team Activity
+
+Live timeline.
+
+Examples:
+
+John invested $5,000
+
+Sarah joined LEFT
+
+Michael completed ROI
+
+Emily achieved Gold Rank
+
+David generated Binary Income
+
+Newest first.
+
+---
+
+# SECTION 11 — Smart Coaching
+
+This section should proactively guide the user.
+
+Examples:
+
+Your RIGHT leg requires approximately 60 BV to qualify for another Binary Match.
+
+Supporting your three newest personally sponsored members may improve your next Level Income.
+
+You currently have 2 inactive direct referrals. Re-engaging them could strengthen your weaker leg.
+
+Display as recommendation cards.
+
+Do not invent data.
+
+Only use production calculations.
+
+---
+
+# SECTION 12 — Mobile
+
+Excellent mobile UX.
+
+Overview
+
+Insights
+
+Tree
+
+Activity
+
+Sticky navigation.
+
+Bottom sheets.
+
+No horizontal scrolling.
+
+---
+
+# SECTION 13 — Desktop
+
+Hero
+
+Insights
+
+Overview
+
+Tree
+
+Member Drawer
+
+Activity
+
+Beautiful spacing.
+
+---
+
+# SECTION 14 — Performance
+
+Lazy load tree.
+
+Load children on expansion.
+
+Server pagination.
+
+React Flow virtualization.
+
+Support 100,000+ members.
+
+---
+
+# SECTION 15 — Future Ready
+
+The architecture must support:
+
+Achievements
+
+Leaderboards
+
+Gamification
+
+AI Coaching
+
+Heatmaps
+
+Geo Maps
+
+Without redesigning the page.
+
+---
+
+# IMPORTANT
+
+This page should not feel like a database.
+
+It should feel like a command center.
+
+Users should leave the page knowing exactly:
+
+• Which leg needs attention
+• Which members deserve support
+• Where their income is coming from
+• What action they should take next
+
+The Network Intelligence Center should become one of the defining features of Prime Wave.
+
+---
+
+# RETURN
+
+1. Components created.
+
+2. Existing APIs reused.
+
+3. React Flow implementation.
+
+4. Mobile screenshots.
+
+5. Desktop screenshots.
+
+6. Performance strategy.
+
+7. Completion report.
