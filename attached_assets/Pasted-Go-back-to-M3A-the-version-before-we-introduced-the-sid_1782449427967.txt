@@ -1,0 +1,145 @@
+Go back to **M3A** (the version before we introduced the sidebar split pages).
+
+This is a **UI rollback only**.
+
+## IMPORTANT
+
+* Do NOT delete any components.
+* Do NOT delete any routes.
+* Do NOT delete any APIs.
+* Do NOT delete any hooks.
+* Do NOT delete any business logic.
+* Do NOT delete any data fetching.
+* Do NOT delete any styling files.
+* Do NOT modify backend code.
+
+Everything we built after M3A should remain in the project for reuse.
+
+---
+
+## Goal
+
+Restore the **Network Intelligence** page exactly as it existed in **M3A**.
+
+The page should contain only these sections in this order:
+
+1. Hero
+
+   * Greeting
+   * Growth Score
+   * Total Members
+   * Personally Sponsored
+   * This Week
+   * Weak Leg
+   * Next Binary
+
+2. Today's Action Plan
+
+3. Opportunity Cards
+
+4. AI Insights
+
+5. Network Pulse
+
+After Network Pulse the page ends.
+
+Nothing else should render.
+
+---
+
+## Remove from the Overview render ONLY
+
+These components should remain in the codebase but should no longer render on the Overview page.
+
+* Binary Health
+* Network Health Score
+* Qualification Progress
+* Binary Tree
+* Income Forecast
+* Growth Forecast
+* Team Explorer
+* Daily Missions
+* Weekly Objectives
+* Top Performers
+* Recent Activity Timeline
+* Referral Section
+
+Do not delete these components.
+
+Simply stop rendering them.
+
+---
+
+## Sidebar
+
+Keep the new sidebar exactly as it is.
+
+Network Intelligence
+
+* Overview
+* Team
+* Business Health
+* Forecasts
+* Activity
+
+The submenu structure stays.
+
+Only the Overview page changes.
+
+---
+
+## Routing
+
+Do not break routing.
+
+Leave all new routes and pages intact even if they are temporarily placeholders.
+
+---
+
+## Code Cleanup
+
+Remove unused imports from the Overview page.
+
+Remove unused state variables.
+
+Remove unused hooks.
+
+Remove unused API calls from the Overview page only.
+
+Do not remove any APIs used by other pages.
+
+---
+
+## Performance
+
+The Overview page should only fetch the data required for:
+
+* Hero
+* Today's Action Plan
+* Opportunity Cards
+* AI Insights
+* Network Pulse
+
+Nothing else.
+
+---
+
+## Validation Checklist
+
+✅ Overview looks exactly like M3A.
+
+✅ Sidebar submenu remains.
+
+✅ No deleted components.
+
+✅ No deleted routes.
+
+✅ No broken imports.
+
+✅ No TypeScript errors.
+
+✅ No console errors.
+
+✅ No backend changes.
+
+This is a clean UI rollback to M3A while preserving all later work for future pages.

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect } from "react";
 import dagre from "@dagrejs/dagre";
 import {
   ReactFlow, Background, Controls,
@@ -20,9 +20,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import {
   getProfile, getNetworkStats, getNetworkInsights,
-  getBinaryTree, getBvSummary, getNetworkMembers,
-  getTopPerformers, getTeamActivity, getNetworkMemberJourney,
-  getDecisionEngine,
+  getBvSummary, getDecisionEngine,
 } from "@/lib/api";
 import type {
   ProfileData, NetworkStats, NetworkInsight, BinaryTreeNode,
@@ -1246,41 +1244,16 @@ function WeeklyObjSection({ objectives }: { objectives: DEWeeklyObjective[] }) {
   );
 }
 
+
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function NetworkIntelligencePage() {
-  // ── Data state ───────────────────────────────────────────────────────────────
-  const [profile,    setProfile]    = useState<ProfileData | null>(null);
-  const [stats,      setStats]      = useState<NetworkStats | null>(null);
-  const [insights,   setInsights]   = useState<NetworkInsight[]>([]);
-  const [bvSummary,  setBvSummary]  = useState<BvSummary | null>(null);
-  const [treeData,   setTreeData]   = useState<BinaryTreeNode | null>(null);
-  const [performers, setPerformers] = useState<TopPerformer[]>([]);
-  const [activities, setActivities] = useState<TeamActivityItem[]>([]);
-  const [memberMap,  setMemberMap]  = useState<Map<string, NetworkMember>>(new Map());
-  const [engine,     setEngine]     = useState<DecisionEngine | null>(null);
+  const [profile,   setProfile]   = useState<ProfileData | null>(null);
+  const [stats,     setStats]     = useState<NetworkStats | null>(null);
+  const [insights,  setInsights]  = useState<NetworkInsight[]>([]);
+  const [bvSummary, setBvSummary] = useState<BvSummary | null>(null);
+  const [engine,    setEngine]    = useState<DecisionEngine | null>(null);
+  const [loading,   setLoading]   = useState(true);
 
-  // Team explorer
-  const [members,       setMembers]       = useState<NetworkMember[]>([]);
-  const [membersTotal,  setMembersTotal]  = useState(0);
-  const [memberPage,    setMemberPage]    = useState(1);
-  const [memberLoading, setMemberLoading] = useState(false);
-
-  // Filters
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterType>("all");
-  const [sort,   setSort]   = useState<SortType>("recent");
-
-  // UI state
-  const [loading,         setLoading]         = useState(true);
-  const [drawer,          setDrawer]          = useState<DrawerTarget | null>(null);
-  const [journey,         setJourney]         = useState<MemberJourney | null>(null);
-  const [journeyLoading,  setJourneyLoading]  = useState(false);
-  const [journeyOpen,     setJourneyOpen]     = useState(false);
-  const [depth,           setDepth]           = useState(3);
-  const [copied,          setCopied]          = useState<"code" | "link" | null>(null);
-  const [showAllActivity, setShowAllActivity] = useState(false);
-
-  // ── Initial data load ────────────────────────────────────────────────────────
   useEffect(() => {
     setLoading(true);
     Promise.all([
@@ -1288,86 +1261,30 @@ export default function NetworkIntelligencePage() {
       getNetworkStats(),
       getNetworkInsights(),
       getBvSummary(),
-      getTopPerformers(),
-      getTeamActivity(),
-      getNetworkMembers({ page: 1, limit: 50, filter: "all" }),
       getDecisionEngine(),
-    ]).then(([p, s, ins, bv, perf, act, allM, eng]) => {
+    ]).then(([p, s, ins, bv, eng]) => {
       setProfile(p);
       setStats(s);
       setInsights(ins.insights);
       setBvSummary(bv);
-      setPerformers(perf.performers);
-      setActivities(act.activities);
-      const map = new Map<string, NetworkMember>();
-      allM.members.forEach((m: NetworkMember) => map.set(m.id, m));
-      setMemberMap(map);
       setEngine(eng);
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
-  // ── Load tree when depth changes ────────────────────────────────────────────
-  useEffect(() => {
-    getBinaryTree(depth).then(setTreeData).catch(console.error);
-  }, [depth]);
-
-  // ── Team explorer fetch ──────────────────────────────────────────────────────
-  const fetchMembers = useCallback(() => {
-    setMemberLoading(true);
-    getNetworkMembers({ page: memberPage, limit: 10, search, filter, sort })
-      .then(r => { setMembers(r.members); setMembersTotal(r.total); })
-      .catch(console.error)
-      .finally(() => setMemberLoading(false));
-  }, [memberPage, search, filter, sort]);
-
-  useEffect(() => { fetchMembers(); }, [fetchMembers]);
-  useEffect(() => { setMemberPage(1); }, [search, filter, sort]);
-
-  // ── Journey fetch when drawer opens ─────────────────────────────────────────
-  useEffect(() => {
-    if (!drawer) { setJourney(null); return; }
-    setJourneyLoading(true);
-    setJourney(null);
-    getNetworkMemberJourney(drawer.id)
-      .then(setJourney)
-      .catch(console.error)
-      .finally(() => setJourneyLoading(false));
-  }, [drawer]);
-
-  // ── Tree elements ────────────────────────────────────────────────────────────
-  const handleNodeSelect = useCallback((data: TreeNodeData) => {
-    setDrawer({ id: data.id, username: data.username, firstName: data.firstName, lastName: data.lastName, status: data.status, position: data.position });
-  }, []);
-
-  const { nodes: flowNodes, edges: flowEdges } = useMemo(
-    () => treeToFlow(treeData, memberMap, handleNodeSelect),
-    [treeData, memberMap, handleNodeSelect],
-  );
-
-  // ── Copy helpers ─────────────────────────────────────────────────────────────
-  const copy = (text: string, which: "code" | "link") => {
-    navigator.clipboard.writeText(text).catch(() => {});
-    setCopied(which);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  // ── Derived values ───────────────────────────────────────────────────────────
+  // ── Derived values ──────────────────────────────────────────────────────────
   const powerLeg = stats
     ? (safeNum(stats.leftBV) >= safeNum(stats.rightBV) ? "LEFT" : "RIGHT")
     : "—";
-  const carryFwd  = bvSummary ? safeNum(bvSummary.carryForwardBV).toFixed(0) : "0";
-  const refCode   = profile?.referralCode ?? "";
-  const refLink   = refCode ? `${window.location.origin}/register?ref=${refCode}` : "";
-  const scoreC    = stats ? scoreColor(stats.growthScore) : MUTED;
-  const visibleActivities = showAllActivity ? activities : activities.slice(0, 8);
+  const carryFwd = bvSummary ? safeNum(bvSummary.carryForwardBV).toFixed(0) : "0";
+  const scoreC   = stats ? scoreColor(stats.growthScore) : MUTED;
 
-  // ── Loading skeleton ─────────────────────────────────────────────────────────
+  // ── Loading skeleton ────────────────────────────────────────────────────────
   if (loading || !profile || !stats) {
     return (
       <AppLayout>
         <PageContainer>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {[200, 120, 100, 240].map((h, i) => (
+            {[200, 120, 100, 160].map((h, i) => (
               <div key={i} style={{ height: h, background: "rgba(255,255,255,0.04)", borderRadius: 16 }} />
             ))}
           </div>
@@ -1376,7 +1293,7 @@ export default function NetworkIntelligencePage() {
     );
   }
 
-  // ── Page ─────────────────────────────────────────────────────────────────────
+  // ── Page ───────────────────────────────────────────────────────────────────
   return (
     <AppLayout>
       <PageContainer>
@@ -1412,9 +1329,9 @@ export default function NetworkIntelligencePage() {
             {/* Stats row */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
               {[
-                { label: "Total Members", value: stats.totalTeam, color: "rgba(255,255,255,0.92)" },
-                { label: "Personally Sponsored", value: stats.personallySponsored, color: GOLD },
-                { label: "This Week", value: `+${stats.weeklyNew}`, color: C_OK },
+                { label: "Total Members",        value: stats.totalTeam,           color: "rgba(255,255,255,0.92)" },
+                { label: "Personally Sponsored",  value: stats.personallySponsored, color: GOLD },
+                { label: "This Week",             value: `+${stats.weeklyNew}`,     color: C_OK },
               ].map(s => (
                 <div key={s.label} style={{ textAlign: "center", padding: "12px 6px", background: "rgba(255,255,255,0.025)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.05)" }}>
                   <p style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</p>
@@ -1425,7 +1342,7 @@ export default function NetworkIntelligencePage() {
 
             <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 20 }} />
 
-            {/* Weak leg + Next reward */}
+            {/* Weak leg + Next binary */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div style={{ padding: "14px", background: "rgba(248,113,113,0.05)", borderRadius: 12, border: "1px solid rgba(248,113,113,0.12)" }}>
                 <p style={{ fontSize: 10, color: MUTED, marginBottom: 4, fontWeight: 600 }}>WEAK LEG</p>
@@ -1454,13 +1371,13 @@ export default function NetworkIntelligencePage() {
             </div>
           </motion.div>
 
-          {/* ── DE-1. TODAY'S ACTION PLAN ────────────────────────────────────── */}
+          {/* ── 2. TODAY'S ACTION PLAN ───────────────────────────────────────── */}
           {engine && <ActionPlanSection items={engine.actionPlan} />}
 
-          {/* ── DE-2. OPPORTUNITY CARDS ──────────────────────────────────────── */}
+          {/* ── 3. OPPORTUNITY CARDS ─────────────────────────────────────────── */}
           {engine && <OpportunitiesSection items={engine.opportunities} />}
 
-          {/* ── 2. AI INSIGHTS ───────────────────────────────────────────────── */}
+          {/* ── 4. AI INSIGHTS ───────────────────────────────────────────────── */}
           {insights.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
               <SH title="AI Insights" sub="Personalised recommendations based on your network" icon={Star} />
@@ -1474,7 +1391,7 @@ export default function NetworkIntelligencePage() {
             </motion.div>
           )}
 
-          {/* ── 3. NETWORK PULSE ─────────────────────────────────────────────── */}
+          {/* ── 5. NETWORK PULSE ─────────────────────────────────────────────── */}
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} style={CARD}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
               <div style={{ position: "relative" }}>
@@ -1485,316 +1402,16 @@ export default function NetworkIntelligencePage() {
               <h2 style={{ fontSize: 15, fontWeight: 700, color: "rgba(255,255,255,0.92)" }}>Network Pulse</h2>
               <span style={{ fontSize: 10, color: C_OK, background: `${C_OK}15`, borderRadius: 6, padding: "2px 8px", fontWeight: 600 }}>LIVE</span>
             </div>
-            <PulseRow icon={UserPlus}    label="New Members Today"      value={stats.networkPulse.newMembersToday}     color={C_L} />
-            <PulseRow icon={TrendingUp}  label="Investments Today"      value={stats.networkPulse.newInvestmentsToday} color={GOLD} />
-            <PulseRow icon={Zap}         label="Last Binary Reward"     value={stats.networkPulse.lastBinaryIncomeAmount ? fmtUSD(stats.networkPulse.lastBinaryIncomeAmount) : "None yet"} color={C_OK} />
-            <PulseRow icon={Clock}       label="Last Binary Activity"   value={stats.networkPulse.lastBinaryIncomeAt ? timeAgo(stats.networkPulse.lastBinaryIncomeAt) : "—"} />
+            <PulseRow icon={UserPlus}   label="New Members Today"    value={stats.networkPulse.newMembersToday}     color={C_L} />
+            <PulseRow icon={TrendingUp} label="Investments Today"    value={stats.networkPulse.newInvestmentsToday} color={GOLD} />
+            <PulseRow icon={Zap}        label="Last Binary Reward"   value={stats.networkPulse.lastBinaryIncomeAmount ? fmtUSD(stats.networkPulse.lastBinaryIncomeAmount) : "None yet"} color={C_OK} />
+            <PulseRow icon={Clock}      label="Last Binary Activity" value={stats.networkPulse.lastBinaryIncomeAt ? timeAgo(stats.networkPulse.lastBinaryIncomeAt) : "—"} />
             <div style={{ height: 1 }} />
-            <PulseRow icon={GitBranch}   label="Power Leg"              value={`${powerLeg} Arm`} color={powerLeg === "LEFT" ? C_L : C_R} />
-            <PulseRow icon={Target}      label="Carry Forward BV"       value={`${carryFwd} BV`}  color={GOLD_L} />
+            <PulseRow icon={GitBranch}  label="Power Leg"            value={`${powerLeg} Arm`} color={powerLeg === "LEFT" ? C_L : C_R} />
+            <PulseRow icon={Target}     label="Carry Forward BV"     value={`${carryFwd} BV`}  color={GOLD_L} />
           </motion.div>
 
-          {/* ── 4. BINARY HEALTH ─────────────────────────────────────────────── */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <SH title="Binary Health" sub="Left vs Right arm comparison" icon={BarChart2} />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-              {/* LEFT */}
-              <div style={{ borderRadius: 14, border: `1px solid ${C_L}25`, overflow: "hidden" }}>
-                <div style={{ background: `${C_L}12`, padding: "10px 14px", borderBottom: `1px solid ${C_L}15` }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: C_L }}>← LEFT ARM</p>
-                </div>
-                <div style={{ padding: "4px 14px 10px" }}>
-                  <HealthRow label="Members"      value={stats.leftTeam}               />
-                  <HealthRow label="Business Vol" value={`${safeNum(stats.leftBV).toFixed(0)} BV`} color={GOLD_L} />
-                  <HealthRow label="New This Week" value={`+${stats.leftWeeklyNew}`}   color={C_OK} />
-                  <HealthRow label="Active Inv."   value={stats.leftActiveInvestments} />
-                </div>
-              </div>
-              {/* RIGHT */}
-              <div style={{ borderRadius: 14, border: `1px solid ${C_R}25`, overflow: "hidden" }}>
-                <div style={{ background: `${C_R}12`, padding: "10px 14px", borderBottom: `1px solid ${C_R}15` }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: C_R }}>RIGHT ARM →</p>
-                </div>
-                <div style={{ padding: "4px 14px 10px" }}>
-                  <HealthRow label="Members"      value={stats.rightTeam}              />
-                  <HealthRow label="Business Vol" value={`${safeNum(stats.rightBV).toFixed(0)} BV`} color={GOLD_L} />
-                  <HealthRow label="New This Week" value={`+${stats.rightWeeklyNew}`}  color={C_OK} />
-                  <HealthRow label="Active Inv."   value={stats.rightActiveInvestments} />
-                </div>
-              </div>
-            </div>
-            {/* Summary bar */}
-            <div style={{ ...CARD, padding: "14px 18px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, textAlign: "center" }}>
-                <div>
-                  <p style={{ fontSize: 10, color: MUTED }}>Power Leg</p>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: powerLeg === "LEFT" ? C_L : C_R }}>{powerLeg}</p>
-                </div>
-                <div>
-                  <p style={{ fontSize: 10, color: MUTED }}>Weak Leg</p>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: weakLegColor(stats.weakLeg) }}>
-                    {weakLegLabel(stats.weakLeg)}
-                  </p>
-                </div>
-                <div>
-                  <p style={{ fontSize: 10, color: MUTED }}>Carry Forward</p>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: GOLD_L }}>{carryFwd} BV</p>
-                </div>
-              </div>
-              {stats.weakLeg !== "BALANCED" && (
-                <p style={{ textAlign: "center", marginTop: 10, fontSize: 12, color: C_WARN, fontWeight: 600 }}>
-                  → Focus on your {stats.weakLeg} leg
-                </p>
-              )}
-            </div>
-          </motion.div>
-
-          {/* ── 5. QUICK STATS ────────────────────────────────────────────────── */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <QStat label="Active Members"    value={stats.activeMembers}   icon={UserCheck}   color={C_OK}  />
-            <QStat label="Inactive"          value={stats.inactiveMembers} icon={UserX}       color={MUTED} />
-            <QStat label="Growth Score"      value={`${stats.growthScore}/100`} icon={Award}  color={scoreC} />
-            <QStat label="Direct Referrals"  value={stats.directReferrals} icon={Users}       color={C_L}   />
-          </div>
-
-          {/* ── DE-3. NETWORK HEALTH SCORE ───────────────────────────────────── */}
-          {engine && <HealthScoreSection health={engine.healthScore} />}
-
-          {/* ── DE-4. SMART MEMBER RECOMMENDATIONS ───────────────────────────── */}
-          {engine && <MemberRecSection recs={engine.memberRecommendations} />}
-
-          {/* ── DE-5. QUALIFICATION PROGRESS ─────────────────────────────────── */}
-          {engine && <QualProgressSection cards={engine.qualificationProgress} />}
-
-          {/* ── 6. BINARY TREE ───────────────────────────────────────────────── */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <SH title="Binary Tree" sub="Click a node to inspect a member" icon={GitBranch} />
-              <div style={{ display: "flex", gap: 6 }}>
-                {[2, 3, 4].map(d => (
-                  <button key={d} onClick={() => setDepth(d)} style={{
-                    padding: "5px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
-                    background: depth === d ? `${GOLD}18` : "rgba(255,255,255,0.04)",
-                    border: depth === d ? `1px solid ${GOLD}35` : "1px solid rgba(255,255,255,0.06)",
-                    color: depth === d ? GOLD : MUTED,
-                  }}>L{d}</button>
-                ))}
-              </div>
-            </div>
-            <div style={{ height: 460, borderRadius: 16, overflow: "hidden", border: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.2)" }}>
-              {flowNodes.length === 0
-                ? (
-                  <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
-                    <GitBranch size={32} color={MUTED} />
-                    <p style={{ color: MUTED, fontSize: 13 }}>No tree data yet.</p>
-                    <p style={{ color: MUTED, fontSize: 11 }}>Your network will appear here once members join.</p>
-                  </div>
-                ) : (
-                  <ReactFlow
-                    nodes={flowNodes} edges={flowEdges}
-                    nodeTypes={nodeTypes}
-                    fitView fitViewOptions={{ padding: 0.25 }}
-                    nodesDraggable={false} nodesConnectable={false}
-                    panOnDrag={true} zoomOnScroll={true}
-                    style={{ background: "transparent" }}
-                  >
-                    <Background color="rgba(255,255,255,0.04)" gap={24} />
-                    <Controls style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8 }} />
-                  </ReactFlow>
-                )
-              }
-            </div>
-          </motion.div>
-
-          {/* ── DE-6. INCOME FORECAST ────────────────────────────────────────── */}
-          {engine && <IncomeForecastSection forecast={engine.incomeForecast} />}
-
-          {/* ── DE-7. GROWTH FORECAST ────────────────────────────────────────── */}
-          {engine && <GrowthForecastSection forecast={engine.growthForecast} />}
-
-          {/* ── 7. TEAM EXPLORER ─────────────────────────────────────────────── */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
-            <SH title="Team Explorer" sub={`${membersTotal} members in your network`} icon={Users} />
-
-            {/* Search */}
-            <div style={{ position: "relative", marginBottom: 12 }}>
-              <Search size={14} color={MUTED} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
-              <input
-                value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search by name or username…"
-                style={{
-                  width: "100%", paddingLeft: 36, paddingRight: 16, paddingTop: 10, paddingBottom: 10,
-                  background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)",
-                  borderRadius: 12, fontSize: 13, color: "rgba(255,255,255,0.85)",
-                  outline: "none", boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            {/* Filter chips */}
-            <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 14, scrollbarWidth: "none" }}>
-              {CHIPS.map(chip => {
-                const active = filter === chip.filter && sort === chip.sort;
-                return (
-                  <button key={chip.label} onClick={() => { setFilter(chip.filter); setSort(chip.sort); }}
-                    style={{
-                      flexShrink: 0, padding: "6px 14px", borderRadius: 20, fontSize: 11, fontWeight: 600,
-                      cursor: "pointer", whiteSpace: "nowrap",
-                      background: active ? `${GOLD}18` : "rgba(255,255,255,0.04)",
-                      border: active ? `1px solid ${GOLD}35` : "1px solid rgba(255,255,255,0.06)",
-                      color: active ? GOLD : MUTED,
-                    }}>
-                    {chip.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Member list */}
-            {memberLoading ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {[0, 1, 2, 3].map(i => (
-                  <div key={i} style={{ height: 64, background: "rgba(255,255,255,0.03)", borderRadius: 12 }} />
-                ))}
-              </div>
-            ) : members.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "32px 0" }}>
-                <Users size={32} color={MUTED} style={{ margin: "0 auto 10px" }} />
-                <p style={{ color: MUTED, fontSize: 13 }}>No members match this filter.</p>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {members.map(m => (
-                  <MemberCard key={m.id} m={m} onClick={() => setDrawer({
-                    id: m.id, username: m.username, firstName: m.firstName,
-                    lastName: m.lastName, status: m.status, position: m.position,
-                  })} />
-                ))}
-              </div>
-            )}
-
-            {/* Pagination */}
-            {membersTotal > 10 && (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
-                <button onClick={() => setMemberPage(p => Math.max(1, p - 1))} disabled={memberPage === 1}
-                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "7px 14px", borderRadius: 10, fontSize: 12, cursor: memberPage === 1 ? "not-allowed" : "pointer", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: memberPage === 1 ? MUTED : "rgba(255,255,255,0.7)", opacity: memberPage === 1 ? 0.5 : 1 }}>
-                  <ChevronLeft size={13} /> Prev
-                </button>
-                <span style={{ fontSize: 12, color: MUTED }}>
-                  {memberPage} / {Math.ceil(membersTotal / 10)}
-                </span>
-                <button onClick={() => setMemberPage(p => p + 1)} disabled={memberPage >= Math.ceil(membersTotal / 10)}
-                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "7px 14px", borderRadius: 10, fontSize: 12, cursor: memberPage >= Math.ceil(membersTotal / 10) ? "not-allowed" : "pointer", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: memberPage >= Math.ceil(membersTotal / 10) ? MUTED : "rgba(255,255,255,0.7)", opacity: memberPage >= Math.ceil(membersTotal / 10) ? 0.5 : 1 }}>
-                  Next <ChevronRight size={13} />
-                </button>
-              </div>
-            )}
-          </motion.div>
-
-          {/* ── DE-8. DAILY MISSIONS ─────────────────────────────────────────── */}
-          {engine && <DailyMissionsSection missions={engine.dailyMissions} />}
-
-          {/* ── DE-9. WEEKLY OBJECTIVES ──────────────────────────────────────── */}
-          {engine && <WeeklyObjSection objectives={engine.weeklyObjectives} />}
-
-          {/* ── 8. TOP PERFORMERS ────────────────────────────────────────────── */}
-          {performers.length > 0 && (
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
-              <SH title="Top Performers" sub="Highest invested team members" icon={Award} />
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {performers.map(p => (
-                  <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12 }}>
-                    <div style={{ width: 24, height: 24, borderRadius: 12, background: p.rank === 1 ? `${GOLD}25` : "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: p.rank === 1 ? GOLD : MUTED }}>#{p.rank}</span>
-                    </div>
-                    <Av first={p.firstName} last={p.lastName} size={32} color={p.rank === 1 ? GOLD : undefined} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.9)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {p.firstName} {p.lastName}
-                      </p>
-                      <p style={{ fontSize: 11, color: MUTED }}>@{p.username}</p>
-                    </div>
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: p.rank === 1 ? GOLD : "rgba(255,255,255,0.85)" }}>
-                        {fmtUSD(p.totalInvested)}
-                      </p>
-                      <p style={{ fontSize: 10, color: MUTED }}>invested</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-
-          {/* ── 9. ACTIVITY TIMELINE ─────────────────────────────────────────── */}
-          {activities.length > 0 && (
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-              <SH title="Activity Timeline" sub="Latest network events" icon={Activity} />
-              <div style={{ ...CARD }}>
-                {visibleActivities.map(item => (
-                  <ActivityEntry key={item.id} item={item} />
-                ))}
-                {activities.length > 8 && (
-                  <button onClick={() => setShowAllActivity(v => !v)}
-                    style={{ width: "100%", padding: "12px", marginTop: 8, background: "transparent", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, fontSize: 12, color: MUTED, cursor: "pointer" }}>
-                    {showAllActivity ? "Show less" : `Show ${activities.length - 8} more`}
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          )}
-
-          {/* ── 10. REFERRAL ─────────────────────────────────────────────────── */}
-          {refCode && (
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} style={CARD}>
-              <SH title="Grow Your Network" sub="Share your referral to earn level income" icon={Link2} />
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(255,255,255,0.03)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div>
-                    <p style={{ fontSize: 10, color: MUTED, marginBottom: 2 }}>Referral Code</p>
-                    <p style={{ fontSize: 15, fontWeight: 700, color: GOLD, letterSpacing: "0.1em" }}>{refCode}</p>
-                  </div>
-                  <button onClick={() => copy(refCode, "code")} style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", background: `${GOLD}15`, border: `1px solid ${GOLD}25`, borderRadius: 8, cursor: "pointer", color: GOLD, fontSize: 11, fontWeight: 600 }}>
-                    {copied === "code" ? <><CheckCheck size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
-                  </button>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "rgba(255,255,255,0.03)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-                    <p style={{ fontSize: 10, color: MUTED, marginBottom: 2 }}>Referral Link</p>
-                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{refLink}</p>
-                  </div>
-                  <button onClick={() => copy(refLink, "link")} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, cursor: "pointer", color: MUTED, fontSize: 11, fontWeight: 600 }}>
-                    {copied === "link" ? <><CheckCheck size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
         </div>
-
-        {/* ── Member Drawer ────────────────────────────────────────────────── */}
-        <AnimatePresence>
-          {drawer && (
-            <MemberDrawer
-              target={drawer}
-              journey={journey}
-              journeyLoading={journeyLoading}
-              onClose={() => { setDrawer(null); setJourneyOpen(false); }}
-              onJourneyOpen={() => setJourneyOpen(true)}
-            />
-          )}
-        </AnimatePresence>
-
-        {/* ── Income Journey Modal ─────────────────────────────────────────── */}
-        <AnimatePresence>
-          {journeyOpen && drawer && journey && (
-            <IncomeJourneyModal
-              journey={journey}
-              member={drawer}
-              onClose={() => setJourneyOpen(false)}
-            />
-          )}
-        </AnimatePresence>
       </PageContainer>
     </AppLayout>
   );
