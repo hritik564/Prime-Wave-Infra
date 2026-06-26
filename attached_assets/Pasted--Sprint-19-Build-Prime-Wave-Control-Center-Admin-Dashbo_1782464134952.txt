@@ -1,0 +1,320 @@
+# Sprint 19 — Build Prime Wave Control Center (Admin Dashboard)
+
+Create the foundation of the Prime Wave administrative portal.
+
+IMPORTANT:
+This is Sprint 19 Phase 1.
+
+Do NOT build the entire admin panel.
+
+Only build the Admin Dashboard (Control Center).
+
+This dashboard will become the design system for every future admin page.
+
+---
+
+## DO NOT MODIFY
+
+* User Portal
+* User Authentication
+* Network Intelligence
+* Investment Pages
+* Existing APIs
+* Existing Database Schema
+* Existing Routes
+
+Everything in the member portal must continue working exactly as it does now.
+
+---
+
+# Create a separate Admin Area
+
+Create a dedicated admin layout.
+
+Structure similar to:
+
+Admin Layout
+
+Left Sidebar
+Top Navigation
+Main Content Area
+
+Responsive.
+
+Dark theme.
+
+Use the existing design language from the user portal.
+
+---
+
+# Sidebar
+
+Dashboard
+
+Members
+
+Investments
+
+Withdrawals
+
+Wallets
+
+Binary Network
+
+Income Engine
+
+Plans
+
+Reports
+
+CMS
+
+Support
+
+Settings
+
+Logout
+
+Only Dashboard should be functional.
+
+The rest should display "Coming Soon".
+
+---
+
+# Top Navigation
+
+Search
+
+Notifications
+
+Admin Profile
+
+System Status Indicator
+
+Current Time
+
+---
+
+# Dashboard Layout
+
+Top Row
+
+8 KPI Cards
+
+Each card should be reusable.
+
+Cards:
+
+Total Members
+
+Active Members
+
+Pending KYC
+
+Today's Registrations
+
+Total Investments
+
+Pending Withdrawals
+
+Platform Revenue
+
+System Health
+
+Each card should have:
+
+Icon
+
+Large number
+
+Small label
+
+Growth indicator
+
+Hover animation
+
+---
+
+# Charts
+
+Row One
+
+Member Growth
+
+Investment Volume
+
+Revenue Trend
+
+Use placeholder/mock data.
+
+Beautiful modern charts.
+
+---
+
+# Recent Activity
+
+Table
+
+Latest registrations
+
+Latest investments
+
+Latest withdrawals
+
+Maximum 5 rows.
+
+View All button.
+
+---
+
+# Pending Actions
+
+Card
+
+Pending Withdrawals
+
+Pending KYC
+
+Failed Transactions
+
+Support Tickets
+
+Each row clickable.
+
+---
+
+# Quick Actions
+
+Grid
+
+Create Member
+
+Approve Withdrawal
+
+Create Investment Plan
+
+Broadcast Notification
+
+System Settings
+
+These are navigation shortcuts only.
+
+---
+
+# Platform Health
+
+Small status widgets
+
+API
+
+Database
+
+Queue
+
+Cron Jobs
+
+Storage
+
+Email
+
+All mock values.
+
+---
+
+# Design Requirements
+
+Premium SaaS appearance.
+
+Think:
+
+Stripe
+
+Vercel
+
+Linear
+
+Clerk
+
+Framer
+
+Notion
+
+Avoid generic Bootstrap admin dashboards.
+
+No gradients everywhere.
+
+Use subtle glassmorphism.
+
+Rounded corners.
+
+Soft shadows.
+
+Consistent spacing.
+
+Professional typography.
+
+---
+
+# Components
+
+Every section should be reusable.
+
+Create reusable components:
+
+StatCard
+
+SectionHeader
+
+ActivityTable
+
+ChartCard
+
+HealthIndicator
+
+QuickActionCard
+
+SidebarItem
+
+TopNavbar
+
+Do NOT duplicate UI.
+
+---
+
+# Data
+
+Use mock data for now.
+
+No backend implementation.
+
+No API calls.
+
+No database changes.
+
+Everything should be isolated and easy to connect later.
+
+---
+
+# Routing
+
+Create a separate admin route.
+
+Do not interfere with existing member routes.
+
+---
+
+# Performance
+
+Lazy load charts.
+
+Memoize reusable components.
+
+Keep renders minimal.
+
+---
+
+# Goal
+
+Build a production-quality Admin Dashboard that feels like the command center of a multi-million-dollar fintech platform.
+
+This dashboard will become the visual and architectural foundation for every future admin page.
