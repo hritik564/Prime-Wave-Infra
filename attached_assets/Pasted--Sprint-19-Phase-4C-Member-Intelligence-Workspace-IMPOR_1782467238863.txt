@@ -1,0 +1,358 @@
+# Sprint 19 — Phase 4C
+
+## Member Intelligence Workspace
+
+IMPORTANT
+
+This sprint upgrades the existing Member Drawer into a complete Member Intelligence Workspace.
+
+DO NOT redesign the Members page.
+
+DO NOT redesign the table.
+
+DO NOT redesign the dashboard.
+
+DO NOT modify routing.
+
+DO NOT connect backend.
+
+Use mock data only.
+
+Everything should extend the existing Member Drawer.
+
+---
+
+## OBJECTIVE
+
+When an admin opens a member,
+
+they should immediately understand:
+
+• Who this member is
+• Their financial status
+• Their network position
+• Their recent activity
+• Any warnings
+• Any actions that require attention
+
+without opening another page.
+
+---
+
+## HEADER
+
+Upgrade the drawer header.
+
+Display:
+
+Large Avatar
+
+Username
+
+Full Name
+
+Member ID
+
+Rank Badge
+
+Status Badge
+
+Country Flag
+
+Joined Date
+
+Last Login
+
+Online / Offline indicator
+
+Top right:
+
+Quick Actions dropdown
+
+---
+
+## MEMBER HEALTH SCORE
+
+Add a prominent "Member Health Score".
+
+Example:
+
+92 / 100
+
+Based on mock values.
+
+Categories:
+
+Investment Activity
+
+Referral Activity
+
+Network Growth
+
+Withdrawal Behaviour
+
+Platform Engagement
+
+Use progress bars.
+
+---
+
+## FINANCIAL SNAPSHOT
+
+Create a premium card.
+
+Display:
+
+Total Invested
+
+Current Active Investment
+
+ROI Earned
+
+Binary Income
+
+Level Income
+
+Salary Income
+
+Withdrawal Wallet
+
+Income Wallet
+
+Deposit Wallet
+
+Pending Withdrawals
+
+Pending Transfers
+
+Everything formatted beautifully.
+
+---
+
+## NETWORK SNAPSHOT
+
+Create another card.
+
+Display:
+
+Sponsor
+
+Binary Position
+
+Left BV
+
+Right BV
+
+Carry Forward
+
+Direct Referrals
+
+Total Team
+
+Current Rank
+
+Next Rank Progress
+
+Small progress bar.
+
+---
+
+## RECENT TIMELINE
+
+Upgrade timeline.
+
+Include icons.
+
+Examples:
+
+Joined Platform
+
+Purchased Plan
+
+Received Binary Income
+
+Referral Registered
+
+Requested Withdrawal
+
+KYC Approved
+
+Transferred Income
+
+Limit to 8 entries.
+
+View Full Timeline button.
+
+---
+
+## RISK & ALERTS
+
+Create a dedicated alert section.
+
+Examples:
+
+⚠ No login for 14 days
+
+⚠ Pending KYC
+
+⚠ Large withdrawal pending
+
+⚠ Binary imbalance
+
+⚠ Investment expires in 6 days
+
+Use colored alert cards.
+
+---
+
+## QUICK ACTION PANEL
+
+Pinned section.
+
+Buttons:
+
+Approve KYC
+
+Suspend
+
+Reset Password
+
+View Binary Tree
+
+Open Investments
+
+Open Wallet
+
+Open Withdrawals
+
+Impersonate User
+
+Every action should be one click away.
+
+---
+
+## DOCUMENTS
+
+New tab.
+
+Display:
+
+KYC
+
+PAN
+
+Passport
+
+Address Proof
+
+Transaction Receipts
+
+Download buttons.
+
+Preview cards.
+
+Mock only.
+
+---
+
+## NOTES
+
+Improve Notes.
+
+Support:
+
+Rich text
+
+Pinned notes
+
+Timestamp
+
+Admin avatar
+
+Newest first
+
+---
+
+## AUDIT LOG
+
+Improve existing audit.
+
+Columns:
+
+Time
+
+Admin
+
+Action
+
+IP Address
+
+Device
+
+Status
+
+Search
+
+Filter
+
+Export
+
+Mock only.
+
+---
+
+## DRAWER EXPERIENCE
+
+Keep existing tabs.
+
+Improve transitions.
+
+Independent scrolling.
+
+Sticky header.
+
+Sticky action buttons.
+
+Smooth animations.
+
+---
+
+## DESIGN
+
+Everything must follow the Prime Wave Admin design language.
+
+Dark theme.
+
+Premium spacing.
+
+Glassmorphism.
+
+No Bootstrap appearance.
+
+Enterprise quality.
+
+---
+
+## PERFORMANCE
+
+Lazy render tabs.
+
+Avoid unnecessary rerenders.
+
+Keep drawer opening under 250ms.
+
+---
+
+IMPORTANT
+
+No backend.
+
+No APIs.
+
+No database.
+
+No business logic.
+
+Only production-quality UI architecture using realistic mock data.
+
+The Member Intelligence Workspace should feel comparable to an enterprise CRM used by operations teams at a fintech company.
