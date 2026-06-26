@@ -5,7 +5,7 @@ import {
   Handle,
   Position,
   useReactFlow,
-  useStore,
+  useViewport,
   type Node,
   type Edge,
   type NodeTypes,
@@ -394,7 +394,8 @@ function TreeInnerControls({
   onFit:    () => void;
 }) {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
-  const zoom = useStore((s) => Math.round(s.transform[2] * 100));
+  const { zoom: zoomLevel } = useViewport();
+  const zoom = Math.round(zoomLevel * 100);
 
   const handleFit = useCallback(() => {
     fitView({ padding: 0.25, duration: 350 });
