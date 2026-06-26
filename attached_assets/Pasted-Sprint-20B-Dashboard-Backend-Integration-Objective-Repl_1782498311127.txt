@@ -1,0 +1,167 @@
+Sprint 20B — Dashboard Backend Integration
+
+Objective
+
+Replace all mock dashboard data with live backend data while preserving the existing UI exactly as it is.
+
+IMPORTANT
+
+Do NOT redesign the dashboard.
+
+Do NOT change layout, styling, spacing, typography or components.
+
+Do NOT modify other admin modules.
+
+This sprint only replaces mock data with real backend data.
+
+----------------------------------------
+
+Integrate the following Dashboard KPI cards:
+
+• Total Members
+• Active Members
+• Pending KYC
+• Today's Registrations
+• Total Investments
+• Pending Withdrawals
+• Platform Revenue
+• System Health
+
+Each card should retrieve live values from the backend.
+
+Support loading state.
+
+Support error state.
+
+Support empty state.
+
+----------------------------------------
+
+Charts
+
+Replace mock chart data with live backend data.
+
+Charts:
+
+• Member Growth
+• Investment Volume
+• Revenue Trend
+
+Requirements:
+
+• Preserve current chart appearance.
+
+• Handle no-data scenarios gracefully.
+
+• Display loading skeleton while fetching.
+
+• Display friendly error message if request fails.
+
+----------------------------------------
+
+Recent Activity
+
+Replace mock activity with live backend activity.
+
+Include:
+
+• New registrations
+• Investments
+• Withdrawals
+• KYC approvals
+• Wallet adjustments
+• Admin actions (if available)
+
+Limit to latest 5 records.
+
+View All should be ready for future implementation.
+
+----------------------------------------
+
+Pending Actions
+
+Replace mock values with live counts.
+
+Include:
+
+• Pending Withdrawals
+• Pending KYC
+• Failed Transactions
+• Support Tickets (if backend exists; otherwise keep placeholder)
+
+----------------------------------------
+
+Platform Health
+
+Replace mock values where possible.
+
+Display live status for:
+
+• API
+• Database
+• Background Jobs
+• Storage
+• Email Service
+
+If any service does not yet exist, clearly display "Not Configured" instead of fake healthy values.
+
+----------------------------------------
+
+Quick Actions
+
+No backend changes required.
+
+Keep navigation only.
+
+----------------------------------------
+
+Performance
+
+Fetch dashboard data efficiently.
+
+Avoid duplicate API requests.
+
+Load independent widgets in parallel where appropriate.
+
+Refresh only affected widgets.
+
+Do not reload the whole page unnecessarily.
+
+----------------------------------------
+
+Error Handling
+
+Handle:
+
+• Network failures
+• Unauthorized responses
+• Empty datasets
+• Partial failures
+
+One failed widget must not break the entire dashboard.
+
+----------------------------------------
+
+Validation
+
+Verify:
+
+✓ KPI cards display live backend values.
+
+✓ Charts display live backend data.
+
+✓ Recent Activity is live.
+
+✓ Pending Actions are live.
+
+✓ Platform Health reflects backend availability.
+
+✓ Existing UI remains unchanged.
+
+✓ Dashboard performance remains smooth.
+
+----------------------------------------
+
+Goal
+
+Transform the Prime Wave Control Center dashboard from mock data to a fully live operational dashboard while preserving the current UI and user experience.

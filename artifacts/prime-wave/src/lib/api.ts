@@ -394,6 +394,92 @@ export function cancelWithdrawal(id: string) {
   return request<{ withdrawalId: string; status: string }>(`/api/withdrawals/${id}/cancel`, { method: "POST" });
 }
 
+/* ── Admin Dashboard ──────────────────────────────────────────────── */
+
+export interface AdminDashboardStats {
+  totalUsers: number;
+  activeUsers: number;
+  blockedUsers: number;
+  suspendedUsers: number;
+  totalDeposits: number;
+  pendingDeposits: number;
+  totalWithdrawals: number;
+  pendingWithdrawals: number;
+  totalInvestments: number;
+  totalRoiPaid: string;
+  totalBinaryIncome: string;
+  totalOrbitIncome: string;
+  totalLevelIncome: string;
+  totalSalaryIncome: string;
+  todayNewUsers: number;
+  todayDeposits: number;
+  todayWithdrawals: number;
+}
+
+export function getAdminDashboard() {
+  return request<AdminDashboardStats>("/api/admin/dashboard");
+}
+
+export interface AdminSystemHealth {
+  lastRoiCronExecution: string | null;
+  lastBinaryMatchingExecution: string | null;
+  lastOrbitExecution: string | null;
+  lastSalaryExecution: string | null;
+  lastMonthlySalaryExecution: string | null;
+  failedJobsCount: number;
+  pendingDeposits: number;
+  pendingWithdrawals: number;
+}
+
+export function getAdminSystemHealth() {
+  return request<AdminSystemHealth>("/api/admin/system-health");
+}
+
+export interface AdminPendingOps {
+  pendingDeposits: number;
+  pendingWithdrawals: number;
+  failedJobs: number;
+}
+
+export function getAdminPendingOps() {
+  return request<AdminPendingOps>("/api/admin/reports/pending");
+}
+
+export interface DailyBusinessRow {
+  date: string;
+  newUsers: number;
+  deposits: number;
+  investments: number;
+  withdrawals: number;
+}
+
+export interface AdminDailyBusiness {
+  period: { from: string; to: string };
+  data: DailyBusinessRow[];
+}
+
+export function getAdminDailyBusiness(limit = 30) {
+  return request<AdminDailyBusiness>(`/api/admin/reports/daily-business?limit=${limit}`);
+}
+
+export interface AdminUserListItem {
+  id: string;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  status: string;
+  createdAt: string;
+}
+
+export function adminSearchUsers(params?: { page?: number; limit?: number; status?: string }) {
+  const q = new URLSearchParams();
+  if (params?.page)   q.set("page",   String(params.page));
+  if (params?.limit)  q.set("limit",  String(params.limit));
+  if (params?.status) q.set("status", params.status);
+  return request<{ data: AdminUserListItem[]; meta: ListMeta }>(`/api/admin/users/search?${q}`);
+}
+
 /* ── Dev Toolkit (development only) ──────────────────────────────── */
 
 export interface DevStatus {

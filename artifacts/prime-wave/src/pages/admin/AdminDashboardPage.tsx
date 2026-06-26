@@ -1,10 +1,16 @@
-import { memo, lazy, Suspense } from "react";
+import { memo, lazy, Suspense, useState, useEffect, useCallback } from "react";
 import {
   Users, UserCheck, Clock, UserPlus, DollarSign,
   ArrowDownLeft, BarChart2, Activity, ArrowUpRight, ArrowDownRight,
-  Minus, ChevronRight, Zap, Settings, Bell, UserCog, Plus,
+  Minus, ChevronRight, Zap, Settings, Bell, UserCog, Plus, RefreshCw,
 } from "lucide-react";
 import AdminLayout from "./AdminLayout";
+import {
+  getAdminDashboard, getAdminSystemHealth, getAdminPendingOps,
+  getAdminDailyBusiness, adminSearchUsers,
+  type AdminDashboardStats, type AdminSystemHealth, type AdminPendingOps,
+  type AdminDailyBusiness, type AdminUserListItem, type DailyBusinessRow,
+} from "@/lib/api";
 
 const GOLD   = "#D4AF37";
 const GOLD_L = "#F3D37A";
@@ -12,63 +18,134 @@ const MUTED  = "rgba(170,179,197,0.5)";
 const BORDER = "rgba(255,255,255,0.07)";
 const CARD   = "hsl(222 62% 9%)";
 
-// ── Mock Data ──────────────────────────────────────────────────────────────────
+// ── Format helpers ─────────────────────────────────────────────────────────────
 
-const memberGrowth = [
-  { d: "Mon", v: 1189 }, { d: "Tue", v: 1204 }, { d: "Wed", v: 1218 },
-  { d: "Thu", v: 1225 }, { d: "Fri", v: 1231 }, { d: "Sat", v: 1239 }, { d: "Sun", v: 1247 },
-];
+function fmtNum(n: number): string {
+  return n.toLocaleString();
+}
 
-const investmentVolume = [
-  { d: "Mon", v: 42 }, { d: "Tue", v: 38 }, { d: "Wed", v: 55 },
-  { d: "Thu", v: 47 }, { d: "Fri", v: 63 }, { d: "Sat", v: 31 }, { d: "Sun", v: 48 },
-];
+function fmtUsd(s: string | number): string {
+  const n = typeof s === "number" ? s : parseFloat(s);
+  if (isNaN(n) || n === 0) return "$0";
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `$${(n / 1_000).toFixed(1)}K`;
+  return `$${n.toFixed(2)}`;
+}
 
-const revenueTrend = [
-  { d: "W1", v: 18.4 }, { d: "W2", v: 22.1 }, { d: "W3", v: 19.8 }, { d: "W4", v: 28.3 },
-  { d: "W5", v: 31.2 }, { d: "W6", v: 27.9 }, { d: "W7", v: 35.1 }, { d: "W8", v: 38.6 },
-];
+function sumIncome(stats: AdminDashboardStats): number {
+  return (
+    parseFloat(stats.totalRoiPaid)     +
+    parseFloat(stats.totalBinaryIncome) +
+    parseFloat(stats.totalOrbitIncome)  +
+    parseFloat(stats.totalLevelIncome)  +
+    parseFloat(stats.totalSalaryIncome)
+  );
+}
 
-const recentRegistrations = [
-  { username: "crypto_hawk",  email: "c.hawk@mail.com",    joined: "2 min ago",  status: "ACTIVE" },
-  { username: "moon_alice",   email: "alice@example.com",  joined: "18 min ago", status: "ACTIVE" },
-  { username: "d_venture",    email: "d@venture.io",       joined: "41 min ago", status: "ACTIVE" },
-  { username: "wave_rider88", email: "rider@wave.co",      joined: "1 hr ago",   status: "ACTIVE" },
-  { username: "stellar_k",    email: "kira@stellar.net",   joined: "2 hrs ago",  status: "INACTIVE" },
-];
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diff / 60_000);
+  if (min < 1)  return "just now";
+  if (min < 60) return `${min} min ago`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} hr ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
 
-const recentInvestments = [
-  { username: "profit_king",  amount: "$5,000", plan: "ALPHA",   date: "5 min ago",  status: "ACTIVE" },
-  { username: "moon_alice",   amount: "$2,500", plan: "STARTER", date: "23 min ago", status: "ACTIVE" },
-  { username: "crypto_hawk",  amount: "$10,000",plan: "PREMIUM", date: "1 hr ago",   status: "ACTIVE" },
-  { username: "wave_rider88", amount: "$1,000", plan: "STARTER", date: "3 hrs ago",  status: "ACTIVE" },
-  { username: "bull_terrance",amount: "$7,500", plan: "ALPHA",   date: "5 hrs ago",  status: "ACTIVE" },
-];
+function weekdayLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+}
 
-const pendingActions = [
-  { label: "Pending Withdrawals",  count: 7,  amount: "$12,450", color: "#fbbf24", urgent: true },
-  { label: "Pending KYC Reviews",  count: 23, amount: null,      color: "#60a5fa", urgent: false },
-  { label: "Failed Transactions",  count: 3,  amount: "$2,100",  color: "#f87171", urgent: true },
-  { label: "Support Tickets",      count: 11, amount: null,      color: "#a78bfa", urgent: false },
-];
+// ── Chart data transformers ────────────────────────────────────────────────────
 
-const healthServices = [
-  { label: "API",       status: "ok",   latency: "18ms"  },
-  { label: "Database",  status: "ok",   latency: "4ms"   },
-  { label: "Queue",     status: "ok",   latency: "—"     },
-  { label: "Cron Jobs", status: "ok",   latency: "—"     },
-  { label: "Storage",   status: "warn", latency: "82%"   },
-  { label: "Email",     status: "ok",   latency: "—"     },
-];
+interface ChartPoint { d: string; v: number }
 
-const quickActions = [
-  { icon: UserPlus,  label: "Create Member",       color: "#60a5fa", bg: "rgba(96,165,250,0.09)"  },
-  { icon: UserCheck, label: "Approve Withdrawal",  color: "#34d399", bg: "rgba(52,211,153,0.09)"  },
-  { icon: Plus,      label: "Create Plan",         color: GOLD,      bg: "rgba(212,175,55,0.09)"  },
-  { icon: Bell,      label: "Broadcast",           color: "#a78bfa", bg: "rgba(167,139,250,0.09)" },
-  { icon: Settings,  label: "System Settings",     color: MUTED,     bg: "rgba(170,179,197,0.06)" },
-  { icon: UserCog,   label: "Manage Admins",       color: "#f87171", bg: "rgba(248,113,113,0.09)" },
-];
+function toLast7(
+  data: DailyBusinessRow[],
+  key: "newUsers" | "investments" | "deposits",
+): ChartPoint[] {
+  const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
+  const filled: ChartPoint[] = [];
+  // Build a map
+  const map = new Map(sorted.map(r => [r.date, r]));
+  // Get last 7 calendar days
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - i);
+    const key2 = d.toISOString().substring(0, 10);
+    filled.push({ d: weekdayLabel(key2), v: map.get(key2)?.[key] ?? 0 });
+  }
+  return filled;
+}
+
+function toWeekly(data: DailyBusinessRow[], key: "deposits" | "investments" | "newUsers"): ChartPoint[] {
+  const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
+  // Group into 8-week buckets (last 56 days)
+  const weeks: number[] = Array(8).fill(0);
+  const now = Date.now();
+  for (const row of sorted) {
+    const ageMs  = now - new Date(row.date).getTime();
+    const ageDays = Math.floor(ageMs / 86_400_000);
+    if (ageDays < 0 || ageDays >= 56) continue;
+    const weekIdx = 7 - Math.floor(ageDays / 7); // 7 = most recent week
+    const bucket  = 7 - weekIdx;                 // 0 = oldest
+    if (bucket >= 0 && bucket < 8) weeks[bucket] += row[key];
+  }
+  return weeks.map((v, i) => ({ d: `W${i + 1}`, v }));
+}
+
+// ── Health helpers ─────────────────────────────────────────────────────────────
+
+function cronStatus(lastRun: string | null): "ok" | "warn" | "error" {
+  if (!lastRun) return "warn";
+  const ageMs = Date.now() - new Date(lastRun).getTime();
+  return ageMs < 26 * 3_600_000 ? "ok" : "warn"; // ok if < 26 h
+}
+
+function cronLatency(lastRun: string | null): string {
+  if (!lastRun) return "never";
+  return timeAgo(lastRun);
+}
+
+// ── Dashboard data hook ────────────────────────────────────────────────────────
+
+interface DashData {
+  stats:    AdminDashboardStats | null;
+  health:   AdminSystemHealth   | null;
+  pending:  AdminPendingOps     | null;
+  business: AdminDailyBusiness  | null;
+  users:    AdminUserListItem[]  | null;
+}
+
+function useDashboard() {
+  const [data, setData]     = useState<DashData>({ stats: null, health: null, pending: null, business: null, users: null });
+  const [loading, setLoading] = useState(true);
+  const [lastFetch, setLastFetch] = useState<Date | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    const [statsR, healthR, pendingR, businessR, usersR] = await Promise.allSettled([
+      getAdminDashboard(),
+      getAdminSystemHealth(),
+      getAdminPendingOps(),
+      getAdminDailyBusiness(56),
+      adminSearchUsers({ page: 1, limit: 5 }),
+    ]);
+    setData({
+      stats:    statsR.status    === "fulfilled" ? statsR.value            : null,
+      health:   healthR.status   === "fulfilled" ? healthR.value           : null,
+      pending:  pendingR.status  === "fulfilled" ? pendingR.value          : null,
+      business: businessR.status === "fulfilled" ? businessR.value         : null,
+      users:    usersR.status    === "fulfilled" ? usersR.value.data       : null,
+    });
+    setLoading(false);
+    setLastFetch(new Date());
+  }, []);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  return { data, loading, lastFetch, refresh };
+}
 
 // ── Lazy charts ────────────────────────────────────────────────────────────────
 const AdminCharts = lazy(() => import("./AdminCharts"));
@@ -76,12 +153,21 @@ const AdminCharts = lazy(() => import("./AdminCharts"));
 // ── Shared card shell ──────────────────────────────────────────────────────────
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{
-      background: CARD, border: `1px solid ${BORDER}`,
-      borderRadius: 12, ...style,
-    }}>
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, ...style }}>
       {children}
     </div>
+  );
+}
+
+// ── Skeleton pulse ─────────────────────────────────────────────────────────────
+function Skel({ w = "100%", h = 16 }: { w?: string | number; h?: number }) {
+  return (
+    <div style={{
+      width: w, height: h,
+      background: "rgba(255,255,255,0.07)",
+      borderRadius: 5,
+      animation: "pulse 1.6s ease-in-out infinite",
+    }} />
   );
 }
 
@@ -94,10 +180,11 @@ interface StatCardProps {
   dir: "up" | "down" | "flat";
   iconColor: string;
   iconBg: string;
+  loading?: boolean;
 }
 
 export const StatCard = memo(function StatCard({
-  icon: Icon, label, value, change, dir, iconColor, iconBg,
+  icon: Icon, label, value, change, dir, iconColor, iconBg, loading,
 }: StatCardProps) {
   const changeColor = dir === "up" ? "#34d399" : dir === "down" ? "#f87171" : MUTED;
   const ChangeIcon  = dir === "up" ? ArrowUpRight : dir === "down" ? ArrowDownRight : Minus;
@@ -111,21 +198,29 @@ export const StatCard = memo(function StatCard({
         }}>
           <Icon size={16} style={{ color: iconColor }} />
         </div>
-        <div style={{
-          display: "flex", alignItems: "center", gap: 3,
-          background: dir === "up"   ? "rgba(52,211,153,0.08)"
-                    : dir === "down" ? "rgba(248,113,113,0.08)"
-                    : "rgba(170,179,197,0.06)",
-          borderRadius: 6, padding: "3px 7px",
-        }}>
-          <ChangeIcon size={11} style={{ color: changeColor }} />
-          <span style={{ fontSize: 11, fontWeight: 600, color: changeColor }}>{change}</span>
+        {loading ? (
+          <Skel w={64} h={22} />
+        ) : (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 3,
+            background: dir === "up"   ? "rgba(52,211,153,0.08)"
+                      : dir === "down" ? "rgba(248,113,113,0.08)"
+                      : "rgba(170,179,197,0.06)",
+            borderRadius: 6, padding: "3px 7px",
+          }}>
+            <ChangeIcon size={11} style={{ color: changeColor }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: changeColor }}>{change}</span>
+          </div>
+        )}
+      </div>
+      {loading ? (
+        <Skel w="65%" h={26} />
+      ) : (
+        <div style={{ fontSize: 22, fontWeight: 700, color: "rgba(255,255,255,0.88)", lineHeight: 1.1, marginBottom: 4 }}>
+          {value}
         </div>
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: "rgba(255,255,255,0.88)", lineHeight: 1.1, marginBottom: 4 }}>
-        {value}
-      </div>
-      <div style={{ fontSize: 12, color: MUTED }}>{label}</div>
+      )}
+      <div style={{ fontSize: 12, color: MUTED, marginTop: loading ? 8 : 0 }}>{label}</div>
     </Card>
   );
 });
@@ -167,47 +262,58 @@ function SectionHeader({ title, action }: { title: string; action?: string }) {
 
 // ── ActivityTable ──────────────────────────────────────────────────────────────
 export const ActivityTable = memo(function ActivityTable({
-  title, rows, columns,
+  title, rows, columns, loading,
 }: {
   title: string;
   rows: Record<string, string>[];
   columns: { key: string; label: string; render?: (v: string) => React.ReactNode }[];
+  loading?: boolean;
 }) {
   return (
     <div>
       <SectionHeader title={title} action="View All" />
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              {columns.map(c => (
-                <th key={c.key} style={{
-                  textAlign: "left", fontSize: 10, fontWeight: 600,
-                  color: MUTED, letterSpacing: "0.08em",
-                  padding: "6px 10px", borderBottom: `1px solid ${BORDER}`,
-                }}>{c.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={i} style={{ cursor: "pointer" }}
-                onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.02)"}
-                onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = "transparent"}
-              >
+      {loading ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {[1,2,3,4,5].map(i => <Skel key={i} h={30} />)}
+        </div>
+      ) : rows.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "20px 0", fontSize: 12, color: MUTED }}>
+          No recent activity
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
                 {columns.map(c => (
-                  <td key={c.key} style={{
-                    fontSize: 12, color: "rgba(255,255,255,0.72)",
-                    padding: "9px 10px", borderBottom: `1px solid rgba(255,255,255,0.04)`,
-                  }}>
-                    {c.render ? c.render(row[c.key]) : row[c.key]}
-                  </td>
+                  <th key={c.key} style={{
+                    textAlign: "left", fontSize: 10, fontWeight: 600,
+                    color: MUTED, letterSpacing: "0.08em",
+                    padding: "6px 10px", borderBottom: `1px solid ${BORDER}`,
+                  }}>{c.label}</th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={i} style={{ cursor: "pointer" }}
+                  onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "rgba(255,255,255,0.02)"}
+                  onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = "transparent"}
+                >
+                  {columns.map(c => (
+                    <td key={c.key} style={{
+                      fontSize: 12, color: "rgba(255,255,255,0.72)",
+                      padding: "9px 10px", borderBottom: `1px solid rgba(255,255,255,0.04)`,
+                    }}>
+                      {c.render ? c.render(row[c.key]) : row[c.key]}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 });
@@ -287,26 +393,143 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+// ── Quick actions (navigation only, no backend) ───────────────────────────────
+const quickActions = [
+  { icon: UserPlus,  label: "Create Member",      color: "#60a5fa", bg: "rgba(96,165,250,0.09)"  },
+  { icon: UserCheck, label: "Approve Withdrawal", color: "#34d399", bg: "rgba(52,211,153,0.09)"  },
+  { icon: Plus,      label: "Create Plan",        color: GOLD,      bg: "rgba(212,175,55,0.09)"  },
+  { icon: Bell,      label: "Broadcast",          color: "#a78bfa", bg: "rgba(167,139,250,0.09)" },
+  { icon: Settings,  label: "System Settings",    color: MUTED,     bg: "rgba(170,179,197,0.06)" },
+  { icon: UserCog,   label: "Manage Admins",      color: "#f87171", bg: "rgba(248,113,113,0.09)" },
+];
+
 // ── Main Dashboard Page ────────────────────────────────────────────────────────
 export default function AdminDashboardPage() {
+  const { data, loading, lastFetch, refresh } = useDashboard();
+  const { stats, health, pending, business, users } = data;
+
+  /* ── KPI computed values ── */
+  const totalRevenue  = stats ? sumIncome(stats) : 0;
+  const pctActive     = stats && stats.totalUsers > 0
+    ? Math.round((stats.activeUsers / stats.totalUsers) * 100) : 0;
+
+  /* ── Chart data ── */
+  const bizData       = business?.data ?? [];
+  const memberGrowth  = bizData.length > 0 ? toLast7(bizData, "newUsers")     : [];
+  const investVol     = bizData.length > 0 ? toLast7(bizData, "investments")  : [];
+  const revTrend      = bizData.length > 0 ? toWeekly(bizData, "deposits")    : [];
+
+  /* ── Recent registrations ── */
+  const recentRegRows: Record<string, string>[] = (users ?? []).map(u => ({
+    user:   u.username,
+    email:  u.email,
+    when:   timeAgo(u.createdAt),
+    status: u.status,
+  }));
+
+  /* ── Pending actions ── */
+  const pendingActions = [
+    {
+      label: "Pending Withdrawals",
+      count: pending?.pendingWithdrawals ?? (loading ? "…" : "—"),
+      amount: null,
+      color: "#fbbf24",
+      urgent: (pending?.pendingWithdrawals ?? 0) > 0,
+    },
+    {
+      label: "Pending Deposits",
+      count: pending?.pendingDeposits ?? (loading ? "…" : "—"),
+      amount: null,
+      color: "#60a5fa",
+      urgent: false,
+    },
+    {
+      label: "Failed Jobs",
+      count: pending?.failedJobs ?? (loading ? "…" : "—"),
+      amount: null,
+      color: "#f87171",
+      urgent: (pending?.failedJobs ?? 0) > 0,
+    },
+    {
+      label: "Support Tickets",
+      count: "—",
+      amount: null,
+      color: "#a78bfa",
+      urgent: false,
+      notConfigured: true,
+    },
+  ];
+
+  /* ── Health services ── */
+  const healthServices = health ? [
+    { label: "API",            status: "ok"  as const,                    latency: "live"                                   },
+    { label: "Database",       status: "ok"  as const,                    latency: "live"                                   },
+    { label: "ROI Engine",     status: cronStatus(health.lastRoiCronExecution),           latency: cronLatency(health.lastRoiCronExecution)           },
+    { label: "Binary Engine",  status: cronStatus(health.lastBinaryMatchingExecution),    latency: cronLatency(health.lastBinaryMatchingExecution)    },
+    { label: "Storage",        status: "warn" as const,                   latency: "N/C"                                    },
+    { label: "Email Service",  status: "warn" as const,                   latency: "N/C"                                    },
+  ] : loading ? [] : [
+    { label: "API",            status: "ok"   as const, latency: "—" },
+    { label: "Database",       status: "warn" as const, latency: "—" },
+    { label: "ROI Engine",     status: "warn" as const, latency: "—" },
+    { label: "Binary Engine",  status: "warn" as const, latency: "—" },
+    { label: "Storage",        status: "warn" as const, latency: "N/C" },
+    { label: "Email Service",  status: "warn" as const, latency: "N/C" },
+  ];
+
+  const allCriticalOk = healthServices.every(s => s.status !== "error");
+
+  /* ── Investment activity rows (daily summary from business report) ── */
+  const investRows: Record<string, string>[] = [...bizData]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 5)
+    .map(r => ({
+      date:        new Date(r.date).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }),
+      investments: String(r.investments),
+      deposits:    String(r.deposits),
+      newUsers:    String(r.newUsers),
+    }));
+
   return (
     <AdminLayout>
       {/* Page header */}
       <div style={{ marginBottom: 22 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 9,
-            background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.2)",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>
-            <BarChart2 size={15} style={{ color: GOLD }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 9,
+              background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.2)",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            }}>
+              <BarChart2 size={15} style={{ color: GOLD }} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: 18, fontWeight: 700, color: "rgba(255,255,255,0.9)", lineHeight: 1.2 }}>
+                Control Center
+              </h1>
+              <p style={{ fontSize: 12, color: MUTED }}>
+                Platform overview · Live data
+                {lastFetch && !loading && (
+                  <span style={{ marginLeft: 8, color: "rgba(170,179,197,0.35)" }}>
+                    · updated {timeAgo(lastFetch.toISOString())}
+                  </span>
+                )}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 style={{ fontSize: 18, fontWeight: 700, color: "rgba(255,255,255,0.9)", lineHeight: 1.2 }}>
-              Control Center
-            </h1>
-            <p style={{ fontSize: 12, color: MUTED }}>Platform overview · Live mock data</p>
-          </div>
+          {/* Refresh button */}
+          <button
+            onClick={() => void refresh()}
+            disabled={loading}
+            style={{
+              background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`,
+              borderRadius: 8, padding: "7px 12px", cursor: loading ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", gap: 6, color: MUTED, fontSize: 12,
+            }}
+          >
+            <RefreshCw size={13} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+            {loading ? "Loading…" : "Refresh"}
+          </button>
         </div>
       </div>
 
@@ -317,52 +540,66 @@ export default function AdminDashboardPage() {
         gap: 12, marginBottom: 20,
       }}>
         <StatCard
-          icon={Users} label="Total Members" value="1,247"
-          change="+12.3%" dir="up"
-          iconColor="#60a5fa" iconBg="rgba(96,165,250,0.1)"
+          icon={Users} label="Total Members"
+          value={stats ? fmtNum(stats.totalUsers) : "—"}
+          change={stats ? `+${stats.todayNewUsers} today` : "—"}
+          dir={stats && stats.todayNewUsers > 0 ? "up" : "flat"}
+          iconColor="#60a5fa" iconBg="rgba(96,165,250,0.1)" loading={loading && !stats}
         />
         <StatCard
-          icon={UserCheck} label="Active Members" value="891"
-          change="+8.7%" dir="up"
-          iconColor="#34d399" iconBg="rgba(52,211,153,0.1)"
+          icon={UserCheck} label="Active Members"
+          value={stats ? fmtNum(stats.activeUsers) : "—"}
+          change={stats ? `${pctActive}% of total` : "—"}
+          dir="up"
+          iconColor="#34d399" iconBg="rgba(52,211,153,0.1)" loading={loading && !stats}
         />
         <StatCard
-          icon={Clock} label="Pending KYC" value="23"
-          change="-2 today" dir="down"
+          icon={Clock} label="Pending KYC"
+          value="N/A"
+          change="Not configured"
+          dir="flat"
           iconColor="#fbbf24" iconBg="rgba(251,191,36,0.1)"
         />
         <StatCard
-          icon={UserPlus} label="Today's Signups" value="18"
-          change="+22%" dir="up"
-          iconColor="#a78bfa" iconBg="rgba(167,139,250,0.1)"
+          icon={UserPlus} label="Today's Signups"
+          value={stats ? fmtNum(stats.todayNewUsers) : "—"}
+          change={stats && stats.todayNewUsers > 0 ? "+new today" : "0 today"}
+          dir={stats && stats.todayNewUsers > 0 ? "up" : "flat"}
+          iconColor="#a78bfa" iconBg="rgba(167,139,250,0.1)" loading={loading && !stats}
         />
         <StatCard
-          icon={DollarSign} label="Total Investments" value="$2.4M"
-          change="+$48K" dir="up"
-          iconColor={GOLD} iconBg="rgba(212,175,55,0.1)"
+          icon={DollarSign} label="Total Investments"
+          value={stats ? fmtNum(stats.totalInvestments) : "—"}
+          change={stats ? `${stats.totalInvestments} records` : "—"}
+          dir="up"
+          iconColor={GOLD} iconBg="rgba(212,175,55,0.1)" loading={loading && !stats}
         />
         <StatCard
-          icon={ArrowDownLeft} label="Pending Withdrawals" value="7"
-          change="$12,450" dir="flat"
-          iconColor="#f87171" iconBg="rgba(248,113,113,0.1)"
+          icon={ArrowDownLeft} label="Pending Withdrawals"
+          value={stats ? fmtNum(stats.pendingWithdrawals) : "—"}
+          change={stats && stats.pendingWithdrawals > 0 ? "Action needed" : "All clear"}
+          dir={stats && stats.pendingWithdrawals > 0 ? "down" : "flat"}
+          iconColor="#f87171" iconBg="rgba(248,113,113,0.1)" loading={loading && !stats}
         />
         <StatCard
-          icon={BarChart2} label="Platform Revenue" value="$124K"
-          change="+$3.2K" dir="up"
-          iconColor={GOLD_L} iconBg="rgba(212,175,55,0.08)"
+          icon={BarChart2} label="Platform Revenue"
+          value={stats ? fmtUsd(totalRevenue) : "—"}
+          change={stats ? "All income types" : "—"}
+          dir="up"
+          iconColor={GOLD_L} iconBg="rgba(212,175,55,0.08)" loading={loading && !stats}
         />
         <StatCard
-          icon={Activity} label="System Health" value="99.8%"
-          change="Uptime" dir="up"
-          iconColor="#34d399" iconBg="rgba(52,211,153,0.1)"
+          icon={Activity} label="System Health"
+          value={health ? (health.failedJobsCount === 0 ? "Healthy" : `${health.failedJobsCount} alerts`) : "—"}
+          change={health ? (health.failedJobsCount === 0 ? "All systems ok" : "Check jobs") : "—"}
+          dir={health && health.failedJobsCount === 0 ? "up" : "down"}
+          iconColor="#34d399" iconBg="rgba(52,211,153,0.1)" loading={loading && !health}
         />
       </div>
 
       {/* ── Charts ── */}
       <Suspense fallback={
-        <div style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20,
-        }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
           {[0, 1].map(i => (
             <Card key={i} style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <span style={{ fontSize: 12, color: MUTED }}>Loading charts…</span>
@@ -370,13 +607,25 @@ export default function AdminDashboardPage() {
           ))}
         </div>
       }>
-        <AdminCharts
-          memberGrowth={memberGrowth}
-          investmentVolume={investmentVolume}
-          revenueTrend={revenueTrend}
-          ChartCard={ChartCard}
-          Card={Card}
-        />
+        {loading && !business ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+            {[0, 1].map(i => (
+              <Card key={i} style={{ padding: "16px 18px" }}>
+                <Skel h={14} w="40%" />
+                <div style={{ marginTop: 8 }}><Skel h={10} w="25%" /></div>
+                <div style={{ marginTop: 14 }}><Skel h={165} /></div>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <AdminCharts
+            memberGrowth={memberGrowth}
+            investmentVolume={investVol}
+            revenueTrend={revTrend}
+            ChartCard={ChartCard}
+            Card={Card}
+          />
+        )}
       </Suspense>
 
       {/* ── Bottom grid: activity + actions + health ── */}
@@ -385,9 +634,8 @@ export default function AdminDashboardPage() {
         <Card style={{ padding: "16px 18px", gridColumn: "span 1" }}>
           <ActivityTable
             title="Recent Registrations"
-            rows={recentRegistrations.map(r => ({
-              user: r.username, email: r.email, when: r.joined, status: r.status,
-            }))}
+            rows={recentRegRows}
+            loading={loading && !users}
             columns={[
               { key: "user",   label: "USERNAME" },
               { key: "when",   label: "JOINED" },
@@ -399,17 +647,16 @@ export default function AdminDashboardPage() {
           />
         </Card>
 
-        {/* Recent Investments */}
+        {/* Investment Activity (daily business report) */}
         <Card style={{ padding: "16px 18px", gridColumn: "span 1" }}>
           <ActivityTable
-            title="Recent Investments"
-            rows={recentInvestments.map(r => ({
-              user: r.username, amount: r.amount, plan: r.plan, when: r.date,
-            }))}
+            title="Investment Activity"
+            rows={investRows}
+            loading={loading && !business}
             columns={[
-              { key: "user",   label: "USERNAME" },
-              { key: "amount", label: "AMOUNT" },
-              { key: "plan",   label: "PLAN" },
+              { key: "date",        label: "DATE"        },
+              { key: "investments", label: "INVESTMENTS" },
+              { key: "deposits",    label: "DEPOSITS"    },
             ]}
           />
         </Card>
@@ -417,34 +664,45 @@ export default function AdminDashboardPage() {
         {/* Pending Actions */}
         <Card style={{ padding: "16px 18px" }}>
           <SectionHeader title="Pending Actions" />
-          {pendingActions.map(a => (
-            <div
-              key={a.label}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "9px 0", borderBottom: `1px solid rgba(255,255,255,0.04)`,
-                cursor: "pointer",
-              }}
-              onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.opacity = "0.7"}
-              onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.opacity = "1"}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                {a.urgent && (
-                  <div style={{ width: 5, height: 5, borderRadius: "50%", background: a.color, flexShrink: 0 }} />
-                )}
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.72)" }}>{a.label}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {a.amount && <span style={{ fontSize: 11, color: MUTED }}>{a.amount}</span>}
-                <span style={{
-                  fontSize: 11, fontWeight: 700,
-                  color: a.color, background: `${a.color}14`,
-                  padding: "2px 7px", borderRadius: 5,
-                }}>{a.count}</span>
-                <ChevronRight size={12} style={{ color: MUTED }} />
-              </div>
+          {loading && !pending ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[1,2,3,4].map(i => <Skel key={i} h={36} />)}
             </div>
-          ))}
+          ) : (
+            pendingActions.map(a => (
+              <div
+                key={a.label}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "9px 0", borderBottom: `1px solid rgba(255,255,255,0.04)`,
+                  cursor: "pointer",
+                }}
+                onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.opacity = "0.7"}
+                onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.opacity = "1"}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                  {a.urgent && (
+                    <div style={{ width: 5, height: 5, borderRadius: "50%", background: a.color, flexShrink: 0 }} />
+                  )}
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.72)" }}>{a.label}</span>
+                  {"notConfigured" in a && a.notConfigured && (
+                    <span style={{ fontSize: 9, color: MUTED, border: `1px solid rgba(170,179,197,0.2)`, borderRadius: 4, padding: "1px 5px" }}>
+                      N/C
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {a.amount && <span style={{ fontSize: 11, color: MUTED }}>{a.amount}</span>}
+                  <span style={{
+                    fontSize: 11, fontWeight: 700,
+                    color: a.color, background: `${a.color}14`,
+                    padding: "2px 7px", borderRadius: 5,
+                  }}>{String(a.count)}</span>
+                  <ChevronRight size={12} style={{ color: MUTED }} />
+                </div>
+              </div>
+            ))
+          )}
         </Card>
       </div>
 
@@ -461,21 +719,30 @@ export default function AdminDashboardPage() {
 
         <Card style={{ padding: "16px 18px", minWidth: 280 }}>
           <SectionHeader title="Platform Health" />
-          {healthServices.map(s => (
-            <HealthIndicator
-              key={s.label}
-              label={s.label}
-              status={s.status as "ok" | "warn" | "error"}
-              latency={s.latency}
-            />
-          ))}
+          {loading && healthServices.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[1,2,3,4,5,6].map(i => <Skel key={i} h={30} />)}
+            </div>
+          ) : (
+            healthServices.map(s => (
+              <HealthIndicator
+                key={s.label}
+                label={s.label}
+                status={s.status}
+                latency={s.latency}
+              />
+            ))
+          )}
           <div style={{
             marginTop: 10, display: "flex", alignItems: "center", gap: 6,
             padding: "7px 10px", borderRadius: 7,
-            background: "rgba(52,211,153,0.05)", border: "1px solid rgba(52,211,153,0.12)",
+            background: allCriticalOk ? "rgba(52,211,153,0.05)" : "rgba(251,191,36,0.05)",
+            border: `1px solid ${allCriticalOk ? "rgba(52,211,153,0.12)" : "rgba(251,191,36,0.12)"}`,
           }}>
-            <Zap size={12} style={{ color: "#34d399" }} />
-            <span style={{ fontSize: 11, color: "#34d399" }}>All critical systems operational</span>
+            <Zap size={12} style={{ color: allCriticalOk ? "#34d399" : "#fbbf24" }} />
+            <span style={{ fontSize: 11, color: allCriticalOk ? "#34d399" : "#fbbf24" }}>
+              {allCriticalOk ? "All critical systems operational" : "Some services need attention"}
+            </span>
           </div>
         </Card>
       </div>
