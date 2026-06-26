@@ -1,0 +1,455 @@
+# Milestone 3A — Network Intelligence Enhancement
+
+The current Network Intelligence implementation is a solid foundation. Do NOT rebuild or replace the existing architecture.
+
+The React Flow tree, backend APIs, member drawer, and Team Explorer should all remain.
+
+This sprint is focused entirely on transforming the page from a network viewer into a true Network Intelligence Command Center.
+
+Reuse all existing APIs and business logic.
+
+No database changes unless absolutely necessary.
+
+---
+
+## 1. Redesign the Hero (Highest Priority)
+
+The current hero focuses on LEFT BV and RIGHT BV.
+
+Replace it with an insight-driven hero.
+
+Display:
+
+• Good Morning, {User} 👋
+• Your Network is Growing
+• Total Members
+• Personally Sponsored
+• Weekly Growth
+• Weak Leg
+• Estimated BV needed for next Binary Match
+• Estimated Next Binary Reward
+• Growth Score (derived from production activity)
+
+Example:
+
+Good Morning, John 👋
+
+Your Network is Growing
+
+248 Members
+
++6 This Week
+
+━━━━━━━━━━━━━━━━━━
+
+Weak Leg
+
+RIGHT
+
+Needs approximately
+
+60 BV
+
+━━━━━━━━━━━━━━━━━━
+
+Next Binary Opportunity
+
+≈ $250
+
+━━━━━━━━━━━━━━━━━━
+
+Growth Score
+
+92 / 100
+
+The hero should immediately answer:
+
+"What should I focus on today?"
+
+---
+
+## 2. AI Insights Section
+
+Place directly below the hero.
+
+Create premium recommendation cards.
+
+Examples:
+
+✓ Your RIGHT leg requires approximately 60 BV for the next Binary Match.
+
+✓ John invested $5,000 today.
+
+✓ Two personally sponsored members have not invested yet.
+
+✓ Your LEFT leg currently generates 63% of your total BV.
+
+✓ Three members have been inactive for more than 14 days.
+
+✓ Supporting Sarah could strengthen your weaker leg.
+
+Use only production data.
+
+Never fabricate recommendations.
+
+Reuse existing business calculations wherever possible.
+
+---
+
+## 3. Network Pulse
+
+Create a live activity summary card.
+
+Examples:
+
+• 3 New Members Today
+
+• 2 New Investments
+
+• 1 Binary Match Completed
+
+• $250 Binary Income Generated
+
+• Right Leg Growing Faster
+
+• Last activity 8 minutes ago
+
+Use real production events only.
+
+Think of this as a premium live dashboard ticker.
+
+---
+
+## 4. Binary Health Redesign
+
+Redesign the Binary Health section.
+
+Display premium comparison cards.
+
+LEFT
+
+• Members
+• Business Volume
+• Growth %
+• New Members
+• Investments
+
+RIGHT
+
+• Members
+• Business Volume
+• Growth %
+• New Members
+• Investments
+
+Bottom summary:
+
+• Power Leg
+• Weak Leg
+• Carry Forward BV
+
+Display a recommendation such as:
+
+"Focus on RIGHT"
+
+---
+
+## 5. Reorder the Page
+
+Current layout:
+
+Hero
+
+↓
+
+Tree
+
+↓
+
+Everything Else
+
+Replace with:
+
+Hero
+
+↓
+
+AI Insights
+
+↓
+
+Network Pulse
+
+↓
+
+Binary Health
+
+↓
+
+Quick Network Statistics
+
+↓
+
+React Flow Tree
+
+↓
+
+Team Explorer
+
+↓
+
+Activity Timeline
+
+The tree is an exploration tool, not the first thing users should see.
+
+---
+
+## 6. Upgrade React Flow Member Nodes
+
+Improve each node.
+
+Display:
+
+• Avatar
+• Name
+• Rank
+• Investment
+• Current Plan
+• Generated BV
+• Active / Inactive indicator
+• Personally Sponsored badge
+• Spillover badge
+
+Keep nodes compact.
+
+Avoid oversized cards.
+
+---
+
+## 7. Upgrade Member Drawer
+
+Enhance the existing member drawer.
+
+Display:
+
+• Avatar
+• Name
+• Username
+• Sponsor
+• Placement
+• Join Date
+• Investment
+• Current Plan
+• ROI Earned
+• Generated BV
+• Binary Income Generated
+• Level Income Generated
+• Salary Rank
+• Personally Sponsored
+• Spillover
+• Current Status
+• Last Activity
+• Children Count
+
+At the bottom add a premium CTA:
+
+"View Income Journey →"
+
+---
+
+## 8. Income Journey (New)
+
+Clicking "View Income Journey" should open a premium modal.
+
+Example:
+
+John
+
+↓
+
+Invested
+
+$5,000
+
+↓
+
+Generated
+
+50 BV
+
+↓
+
+Matched
+
+Cycle #42
+
+↓
+
+Binary Reward
+
+$250
+
+↓
+
+Credited
+
+Withdrawal Wallet
+
+Display:
+
+• Timestamps
+• Transaction Reference
+• Wallet Credit Reference
+• Cycle Number
+
+The goal is to visually explain how the reward was created.
+
+---
+
+## 9. Team Explorer Enhancement
+
+Keep the existing search.
+
+Add premium filter chips.
+
+Filters:
+
+• All
+• Active
+• Inactive
+• Personally Sponsored
+• Spillover
+• VIP
+• High Producers
+• New Members
+• Recently Active
+• Highest BV
+• Highest Investment
+
+Filters must work together with search.
+
+---
+
+## 10. Activity Timeline
+
+Upgrade the timeline.
+
+Examples:
+
+• John invested $5,000
+
+• Sarah joined RIGHT
+
+• Michael completed ROI
+
+• Emily generated Binary Match
+
+• David earned Salary
+
+Requirements:
+
+• Infinite scrolling
+
+• Color-coded icons
+
+• Relative timestamps
+
+• Smooth animations
+
+Newest first.
+
+---
+
+## 11. Visual Polish
+
+Improve:
+
+• Card spacing
+
+• Visual hierarchy
+
+• Hover animations
+
+• Drawer animations
+
+• Empty states
+
+• Shadows
+
+• Typography
+
+The experience should feel closer to Revolut, Stripe or Wise than a traditional MLM platform.
+
+---
+
+## 12. Mobile Experience
+
+Maintain a premium mobile experience.
+
+Requirements:
+
+• Sticky AI Insights
+
+• Smooth scrolling
+
+• Bottom sheet member details
+
+• Responsive React Flow
+
+• No horizontal overflow
+
+• Large touch targets
+
+390px and 430px optimized.
+
+---
+
+## IMPORTANT
+
+Do NOT rebuild:
+
+• React Flow architecture
+
+• Backend APIs
+
+• Tree generation
+
+• Team Explorer logic
+
+Only enhance the intelligence layer and user experience.
+
+This is a UX evolution, not a rewrite.
+
+---
+
+## RETURN
+
+1. Updated desktop screenshots
+
+2. Updated mobile screenshots
+
+3. Components modified
+
+4. Performance impact
+
+5. Completion report
+
+---
+
+## DESIGN GOAL
+
+When users open this page they should immediately understand:
+
+• How healthy their network is.
+
+• Which leg needs attention.
+
+• Where the next Binary reward is likely to come from.
+
+• Which members deserve follow-up.
+
+• Why they earned their last reward.
+
+The React Flow tree should become the confirmation tool, while the intelligence layer becomes the decision-making tool.
+
+This page should feel like a Network Intelligence Command Center, not just a binary tree viewer.

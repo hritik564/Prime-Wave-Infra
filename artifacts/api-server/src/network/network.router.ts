@@ -6,6 +6,8 @@ import { sendSuccess } from "../shared/response";
 import { membersQuerySchema, type MembersQuery } from "./network.schema";
 import {
   getNetworkStats,
+  getLegBreakdown,
+  getNetworkPulse,
   getNetworkMembers,
   getNetworkInsights,
   getTopPerformers,
@@ -21,6 +23,28 @@ router.get("/stats", async (req, res, next) => {
   try {
     const { user } = req as AuthenticatedRequest;
     const data = await getNetworkStats(user.sub);
+    sendSuccess(res, data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/network/leg-breakdown
+router.get("/leg-breakdown", async (req, res, next) => {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const data = await getLegBreakdown(user.sub);
+    sendSuccess(res, data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/network/pulse
+router.get("/pulse", async (req, res, next) => {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const data = await getNetworkPulse(user.sub);
     sendSuccess(res, data);
   } catch (err) {
     next(err);

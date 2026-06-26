@@ -685,6 +685,7 @@ export interface NetworkMember {
   activeInvestments: number;
   investedAmount:   string;
   plans:            string[];
+  isSponsored:      boolean;
 }
 
 export interface TopPerformer {
@@ -697,6 +698,34 @@ export interface TopPerformer {
   directReferrals: number;
   totalInvested:   string;
   joinedAt:        string;
+  isSponsored?:    boolean;
+}
+
+export interface NetworkPulse {
+  newMembersToday:     number;
+  newInvestmentsToday: number;
+  recentMatchCount:    number;
+  recentMatchIncome:   string;
+  lastActivityAt:      string | null;
+  totalDownline:       number;
+}
+
+export interface LegBreakdown {
+  leftMembers:      number;
+  rightMembers:     number;
+  leftActiveCount:  number;
+  rightActiveCount: number;
+  leftBV:           string;
+  rightBV:          string;
+  leftInvestments:  number;
+  rightInvestments: number;
+  leftWeeklyNew:    number;
+  rightWeeklyNew:   number;
+  powerLeg:         "LEFT" | "RIGHT";
+  weakLeg:          "LEFT" | "RIGHT";
+  carryForwardLeft:  string;
+  carryForwardRight: string;
+  directReferrals:  number;
 }
 
 export interface TeamActivityItem {
@@ -720,7 +749,7 @@ export function getNetworkMembers(params: {
   page?:   number;
   limit?:  number;
   search?: string;
-  filter?: "all" | "active" | "inactive";
+  filter?: "all" | "active" | "inactive" | "sponsored" | "no-plan" | "high-producers" | "recently-active";
 }) {
   const q = new URLSearchParams({
     page:   String(params.page   ?? 1),
@@ -739,4 +768,12 @@ export function getTopPerformers() {
 
 export function getTeamActivity() {
   return request<{ activities: TeamActivityItem[] }>("/api/network/activity");
+}
+
+export function getNetworkPulse() {
+  return request<NetworkPulse>("/api/network/pulse");
+}
+
+export function getLegBreakdown() {
+  return request<LegBreakdown>("/api/network/leg-breakdown");
 }

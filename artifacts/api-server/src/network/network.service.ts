@@ -82,6 +82,119 @@ export async function getNetworkStats(userId: string) {
   };
 }
 
+// ── Leg Breakdown ──────────────────────────────────────────────────────────────
+
+export async function getLegBreakdown(userId: string) {
+  const user = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: { leftBV: true, rightBV: true, directReferralCount: true },
+  });
+  if (!user) throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "NOT_FOUND");
+
+  const [leftChild, rightChild] = await Promise.all([
+    prisma.user.findFirst({ where: { binaryParentId: userId, position: "LEFT"  }, select: { id: true } }),
+    prisma.user.findFirst({ where: { binaryParentId: userId, position: "RIGHT" }, select: { id: true } }),
+  ]);
+
+  const [leftDescIds, rightDescIds] = await Promise.all([
+    leftChild  ? getBinaryDownlineIds(leftChild.id)  : Promise.resolve([]),
+    rightChild ? getBinaryDownlineIds(rightChild.id) : Promise.resolve([]),
+  ]);
+
+  const leftIds  = leftChild  ? [leftChild.id,  ...leftDescIds]  : [];
+  const rightIds = rightChild ? [rightChild.id, ...rightDescIds] : [];
+
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1_000);
+
+  const [
+    leftActiveCount, rightActiveCount,
+    leftInvestments, rightInvestments,
+    leftWeeklyNew,   rightWeeklyNew,
+    lastMatch,
+  ] = await Promise.all([
+    leftIds.length  > 0 ? prisma.user.count({ where: { id: { in: leftIds  }, status: "ACTIVE" } }) : Promise.resolve(0),
+    rightIds.length > 0 ? prisma.user.count({ where: { id: { in: rightIds }, status: "ACTIVE" } }) : Promise.resolve(0),
+    leftIds.length  > 0 ? prisma.investment.count({ where: { userId: { in: leftIds  }, status: "ACTIVE" } }) : Promise.resolve(0),
+    rightIds.length > 0 ? prisma.investment.count({ where: { userId: { in: rightIds }, status: "ACTIVE" } }) : Promise.resolve(0),
+    leftIds.length  > 0 ? prisma.user.count({ where: { id: { in: leftIds  }, createdAt: { gte: sevenDaysAgo } } }) : Promise.resolve(0),
+    rightIds.length > 0 ? prisma.user.count({ where: { id: { in: rightIds }, createdAt: { gte: sevenDaysAgo } } }) : Promise.resolve(0),
+    prisma.binaryMatchIncome.findFirst({
+      where:   { userId },
+      orderBy: { createdAt: "desc" },
+      select:  { carryForwardLeft: true, carryForwardRight: true },
+    }),
+  ]);
+
+  const leftBV  = Number(user.leftBV);
+  const rightBV = Number(user.rightBV);
+
+  return {
+    leftMembers:     leftIds.length,
+    rightMembers:    rightIds.length,
+    leftActiveCount,
+    rightActiveCount,
+    leftBV:          leftBV.toFixed(2),
+    rightBV:         rightBV.toFixed(2),
+    leftInvestments,
+    rightInvestments,
+    leftWeeklyNew,
+    rightWeeklyNew,
+    powerLeg:        leftBV >= rightBV ? "LEFT" : "RIGHT",
+    weakLeg:         leftBV <  rightBV ? "LEFT" : "RIGHT",
+    carryForwardLeft:  Number(lastMatch?.carryForwardLeft  ?? 0).toFixed(2),
+    carryForwardRight: Number(lastMatch?.carryForwardRight ?? 0).toFixed(2),
+    directReferrals: user.directReferralCount,
+  };
+}
+
+// ── Network Pulse ──────────────────────────────────────────────────────────────
+
+export async function getNetworkPulse(userId: string) {
+  const allIds = await getBinaryDownlineIds(userId);
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1_000);
+
+  const baseTeamQuery = allIds.length > 0 ? { id: { in: allIds } } : { id: "___impossible___" };
+
+  const [
+    newMembersToday,
+    newInvestmentsToday,
+    recentMatches,
+    lastMember,
+    lastInvestment,
+  ] = await Promise.all([
+    prisma.user.count({ where: { ...baseTeamQuery, createdAt: { gte: todayStart } } }),
+    prisma.investment.count({ where: { userId: allIds.length > 0 ? { in: allIds } : "___impossible___", createdAt: { gte: todayStart } } }),
+    prisma.binaryMatchIncome.findMany({
+      where:   { userId, createdAt: { gte: oneDayAgo } },
+      select:  { incomeAmount: true, matchedBV: true, cycleStart: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    allIds.length > 0
+      ? prisma.user.findFirst({ where: { id: { in: allIds } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } })
+      : Promise.resolve(null),
+    allIds.length > 0
+      ? prisma.investment.findFirst({ where: { userId: { in: allIds } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } })
+      : Promise.resolve(null),
+  ]);
+
+  const timestamps = [lastMember?.createdAt, lastInvestment?.createdAt].filter(Boolean) as Date[];
+  timestamps.sort((a, b) => b.getTime() - a.getTime());
+  const lastActivityAt = timestamps[0]?.toISOString() ?? null;
+
+  return {
+    newMembersToday,
+    newInvestmentsToday,
+    recentMatchCount:  recentMatches.length,
+    recentMatchIncome: recentMatches.reduce((s, m) => s + Number(m.incomeAmount), 0).toFixed(2),
+    lastActivityAt,
+    totalDownline:     allIds.length,
+  };
+}
+
 // ── Network Members ────────────────────────────────────────────────────────────
 
 export async function getNetworkMembers(userId: string, opts: MembersQuery) {
@@ -90,12 +203,31 @@ export async function getNetworkMembers(userId: string, opts: MembersQuery) {
     return { members: [], total: 0, page: opts.page, limit: opts.limit };
   }
 
-  const statusFilter: Prisma.UserWhereInput =
-    opts.filter === "active"
-      ? { status: "ACTIVE" }
-      : opts.filter === "inactive"
-      ? { NOT: { status: "ACTIVE" } }
-      : {};
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1_000);
+
+  let extraFilter: Prisma.UserWhereInput = {};
+  switch (opts.filter) {
+    case "active":
+      extraFilter = { status: "ACTIVE" };
+      break;
+    case "inactive":
+      extraFilter = { NOT: { status: "ACTIVE" } };
+      break;
+    case "sponsored":
+      extraFilter = { sponsorId: userId };
+      break;
+    case "no-plan":
+      extraFilter = { investments: { none: { status: "ACTIVE" } } };
+      break;
+    case "high-producers":
+      extraFilter = { investments: { some: { status: "ACTIVE", amount: { gte: 1000 } } } };
+      break;
+    case "recently-active":
+      extraFilter = { createdAt: { gte: sevenDaysAgo } };
+      break;
+    default:
+      extraFilter = {};
+  }
 
   const searchFilter: Prisma.UserWhereInput = opts.search
     ? {
@@ -108,7 +240,7 @@ export async function getNetworkMembers(userId: string, opts: MembersQuery) {
     : {};
 
   const where: Prisma.UserWhereInput = {
-    AND: [{ id: { in: allIds } }, searchFilter, statusFilter],
+    AND: [{ id: { in: allIds } }, searchFilter, extraFilter],
   };
 
   const [total, members] = await Promise.all([
@@ -122,6 +254,7 @@ export async function getNetworkMembers(userId: string, opts: MembersQuery) {
         lastName:            true,
         status:              true,
         position:            true,
+        sponsorId:           true,
         createdAt:           true,
         directReferralCount: true,
         investments: {
@@ -149,7 +282,8 @@ export async function getNetworkMembers(userId: string, opts: MembersQuery) {
       investedAmount:   m.investments
         .reduce((s, i) => s + Number(i.amount), 0)
         .toFixed(2),
-      plans: [...new Set(m.investments.map((i) => i.planType))],
+      plans:            [...new Set(m.investments.map((i) => i.planType))],
+      isSponsored:      m.sponsorId === userId,
     })),
     total,
     page:  opts.page,
@@ -246,7 +380,23 @@ export async function getNetworkInsights(userId: string) {
     });
   }
 
-  // ── 4. Team size milestone ────────────────────────────────────────────────
+  // ── 4. Uninvested sponsored members ───────────────────────────────────────
+  const [sponsoredCount, sponsoredInvested] = await Promise.all([
+    prisma.user.count({ where: { sponsorId: userId } }),
+    prisma.user.count({ where: { sponsorId: userId, investments: { some: { status: "ACTIVE" } } } }),
+  ]);
+  const sponsoredNoInvestment = sponsoredCount - sponsoredInvested;
+  if (sponsoredCount > 0 && sponsoredNoInvestment > 0) {
+    insights.push({
+      type:    "warning",
+      title:   "Sponsored Members Inactive",
+      message: `${sponsoredNoInvestment} of your personally sponsored member${sponsoredNoInvestment > 1 ? "s have" : " has"} not yet invested. Follow up to boost your binary income.`,
+      metric:  `${sponsoredNoInvestment}/${sponsoredCount} uninvested`,
+      action:  "Follow up",
+    });
+  }
+
+  // ── 5. Team size milestone ────────────────────────────────────────────────
   if (totalTeam === 0) {
     insights.push({
       type:    "info",
@@ -273,7 +423,7 @@ export async function getNetworkInsights(userId: string) {
     });
   }
 
-  return { insights: insights.slice(0, 5) };
+  return { insights: insights.slice(0, 6) };
 }
 
 // ── Top Performers ────────────────────────────────────────────────────────────
@@ -302,6 +452,7 @@ export async function getTopPerformers(userId: string) {
       lastName:            true,
       status:              true,
       directReferralCount: true,
+      sponsorId:           true,
       createdAt:           true,
     },
   });
@@ -312,15 +463,16 @@ export async function getTopPerformers(userId: string) {
     performers: topByInvested.map((p, idx) => {
       const u = userMap.get(p.userId);
       return {
-        rank:           idx + 1,
-        id:             p.userId,
-        username:       u?.username      ?? "unknown",
-        firstName:      u?.firstName     ?? "",
-        lastName:       u?.lastName      ?? "",
-        status:         u?.status        ?? "INACTIVE",
+        rank:            idx + 1,
+        id:              p.userId,
+        username:        u?.username      ?? "unknown",
+        firstName:       u?.firstName     ?? "",
+        lastName:        u?.lastName      ?? "",
+        status:          u?.status        ?? "INACTIVE",
         directReferrals: u?.directReferralCount ?? 0,
-        totalInvested:  Number(p._sum.amount ?? 0).toFixed(2),
-        joinedAt:       u?.createdAt.toISOString() ?? new Date().toISOString(),
+        isSponsored:     u?.sponsorId === userId,
+        totalInvested:   Number(p._sum.amount ?? 0).toFixed(2),
+        joinedAt:        u?.createdAt.toISOString() ?? new Date().toISOString(),
       };
     }),
   };
@@ -351,7 +503,7 @@ export async function getTeamActivity(userId: string) {
       where:   { id: { in: allIds }, createdAt: { gte: thirtyDaysAgo } },
       orderBy: { createdAt: "desc" },
       take:    10,
-      select:  { id: true, username: true, firstName: true, createdAt: true },
+      select:  { id: true, username: true, firstName: true, createdAt: true, position: true },
     }),
   ]);
 
@@ -369,12 +521,12 @@ export async function getTeamActivity(userId: string) {
       type:        "join" as const,
       username:    u.username,
       firstName:   u.firstName,
-      description: "joined your network",
+      description: `joined your ${u.position ?? ""} arm`.trim().replace("arm", u.position ? "arm" : "network"),
       at:          u.createdAt.toISOString(),
     })),
   ];
 
   activities.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
-  return { activities: activities.slice(0, 15) };
+  return { activities: activities.slice(0, 20) };
 }
