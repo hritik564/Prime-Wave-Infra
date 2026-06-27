@@ -879,7 +879,7 @@ export default function MemberDrawer({ member, detail, onClose, onAction }: { me
       <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.5)", opacity: visible ? 1 : 0, pointerEvents: visible ? "auto" : "none", transition: "opacity 0.2s ease" }} />
 
       {/* Panel */}
-      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 201, width: 520, background: BG, borderLeft: `1px solid ${BORDER}`, boxShadow: "-24px 0 64px rgba(0,0,0,0.6)", transform: visible ? "translateX(0)" : "translateX(100%)", transition: "transform 0.24s cubic-bezier(0.32,0.72,0,1)", display: "flex", flexDirection: "column" }}>
+      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 201, width: 520, maxWidth: "100vw", background: BG, borderLeft: `1px solid ${BORDER}`, boxShadow: "-24px 0 64px rgba(0,0,0,0.6)", transform: visible ? "translateX(0)" : "translateX(100%)", transition: "transform 0.24s cubic-bezier(0.32,0.72,0,1)", display: "flex", flexDirection: "column" }}>
         {member && sc && kc && (
           <>
             {/* ── Upgraded header ─────────────────────────────────────────── */}

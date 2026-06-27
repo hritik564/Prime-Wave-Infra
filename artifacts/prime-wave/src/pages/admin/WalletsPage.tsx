@@ -1,4 +1,5 @@
 import { useState, useMemo, memo, useCallback, useEffect, useRef } from "react";
+import { useResponsive } from "@/hooks/useResponsive";
 import AdminLayout from "./AdminLayout";
 import { SkeletonRows } from "@/components/admin/Skeleton";
 import WalletDrawer, {
@@ -300,9 +301,33 @@ const SEL_STYLE: React.CSSProperties = {
   cursor: "pointer", appearance: "none",
 };
 
+// ─── Mobile card ──────────────────────────────────────────────────────────────
+function MobileWalletCard({ w, onView }: { w: DrawerWallet; onView: (w: DrawerWallet) => void }) {
+  const col = STATUS_CFG[w.status]?.color ?? MUTED;
+  return (
+    <div onClick={() => onView(w)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderBottom: `1px solid ${BORDER}`, cursor: "pointer" }}>
+      <div style={{ width: 40, height: 40, borderRadius: 20, background: "rgba(212,175,55,0.09)", border: `1.5px solid ${col}60`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: GOLD, flexShrink: 0 }}>
+        {(w.firstName?.[0] ?? "?")}{(w.lastName?.[0] ?? "")}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>@{w.username}</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: col, background: `${col}1a`, padding: "1px 6px", borderRadius: 4 }}>{STATUS_CFG[w.status]?.label ?? w.status}</span>
+        </div>
+        <div style={{ display: "flex", gap: 10, fontSize: 10, flexWrap: "wrap" }}>
+          <span style={{ color: "#34d399" }}>D: {$(w.depositWallet)}</span>
+          <span style={{ color: GOLD }}>I: {$(w.incomeWallet)}</span>
+          <span style={{ color: "#60a5fa" }}>W: {$(w.withdrawalWallet)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function WalletsPage() {
   const { toasts, toast, dismiss } = useToast();
+  const { isMobile } = useResponsive();
 
   // ── Server data state ────────────────────────────────────────────────────────
   const [wallets,       setWallets]       = useState<DrawerWallet[]>([]);
@@ -484,20 +509,22 @@ export default function WalletsPage() {
 
   return (
     <AdminLayout>
-      <div style={{ padding: "24px 28px", minHeight: "100vh", background: BG, boxSizing: "border-box" }}>
+      <div style={{ padding: isMobile ? 0 : "24px 28px", minHeight: "100vh", background: BG, boxSizing: "border-box" }}>
 
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, gap: 12, flexWrap: "wrap" }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>Wallet Control Center</h1>
-            <p style={{ margin: "4px 0 0", fontSize: 12, color: MUTED }}>Monitor balances, transfers and wallet activity across the platform.</p>
+            <h1 style={{ margin: 0, fontSize: isMobile ? 16 : 22, fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>Wallet Control Center</h1>
+            {!isMobile && <p style={{ margin: "4px 0 0", fontSize: 12, color: MUTED }}>Monitor balances, transfers and wallet activity across the platform.</p>}
           </div>
           <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-            {[
-              { icon: RefreshCw,         label: "Refresh",        onClick: () => { fetchWallets(page); fetchStats(); } },
-              { icon: Download,          label: "Export",         onClick: undefined },
-              { icon: SlidersHorizontal, label: "Adjust Wallet",  onClick: undefined, gold: false },
-              { icon: ArrowRightLeft,    label: "Transfer Funds", onClick: undefined, gold: true  },
+            <button onClick={() => { fetchWallets(page); fetchStats(); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
+              <RefreshCw size={13} />
+            </button>
+            {!isMobile && [
+              { icon: Download,          label: "Export",         onClick: undefined as undefined | (() => void), gold: false },
+              { icon: SlidersHorizontal, label: "Adjust Wallet",  onClick: undefined,                            gold: false },
+              { icon: ArrowRightLeft,    label: "Transfer Funds", onClick: undefined,                            gold: true  },
             ].map(b => (
               <button key={b.label} onClick={b.onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: b.gold ? "rgba(212,175,55,0.1)" : "rgba(255,255,255,0.05)", border: `1px solid ${b.gold ? "rgba(212,175,55,0.25)" : BORDER}`, borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: b.gold ? GOLD_L : "rgba(255,255,255,0.7)" }}>
                 <b.icon size={13} />{b.label}
@@ -507,13 +534,13 @@ export default function WalletsPage() {
         </div>
 
         {/* KPI Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 22 }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${isMobile?2:4}, 1fr)`, gap: 12, marginBottom: 22 }}>
           <KpiCard icon={TrendingUp}   label="TOTAL DEPOSIT WALLET"    value={statsLoading ? "—" : $(kpis.depTotal)}     sub={stats ? `${stats.totalWallets} wallets` : "…"} color="#34d399" />
           <KpiCard icon={Wallet}       label="TOTAL INCOME WALLET"     value={statsLoading ? "—" : $(kpis.incTotal)}     sub="Platform-wide"                                 color={GOLD}    />
           <KpiCard icon={TrendingDown} label="TOTAL WITHDRAWAL WALLET" value={statsLoading ? "—" : $(kpis.witTotal)}     sub="Ready to withdraw"                             color="#60a5fa" />
           <KpiCard icon={Clock}        label="PENDING TRANSFERS"       value={statsLoading ? "—" : $(kpis.pending)}      sub="Locked withdrawal balance"                     color="#fbbf24" />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 26 }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${isMobile?2:4}, 1fr)`, gap: 12, marginBottom: 26 }}>
           <KpiCard icon={CheckCircle}  label="COMPLETED TODAY"         value={statsLoading ? "—" : String(kpis.completedToday)} sub="Transfers released"            color="#34d399" />
           <KpiCard icon={BarChart2}    label="TOTAL PLATFORM VALUE"    value={statsLoading ? "—" : $(kpis.platform)}    sub="All wallets combined"                          color="#a78bfa" />
           <KpiCard icon={Users}        label="AVG WALLET BALANCE"      value={statsLoading ? "—" : $(kpis.avg)}         sub="Per member"                                    color="#60a5fa" />
@@ -569,37 +596,56 @@ export default function WalletsPage() {
 
         {/* Table */}
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto" }}>
-              <thead>
-                <tr>
-                  {["USERNAME","MEMBER ID","DEPOSIT","INCOME","WITHDRAWAL","PENDING","LAST TX","STATUS",""].map(h => (
-                    <th key={h} style={{ ...TH, textAlign: h === "" ? "right" : "left", paddingLeft: h === "USERNAME" ? 18 : 14, paddingRight: h === "" ? 18 : 14 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading && wallets.length === 0 ? (
-                  <SkeletonRows rows={8} cols={9} />
-                ) : pageRows.length === 0 ? (
-                  <tr><td colSpan={9} style={{ textAlign: "center", padding: "48px 0", color: MUTED, fontSize: 13 }}>No wallets match your filters.</td></tr>
-                ) : (
-                  pageRows.map(w => (
-                    <WalletRow
-                      key={w.id} w={w}
-                      onView={openDrawer}
-                      onAdjust={setAdjTarget}
-                      onTransfer={setTrfTarget}
-                      onFreeze={handleFreeze}
-                      onUnfreeze={handleUnfreeze}
-                      hovered={hovered === w.id}
-                      onHover={setHovered}
-                    />
+          {isMobile ? (
+            <div>
+              {loading && wallets.length === 0
+                ? Array.from({ length: 6 }, (_, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderBottom: `1px solid ${BORDER}` }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 20, background: "rgba(255,255,255,0.06)", flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ width: 120, height: 12, background: "rgba(255,255,255,0.06)", borderRadius: 4, marginBottom: 7 }} />
+                        <div style={{ width: 160, height: 10, background: "rgba(255,255,255,0.04)", borderRadius: 4 }} />
+                      </div>
+                    </div>
                   ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                : pageRows.length === 0
+                  ? <div style={{ padding: "48px 0", textAlign: "center", color: MUTED, fontSize: 13 }}>No wallets match your filters.</div>
+                  : pageRows.map(w => <MobileWalletCard key={w.id} w={w} onView={openDrawer} />)
+              }
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto" }}>
+                <thead>
+                  <tr>
+                    {["USERNAME","MEMBER ID","DEPOSIT","INCOME","WITHDRAWAL","PENDING","LAST TX","STATUS",""].map(h => (
+                      <th key={h} style={{ ...TH, textAlign: h === "" ? "right" : "left", paddingLeft: h === "USERNAME" ? 18 : 14, paddingRight: h === "" ? 18 : 14 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading && wallets.length === 0 ? (
+                    <SkeletonRows rows={8} cols={9} />
+                  ) : pageRows.length === 0 ? (
+                    <tr><td colSpan={9} style={{ textAlign: "center", padding: "48px 0", color: MUTED, fontSize: 13 }}>No wallets match your filters.</td></tr>
+                  ) : (
+                    pageRows.map(w => (
+                      <WalletRow
+                        key={w.id} w={w}
+                        onView={openDrawer}
+                        onAdjust={setAdjTarget}
+                        onTransfer={setTrfTarget}
+                        onFreeze={handleFreeze}
+                        onUnfreeze={handleUnfreeze}
+                        hovered={hovered === w.id}
+                        onHover={setHovered}
+                      />
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Pagination */}
           {meta.totalPages > 1 && (

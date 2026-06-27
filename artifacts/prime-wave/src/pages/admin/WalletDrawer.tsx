@@ -356,7 +356,7 @@ const WalletDrawer = memo(function WalletDrawer({ wallet, onClose, onAdjust, onT
   return (
     <>
       <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.35)" }} onClick={onClose} />
-      <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: 480, zIndex: 201, background: "hsl(222 62% 7%)", borderLeft: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", boxShadow: "-12px 0 50px rgba(0,0,0,0.5)" }}>
+      <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: 480, maxWidth: "100vw", zIndex: 201, background: "hsl(222 62% 7%)", borderLeft: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", boxShadow: "-12px 0 50px rgba(0,0,0,0.5)" }}>
 
         {/* Header */}
         <div style={{ padding: "18px 20px 14px", borderBottom: `1px solid ${BORDER}`, flexShrink: 0 }}>

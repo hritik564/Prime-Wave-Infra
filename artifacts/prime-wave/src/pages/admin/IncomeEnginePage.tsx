@@ -5,6 +5,7 @@ import EngineDrawer, {
   EngineRecord, EngineStatus, EngineRun, RecentPayout, EngineWarning, EngineAuditEntry,
 } from "./EngineDrawer";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
+import { useResponsive } from "@/hooks/useResponsive";
 import {
   RefreshCw, Download, Settings, Zap, MoreVertical,
   TrendingUp, Activity, Clock, Shield, BarChart2,
@@ -173,13 +174,14 @@ function KpiCard({ icon: Icon, label, value, sub, color }: {
 function EngineStatusPanel({ engines, onOpen, loading }: {
   engines: EngineRecord[]; onOpen: (e: EngineRecord) => void; loading: boolean;
 }) {
+  const { isMobile } = useResponsive();
   return (
     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "16px 18px", marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.7)", letterSpacing: "0.07em" }}>ENGINE STATUS PANEL</div>
         <div style={{ fontSize: 10, color: MUTED }}>Live · {ENGINE_ORDER.length} engines</div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${isMobile ? 4 : 7}, 1fr)`, gap: 8 }}>
         {engines.map(eng => {
           const sc = ENGINE_STATUS_CFG[eng.status];
           return (
@@ -353,8 +355,37 @@ const EngineRow = memo(function EngineRow({ eng, onView, onRun, onPause, onResum
   );
 });
 
+// ─── Mobile engine card ───────────────────────────────────────────────────────
+function MobileEngineCard({ eng, onView }: { eng: EngineRecord; onView: (e: EngineRecord) => void }) {
+  const sc = ENGINE_STATUS_CFG[eng.status];
+  const lastRunDate = eng.lastRun.getTime() === 0 ? null : eng.lastRun;
+  return (
+    <div onClick={() => onView(eng)} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 14px", borderBottom: `1px solid ${BORDER}`, cursor: "pointer" }}>
+      <div style={{ width: 38, height: 38, borderRadius: 10, background: `${eng.color}14`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Zap size={16} style={{ color: eng.color }} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>{eng.name}</span>
+          <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5 }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: sc.dot, boxShadow: `0 0 5px ${sc.dot}70` }} />
+            <span style={{ fontSize: 10, fontWeight: 600, color: sc.color }}>{sc.label}</span>
+          </span>
+        </div>
+        <div style={{ fontSize: 11, color: MUTED, marginBottom: 6 }}>{eng.beneficiaries} beneficiaries · {lastRunDate ? fmtDate(lastRunDate) : "Never run"}</div>
+        <div style={{ display: "flex", gap: 16 }}>
+          <div><div style={{ fontSize: 9, color: MUTED }}>TODAY</div><div style={{ fontSize: 12, fontWeight: 600, color: GOLD }}>{$(eng.todayPayout)}</div></div>
+          <div><div style={{ fontSize: 9, color: MUTED }}>THIS WEEK</div><div style={{ fontSize: 12, fontWeight: 600, color: "#a78bfa" }}>{$(eng.weekPayout)}</div></div>
+          <div><div style={{ fontSize: 9, color: MUTED }}>THIS MONTH</div><div style={{ fontSize: 12, fontWeight: 600, color: "#60a5fa" }}>{$(eng.monthPayout)}</div></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function IncomeEnginePage() {
+  const { isMobile } = useResponsive();
   const { toasts, toast, dismiss } = useToast();
 
   // ── Data state ───────────────────────────────────────────────────────────────
@@ -519,39 +550,51 @@ export default function IncomeEnginePage() {
 
   return (
     <AdminLayout>
-      <div style={{ padding: "24px 28px", minHeight: "100vh", background: BG, boxSizing: "border-box" }}>
+      <div style={{ padding: isMobile ? "16px 12px" : "24px 28px", minHeight: "100vh", background: BG, boxSizing: "border-box" }}>
 
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, gap: 12, flexWrap: "wrap" }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>Income Engine Control Center</h1>
+            <h1 style={{ margin: 0, fontSize: isMobile ? 18 : 22, fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>Income Engine Control Center</h1>
             <p style={{ margin: "4px 0 0", fontSize: 12, color: MUTED }}>Monitor, simulate and manage every compensation engine across the platform.</p>
           </div>
-          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-            {[
-              { icon: RefreshCw, label: "Refresh",         onClick: handleRefresh },
-              { icon: Download,  label: "Export",           onClick: undefined     },
-              { icon: Settings,  label: "Engine Settings",  onClick: undefined     },
-            ].map(b => (
-              <button key={b.label} onClick={b.onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
-                <b.icon size={13} />{b.label}
+          {!isMobile ? (
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              {[
+                { icon: RefreshCw, label: "Refresh",         onClick: handleRefresh },
+                { icon: Download,  label: "Export",           onClick: undefined     },
+                { icon: Settings,  label: "Engine Settings",  onClick: undefined     },
+              ].map(b => (
+                <button key={b.label} onClick={b.onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
+                  <b.icon size={13} />{b.label}
+                </button>
+              ))}
+              <button onClick={handleRunAll} disabled={cycling}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: cycling ? "rgba(212,175,55,0.06)" : "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 8, cursor: cycling ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, color: cycling ? MUTED : GOLD_L }}>
+                <Zap size={13} />{cycling ? "Running…" : "Run Income Cycle"}
               </button>
-            ))}
-            <button onClick={handleRunAll} disabled={cycling}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: cycling ? "rgba(212,175,55,0.06)" : "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 8, cursor: cycling ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, color: cycling ? MUTED : GOLD_L }}>
-              <Zap size={13} />{cycling ? "Running…" : "Run Income Cycle"}
-            </button>
-          </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={handleRefresh} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
+                <RefreshCw size={12} />Refresh
+              </button>
+              <button onClick={handleRunAll} disabled={cycling}
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", background: cycling ? "rgba(212,175,55,0.06)" : "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 8, cursor: cycling ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, color: cycling ? MUTED : GOLD_L }}>
+                <Zap size={12} />{cycling ? "Running…" : "Run Cycle"}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* KPI Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${isMobile ? 2 : 4}, 1fr)`, gap: 12, marginBottom: 14 }}>
           <KpiCard icon={TrendingUp}  label="TODAY'S TOTAL PAYOUT"    value={loading ? "—" : $(kpis.payToday)} sub="All engines"            color={GOLD}    />
           <KpiCard icon={Zap}         label="ROI GENERATED"            value={loading ? "—" : $(kpis.roi)}      sub="Daily ROI engine"        color={GOLD}    />
           <KpiCard icon={BarChart2}   label="BINARY INCOME"            value={loading ? "—" : $(kpis.binary)}   sub="Matching + Orbit"        color="#818cf8" />
           <KpiCard icon={Activity}    label="LEVEL INCOME"             value={loading ? "—" : $(kpis.level)}    sub="5-level distribution"    color="#60a5fa" />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 22 }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${isMobile ? 2 : 4}, 1fr)`, gap: 12, marginBottom: 22 }}>
           <KpiCard icon={Clock}       label="SALARY INCOME"            value={loading ? "—" : $(kpis.salary)}   sub="Rank-based payouts"      color="#34d399" />
           <KpiCard icon={Zap}         label="ORBIT INCOME"             value={loading ? "—" : $(kpis.orbit)}    sub="Binary orbit rewards"    color="#a78bfa" />
           <KpiCard icon={ChevronRight}label="PENDING 72-HR RELEASES"   value={loading ? "—" : String(kpis.pending72)} sub="Transfers in queue" color="#fbbf24" />
@@ -562,7 +605,7 @@ export default function IncomeEnginePage() {
         <EngineStatusPanel engines={engines} onOpen={setDrawer} loading={loading} />
 
         {/* Two-column layout: Release Monitor + Income Table */}
-        <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "340px 1fr", gap: 16 }}>
           <ReleaseMonitor items={releaseQueue} loading={releaseLoading} />
 
           <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden", alignSelf: "start" }}>
@@ -570,31 +613,48 @@ export default function IncomeEnginePage() {
               <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.7)", letterSpacing: "0.07em" }}>INCOME SOURCE TABLE</div>
               <div style={{ fontSize: 10, color: MUTED }}>{ENGINE_ORDER.length} engines</div>
             </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto" }}>
-                <thead>
-                  <tr>
-                    {COLS.map((h, i) => (
-                      <th key={h + i} style={{ ...TH, paddingLeft: i === 0 ? 18 : 14, paddingRight: i === COLS.length - 1 ? 18 : 14 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading && engines.length === 0
-                    ? <SkeletonRows rows={6} cols={8} />
-                    : engines.map(eng => (
-                        <EngineRow key={eng.id} eng={eng}
-                          onView={setDrawer}
-                          onRun={handleRun}
-                          onPause={handlePause}
-                          onResume={handleResume}
-                          hovered={hovered === eng.id}
-                          onHover={setHovered}
-                        />
+            {isMobile ? (
+              <div>
+                {loading && engines.length === 0
+                  ? Array.from({ length: 5 }, (_, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderBottom: `1px solid ${BORDER}` }}>
+                        <div style={{ width: 38, height: 38, borderRadius: 10, background: "rgba(255,255,255,0.06)", flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ width: 120, height: 12, background: "rgba(255,255,255,0.06)", borderRadius: 4, marginBottom: 7 }} />
+                          <div style={{ width: 80, height: 10, background: "rgba(255,255,255,0.04)", borderRadius: 4 }} />
+                        </div>
+                      </div>
+                    ))
+                  : engines.map(eng => <MobileEngineCard key={eng.id} eng={eng} onView={setDrawer} />)
+                }
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto" }}>
+                  <thead>
+                    <tr>
+                      {COLS.map((h, i) => (
+                        <th key={h + i} style={{ ...TH, paddingLeft: i === 0 ? 18 : 14, paddingRight: i === COLS.length - 1 ? 18 : 14 }}>{h}</th>
                       ))}
-                </tbody>
-              </table>
-            </div>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading && engines.length === 0
+                      ? <SkeletonRows rows={6} cols={8} />
+                      : engines.map(eng => (
+                          <EngineRow key={eng.id} eng={eng}
+                            onView={setDrawer}
+                            onRun={handleRun}
+                            onPause={handlePause}
+                            onResume={handleResume}
+                            hovered={hovered === eng.id}
+                            onHover={setHovered}
+                          />
+                        ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 

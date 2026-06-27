@@ -10,6 +10,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
+import { useResponsive } from "@/hooks/useResponsive";
 import AdminLayout from "./AdminLayout";
 import WithdrawalDrawer, { type DrawerWithdrawal, type DrawerAuditLog } from "./WithdrawalDrawer";
 import { ApprovalModal, RejectModal, HoldModal } from "./WithdrawalModals";
@@ -402,7 +403,34 @@ const ROWS_OPTIONS = [25, 50, 100];
 const ADMIN_REVIEWERS = ["alice@primewave.io","bob@primewave.io","compliance@primewave.io","finance@primewave.io"];
 const DEBOUNCE_MS = 400;
 
+// ─── Mobile card ─────────────────────────────────────────────────────────────
+function MobileWithdrawalCard({ w, onClick }: { w: AdminWithdrawalItem; onClick: () => void }) {
+  const sc = w.status === "APPROVED" || w.status === "COMPLETED" ? "#34d399"
+    : w.status === "REJECTED" || w.status === "CANCELLED" ? "#f87171" : "#fbbf24";
+  const priority = derivePriority(parseFloat(w.amount));
+  const pc = priority === "URGENT" ? "#f87171" : priority === "VIP" ? "#a78bfa" : priority === "HIGH" ? "#fbbf24" : MUTED;
+  return (
+    <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderBottom: `1px solid ${BORDER}`, cursor: "pointer" }}>
+      <div style={{ width: 38, height: 38, borderRadius: 19, background: `${sc}12`, border: `1.5px solid ${sc}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: sc, flexShrink: 0 }}>
+        {(w.user.username?.[0] ?? "?").toUpperCase()}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>@{w.user.username}</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: sc, background: `${sc}1a`, padding: "1px 6px", borderRadius: 4 }}>{w.status}</span>
+          {priority !== "NORMAL" && <span style={{ fontSize: 10, color: pc }}>{priority}</span>}
+        </div>
+        <div style={{ display: "flex", gap: 10, fontSize: 11 }}>
+          <span style={{ color: GOLD, fontWeight: 700 }}>{$(parseFloat(w.amount))}</span>
+          <span style={{ color: MUTED }}>{w.network}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function WithdrawalsPage() {
+  const { isMobile } = useResponsive();
   const { toasts, toast, dismiss } = useToast();
 
   // ── Data state ─────────────────────────────────────────────────────────────
@@ -615,21 +643,23 @@ export default function WithdrawalsPage() {
 
   return (
     <AdminLayout>
-    <div style={{padding:"24px 28px",minHeight:"100vh",background:BG,boxSizing:"border-box"}}>
+    <div style={{padding: isMobile ? 0 : "24px 28px",minHeight:"100vh",background:BG,boxSizing:"border-box"}}>
       {/* Header */}
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:24,gap:12}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:24,gap:12,flexWrap:"wrap"}}>
         <div>
-          <h1 style={{margin:0,fontSize:22,fontWeight:800,color:"rgba(255,255,255,0.92)"}}>Withdrawal Control Center</h1>
-          <p style={{margin:"4px 0 0",fontSize:12,color:MUTED}}>Review, approve, reject and monitor every withdrawal request.</p>
+          <h1 style={{margin:0,fontSize:isMobile?16:22,fontWeight:800,color:"rgba(255,255,255,0.92)"}}>Withdrawal Control Center</h1>
+          {!isMobile && <p style={{margin:"4px 0 0",fontSize:12,color:MUTED}}>Review, approve, reject and monitor every withdrawal request.</p>}
         </div>
         <div style={{display:"flex",gap:8,flexShrink:0}}>
           <button onClick={()=>{void fetchWithdrawals();void fetchStats();}} style={{...sel,display:"flex",alignItems:"center",gap:5}}>
-            {loading ? <Loader2 size={11} style={{animation:"spin 1s linear infinite"}}/> : <RefreshCw size={11}/>}Refresh
+            {loading ? <Loader2 size={11} style={{animation:"spin 1s linear infinite"}}/> : <RefreshCw size={11}/>}
           </button>
-          <button style={{...sel,display:"flex",alignItems:"center",gap:5}}><Download size={11}/>Export</button>
-          <button style={{display:"flex",alignItems:"center",gap:5,padding:"7px 14px",background:"rgba(212,175,55,0.1)",border:"1px solid rgba(212,175,55,0.3)",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:700,color:GOLD_L}}>
-            <Settings2 size={11}/>Settlement Settings
-          </button>
+          {!isMobile && <button style={{...sel,display:"flex",alignItems:"center",gap:5}}><Download size={11}/>Export</button>}
+          {!isMobile && (
+            <button style={{display:"flex",alignItems:"center",gap:5,padding:"7px 14px",background:"rgba(212,175,55,0.1)",border:"1px solid rgba(212,175,55,0.3)",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:700,color:GOLD_L}}>
+              <Settings2 size={11}/>Settings
+            </button>
+          )}
         </div>
       </div>
 
@@ -643,23 +673,23 @@ export default function WithdrawalsPage() {
       )}
 
       {/* KPI Cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
+      <div style={{display:"grid",gridTemplateColumns:`repeat(${isMobile?2:4},1fr)`,gap:12,marginBottom:20}}>
         <StatCard icon={FileText}    label="Total Requests"   value={statsLoading?"—":String(stats?.totalCount??0)}       sub="All time"                                             color="#60a5fa" bg="rgba(96,165,250,0.12)"    loading={statsLoading}/>
         <StatCard icon={Clock}       label="Pending Approval" value={statsLoading?"—":String(stats?.pendingCount??0)}      sub={stats?`${$(stats.pendingAmount)} pending`:""}         color="#fbbf24" bg="rgba(251,191,36,0.12)"   loading={statsLoading}/>
         <StatCard icon={CheckCircle} label="Approved Today"   value={statsLoading?"—":String(stats?.approvedToday??0)}    sub={stats?`${$(stats.approvedTodayAmount)} released`:""}  color="#34d399" bg="rgba(52,211,153,0.12)"   loading={statsLoading}/>
         <StatCard icon={X}           label="Rejected Today"   value={statsLoading?"—":String(stats?.rejectedToday??0)}    sub="Requires follow-up"                                   color="#f87171" bg="rgba(248,113,113,0.12)"  loading={statsLoading}/>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:24}}>
+      <div style={{display:"grid",gridTemplateColumns:`repeat(${isMobile?2:4},1fr)`,gap:12,marginBottom:24}}>
         <StatCard icon={DollarSign}  label="Total Pending Amount" value={statsLoading?"—":$(stats?.pendingAmount??0)}      sub={stats?`${stats.pendingCount} requests`:""}            color={GOLD}    bg="rgba(212,175,55,0.12)"   loading={statsLoading}/>
         <StatCard icon={TrendingUp}  label="Today's Payout"       value={statsLoading?"—":$(stats?.approvedTodayAmount??0)} sub="Completed withdrawals"                               color="#34d399" bg="rgba(52,211,153,0.12)"   loading={statsLoading}/>
-        <StatCard icon={Clock}       label="Avg Processing Time"  value="4.2 hrs"                                           sub="Past 7 days"                                         color="#a78bfa" bg="rgba(167,139,250,0.12)"/>
+        <StatCard icon={Clock}       label="Avg Processing Time"  value="4.2 hrs"                                           sub="Past 7 days"                                         color="#a78bfa" bg="rgba(167,140,250,0.12)"/>
         <StatCard icon={Percent}     label="Success Rate"         value={statsLoading?"—":`${stats?.successRate??0}%`}     sub="Approved / total"                                    color="#34d399" bg="rgba(52,211,153,0.12)"   loading={statsLoading}/>
       </div>
 
       {/* Priority + Queue row */}
-      <div style={{display:"grid",gridTemplateColumns:"1.4fr 1fr",gap:14,marginBottom:24}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1.4fr 1fr",gap:14,marginBottom:24}}>
         <HighPriorityPanel data={withdrawals} onClick={w=>void openDrawer(w)}/>
-        <ProcessingQueue   stats={stats}/>
+        {!isMobile && <ProcessingQueue stats={stats}/>}
       </div>
 
       {/* Filter bar */}
@@ -712,51 +742,70 @@ export default function WithdrawalsPage() {
 
       {/* Table */}
       <div style={{background:CARD,border:`1px solid ${BORDER}`,borderRadius:12,overflow:"hidden",marginBottom:10}}>
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <thead style={{position:"sticky",top:0,zIndex:10,background:"hsl(222 62% 10%)"}}>
-              <tr>
-                {[
-                  {content:<input type="checkbox" checked={allChecked} onChange={toggleAll} style={{accentColor:GOLD,width:13,height:13}}/>,    w:"44px"},
-                  {content:"Withdrawal ID", w:"140px"},{content:"Member",w:"180px"},{content:"Amount",w:"100px"},
-                  {content:"Wallet",w:"100px"},{content:"Network",w:"110px"},{content:"Requested",w:"110px"},
-                  {content:"Status",w:"100px"},{content:"Priority",w:"90px"},{content:"Assigned",w:"110px"},{content:"",w:"50px"},
-                ].map((col,i)=>(
-                  <th key={i} style={{padding:"10px 8px",textAlign:"left",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.07em",whiteSpace:"nowrap",borderBottom:`1px solid ${BORDER}`,width:col.w}}>
-                    {col.content}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading && Array.from({length:5}).map((_,i)=>(
-                <tr key={i}>
-                  {Array.from({length:11}).map((_,j)=>(
-                    <td key={j} style={{padding:"13px 8px"}}>
-                      <div style={{height:12,background:"rgba(255,255,255,0.05)",borderRadius:4,width:j===2?"120px":j===3?"60px":"80px"}}/>
-                    </td>
+        {isMobile ? (
+          <div>
+            {loading
+              ? Array.from({length:5},(_,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 14px",borderBottom:`1px solid ${BORDER}`}}>
+                    <div style={{width:38,height:38,borderRadius:19,background:"rgba(255,255,255,0.06)",flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <div style={{width:120,height:12,background:"rgba(255,255,255,0.06)",borderRadius:4,marginBottom:7}}/>
+                      <div style={{width:80,height:10,background:"rgba(255,255,255,0.04)",borderRadius:4}}/>
+                    </div>
+                  </div>
+                ))
+              : withdrawals.length===0
+                ? <div style={{padding:"48px",textAlign:"center",color:MUTED,fontSize:12}}>{error ? "Error loading withdrawals." : "No withdrawals match your filters."}</div>
+                : withdrawals.map(w=><MobileWithdrawalCard key={w.id} w={w} onClick={()=>void openDrawer(w)}/>)
+            }
+          </div>
+        ) : (
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead style={{position:"sticky",top:0,zIndex:10,background:"hsl(222 62% 10%)"}}>
+                <tr>
+                  {[
+                    {content:<input type="checkbox" checked={allChecked} onChange={toggleAll} style={{accentColor:GOLD,width:13,height:13}}/>,    w:"44px"},
+                    {content:"Withdrawal ID", w:"140px"},{content:"Member",w:"180px"},{content:"Amount",w:"100px"},
+                    {content:"Wallet",w:"100px"},{content:"Network",w:"110px"},{content:"Requested",w:"110px"},
+                    {content:"Status",w:"100px"},{content:"Priority",w:"90px"},{content:"Assigned",w:"110px"},{content:"",w:"50px"},
+                  ].map((col,i)=>(
+                    <th key={i} style={{padding:"10px 8px",textAlign:"left",fontSize:10,fontWeight:700,color:MUTED,letterSpacing:"0.07em",whiteSpace:"nowrap",borderBottom:`1px solid ${BORDER}`,width:col.w}}>
+                      {col.content}
+                    </th>
                   ))}
                 </tr>
-              ))}
-              {!loading && withdrawals.map(w=>(
-                <WithdrawalRow
-                  key={w.id} w={w}
-                  checked={selected.has(w.id)}
-                  onToggle={()=>toggleRow(w.id)}
-                  onRowClick={()=>void openDrawer(w)}
-                  onApprove={openApprove} onReject={openReject} onHold={openHold} onCancel={openCancel} onAssign={openAssign}
-                  isHover={hovered===w.id}
-                  onHoverSet={setHovered}
-                />
-              ))}
-              {!loading && withdrawals.length===0&&(
-                <tr><td colSpan={11} style={{padding:"48px",textAlign:"center",color:MUTED,fontSize:12}}>
-                  {error ? "Error loading withdrawals." : "No withdrawals match your filters."}
-                </td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {loading && Array.from({length:5}).map((_,i)=>(
+                  <tr key={i}>
+                    {Array.from({length:11}).map((_,j)=>(
+                      <td key={j} style={{padding:"13px 8px"}}>
+                        <div style={{height:12,background:"rgba(255,255,255,0.05)",borderRadius:4,width:j===2?"120px":j===3?"60px":"80px"}}/>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {!loading && withdrawals.map(w=>(
+                  <WithdrawalRow
+                    key={w.id} w={w}
+                    checked={selected.has(w.id)}
+                    onToggle={()=>toggleRow(w.id)}
+                    onRowClick={()=>void openDrawer(w)}
+                    onApprove={openApprove} onReject={openReject} onHold={openHold} onCancel={openCancel} onAssign={openAssign}
+                    isHover={hovered===w.id}
+                    onHoverSet={setHovered}
+                  />
+                ))}
+                {!loading && withdrawals.length===0&&(
+                  <tr><td colSpan={11} style={{padding:"48px",textAlign:"center",color:MUTED,fontSize:12}}>
+                    {error ? "Error loading withdrawals." : "No withdrawals match your filters."}
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Pagination */}

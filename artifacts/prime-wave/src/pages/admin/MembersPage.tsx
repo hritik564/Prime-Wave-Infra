@@ -1,6 +1,7 @@
 import {
   useState, useCallback, useEffect, useRef, memo,
 } from "react";
+import { useResponsive } from "@/hooks/useResponsive";
 import AdminLayout from "./AdminLayout";
 import MemberDrawer, { type DrawerMember } from "./MemberDrawer";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
@@ -346,6 +347,60 @@ function FilterBar({ filters, onChange }: { filters: Filters; onChange: (f: Filt
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Mobile card
+// ─────────────────────────────────────────────────────────────────────────────
+function MobileMemberCard({ m, onOpen, onAction }: {
+  m: Member; onOpen: (m: Member) => void; onAction: (m: Member, label: string) => void;
+}) {
+  const col = m.status === "ACTIVE" ? "#34d399"
+    : (m.status === "SUSPENDED" || m.status === "BLOCKED") ? "#f87171" : MUTED;
+  return (
+    <div
+      onClick={() => onOpen(m)}
+      style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderBottom: `1px solid ${BORDER}`, cursor: "pointer" }}
+    >
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 20, background: "rgba(212,175,55,0.09)", border: `1.5px solid ${col}60`, display: "flex", alignItems: "center", justifyContent: "center", color: GOLD, fontSize: 13, fontWeight: 700 }}>
+          {initials(m.firstName, m.lastName)}
+        </div>
+        <div style={{ position: "absolute", bottom: 1, right: 1, width: 8, height: 8, borderRadius: "50%", background: col, border: "1.5px solid hsl(222 62% 7%)" }} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>@{m.username}</span>
+          <StatusBadge status={m.status} />
+        </div>
+        <div style={{ fontSize: 11, color: MUTED, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 4 }}>{m.email}</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {m.plan && <span style={{ fontSize: 10, color: GOLD, background: "rgba(212,175,55,0.08)", padding: "1px 6px", borderRadius: 4 }}>{m.plan}</span>}
+          <span style={{ fontSize: 10, color: MUTED }}>{m.directReferrals} refs</span>
+          <span style={{ fontSize: 10, color: MUTED }}>{dt(m.joinedAt)}</span>
+        </div>
+      </div>
+      <button
+        onClick={e => { e.stopPropagation(); onAction(m, "View Profile"); }}
+        style={{ background: "rgba(212,175,55,0.08)", border: "1px solid rgba(212,175,55,0.2)", borderRadius: 7, padding: "7px 10px", cursor: "pointer", fontSize: 11, color: GOLD_L, flexShrink: 0 }}
+      >
+        View
+      </button>
+    </div>
+  );
+}
+
+function SkeletonMobileCard() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderBottom: `1px solid ${BORDER}` }}>
+      <div style={{ width: 40, height: 40, borderRadius: 20, background: "rgba(255,255,255,0.06)", flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ width: 120, height: 12, background: "rgba(255,255,255,0.06)", borderRadius: 4, marginBottom: 7 }} />
+        <div style={{ width: 160, height: 10, background: "rgba(255,255,255,0.04)", borderRadius: 4 }} />
+      </div>
+      <div style={{ width: 46, height: 28, borderRadius: 7, background: "rgba(255,255,255,0.04)", flexShrink: 0 }} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main page
 // ─────────────────────────────────────────────────────────────────────────────
 const DEFAULT_PER_PAGE = 25;
@@ -365,6 +420,7 @@ export default function MembersPage() {
   const [showFilters, setShowFilters] = useState(false);
 
   const { toasts, toast, dismiss } = useToast();
+  const { isMobile } = useResponsive();
 
   const [members,    setMembers]    = useState<Member[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -487,25 +543,27 @@ export default function MembersPage() {
 
   return (
     <AdminLayout>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
         <div>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: "rgba(255,255,255,0.9)", marginBottom: 3 }}>Members</h1>
-          <p style={{ fontSize: 12, color: MUTED }}>Manage every registered member across the platform.</p>
+          <h1 style={{ fontSize: isMobile ? 16 : 18, fontWeight: 700, color: "rgba(255,255,255,0.9)", marginBottom: 3 }}>Members</h1>
+          {!isMobile && <p style={{ fontSize: 12, color: MUTED }}>Manage every registered member across the platform.</p>}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => void fetchMembers()} style={{ display: "flex", alignItems: "center", gap: 6, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
-            <RotateCw size={13} /> Refresh
+            <RotateCw size={13} />
           </button>
-          <button style={{ display: "flex", alignItems: "center", gap: 6, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
-            <Download size={13} /> Export CSV
-          </button>
+          {!isMobile && (
+            <button style={{ display: "flex", alignItems: "center", gap: 6, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
+              <Download size={13} /> Export CSV
+            </button>
+          )}
           <button onClick={() => setCreateOpen(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(212,175,55,0.12)", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 12, color: GOLD_L, fontWeight: 600 }}>
-            <Plus size={13} /> Create Member
+            <Plus size={13} /> {isMobile ? "Add" : "Create Member"}
           </button>
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: 10, marginBottom: 18 }}>
         <StatCard icon={Users}     label="Total Members"   value={stats.total}     color="#60a5fa" bg="rgba(96,165,250,0.1)"  />
         <StatCard icon={UserCheck} label="Active Members"  value={stats.active}    color="#34d399" bg="rgba(52,211,153,0.1)"  />
         <StatCard icon={Clock}     label="Pending KYC"     value={stats.kyc}       color="#fbbf24" bg="rgba(251,191,36,0.1)"  />
@@ -539,38 +597,49 @@ export default function MembersPage() {
       )}
 
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-        <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "calc(100vh - 400px)" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1200 }}>
-            <thead>
-              <tr>
-                <th style={{ ...TH, width: 34 }}>
-                  <div onClick={toggleAll} style={{ width: 15, height: 15, borderRadius: 4, border: `1.5px solid ${allOnPage ? GOLD : BORDER}`, background: allOnPage ? GOLD : someOnPage ? "rgba(212,175,55,0.3)" : "transparent", cursor: "pointer" }} />
-                </th>
-                {["","Username","Full Name","Email","Country","Plan","Investment","Sponsor","Position","Refs","Status","KYC","Joined",""].map((h, i) => (
-                  <th key={i} style={TH}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading
-                ? Array.from({ length: 10 }, (_, i) => <SkeletonRow key={i} />)
-                : members.length === 0
-                  ? <tr><td colSpan={15}><EmptyState search={searchInput} /></td></tr>
-                  : members.map(m => (
-                    <MemberRow key={m.id} m={m}
-                      selected={selectedIds.has(m.id)}
-                      onSelect={toggleSelect}
-                      onOpen={openDrawer}
-                      dropdownOpen={dropdown === m.id}
-                      onDropdownToggle={() => setDropdown(p => p === m.id ? null : m.id)}
-                      onDropdownClose={() => setDropdown(null)}
-                      onAction={handleRowAction}
-                    />
-                  ))
-              }
-            </tbody>
-          </table>
-        </div>
+        {isMobile ? (
+          <div>
+            {loading
+              ? Array.from({ length: 6 }, (_, i) => <SkeletonMobileCard key={i} />)
+              : members.length === 0
+                ? <EmptyState search={searchInput} />
+                : members.map(m => <MobileMemberCard key={m.id} m={m} onOpen={openDrawer} onAction={handleRowAction} />)
+            }
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "calc(100vh - 400px)" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1200 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...TH, width: 34 }}>
+                    <div onClick={toggleAll} style={{ width: 15, height: 15, borderRadius: 4, border: `1.5px solid ${allOnPage ? GOLD : BORDER}`, background: allOnPage ? GOLD : someOnPage ? "rgba(212,175,55,0.3)" : "transparent", cursor: "pointer" }} />
+                  </th>
+                  {["","Username","Full Name","Email","Country","Plan","Investment","Sponsor","Position","Refs","Status","KYC","Joined",""].map((h, i) => (
+                    <th key={i} style={TH}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading
+                  ? Array.from({ length: 10 }, (_, i) => <SkeletonRow key={i} />)
+                  : members.length === 0
+                    ? <tr><td colSpan={15}><EmptyState search={searchInput} /></td></tr>
+                    : members.map(m => (
+                      <MemberRow key={m.id} m={m}
+                        selected={selectedIds.has(m.id)}
+                        onSelect={toggleSelect}
+                        onOpen={openDrawer}
+                        dropdownOpen={dropdown === m.id}
+                        onDropdownToggle={() => setDropdown(p => p === m.id ? null : m.id)}
+                        onDropdownClose={() => setDropdown(null)}
+                        onAction={handleRowAction}
+                      />
+                    ))
+                }
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {!loading && totalCount > 0 && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderTop: `1px solid ${BORDER}` }}>

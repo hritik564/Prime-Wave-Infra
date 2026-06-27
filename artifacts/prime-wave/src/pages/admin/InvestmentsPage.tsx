@@ -1,6 +1,7 @@
 import {
   useState, useMemo, useCallback, useEffect, useRef, memo,
 } from "react";
+import { useResponsive } from "@/hooks/useResponsive";
 import AdminLayout from "./AdminLayout";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
 import {
@@ -307,7 +308,7 @@ function InvestmentDrawer({ inv, onClose }: {
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.45)", opacity: visible ? 1 : 0, pointerEvents: visible ? "auto" : "none", transition: "opacity 0.22s ease" }} />
-      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 201, width: 400, background: "hsl(222 62% 7%)", borderLeft: `1px solid ${BORDER}`, boxShadow: "-20px 0 60px rgba(0,0,0,0.5)", transform: visible ? "translateX(0)" : "translateX(100%)", transition: "transform 0.25s cubic-bezier(0.32,0.72,0,1)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 201, width: 400, maxWidth: "100vw", background: "hsl(222 62% 7%)", borderLeft: `1px solid ${BORDER}`, boxShadow: "-20px 0 60px rgba(0,0,0,0.5)", transform: visible ? "translateX(0)" : "translateX(100%)", transition: "transform 0.25s cubic-bezier(0.32,0.72,0,1)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
         {inv && (
           <>
             {/* Header */}
@@ -608,6 +609,28 @@ function parseSortParams(sort: string): { sortBy: "createdAt" | "amount"; sortOr
   return                                { sortBy: "createdAt", sortOrder: "desc" };
 }
 
+// ─── Mobile card ─────────────────────────────────────────────────────────────
+function MobileInvestmentCard({ inv, onOpen }: { inv: AdminInvestmentItem; onOpen: (inv: AdminInvestmentItem) => void }) {
+  const c = PLAN_COLORS[inv.planType] ?? { color: MUTED, bg: "rgba(255,255,255,0.05)" };
+  const sc = inv.status === "ACTIVE" ? "#34d399" : inv.status === "MATURED" ? "#fbbf24" : "#60a5fa";
+  return (
+    <div onClick={() => onOpen(inv)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderBottom: `1px solid ${BORDER}`, cursor: "pointer" }}>
+      <Avatar inv={inv} size={38} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>@{inv.username}</span>
+          <PlanBadge planType={inv.planType} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: sc, background: `${sc}1a`, padding: "1px 6px", borderRadius: 4 }}>{inv.status}</span>
+        </div>
+        <div style={{ display: "flex", gap: 10, fontSize: 11 }}>
+          <span style={{ color: GOLD, fontWeight: 700 }}>{$(inv.amount)}</span>
+          <span style={{ color: c.color }}>{PLAN_LABEL[inv.planType]}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function InvestmentsPage() {
   const [investments,      setInvestments]      = useState<AdminInvestmentItem[]>([]);
   const [stats,            setStats]            = useState<AdminInvestmentStats>({ totalCount: 0, activeCount: 0, maturedCount: 0, completedCount: 0, totalCapital: "0.00", totalClaimableROI: "0.00" });
@@ -623,6 +646,7 @@ export default function InvestmentsPage() {
   const [error,            setError]            = useState<string | null>(null);
   const [showFilters,      setShowFilters]      = useState(false);
 
+  const { isMobile } = useResponsive();
   const { toasts, toast, dismiss } = useToast();
 
   const fetchData = useCallback(async (p: number) => {
@@ -704,29 +728,29 @@ export default function InvestmentsPage() {
   return (
     <AdminLayout>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
         <div>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: "rgba(255,255,255,0.9)", marginBottom: 3 }}>Investment Center</h1>
-          <p style={{ fontSize: 12, color: MUTED }}>Monitor and audit every investment across the platform.</p>
+          <h1 style={{ fontSize: isMobile ? 16 : 18, fontWeight: 700, color: "rgba(255,255,255,0.9)", marginBottom: 3 }}>Investment Center</h1>
+          {!isMobile && <p style={{ fontSize: 12, color: MUTED }}>Monitor and audit every investment across the platform.</p>}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {[
-            { icon: RotateCw, label: "Refresh",  action: () => fetchData(page) },
-            { icon: Download, label: "Export",   action: () => toast("Export not yet implemented", "error") },
-          ].map(b => (
-            <button key={b.label} onClick={b.action}
-              style={{ display: "flex", alignItems: "center", gap: 6, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 12, color: "rgba(255,255,255,0.65)", transition: "opacity 0.15s" }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "0.75"}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "1"}
+          <button onClick={() => fetchData(page)}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 12, color: "rgba(255,255,255,0.65)" }}
+          >
+            <RotateCw size={13} />
+          </button>
+          {!isMobile && (
+            <button onClick={() => toast("Export not yet implemented", "error")}
+              style={{ display: "flex", alignItems: "center", gap: 6, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "7px 12px", cursor: "pointer", fontSize: 12, color: "rgba(255,255,255,0.65)" }}
             >
-              <b.icon size={13} /> {b.label}
+              <Download size={13} /> Export
             </button>
-          ))}
+          )}
         </div>
       </div>
 
       {/* Stats */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${isMobile?2:4}, 1fr)`, gap: 10, marginBottom: 18 }}>
         <StatCard icon={TrendingUp} label="Total Investments" value={stats.totalCount}         color="#60a5fa" bg="rgba(96,165,250,0.1)"  />
         <StatCard icon={Zap}        label="Active"            value={stats.activeCount}         color="#34d399" bg="rgba(52,211,153,0.1)"  />
         <StatCard icon={Clock}      label="Matured"           value={stats.maturedCount}        color="#fbbf24" bg="rgba(251,191,36,0.1)"  />
@@ -785,54 +809,75 @@ export default function InvestmentsPage() {
 
       {/* Table */}
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-        <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "calc(100vh - 440px)" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1000 }}>
-            <thead>
-              <tr>
-                <th style={{ ...TH, width: 36 }}>
-                  <div onClick={toggleAll} style={{ width: 15, height: 15, borderRadius: 4, border: `1.5px solid ${allOnPage && investments.length > 0 ? GOLD : BORDER}`, background: allOnPage && investments.length > 0 ? GOLD : someOnPage ? "rgba(212,175,55,0.3)" : "transparent", cursor: "pointer" }} />
-                </th>
-                {["Inv ID","Member","Plan","Amount","ROI/Day","Duration","Auto-Comp","Status","Started","Matures",""].map(h => (
-                  <th key={h} style={TH}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: 8 }, (_, i) => <SkeletonRow key={i} />)
-              ) : error ? (
-                <tr><td colSpan={12} style={{ padding: 60, textAlign: "center" }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-                    <AlertTriangle size={24} style={{ color: "#f87171" }} />
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "#f87171" }}>Failed to load</div>
-                    <div style={{ fontSize: 12, color: MUTED }}>{error}</div>
-                    <button onClick={() => fetchData(page)} style={{ marginTop: 4, padding: "6px 14px", background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 7, cursor: "pointer", fontSize: 12, color: "#f87171" }}>Retry</button>
-                  </div>
-                </td></tr>
-              ) : investments.length === 0 ? (
-                <tr><td colSpan={12} style={{ padding: 60, textAlign: "center" }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 48, height: 48, borderRadius: 14, background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <TrendingUp size={20} style={{ color: MUTED }} />
+        {isMobile ? (
+          <div>
+            {loading
+              ? Array.from({ length: 6 }, (_, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderBottom: `1px solid ${BORDER}` }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 19, background: "rgba(255,255,255,0.06)", flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ width: 120, height: 12, background: "rgba(255,255,255,0.06)", borderRadius: 4, marginBottom: 7 }} />
+                      <div style={{ width: 80, height: 10, background: "rgba(255,255,255,0.04)", borderRadius: 4 }} />
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>{search ? `No results for "${search}"` : "No investments found"}</div>
-                    <div style={{ fontSize: 12, color: MUTED }}>Adjust your filters to see investments.</div>
                   </div>
-                </td></tr>
-              ) : investments.map(inv => (
-                <InvestmentRow
-                  key={inv.id} inv={inv}
-                  selected={selectedIds.has(inv.id)}
-                  onSelect={toggleSelect}
-                  onOpen={setDrawer}
-                  dropdownOpen={dropdown === inv.id}
-                  onDropdownToggle={id => setDropdown(p => p === id ? null : id)}
-                  onDropdownClose={() => setDropdown(null)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+                ))
+              : error
+                ? <div style={{ padding: "32px 16px", textAlign: "center", color: "#f87171", fontSize: 13 }}>{error}</div>
+                : investments.length === 0
+                  ? <div style={{ padding: "48px 0", textAlign: "center", color: MUTED, fontSize: 13 }}>No investments found.</div>
+                  : investments.map(inv => <MobileInvestmentCard key={inv.id} inv={inv} onOpen={inv => setDrawer(inv)} />)
+            }
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "calc(100vh - 440px)" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1000 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...TH, width: 36 }}>
+                    <div onClick={toggleAll} style={{ width: 15, height: 15, borderRadius: 4, border: `1.5px solid ${allOnPage && investments.length > 0 ? GOLD : BORDER}`, background: allOnPage && investments.length > 0 ? GOLD : someOnPage ? "rgba(212,175,55,0.3)" : "transparent", cursor: "pointer" }} />
+                  </th>
+                  {["Inv ID","Member","Plan","Amount","ROI/Day","Duration","Auto-Comp","Status","Started","Matures",""].map(h => (
+                    <th key={h} style={TH}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  Array.from({ length: 8 }, (_, i) => <SkeletonRow key={i} />)
+                ) : error ? (
+                  <tr><td colSpan={12} style={{ padding: 60, textAlign: "center" }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                      <AlertTriangle size={24} style={{ color: "#f87171" }} />
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#f87171" }}>Failed to load</div>
+                      <div style={{ fontSize: 12, color: MUTED }}>{error}</div>
+                      <button onClick={() => fetchData(page)} style={{ marginTop: 4, padding: "6px 14px", background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 7, cursor: "pointer", fontSize: 12, color: "#f87171" }}>Retry</button>
+                    </div>
+                  </td></tr>
+                ) : investments.length === 0 ? (
+                  <tr><td colSpan={12} style={{ padding: 60, textAlign: "center" }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 48, height: 48, borderRadius: 14, background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <TrendingUp size={20} style={{ color: MUTED }} />
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>{search ? `No results for "${search}"` : "No investments found"}</div>
+                      <div style={{ fontSize: 12, color: MUTED }}>Adjust your filters to see investments.</div>
+                    </div>
+                  </td></tr>
+                ) : investments.map(inv => (
+                  <InvestmentRow
+                    key={inv.id} inv={inv}
+                    selected={selectedIds.has(inv.id)}
+                    onSelect={toggleSelect}
+                    onOpen={setDrawer}
+                    dropdownOpen={dropdown === inv.id}
+                    onDropdownToggle={id => setDropdown(p => p === id ? null : id)}
+                    onDropdownClose={() => setDropdown(null)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         {!loading && totalCount > 0 && (
           <div style={{ padding: "6px 16px 10px", borderTop: `1px solid ${BORDER}` }}>
             <Pagination page={page} total={totalCount} perPage={PER_PAGE} onChange={handlePageChange} />

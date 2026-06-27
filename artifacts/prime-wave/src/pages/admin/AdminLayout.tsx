@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { adminSearchUsers, type AdminUserListItem } from "@/lib/api";
 import { SkeletonStyle, Skeleton } from "@/components/admin/Skeleton";
+import { useResponsive } from "@/hooks/useResponsive";
 
 const GOLD   = "#D4AF37";
 const GOLD_L = "#F3D37A";
@@ -52,10 +53,10 @@ const NAV_GROUPS = [
 ];
 
 export const SidebarItem = memo(function SidebarItem({
-  icon: Icon, label, path, active, collapsed,
+  icon: Icon, label, path, active, collapsed, onNavigate,
 }: {
   icon: React.ElementType; label: string; path: string;
-  active: boolean; collapsed: boolean;
+  active: boolean; collapsed: boolean; onNavigate?: () => void;
 }) {
   const [, setLocation] = useLocation();
   const ref = useRef<HTMLDivElement>(null);
@@ -73,17 +74,22 @@ export const SidebarItem = memo(function SidebarItem({
     }
   }, [active]);
 
+  const navigate = useCallback(() => {
+    setLocation(path);
+    onNavigate?.();
+  }, [setLocation, path, onNavigate]);
+
   return (
     <div
       ref={ref}
-      onClick={() => setLocation(path)}
+      onClick={navigate}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       title={collapsed ? label : undefined}
       role="menuitem"
       tabIndex={0}
       aria-current={active ? "page" : undefined}
-      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") setLocation(path); }}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") navigate(); }}
       style={{
         display: "flex", alignItems: "center",
         gap: collapsed ? 0 : 9,
@@ -307,8 +313,8 @@ const GlobalSearch = memo(function GlobalSearch({
 /* ── Top navbar ─────────────────────────────────────────────────────────────── */
 
 function TopNavbar({
-  sidebarOpen, onToggle, onSearchOpen,
-}: { sidebarOpen: boolean; onToggle: () => void; onSearchOpen: () => void }) {
+  sidebarOpen, onToggle, onSearchOpen, isMobile,
+}: { sidebarOpen: boolean; onToggle: () => void; onSearchOpen: () => void; isMobile: boolean }) {
   const [time, setTime] = useState(() => new Date());
   const [health] = useState<"ok" | "warn">("ok");
 
@@ -323,7 +329,7 @@ function TopNavbar({
   return (
     <div style={{
       height: 52, display: "flex", alignItems: "center",
-      padding: "0 20px", gap: 12,
+      padding: "0 16px", gap: isMobile ? 8 : 12,
       borderBottom: `1px solid ${BORDER}`,
       background: "hsl(222 62% 6%)",
       position: "sticky", top: 0, zIndex: 30,
@@ -331,14 +337,17 @@ function TopNavbar({
     }}>
       <button
         onClick={onToggle}
-        aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+        aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
         style={{
           background: "none", border: "none", cursor: "pointer",
           color: MUTED, padding: 4, borderRadius: 6, display: "flex",
           alignItems: "center", justifyContent: "center", flexShrink: 0,
         }}
       >
-        {sidebarOpen ? <X size={16} /> : <Menu size={16} />}
+        {isMobile
+          ? <Menu size={18} />
+          : sidebarOpen ? <X size={16} /> : <Menu size={16} />
+        }
       </button>
 
       {/* Search trigger */}
@@ -348,39 +357,49 @@ function TopNavbar({
         style={{
           display: "flex", alignItems: "center", gap: 8,
           background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`,
-          borderRadius: 7, padding: "5px 10px", flex: 1, maxWidth: 320,
+          borderRadius: 7, padding: "5px 10px",
+          flex: isMobile ? 1 : "0 0 auto",
+          width: isMobile ? undefined : 280,
           cursor: "text", textAlign: "left",
         }}
       >
         <Search size={13} style={{ color: MUTED, flexShrink: 0 }} aria-hidden="true" />
-        <span style={{ fontSize: 12, color: MUTED, flex: 1 }}>Search members, transactions…</span>
-        <kbd style={{ fontSize: 10, color: MUTED, flexShrink: 0, fontFamily: "monospace", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "1px 5px" }}>⌘K</kbd>
+        <span style={{ fontSize: 12, color: MUTED, flex: 1 }}>
+          {isMobile ? "Search…" : "Search members, transactions…"}
+        </span>
+        {!isMobile && (
+          <kbd style={{ fontSize: 10, color: MUTED, flexShrink: 0, fontFamily: "monospace", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "1px 5px" }}>⌘K</kbd>
+        )}
       </button>
 
       <div style={{ flex: 1 }} />
 
-      {/* System status */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 5,
-        background: health === "ok" ? "rgba(52,211,153,0.08)" : "rgba(251,191,36,0.08)",
-        border: `1px solid ${health === "ok" ? "rgba(52,211,153,0.2)" : "rgba(251,191,36,0.2)"}`,
-        borderRadius: 6, padding: "4px 9px",
-      }}>
+      {/* System status — hidden on mobile */}
+      {!isMobile && (
         <div style={{
-          width: 6, height: 6, borderRadius: "50%",
-          background: health === "ok" ? "#34d399" : "#fbbf24",
-          boxShadow: health === "ok" ? "0 0 6px #34d39970" : "0 0 6px #fbbf2470",
-        }} aria-hidden="true" />
-        <span style={{ fontSize: 11, color: health === "ok" ? "#34d399" : "#fbbf24", fontWeight: 600 }}>
-          {health === "ok" ? "All Systems" : "Degraded"}
-        </span>
-      </div>
+          display: "flex", alignItems: "center", gap: 5,
+          background: health === "ok" ? "rgba(52,211,153,0.08)" : "rgba(251,191,36,0.08)",
+          border: `1px solid ${health === "ok" ? "rgba(52,211,153,0.2)" : "rgba(251,191,36,0.2)"}`,
+          borderRadius: 6, padding: "4px 9px",
+        }}>
+          <div style={{
+            width: 6, height: 6, borderRadius: "50%",
+            background: health === "ok" ? "#34d399" : "#fbbf24",
+            boxShadow: health === "ok" ? "0 0 6px #34d39970" : "0 0 6px #fbbf2470",
+          }} aria-hidden="true" />
+          <span style={{ fontSize: 11, color: health === "ok" ? "#34d399" : "#fbbf24", fontWeight: 600 }}>
+            All Systems
+          </span>
+        </div>
+      )}
 
-      {/* Time */}
-      <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.7)", fontFamily: "monospace" }}>{fmt}</span>
-        <span style={{ fontSize: 10, color: MUTED }}>{fmtDate}</span>
-      </div>
+      {/* Time — hidden on mobile */}
+      {!isMobile && (
+        <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.7)", fontFamily: "monospace" }}>{fmt}</span>
+          <span style={{ fontSize: 10, color: MUTED }}>{fmtDate}</span>
+        </div>
+      )}
 
       {/* Notification bell */}
       <div style={{ position: "relative", cursor: "pointer" }} role="button" aria-label="Notifications">
@@ -407,16 +426,110 @@ function TopNavbar({
   );
 }
 
+/* ── Sidebar inner content (shared by desktop + mobile overlay) ─────────────── */
+
+function SidebarContent({
+  location, collapsed, onNavigate, onLogout,
+}: {
+  location: string; collapsed: boolean; onNavigate: () => void; onLogout: () => void;
+}) {
+  return (
+    <>
+      {/* Brand */}
+      <div style={{
+        height: 52, display: "flex", alignItems: "center",
+        padding: collapsed ? "0" : "0 16px",
+        justifyContent: collapsed ? "center" : "flex-start",
+        borderBottom: `1px solid ${BORDER}`, flexShrink: 0,
+        gap: 8,
+      }}>
+        <div style={{
+          width: 26, height: 26, borderRadius: 7, flexShrink: 0,
+          background: "rgba(212,175,55,0.15)",
+          border: `1px solid rgba(212,175,55,0.3)`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: GOLD }}>PW</span>
+        </div>
+        {!collapsed && (
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: GOLD_L, lineHeight: 1.2 }}>Prime Wave</div>
+            <div style={{ fontSize: 9, color: MUTED, letterSpacing: "0.08em" }}>CONTROL CENTER</div>
+          </div>
+        )}
+      </div>
+
+      {/* Nav groups */}
+      <div style={{ flex: 1, padding: collapsed ? "8px 4px" : "8px 8px", overflowY: "auto" }}>
+        {NAV_GROUPS.map(group => (
+          <div key={group.label} style={{ marginBottom: 8 }} role="group" aria-label={group.label}>
+            {!collapsed && (
+              <div style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
+                color: "rgba(170,179,197,0.28)", padding: "6px 12px 4px",
+              }}>{group.label}</div>
+            )}
+            {group.items.map(item => (
+              <SidebarItem
+                key={item.path}
+                icon={item.icon}
+                label={item.label}
+                path={item.path}
+                active={location === item.path}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Logout */}
+      <div style={{ padding: collapsed ? "8px 4px" : "8px 8px", borderTop: `1px solid ${BORDER}`, flexShrink: 0 }}>
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Logout"
+          style={{
+            display: "flex", alignItems: "center", gap: 9,
+            padding: collapsed ? "9px 0" : "9px 12px",
+            justifyContent: collapsed ? "center" : "flex-start",
+            borderRadius: 7, cursor: "pointer", color: MUTED,
+            transition: "all 0.15s", outline: "none",
+          }}
+          onClick={onLogout}
+          onKeyDown={e => { if (e.key === "Enter") onLogout(); }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLDivElement).style.color = "#f87171";
+            (e.currentTarget as HTMLDivElement).style.background = "rgba(248,113,113,0.06)";
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLDivElement).style.color = MUTED;
+            (e.currentTarget as HTMLDivElement).style.background = "transparent";
+          }}
+        >
+          <LogOut size={14} style={{ flexShrink: 0 }} aria-hidden="true" />
+          {!collapsed && <span style={{ fontSize: 12.5, fontWeight: 400 }}>Logout</span>}
+        </div>
+      </div>
+    </>
+  );
+}
+
 /* ── Layout ─────────────────────────────────────────────────────────────────── */
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location]    = useLocation();
   const [collapsed,   setCollapsed]   = useState(false);
+  const [mobileOpen,  setMobileOpen]  = useState(false);
   const [searchOpen,  setSearchOpen]  = useState(false);
   const { authLogout } = useAuth();
+  const { isMobile }  = useResponsive();
 
-  const toggle = useCallback(() => setCollapsed(c => !c), []);
-  const sidebarW = collapsed ? 52 : 210;
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location]);
 
   // ⌘K / Ctrl+K global shortcut
   useEffect(() => {
@@ -430,108 +543,102 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  const toggle = useCallback(() => {
+    if (isMobile) {
+      setMobileOpen(o => !o);
+    } else {
+      setCollapsed(c => !c);
+    }
+  }, [isMobile]);
+
+  const closeMobile  = useCallback(() => setMobileOpen(false), []);
+  const handleLogout = useCallback(() => { authLogout(); }, [authLogout]);
+
+  const sidebarW = collapsed ? 52 : 210;
+
   return (
     <>
       <SkeletonStyle />
-      <div style={{ display: "flex", height: "100vh", background: "hsl(222 62% 7%)", overflow: "hidden" }}>
-        {/* Sidebar */}
-        <aside
-          role="navigation"
-          aria-label="Admin navigation"
-          style={{
-            width: sidebarW, flexShrink: 0,
-            background: BG_SIDEBAR,
-            borderRight: `1px solid ${BORDER}`,
-            display: "flex", flexDirection: "column",
-            transition: "width 0.2s ease",
-            overflowY: "auto", overflowX: "hidden",
-          }}
-        >
-          {/* Brand */}
-          <div style={{
-            height: 52, display: "flex", alignItems: "center",
-            padding: collapsed ? "0" : "0 16px",
-            justifyContent: collapsed ? "center" : "flex-start",
-            borderBottom: `1px solid ${BORDER}`, flexShrink: 0,
-            gap: 8,
-          }}>
-            <div style={{
-              width: 26, height: 26, borderRadius: 7, flexShrink: 0,
-              background: "rgba(212,175,55,0.15)",
-              border: `1px solid rgba(212,175,55,0.3)`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <span style={{ fontSize: 11, fontWeight: 800, color: GOLD }}>PW</span>
-            </div>
-            {!collapsed && (
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: GOLD_L, lineHeight: 1.2 }}>Prime Wave</div>
-                <div style={{ fontSize: 9, color: MUTED, letterSpacing: "0.08em" }}>CONTROL CENTER</div>
-              </div>
-            )}
-          </div>
+      <div style={{ display: "flex", height: "100dvh", background: "hsl(222 62% 7%)", overflow: "hidden" }}>
 
-          {/* Nav groups */}
-          <div style={{ flex: 1, padding: collapsed ? "8px 4px" : "8px 8px", overflowY: "auto" }}>
-            {NAV_GROUPS.map(group => (
-              <div key={group.label} style={{ marginBottom: 8 }} role="group" aria-label={group.label}>
-                {!collapsed && (
-                  <div style={{
-                    fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
-                    color: "rgba(170,179,197,0.28)", padding: "6px 12px 4px",
-                  }}>{group.label}</div>
-                )}
-                {group.items.map(item => (
-                  <SidebarItem
-                    key={item.path}
-                    icon={item.icon}
-                    label={item.label}
-                    path={item.path}
-                    active={location === item.path}
-                    collapsed={collapsed}
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
+        {/* ── Desktop sidebar (in-flow) ───────────────────────────────────── */}
+        {!isMobile && (
+          <aside
+            role="navigation"
+            aria-label="Admin navigation"
+            style={{
+              width: sidebarW, flexShrink: 0,
+              background: BG_SIDEBAR,
+              borderRight: `1px solid ${BORDER}`,
+              display: "flex", flexDirection: "column",
+              transition: "width 0.2s ease",
+              overflowY: "auto", overflowX: "hidden",
+            }}
+          >
+            <SidebarContent
+              location={location}
+              collapsed={collapsed}
+              onNavigate={closeMobile}
+              onLogout={handleLogout}
+            />
+          </aside>
+        )}
 
-          {/* Logout */}
-          <div style={{ padding: collapsed ? "8px 4px" : "8px 8px", borderTop: `1px solid ${BORDER}`, flexShrink: 0 }}>
-            <div
-              role="button"
-              tabIndex={0}
-              aria-label="Logout"
-              style={{
-                display: "flex", alignItems: "center", gap: 9,
-                padding: collapsed ? "9px 0" : "9px 12px",
-                justifyContent: collapsed ? "center" : "flex-start",
-                borderRadius: 7, cursor: "pointer", color: MUTED,
-                transition: "all 0.15s", outline: "none",
-              }}
-              onClick={authLogout}
-              onKeyDown={e => { if (e.key === "Enter") authLogout(); }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLDivElement).style.color = "#f87171";
-                (e.currentTarget as HTMLDivElement).style.background = "rgba(248,113,113,0.06)";
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLDivElement).style.color = MUTED;
-                (e.currentTarget as HTMLDivElement).style.background = "transparent";
-              }}
-            >
-              <LogOut size={14} style={{ flexShrink: 0 }} aria-hidden="true" />
-              {!collapsed && <span style={{ fontSize: 12.5, fontWeight: 400 }}>Logout</span>}
-            </div>
-          </div>
-        </aside>
-
-        {/* Main area */}
+        {/* ── Main area ──────────────────────────────────────────────────── */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
-          <TopNavbar sidebarOpen={!collapsed} onToggle={toggle} onSearchOpen={() => setSearchOpen(true)} />
-          <main style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }} id="main-content">
+          <TopNavbar
+            sidebarOpen={isMobile ? mobileOpen : !collapsed}
+            onToggle={toggle}
+            onSearchOpen={() => setSearchOpen(true)}
+            isMobile={isMobile}
+          />
+          <main style={{ flex: 1, overflowY: "auto", padding: isMobile ? "16px 14px" : "20px 24px" }} id="main-content">
             {children}
           </main>
         </div>
+
+        {/* ── Mobile overlay sidebar ─────────────────────────────────────── */}
+        {isMobile && (
+          <>
+            {/* Backdrop */}
+            <div
+              aria-hidden="true"
+              onClick={closeMobile}
+              style={{
+                position: "fixed", inset: 0, zIndex: 299,
+                background: "rgba(0,0,0,0.55)",
+                backdropFilter: "blur(2px)",
+                opacity: mobileOpen ? 1 : 0,
+                pointerEvents: mobileOpen ? "auto" : "none",
+                transition: "opacity 0.22s ease",
+              }}
+            />
+            {/* Drawer */}
+            <aside
+              role="navigation"
+              aria-label="Admin navigation"
+              aria-hidden={!mobileOpen}
+              style={{
+                position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 300,
+                width: 240,
+                background: BG_SIDEBAR,
+                borderRight: `1px solid ${BORDER}`,
+                display: "flex", flexDirection: "column",
+                overflowY: "auto", overflowX: "hidden",
+                transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
+                transition: "transform 0.24s cubic-bezier(0.32,0.72,0,1)",
+                boxShadow: mobileOpen ? "8px 0 40px rgba(0,0,0,0.5)" : "none",
+              }}
+            >
+              <SidebarContent
+                location={location}
+                collapsed={false}
+                onNavigate={closeMobile}
+                onLogout={handleLogout}
+              />
+            </aside>
+          </>
+        )}
       </div>
 
       {/* Global search overlay */}

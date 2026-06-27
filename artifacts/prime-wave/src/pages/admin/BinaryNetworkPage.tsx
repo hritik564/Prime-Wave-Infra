@@ -6,6 +6,7 @@ import BinaryNetworkDrawer, {
   MatchEvent, BinaryEvent, NetworkWarning, AuditEntry,
 } from "./BinaryNetworkDrawer";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
+import { useResponsive } from "@/hooks/useResponsive";
 import {
   RefreshCw, Download, Settings, Zap, Search,
   ChevronLeft, ChevronRight, MoreVertical, ChevronDown,
@@ -207,6 +208,31 @@ const NetworkRow = memo(function NetworkRow({ node, onView, onRecalculate, onRes
   );
 });
 
+function MobileBinaryCard({ node, onView }: { node: BinaryNode; onView: (n: BinaryNode) => void }) {
+  const sc = STATUS_CFG[node.status];
+  const rc = RANK_CFG[node.rank];
+  return (
+    <div onClick={() => onView(node)} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 14px", borderBottom: `1px solid ${BORDER}`, cursor: "pointer" }}>
+      <div style={{ width: 38, height: 38, borderRadius: 19, background: "rgba(129,140,248,0.1)", border: "1.5px solid rgba(129,140,248,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#818cf8", flexShrink: 0 }}>
+        {node.firstName[0]}{node.lastName[0]}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>@{node.username}</span>
+          <span style={{ fontSize: 9, fontWeight: 700, color: node.position === "LEFT" ? "#34d399" : "#60a5fa", background: node.position === "LEFT" ? "rgba(52,211,153,0.12)" : "rgba(96,165,250,0.12)", padding: "2px 7px", borderRadius: 4 }}>{node.position}</span>
+          <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, color: sc.color, background: sc.bg, padding: "2px 8px", borderRadius: 5 }}>{sc.label}</span>
+        </div>
+        <div style={{ fontSize: 11, color: MUTED, marginBottom: 6 }}>{node.memberId} · <span style={{ color: rc.color, fontWeight: 700 }}>{node.rank}</span></div>
+        <div style={{ display: "flex", gap: 16 }}>
+          <div><div style={{ fontSize: 9, color: MUTED }}>LEFT BV</div><div style={{ fontSize: 12, fontWeight: 600, color: "#34d399" }}>{K(node.leftBV)}</div></div>
+          <div><div style={{ fontSize: 9, color: MUTED }}>RIGHT BV</div><div style={{ fontSize: 12, fontWeight: 600, color: "#60a5fa" }}>{K(node.rightBV)}</div></div>
+          <div><div style={{ fontSize: 9, color: MUTED }}>TODAY MATCH</div><div style={{ fontSize: 12, fontWeight: 600, color: GOLD }}>{$(node.todayMatch)}</div></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const SEL: React.CSSProperties = {
   background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 8,
   padding: "8px 28px 8px 11px", fontSize: 11, color: "rgba(255,255,255,0.7)", outline: "none",
@@ -215,6 +241,7 @@ const SEL: React.CSSProperties = {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function BinaryNetworkPage() {
+  const { isMobile } = useResponsive();
   const { toasts, toast, dismiss } = useToast();
 
   // ── Server-side data ─────────────────────────────────────────────────────────
@@ -397,42 +424,54 @@ export default function BinaryNetworkPage() {
 
   return (
     <AdminLayout>
-      <div style={{ padding: "24px 28px", minHeight: "100vh", background: BG, boxSizing: "border-box" }}>
+      <div style={{ padding: isMobile ? "16px 12px" : "24px 28px", minHeight: "100vh", background: BG, boxSizing: "border-box" }}>
 
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, gap: 12, flexWrap: "wrap" }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>Binary Network Control Center</h1>
+            <h1 style={{ margin: 0, fontSize: isMobile ? 18 : 22, fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>Binary Network Control Center</h1>
             <p style={{ margin: "4px 0 0", fontSize: 12, color: MUTED }}>Monitor, inspect and manage the Prime Wave binary network.</p>
           </div>
-          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-            {[
-              { icon: RefreshCw, label: "Refresh",          onClick: handleRefresh, gold: false },
-              { icon: Download,  label: "Export",           onClick: undefined,     gold: false },
-              { icon: Settings,  label: "Network Settings", onClick: undefined,     gold: false },
-            ].map(b => (
-              <button key={b.label} onClick={b.onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
-                <b.icon size={13} />{b.label}
+          {!isMobile ? (
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              {[
+                { icon: RefreshCw, label: "Refresh",          onClick: handleRefresh, gold: false },
+                { icon: Download,  label: "Export",           onClick: undefined,     gold: false },
+                { icon: Settings,  label: "Network Settings", onClick: undefined,     gold: false },
+              ].map(b => (
+                <button key={b.label} onClick={b.onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
+                  <b.icon size={13} />{b.label}
+                </button>
+              ))}
+              <button
+                onClick={handleRunCycle}
+                disabled={cycling}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: cycling ? "rgba(212,175,55,0.06)" : "rgba(212,175,55,0.1)", border: `1px solid rgba(212,175,55,0.25)`, borderRadius: 8, cursor: cycling ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, color: cycling ? MUTED : GOLD_L, transition: "opacity 0.2s" }}>
+                <Zap size={13} style={{ animation: cycling ? "spin 1s linear infinite" : "none" }} />
+                {cycling ? "Running…" : "Run Binary Cycle"}
               </button>
-            ))}
-            <button
-              onClick={handleRunCycle}
-              disabled={cycling}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: cycling ? "rgba(212,175,55,0.06)" : "rgba(212,175,55,0.1)", border: `1px solid rgba(212,175,55,0.25)`, borderRadius: 8, cursor: cycling ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, color: cycling ? MUTED : GOLD_L, transition: "opacity 0.2s" }}>
-              <Zap size={13} style={{ animation: cycling ? "spin 1s linear infinite" : "none" }} />
-              {cycling ? "Running…" : "Run Binary Cycle"}
-            </button>
-          </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={handleRefresh} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
+                <RefreshCw size={12} />Refresh
+              </button>
+              <button onClick={handleRunCycle} disabled={cycling}
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", background: cycling ? "rgba(212,175,55,0.06)" : "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 8, cursor: cycling ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, color: cycling ? MUTED : GOLD_L }}>
+                <Zap size={12} style={{ animation: cycling ? "spin 1s linear infinite" : "none" }} />{cycling ? "Running…" : "Run Cycle"}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* KPI Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${isMobile ? 2 : 4}, 1fr)`, gap: 12, marginBottom: 14 }}>
           <KpiCard icon={Users}     label="TOTAL MEMBERS"        value={statsLoading ? "—" : String(kpis.total)}      sub="In binary network"        color="#818cf8" />
           <KpiCard icon={Activity}  label="ACTIVE NODES"         value={statsLoading ? "—" : String(kpis.active)}     sub={statsLoading || kpis.total === 0 ? "—" : `${Math.round((kpis.active/kpis.total)*100)}% active`} color="#34d399" />
           <KpiCard icon={TrendingUp}label="TOTAL BV LEFT"        value={statsLoading ? "—" : K(kpis.totalLeft)}       sub="Platform-wide left leg"   color="#34d399" />
           <KpiCard icon={GitBranch} label="TOTAL BV RIGHT"       value={statsLoading ? "—" : K(kpis.totalRight)}      sub="Platform-wide right leg"  color="#60a5fa" />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 26 }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${isMobile ? 2 : 4}, 1fr)`, gap: 12, marginBottom: 26 }}>
           <KpiCard icon={Zap}       label="TODAY'S MATCHING VOL" value={statsLoading ? "—" : K(kpis.todayMatch)}      sub="Matched BV today"         color={GOLD}    />
           <KpiCard icon={Clock}     label="CARRY FORWARD BV"     value={statsLoading ? "—" : K(kpis.carryFwd)}        sub="Unmatched carry"          color="#fbbf24" />
           <KpiCard icon={BarChart2} label="TODAY'S BINARY REWARDS"value={statsLoading ? "—" : $(kpis.todayRewards)}   sub="Distributed today"        color="#a78bfa" />
@@ -473,38 +512,57 @@ export default function BinaryNetworkPage() {
 
         {/* Table */}
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto" }}>
-              <thead>
-                <tr>
-                  {COLS.map((h, i) => (
-                    <th key={h + i} style={{ ...TH, paddingLeft: i === 0 ? 18 : 14, paddingRight: i === COLS.length - 1 ? 18 : 14 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <SkeletonRows rows={8} cols={COLS.length} />
-                ) : nodes.length === 0 ? (
-                  <tr>
-                    <td colSpan={COLS.length} style={{ textAlign: "center", padding: "48px 0", color: MUTED, fontSize: 13 }}>
-                      {error ? "Failed to load data." : "No nodes match your filters."}
-                    </td>
-                  </tr>
-                ) : (
-                  nodes.map(n => (
-                    <NetworkRow key={n.id} node={n}
-                      onView={handleOpenDrawer}
-                      onRecalculate={handleRecalculate}
-                      onResetCarry={handleResetCarry}
-                      hovered={hovered === n.id}
-                      onHover={setHovered}
-                    />
+          {isMobile ? (
+            <div>
+              {loading
+                ? Array.from({ length: 6 }, (_, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderBottom: `1px solid ${BORDER}` }}>
+                      <div style={{ width: 38, height: 38, borderRadius: 19, background: "rgba(255,255,255,0.06)", flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ width: 120, height: 12, background: "rgba(255,255,255,0.06)", borderRadius: 4, marginBottom: 7 }} />
+                        <div style={{ width: 80, height: 10, background: "rgba(255,255,255,0.04)", borderRadius: 4 }} />
+                      </div>
+                    </div>
                   ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                : nodes.length === 0
+                  ? <div style={{ padding: "48px 0", textAlign: "center", color: MUTED, fontSize: 13 }}>{error ? "Failed to load data." : "No nodes match your filters."}</div>
+                  : nodes.map(n => <MobileBinaryCard key={n.id} node={n} onView={handleOpenDrawer} />)
+              }
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto" }}>
+                <thead>
+                  <tr>
+                    {COLS.map((h, i) => (
+                      <th key={h + i} style={{ ...TH, paddingLeft: i === 0 ? 18 : 14, paddingRight: i === COLS.length - 1 ? 18 : 14 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <SkeletonRows rows={8} cols={COLS.length} />
+                  ) : nodes.length === 0 ? (
+                    <tr>
+                      <td colSpan={COLS.length} style={{ textAlign: "center", padding: "48px 0", color: MUTED, fontSize: 13 }}>
+                        {error ? "Failed to load data." : "No nodes match your filters."}
+                      </td>
+                    </tr>
+                  ) : (
+                    nodes.map(n => (
+                      <NetworkRow key={n.id} node={n}
+                        onView={handleOpenDrawer}
+                        onRecalculate={handleRecalculate}
+                        onResetCarry={handleResetCarry}
+                        hovered={hovered === n.id}
+                        onHover={setHovered}
+                      />
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Pagination */}
           {totalPages > 1 && (
