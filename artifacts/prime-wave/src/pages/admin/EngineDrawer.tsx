@@ -1,4 +1,4 @@
-import { useState, memo } from "react";
+import { useState, memo, useCallback } from "react";
 import {
   X, Zap, FileText, Clock, ShieldAlert, Settings, BarChart2,
   Play, Pause, Search, Download, ChevronRight, CheckCircle,
@@ -47,7 +47,8 @@ export interface EngineRecord {
   runHistory: EngineRun[]; recentPayouts: RecentPayout[];
   warnings: EngineWarning[]; auditLog: EngineAuditEntry[];
   config: EngineConfigEntry[];
-  // health mock
+  adminNotes?: string;
+  // health
   cpu: number; memoryMB: number; queueSize: number; workers: number; maxWorkers: number; cronActive: boolean; dbOk: boolean;
 }
 
@@ -276,11 +277,42 @@ function WarningsTab({ eng }: { eng: EngineRecord }) {
 }
 
 // ─── Audit tab ─────────────────────────────────────────────────────────────────
-function AuditTab({ eng }: { eng: EngineRecord }) {
-  const [q, setQ] = useState("");
+function AuditTab({ eng, onSaveNotes }: {
+  eng: EngineRecord;
+  onSaveNotes?: (id: string, notes: string) => Promise<void>;
+}) {
+  const [q,       setQ]       = useState("");
+  const [notes,   setNotes]   = useState(eng.adminNotes ?? "");
+  const [saving,  setSaving]  = useState(false);
+
+  const handleSave = useCallback(async () => {
+    if (!onSaveNotes) return;
+    setSaving(true);
+    try { await onSaveNotes(eng.id, notes); } finally { setSaving(false); }
+  }, [eng.id, notes, onSaveNotes]);
+
   const entries = eng.auditLog.filter(e => !q || e.action.toLowerCase().includes(q.toLowerCase()) || e.admin.toLowerCase().includes(q.toLowerCase()));
   return (
     <div>
+      {/* Admin Notes */}
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 14px", marginBottom: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: "0.07em", marginBottom: 8 }}>ADMIN NOTES</div>
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          rows={4}
+          placeholder="Add internal notes about this engine…"
+          style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "9px 11px", fontSize: 12, color: "rgba(255,255,255,0.8)", outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }}
+        />
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+          <button onClick={handleSave} disabled={saving || !onSaveNotes}
+            style={{ padding: "6px 14px", background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 7, cursor: (saving || !onSaveNotes) ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, color: saving ? MUTED : GOLD_L, opacity: saving ? 0.6 : 1 }}>
+            {saving ? "Saving…" : "Save Notes"}
+          </button>
+        </div>
+      </div>
+
+      {/* Audit log search */}
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         <div style={{ flex: 1, position: "relative" }}>
           <Search size={12} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: MUTED }} />
@@ -300,18 +332,20 @@ function AuditTab({ eng }: { eng: EngineRecord }) {
           <div style={{ fontSize: 11, color: MUTED }}>{e.detail}</div>
         </div>
       ))}
-      {entries.length === 0 && <div style={{ textAlign: "center", padding: "32px 0", color: MUTED, fontSize: 12 }}>No entries found.</div>}
+      {entries.length === 0 && <div style={{ textAlign: "center", padding: "32px 0", color: MUTED, fontSize: 12 }}>No audit entries found.</div>}
     </div>
   );
 }
 
 // ─── Main Drawer ───────────────────────────────────────────────────────────────
-const EngineDrawer = memo(function EngineDrawer({ engine, onClose, onPause, onResume, onRunCycle }: {
-  engine: EngineRecord | null;
-  onClose:    () => void;
-  onPause:    (e: EngineRecord) => void;
-  onResume:   (e: EngineRecord) => void;
-  onRunCycle: (e: EngineRecord) => void;
+const EngineDrawer = memo(function EngineDrawer({ engine, detailLoading, onClose, onPause, onResume, onRunCycle, onSaveNotes }: {
+  engine:       EngineRecord | null;
+  detailLoading?: boolean;
+  onClose:      () => void;
+  onPause:      (e: EngineRecord) => void;
+  onResume:     (e: EngineRecord) => void;
+  onRunCycle:   (e: EngineRecord) => void;
+  onSaveNotes?: (id: string, notes: string) => Promise<void>;
 }) {
   const [tab, setTab] = useState("summary");
 
@@ -384,7 +418,7 @@ const EngineDrawer = memo(function EngineDrawer({ engine, onClose, onPause, onRe
           {tab === "history"  && <HistoryTab  eng={engine} />}
           {tab === "payouts"  && <PayoutsTab  eng={engine} />}
           {tab === "warnings" && <WarningsTab eng={engine} />}
-          {tab === "audit"    && <AuditTab    eng={engine} />}
+          {tab === "audit"    && <AuditTab    eng={engine} onSaveNotes={onSaveNotes} />}
         </div>
       </div>
     </>

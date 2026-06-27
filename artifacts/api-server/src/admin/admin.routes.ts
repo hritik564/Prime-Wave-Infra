@@ -55,6 +55,14 @@ import {
 } from "./admin-binary.controller";
 import { adminBinaryListQuerySchema, saveBinaryNotesSchema } from "./admin-binary.schema";
 import {
+  engineDashboardHandler,
+  engineListHandler,
+  engineDetailHandler,
+  saveEngineNotesHandler,
+  releaseQueueHandler,
+} from "./admin-engine.controller";
+import { engineIdParamSchema, saveEngineNotesBodySchema } from "./admin-engine.schema";
+import {
   revenueReportHandler,
   dailyBusinessReportHandler,
   topEarnersHandler,
@@ -389,6 +397,26 @@ router.patch(
   withdrawalAdminGuard,
   validate(updateWithdrawalNotesSchema),
   updateWithdrawalNotesHandler,
+);
+
+// ── Income Engine Control Center ──────────────────────────────────────────────
+router.get("/engine/dashboard",           adminLimiter, superAdminGuard, engineDashboardHandler);
+router.get("/engine/list",                adminLimiter, superAdminGuard, engineListHandler);
+router.get("/engine/release-queue",       adminLimiter, superAdminGuard, releaseQueueHandler);
+router.get(
+  "/engine/:engineId/detail",
+  adminLimiter,
+  superAdminGuard,
+  validate(engineIdParamSchema, "params"),
+  engineDetailHandler,
+);
+router.patch(
+  "/engine/:engineId/notes",
+  adminLimiter,
+  superAdminGuard,
+  validate(engineIdParamSchema, "params"),
+  validate(saveEngineNotesBodySchema),
+  saveEngineNotesHandler,
 );
 
 export default router;

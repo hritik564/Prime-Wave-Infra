@@ -1490,3 +1490,121 @@ export function adminTriggerMatching() {
     { method: "POST" },
   );
 }
+
+export function adminTriggerOrbit() {
+  return request<{ triggered: boolean }>(
+    "/api/admin/trigger/orbit",
+    { method: "POST" },
+  );
+}
+
+/* ── Admin — Income Engine Control Center ────────────────────────── */
+
+export type EngineId = "roi" | "binary" | "orbit" | "salary" | "level" | "release" | "notify";
+export type EngineApiStatus = "RUNNING" | "IDLE" | "PAUSED" | "ERROR";
+
+export interface EngineDashboard {
+  todayTotal:      number;
+  todayRoi:        number;
+  todayBinary:     number;
+  todayOrbit:      number;
+  todayLevel:      number;
+  todaySalary:     number;
+  pendingReleases: number;
+  activeEngines:   number;
+  engineHealth:    number;
+}
+
+export interface EngineListItem {
+  id:             EngineId;
+  status:         EngineApiStatus;
+  lastRun:        string | null;
+  nextRun:        string | null;
+  avgRuntime:     number;
+  todayPayout:    number;
+  weekPayout:     number;
+  monthPayout:    number;
+  beneficiaries:  number;
+  successfulJobs: number;
+  failedJobs:     number;
+  adminNotes:     string;
+  cpu:            number;
+  memoryMB:       number;
+  queueSize:      number;
+  workers:        number;
+  maxWorkers:     number;
+  cronActive:     boolean;
+  dbOk:           boolean;
+}
+
+export interface EngineRunRow {
+  id:               string;
+  startedAt:        string;
+  completedAt:      string;
+  duration:         number;
+  membersProcessed: number;
+  totalPaid:        number;
+  status:           "SUCCESS" | "PARTIAL" | "FAILED";
+}
+
+export interface EnginePayoutRow {
+  id:         string;
+  username:   string;
+  incomeType: string;
+  amount:     number;
+  timestamp:  string;
+  status:     "PAID";
+}
+
+export interface EngineWarningRow {
+  id:       string;
+  type:     string;
+  message:  string;
+  severity: "warn" | "error";
+}
+
+export interface EngineAuditRow {
+  id:        string;
+  timestamp: string;
+  admin:     string;
+  action:    string;
+  detail:    string;
+}
+
+export interface EngineDetail extends EngineListItem {
+  runHistory:    EngineRunRow[];
+  recentPayouts: EnginePayoutRow[];
+  warnings:      EngineWarningRow[];
+  auditLog:      EngineAuditRow[];
+}
+
+export interface ReleaseQueueItem {
+  id:           string;
+  username:     string;
+  amount:       number;
+  hoursElapsed: number;
+  status:       "PROCESSING" | "COMPLETED" | "PENDING";
+}
+
+export function getEngineDashboard() {
+  return request<EngineDashboard>("/api/admin/engine/dashboard");
+}
+
+export function getEngineList() {
+  return request<{ engines: EngineListItem[] }>("/api/admin/engine/list");
+}
+
+export function getEngineDetail(engineId: EngineId) {
+  return request<EngineDetail>(`/api/admin/engine/${engineId}/detail`);
+}
+
+export function saveEngineNotes(engineId: EngineId, notes: string) {
+  return request<{ engineId: string; notes: string }>(
+    `/api/admin/engine/${engineId}/notes`,
+    { method: "PATCH", body: JSON.stringify({ notes }) },
+  );
+}
+
+export function getEngineReleaseQueue() {
+  return request<{ items: ReleaseQueueItem[] }>("/api/admin/engine/release-queue");
+}
