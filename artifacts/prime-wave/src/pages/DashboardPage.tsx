@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, Copy, Check, Link2, ArrowLeft, ArrowRight } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import HeroCard from "@/components/dashboard/HeroCard";
@@ -219,6 +219,9 @@ export default function DashboardPage() {
               nextSalaryProgress={Math.min(Math.round((totalInvested / 25000) * 100), 100)}
             />
 
+            {/* ── Referral Cards ── */}
+            <ReferralCards referralCode={profile?.referralCode ?? null} />
+
             {/* ── Rank Progress ── */}
             <RankProgressCard
               currentRank="Silver"
@@ -381,6 +384,137 @@ export default function DashboardPage() {
 
       <Toast toasts={toasts} />
     </AppLayout>
+  );
+}
+
+function ReferralCards({ referralCode }: { referralCode: string | null }) {
+  const [copied, setCopied] = useState<string | null>(null);
+
+  function copyText(value: string, key: string) {
+    void navigator.clipboard.writeText(value).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  }
+
+  const legs: { leg: "LEFT" | "RIGHT"; label: string; icon: React.ReactNode; color: string; bg: string; border: string }[] = [
+    {
+      leg: "LEFT",
+      label: "Left Leg",
+      icon: <ArrowLeft className="h-4 w-4" />,
+      color: "#60a5fa",
+      bg: "rgba(96,165,250,0.08)",
+      border: "rgba(96,165,250,0.18)",
+    },
+    {
+      leg: "RIGHT",
+      label: "Right Leg",
+      icon: <ArrowRight className="h-4 w-4" />,
+      color: "#c084fc",
+      bg: "rgba(192,132,252,0.08)",
+      border: "rgba(192,132,252,0.18)",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 mb-5 lg:mb-8">
+      {legs.map(({ leg, label, icon, color, bg, border }) => {
+        const code = referralCode ? `${referralCode}-${leg}` : "—";
+        const link = referralCode
+          ? `${window.location.origin}/register?ref=${referralCode}&leg=${leg}`
+          : "—";
+        const codeKey = `code-${leg}`;
+        const linkKey = `link-${leg}`;
+
+        return (
+          <div
+            key={leg}
+            className="rounded-2xl overflow-hidden"
+            style={{
+              background: "hsl(var(--card))",
+              border: `1px solid ${border}`,
+              boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+            }}
+          >
+            {/* Header */}
+            <div
+              className="flex items-center gap-3 px-4 py-3"
+              style={{ borderBottom: `1px solid ${border}`, background: bg }}
+            >
+              <div
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                style={{ background: `${color}1a`, color }}
+              >
+                {icon}
+              </div>
+              <div>
+                <p className="text-sm font-semibold font-heading" style={{ color }}>
+                  {label} Referral
+                </p>
+                <p className="text-[10px]" style={{ color: "rgba(170,179,197,0.6)" }}>
+                  Share to grow your {leg.toLowerCase()} team
+                </p>
+              </div>
+            </div>
+
+            {/* Code row */}
+            <div className="px-4 pt-3 pb-2">
+              <p className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "rgba(170,179,197,0.5)" }}>
+                Referral Code
+              </p>
+              <div
+                className="flex items-center gap-2 rounded-lg px-3 py-2"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+              >
+                <span className="flex-1 text-sm font-mono font-semibold truncate" style={{ color: "hsl(var(--foreground))" }}>
+                  {code}
+                </span>
+                <button
+                  onClick={() => copyText(code, codeKey)}
+                  className="shrink-0 flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-all"
+                  style={{
+                    background: copied === codeKey ? "rgba(52,211,153,0.12)" : `${color}12`,
+                    color: copied === codeKey ? "#34d399" : color,
+                    border: `1px solid ${copied === codeKey ? "rgba(52,211,153,0.3)" : `${color}30`}`,
+                  }}
+                >
+                  {copied === codeKey ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  <span>{copied === codeKey ? "Copied" : "Copy"}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Link row */}
+            <div className="px-4 pb-4">
+              <p className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "rgba(170,179,197,0.5)" }}>
+                Referral Link
+              </p>
+              <div
+                className="flex items-center gap-2 rounded-lg px-3 py-2"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+              >
+                <Link2 className="h-3.5 w-3.5 shrink-0" style={{ color: "rgba(170,179,197,0.4)" }} />
+                <span className="flex-1 text-xs font-mono truncate" style={{ color: "rgba(170,179,197,0.7)" }}>
+                  {link}
+                </span>
+                <button
+                  onClick={() => copyText(link, linkKey)}
+                  className="shrink-0 flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-all"
+                  style={{
+                    background: copied === linkKey ? "rgba(52,211,153,0.12)" : `${color}12`,
+                    color: copied === linkKey ? "#34d399" : color,
+                    border: `1px solid ${copied === linkKey ? "rgba(52,211,153,0.3)" : `${color}30`}`,
+                  }}
+                >
+                  {copied === linkKey ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  <span>{copied === linkKey ? "Copied" : "Copy"}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
