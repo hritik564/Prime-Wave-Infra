@@ -1608,3 +1608,135 @@ export function saveEngineNotes(engineId: EngineId, notes: string) {
 export function getEngineReleaseQueue() {
   return request<{ items: ReleaseQueueItem[] }>("/api/admin/engine/release-queue");
 }
+
+/* ── Admin — Plans & Compensation Configuration ───────────────────── */
+
+export type PlanStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
+
+export interface PlanItem {
+  id:           string;
+  name:         string;
+  color:        string;
+  minInvest:    number;
+  maxInvest:    number | null;
+  roi:          number;
+  duration:     number;
+  autoCompound: boolean;
+  status:       PlanStatus;
+  members:      number;
+  benefits:     string[];
+  notes:        string;
+  claimWindow:  string;
+}
+
+export interface PlanConfigField {
+  key:          string;
+  label:        string;
+  value:        string;
+  unit?:        string;
+  type:         "text" | "number" | "toggle";
+  description?: string;
+}
+
+export interface PlanConfigSections {
+  roi:      PlanConfigField[];
+  binary:   PlanConfigField[];
+  orbit:    PlanConfigField[];
+  transfer: PlanConfigField[];
+  limits:   PlanConfigField[];
+  global:   PlanConfigField[];
+}
+
+export interface PlanVersionEntry {
+  id:          string;
+  version:     string;
+  publishedBy: string;
+  publishedAt: string;
+  changeCount: number;
+}
+
+export interface PlanAuditEntry {
+  id:         string;
+  timestamp:  string;
+  admin:      string;
+  configName: string;
+  oldValue:   string;
+  newValue:   string;
+  reason:     string;
+}
+
+export interface LevelConfigItem {
+  level:         number;
+  rate:          number;
+  qualification: string;
+  status:        "ACTIVE" | "INACTIVE";
+}
+
+export interface SalaryRankItem {
+  id:                 string;
+  rankName:           string;
+  monthlySalary:      number;
+  requiredBusiness:   number;
+  durationMonths:     number;
+  requiresDualDirects: boolean;
+  allowSpill:         boolean;
+  isActive:           boolean;
+}
+
+export function adminGetPlans() {
+  return request<{ plans: PlanItem[] }>("/api/admin/plans");
+}
+
+export function adminCreatePlan(data: Omit<PlanItem, "id" | "members">) {
+  return request<PlanItem>("/api/admin/plans", {
+    method: "POST",
+    body:   JSON.stringify(data),
+  });
+}
+
+export function adminUpdatePlanStatus(id: string, status: PlanStatus) {
+  return request<PlanItem>(`/api/admin/plans/${id}/status`, {
+    method: "PATCH",
+    body:   JSON.stringify({ status }),
+  });
+}
+
+export function adminGetPlanConfig() {
+  return request<PlanConfigSections>("/api/admin/plans/config");
+}
+
+export function adminSaveConfigField(
+  key:      string,
+  value:    string,
+  oldValue: string,
+  reason:   string,
+  label:    string,
+) {
+  return request<{ key: string; value: string }>(
+    `/api/admin/plans/config/${encodeURIComponent(key)}`,
+    { method: "PATCH", body: JSON.stringify({ value, oldValue, reason, label }) },
+  );
+}
+
+export function adminGetConfigVersions() {
+  return request<{ versions: PlanVersionEntry[] }>("/api/admin/plans/versions");
+}
+
+export function adminGetConfigAudit() {
+  return request<{ entries: PlanAuditEntry[] }>("/api/admin/plans/audit");
+}
+
+export function adminGetLevelConfig() {
+  return request<{ levels: LevelConfigItem[] }>("/api/admin/plans/level-config");
+}
+
+export function adminSaveLevelConfig(levels: LevelConfigItem[]) {
+  return request<{ levels: LevelConfigItem[] }>("/api/admin/plans/level-config", {
+    method: "PUT",
+    body:   JSON.stringify({ levels }),
+  });
+}
+
+export function adminGetSalaryRanks() {
+  return request<{ ranks: SalaryRankItem[] }>("/api/admin/plans/salary-ranks");
+}

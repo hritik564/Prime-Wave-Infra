@@ -1,4 +1,4 @@
-import { useState, useCallback, memo, useMemo } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import AdminLayout from "./AdminLayout";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
 import {
@@ -8,6 +8,24 @@ import {
   RotateCcw, Eye, Copy, Archive, Trash2, CheckCircle,
   AlertTriangle, Plus, Download, RefreshCw,
 } from "lucide-react";
+import {
+  adminGetPlans,
+  adminCreatePlan,
+  adminUpdatePlanStatus,
+  adminGetPlanConfig,
+  adminSaveConfigField,
+  adminGetConfigVersions,
+  adminGetConfigAudit,
+  adminGetLevelConfig,
+  adminSaveLevelConfig,
+  adminGetSalaryRanks,
+  type PlanItem,
+  type PlanConfigSections,
+  type PlanVersionEntry,
+  type PlanAuditEntry,
+  type LevelConfigItem,
+  type SalaryRankItem,
+} from "@/lib/api";
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 const GOLD   = "#D4AF37";
@@ -34,121 +52,29 @@ interface ConfigField { key: string; label: string; value: string; unit?: string
 interface AuditEntry { id: string; timestamp: Date; admin: string; configName: string; oldValue: string; newValue: string; reason: string }
 interface ConfigVersion { id: string; version: string; publishedBy: string; publishedAt: Date; changeCount: number }
 
-// ─── Mock data ─────────────────────────────────────────────────────────────────
-const INITIAL_PLANS: Plan[] = [
-  { id: "p1", name: "Starter",  color: "#60a5fa", minInvest: 100,   maxInvest: 999,    roi: 0.5,  duration: 365, autoCompound: false, status: "ACTIVE",   members: 824,  benefits: ["Daily ROI","24h claim window","Level income eligible"],       notes: "Entry plan for new members.",      claimWindow: "24 hours" },
-  { id: "p2", name: "Growth",   color: "#34d399", minInvest: 1000,  maxInvest: 4999,   roi: 0.75, duration: 365, autoCompound: false, status: "ACTIVE",   members: 412,  benefits: ["Daily ROI","Binary eligible","Level income up to level 5"],   notes: "Most popular plan.",               claimWindow: "24 hours" },
-  { id: "p3", name: "Pro",      color: GOLD,      minInvest: 5000,  maxInvest: 9999,   roi: 1.0,  duration: 365, autoCompound: true,  status: "ACTIVE",   members: 187,  benefits: ["Daily ROI","Auto-compound","Binary eligible","Orbit eligible"], notes: "Pro-level compensation.",          claimWindow: "24 hours" },
-  { id: "p4", name: "Elite",    color: "#a78bfa", minInvest: 10000, maxInvest: 49999,  roi: 1.25, duration: 365, autoCompound: true,  status: "ACTIVE",   members: 64,   benefits: ["Priority processing","Salary eligible","All income types"],   notes: "Requires Gold rank minimum.",      claimWindow: "12 hours" },
-  { id: "p5", name: "Crown",    color: "#f87171", minInvest: 50000, maxInvest: null,   roi: 1.5,  duration: 365, autoCompound: true,  status: "ACTIVE",   members: 12,   benefits: ["Dedicated support","Crown bonus","All income types"],           notes: "Invite only. Crown rank required.", claimWindow: "12 hours" },
-  { id: "p6", name: "Legacy",   color: MUTED,     minInvest: 500,   maxInvest: 4999,   roi: 0.6,  duration: 180, autoCompound: false, status: "ARCHIVED", members: 0,    benefits: ["Basic ROI"],                                                   notes: "Retired plan.",                    claimWindow: "48 hours" },
-];
-
-const INITIAL_LEVELS: LevelRow[] = [
-  { level: 1, rate: 5.0, qualification: "Any Active Plan",  status: "ACTIVE" },
-  { level: 2, rate: 3.0, qualification: "Bronze or above",  status: "ACTIVE" },
-  { level: 3, rate: 2.0, qualification: "Silver or above",  status: "ACTIVE" },
-  { level: 4, rate: 1.5, qualification: "Gold or above",    status: "ACTIVE" },
-  { level: 5, rate: 1.0, qualification: "Gold or above",    status: "ACTIVE" },
-  { level: 6, rate: 0.8, qualification: "Diamond or above", status: "ACTIVE" },
-  { level: 7, rate: 0.6, qualification: "Diamond or above", status: "ACTIVE" },
-  { level: 8, rate: 0.5, qualification: "Crown",            status: "ACTIVE" },
-  { level: 9, rate: 0.4, qualification: "Crown",            status: "ACTIVE" },
-  { level:10, rate: 0.3, qualification: "Crown",            status: "INACTIVE" },
-];
-
-const INITIAL_SALARY: SalaryRow[] = [
-  { rank: "Bronze",    color: "#cd7f32", monthly: 0,      directs: 0,   teamVolume: "—",      retention: "—" },
-  { rank: "Silver",    color: "#c0c0c0", monthly: 0,      directs: 0,   teamVolume: "—",      retention: "—" },
-  { rank: "Gold",      color: GOLD,      monthly: 0,      directs: 3,   teamVolume: "$10K",   retention: "Monthly" },
-  { rank: "Diamond",   color: "#a5f3fc", monthly: 2000,   directs: 5,   teamVolume: "$50K",   retention: "Monthly" },
-  { rank: "Crown",     color: "#a78bfa", monthly: 5000,   directs: 10,  teamVolume: "$200K",  retention: "Monthly" },
-  { rank: "Royal Crown",color:"#f87171", monthly: 10000,  directs: 20,  teamVolume: "$500K",  retention: "Monthly" },
-];
-
-const INITIAL_RANKS: RankCard[] = [
-  { id: "bronze",  name: "Bronze",      color: "#cd7f32", gradient: "from-[#cd7f32] to-[#8B4513]", minInvest: 100,   teamSize: 2,   groupVolume: "$500",    bonus: "$25",     salary: 0,     benefits: ["Level 1-2 income","Binary eligible"] },
-  { id: "silver",  name: "Silver",      color: "#c0c0c0", gradient: "from-[#c0c0c0] to-[#808080]", minInvest: 500,   teamSize: 5,   groupVolume: "$2K",     bonus: "$100",    salary: 0,     benefits: ["Level 1-3 income","Binary + Orbit"] },
-  { id: "gold",    name: "Gold",        color: GOLD,      gradient: "from-[#D4AF37] to-[#B8860B]", minInvest: 1000,  teamSize: 10,  groupVolume: "$10K",    bonus: "$500",    salary: 0,     benefits: ["Level 1-5 income","All binary types"] },
-  { id: "diamond", name: "Diamond",     color: "#a5f3fc", gradient: "from-[#a5f3fc] to-[#0ea5e9]", minInvest: 5000,  teamSize: 25,  groupVolume: "$50K",    bonus: "$2000",   salary: 2000,  benefits: ["Level 1-7 income","Salary eligible","Priority support"] },
-  { id: "crown",   name: "Crown",       color: "#a78bfa", gradient: "from-[#a78bfa] to-[#7c3aed]", minInvest: 10000, teamSize: 50,  groupVolume: "$200K",   bonus: "$5000",   salary: 5000,  benefits: ["Level 1-9 income","Full compensation","Dedicated manager"] },
-  { id: "royal",   name: "Royal Crown", color: "#f87171", gradient: "from-[#f87171] to-[#dc2626]", minInvest: 50000, teamSize: 100, groupVolume: "$500K",   bonus: "$10000",  salary: 10000, benefits: ["All income types","Board access","Crown ceremony invite"] },
-];
-
 type SectionId = "plans" | "roi" | "binary" | "orbit" | "level" | "salary" | "ranks" | "transfer" | "limits" | "global";
-
 type ConfigState = Record<SectionId, ConfigField[]>;
 
-const INITIAL_CONFIG: ConfigState = {
-  plans: [],
-  roi: [
-    { key: "roi.default_rate",  label: "Default ROI Rate",     value: "0.5",   unit: "%/day",  type: "number", description: "Base daily ROI applied to all eligible plans." },
-    { key: "roi.max_cap",       label: "Maximum ROI Cap",      value: "200",   unit: "%",      type: "number", description: "Total lifetime ROI cap as % of principal." },
-    { key: "roi.duration",      label: "ROI Duration",         value: "365",   unit: "days",   type: "number", description: "Plan duration before principal lock expires." },
-    { key: "roi.claim_window",  label: "Claim Window",         value: "24",    unit: "hours",  type: "number", description: "Hours within which ROI must be claimed." },
-    { key: "roi.exec_time",     label: "Execution Time",       value: "00:00", unit: "UTC",    type: "text",   description: "Daily cron time for ROI distribution." },
-    { key: "roi.exec_freq",     label: "Execution Frequency",  value: "Daily", type: "text",               description: "How often the ROI engine runs." },
-  ],
-  binary: [
-    { key: "bin.match_rate",    label: "Matching Rate",        value: "10",    unit: "%",      type: "number", description: "% of weaker leg BV awarded as matching bonus." },
-    { key: "bin.daily_cap",     label: "Daily Match Cap",      value: "10000", unit: "$",      type: "number", description: "Max daily binary reward per member." },
-    { key: "bin.carry_cap",     label: "Carry Forward Cap",    value: "50000", unit: "BV",     type: "number", description: "Max carry-forward BV allowed per leg." },
-    { key: "bin.flush_cycle",   label: "Flush Cycle",          value: "Daily", type: "text",               description: "When unmatched BV is flushed." },
-    { key: "bin.exec_time",     label: "Execution Time",       value: "00:30", unit: "UTC",    type: "text",   description: "Daily matching run time." },
-    { key: "bin.carry_exp",     label: "Carry Expiry",         value: "30",    unit: "days",   type: "number", description: "Days before carry forward expires." },
-  ],
-  orbit: [
-    { key: "orb.reward_rate",   label: "Orbit Reward Rate",    value: "5",     unit: "%",      type: "number", description: "% orbit reward on top of matching." },
-    { key: "orb.min_bv",        label: "Minimum BV Required",  value: "5000",  unit: "BV/leg", type: "number", description: "BV each leg must achieve to trigger orbit." },
-    { key: "orb.flush_cycle",   label: "Flush Logic",          value: "Weekly",type: "text",               description: "Orbit BV flush frequency." },
-    { key: "orb.exec_day",      label: "Execution Day",        value: "Monday",type: "text",               description: "Day orbit rewards are distributed." },
-    { key: "orb.exec_time",     label: "Execution Time",       value: "01:00", unit: "UTC",    type: "text",   description: "Weekly orbit run time." },
-    { key: "orb.carry_days",    label: "Carry Forward Days",   value: "30",    unit: "days",   type: "number", description: "Days orbit BV can carry forward." },
-  ],
-  level: [],
-  salary: [],
-  ranks: [],
-  transfer: [
-    { key: "tr.release_hours",  label: "Release Window",       value: "72",    unit: "hours",  type: "number", description: "Hours before deposit is released for use." },
-    { key: "tr.hourly_rate",    label: "Hourly Release Rate",  value: "1.39",  unit: "%/h",    type: "number", description: "% of transfer released per hour." },
-    { key: "tr.fee_pct",        label: "Transfer Fee",         value: "2",     unit: "%",      type: "number", description: "Platform fee applied to each transfer." },
-    { key: "tr.min_amount",     label: "Minimum Transfer",     value: "10",    unit: "$",      type: "number", description: "Minimum single transfer amount." },
-    { key: "tr.max_amount",     label: "Maximum Transfer",     value: "50000", unit: "$",      type: "number", description: "Maximum single transfer amount." },
-    { key: "tr.max_queue",      label: "Maximum Queue Size",   value: "100",   unit: "txns",   type: "number", description: "Max concurrent transfers in queue." },
-  ],
-  limits: [
-    { key: "lim.max_invest",    label: "Maximum Investment",   value: "500000",unit: "$",      type: "number", description: "Maximum cumulative investment per user." },
-    { key: "lim.min_withdraw",  label: "Minimum Withdrawal",   value: "20",    unit: "$",      type: "number", description: "Minimum withdrawal request amount." },
-    { key: "lim.max_withdraw",  label: "Maximum Withdrawal",   value: "100000",unit: "$",      type: "number", description: "Max single withdrawal amount." },
-    { key: "lim.daily_payout",  label: "Max Daily Payout",     value: "50000", unit: "$",      type: "number", description: "Maximum total payout per member per day." },
-    { key: "lim.max_binary",    label: "Max Binary Reward",    value: "10000", unit: "$/day",  type: "number", description: "Binary matching daily reward ceiling." },
-    { key: "lim.max_salary",    label: "Maximum Salary",       value: "10000", unit: "$/mo",   type: "number", description: "Maximum monthly salary any rank can earn." },
-  ],
-  global: [
-    { key: "gl.maintenance",    label: "Maintenance Mode",     value: "false", type: "toggle", description: "Suspends all member-facing operations." },
-    { key: "gl.registration",   label: "Registration Enabled", value: "true",  type: "toggle", description: "New member registration toggle." },
-    { key: "gl.investment",     label: "Investment Enabled",   value: "true",  type: "toggle", description: "Allow new investment creation." },
-    { key: "gl.withdrawal",     label: "Withdrawal Enabled",   value: "true",  type: "toggle", description: "Allow withdrawal requests." },
-    { key: "gl.binary",         label: "Binary Enabled",       value: "true",  type: "toggle", description: "Binary matching engine active." },
-    { key: "gl.notifications",  label: "Notifications Enabled",value: "true",  type: "toggle", description: "Push and email notification system." },
-    { key: "gl.kyc_required",   label: "KYC Required",         value: "false", type: "toggle", description: "Require identity verification for withdrawals." },
-  ],
+// ─── Static display metadata for ranks ─────────────────────────────────────────
+const RANK_META: Record<string, { color: string; gradient: string; minInvest: number; teamSize: number; groupVolume: string; bonus: string; benefits: string[] }> = {
+  "Bronze":      { color: "#cd7f32", gradient: "from-[#cd7f32] to-[#8B4513]", minInvest: 100,   teamSize: 2,   groupVolume: "$500",   bonus: "$25",    benefits: ["Level 1-2 income","Binary eligible"] },
+  "Silver":      { color: "#c0c0c0", gradient: "from-[#c0c0c0] to-[#808080]", minInvest: 500,   teamSize: 5,   groupVolume: "$2K",    bonus: "$100",   benefits: ["Level 1-3 income","Binary + Orbit"] },
+  "Gold":        { color: GOLD,      gradient: "from-[#D4AF37] to-[#B8860B]", minInvest: 1000,  teamSize: 10,  groupVolume: "$10K",   bonus: "$500",   benefits: ["Level 1-5 income","All binary types"] },
+  "Platinum":    { color: GOLD,      gradient: "from-[#D4AF37] to-[#B8860B]", minInvest: 1000,  teamSize: 10,  groupVolume: "$10K",   bonus: "$500",   benefits: ["Level 1-5 income","All binary types"] },
+  "Diamond":     { color: "#a5f3fc", gradient: "from-[#a5f3fc] to-[#0ea5e9]", minInvest: 5000,  teamSize: 25,  groupVolume: "$50K",   bonus: "$2000",  benefits: ["Level 1-7 income","Salary eligible","Priority support"] },
+  "Crown":       { color: "#a78bfa", gradient: "from-[#a78bfa] to-[#7c3aed]", minInvest: 10000, teamSize: 50,  groupVolume: "$200K",  bonus: "$5000",  benefits: ["Level 1-9 income","Full compensation","Dedicated manager"] },
+  "Royal Crown": { color: "#f87171", gradient: "from-[#f87171] to-[#dc2626]", minInvest: 50000, teamSize: 100, groupVolume: "$500K",  bonus: "$10000", benefits: ["All income types","Board access","Crown ceremony invite"] },
 };
 
-const INITIAL_AUDIT: AuditEntry[] = [
-  { id: "AU1", timestamp: new Date(Date.now()-2*3600000),  admin: "superadmin@primewave.io", configName: "Default ROI Rate",      oldValue: "0.4%",      newValue: "0.5%",     reason: "Platform adjustment per board decision Q2." },
-  { id: "AU2", timestamp: new Date(Date.now()-26*3600000), admin: "finance@primewave.io",    configName: "Daily Match Cap",        oldValue: "$8,000",    newValue: "$10,000",  reason: "Increased to accommodate growth." },
-  { id: "AU3", timestamp: new Date(Date.now()-72*3600000), admin: "rewards@primewave.io",    configName: "Carry Forward Cap",      oldValue: "40,000 BV", newValue: "50,000 BV",reason: "Member feedback, carry forward too restrictive." },
-  { id: "AU4", timestamp: new Date(Date.now()-120*3600000),admin: "superadmin@primewave.io", configName: "Transfer Fee",           oldValue: "3%",        newValue: "2%",       reason: "Competitive pricing adjustment." },
-  { id: "AU5", timestamp: new Date(Date.now()-168*3600000),admin: "finance@primewave.io",    configName: "Maximum Withdrawal",     oldValue: "$50,000",   newValue: "$100,000", reason: "VIP member accommodation." },
-];
-
-const INITIAL_VERSIONS: ConfigVersion[] = [
-  { id: "V4", version: "1.4", publishedBy: "superadmin@primewave.io",  publishedAt: new Date(Date.now()-2*3600000),  changeCount: 2 },
-  { id: "V3", version: "1.3", publishedBy: "finance@primewave.io",     publishedAt: new Date(Date.now()-7*86400000), changeCount: 5 },
-  { id: "V2", version: "1.2", publishedBy: "rewards@primewave.io",     publishedAt: new Date(Date.now()-14*86400000),changeCount: 3 },
-  { id: "V1", version: "1.1", publishedBy: "superadmin@primewave.io",  publishedAt: new Date(Date.now()-30*86400000),changeCount: 8 },
-];
+const SALARY_META: Record<string, { color: string; directs: number; retention: string }> = {
+  "Bronze":      { color: "#cd7f32", directs: 0,  retention: "—" },
+  "Silver":      { color: "#c0c0c0", directs: 0,  retention: "—" },
+  "Gold":        { color: GOLD,      directs: 3,  retention: "Monthly" },
+  "Platinum":    { color: GOLD,      directs: 3,  retention: "Monthly" },
+  "Diamond":     { color: "#a5f3fc", directs: 5,  retention: "Monthly" },
+  "Crown":       { color: "#a78bfa", directs: 10, retention: "Monthly" },
+  "Royal Crown": { color: "#f87171", directs: 20, retention: "Monthly" },
+};
 
 // ─── Nav items ─────────────────────────────────────────────────────────────────
 const NAV_ITEMS: { id: SectionId; icon: React.ElementType; label: string }[] = [
@@ -175,7 +101,7 @@ const PLAN_STATUS: Record<PlanStatus,{color:string;bg:string}> = {
 };
 
 // ─── Confirm Modal ─────────────────────────────────────────────────────────────
-interface ConfirmPending { configName: string; oldValue: string; newValue: string; sectionId: SectionId; key: string }
+interface ConfirmPending { configName: string; oldValue: string; newValue: string; sectionId: SectionId; key: string; rawNew: string; label: string }
 
 function ConfirmModal({ pending, onConfirm, onCancel }: {
   pending: ConfirmPending;
@@ -353,7 +279,7 @@ function PlanDrawer({ plan, onClose, onStatusChange }: { plan: Plan; onClose: ()
 
 // ─── Section components ─────────────────────────────────────────────────────────
 // Investment Plans
-function InvestmentPlansSection({ plans, setPlans, onView }: { plans: Plan[]; setPlans: React.Dispatch<React.SetStateAction<Plan[]>>; onView: (p: Plan) => void }) {
+function InvestmentPlansSection({ plans, loading, setPlans, onView }: { plans: Plan[]; loading: boolean; setPlans: React.Dispatch<React.SetStateAction<Plan[]>>; onView: (p: Plan) => void }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const [menuId,  setMenuId]  = useState<string | null>(null);
   const TH: React.CSSProperties = { padding: "10px 14px", fontSize: 10, fontWeight: 700, color: MUTED, textAlign: "left", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" };
@@ -370,77 +296,87 @@ function InvestmentPlansSection({ plans, setPlans, onView }: { plans: Plan[]; se
         </button>
       </div>
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead><tr>
-            {["PLAN NAME","INVESTMENT RANGE","ROI %","DURATION","AUTO COMPOUND","STATUS","MEMBERS",""].map((h, i) => <th key={h+i} style={TH}>{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {plans.map(p => {
-              const sc = PLAN_STATUS[p.status];
-              return (
-                <tr key={p.id} onClick={() => onView(p)} onMouseEnter={() => setHovered(p.id)} onMouseLeave={() => setHovered(null)}
-                  style={{ cursor: "pointer", background: hovered === p.id ? "rgba(255,255,255,0.025)" : "transparent" }}>
-                  <td style={{ ...TD, paddingLeft: 18 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
-                      <span style={{ fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>{p.name}</span>
-                    </div>
-                  </td>
-                  <td style={TD}>{$(p.minInvest)} – {p.maxInvest ? $(p.maxInvest) : "∞"}</td>
-                  <td style={{ ...TD, color: GOLD, fontWeight: 700 }}>{p.roi}%</td>
-                  <td style={TD}>{p.duration}d</td>
-                  <td style={TD}><span style={{ fontSize: 11, fontWeight: 600, color: p.autoCompound ? "#34d399" : MUTED }}>{p.autoCompound ? "Yes" : "No"}</span></td>
-                  <td style={TD}><span style={{ fontSize: 10, fontWeight: 700, color: sc.color, background: sc.bg, padding: "3px 8px", borderRadius: 5 }}>{p.status}</span></td>
-                  <td style={TD}>{p.members.toLocaleString()}</td>
-                  <td style={{ ...TD, paddingRight: 18 }} onClick={e => e.stopPropagation()}>
-                    <div style={{ position: "relative" }}>
-                      <button onClick={() => setMenuId(id => id === p.id ? null : p.id)} style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer", padding: "4px 8px", color: MUTED }}><MoreVertical size={14} /></button>
-                      {menuId === p.id && (
-                        <>
-                          <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={() => setMenuId(null)} />
-                          <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 51, background: "hsl(222 62% 10%)", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "4px 0", minWidth: 150, boxShadow: "0 10px 40px rgba(0,0,0,0.5)" }}>
-                            {[
-                              { label: "View", icon: Eye,     color: "rgba(255,255,255,0.75)", onClick: () => { onView(p); setMenuId(null); } },
-                              { label: "Edit", icon: Edit2,   color: GOLD_L, onClick: () => setMenuId(null) },
-                              { label: "Duplicate", icon: Copy, color: MUTED, onClick: () => setMenuId(null) },
-                              { label: "Archive",icon: Archive,color: "#f87171", onClick: () => { setPlans(ps => ps.map(x => x.id === p.id ? { ...x, status: "ARCHIVED" } : x)); setMenuId(null); } },
-                            ].map(m => (
-                              <button key={m.label} onClick={m.onClick} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "8px 14px", background: "none", border: "none", cursor: "pointer", fontSize: 12, color: m.color }}>
-                                <m.icon size={12} />{m.label}
-                              </button>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        {loading ? (
+          <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading plans…</div>
+        ) : plans.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>No plans configured.</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr>
+              {["PLAN NAME","INVESTMENT RANGE","ROI %","DURATION","AUTO COMPOUND","STATUS","MEMBERS",""].map((h, i) => <th key={h+i} style={TH}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {plans.map(p => {
+                const sc = PLAN_STATUS[p.status];
+                return (
+                  <tr key={p.id} onClick={() => onView(p)} onMouseEnter={() => setHovered(p.id)} onMouseLeave={() => setHovered(null)}
+                    style={{ cursor: "pointer", background: hovered === p.id ? "rgba(255,255,255,0.025)" : "transparent" }}>
+                    <td style={{ ...TD, paddingLeft: 18 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
+                        <span style={{ fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>{p.name}</span>
+                      </div>
+                    </td>
+                    <td style={TD}>{$(p.minInvest)} – {p.maxInvest ? $(p.maxInvest) : "∞"}</td>
+                    <td style={{ ...TD, color: GOLD, fontWeight: 700 }}>{p.roi}%</td>
+                    <td style={TD}>{p.duration}d</td>
+                    <td style={TD}><span style={{ fontSize: 11, fontWeight: 600, color: p.autoCompound ? "#34d399" : MUTED }}>{p.autoCompound ? "Yes" : "No"}</span></td>
+                    <td style={TD}><span style={{ fontSize: 10, fontWeight: 700, color: sc.color, background: sc.bg, padding: "3px 8px", borderRadius: 5 }}>{p.status}</span></td>
+                    <td style={TD}>{p.members.toLocaleString()}</td>
+                    <td style={{ ...TD, paddingRight: 18 }} onClick={e => e.stopPropagation()}>
+                      <div style={{ position: "relative" }}>
+                        <button onClick={() => setMenuId(id => id === p.id ? null : p.id)} style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer", padding: "4px 8px", color: MUTED }}><MoreVertical size={14} /></button>
+                        {menuId === p.id && (
+                          <>
+                            <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={() => setMenuId(null)} />
+                            <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 51, background: "hsl(222 62% 10%)", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "4px 0", minWidth: 150, boxShadow: "0 10px 40px rgba(0,0,0,0.5)" }}>
+                              {[
+                                { label: "View", icon: Eye,     color: "rgba(255,255,255,0.75)", onClick: () => { onView(p); setMenuId(null); } },
+                                { label: "Edit", icon: Edit2,   color: GOLD_L, onClick: () => setMenuId(null) },
+                                { label: "Duplicate", icon: Copy, color: MUTED, onClick: () => setMenuId(null) },
+                                { label: "Archive",icon: Archive,color: "#f87171", onClick: () => { setPlans(ps => ps.map(x => x.id === p.id ? { ...x, status: "ARCHIVED" as PlanStatus } : x)); setMenuId(null); } },
+                              ].map(m => (
+                                <button key={m.label} onClick={m.onClick} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "8px 14px", background: "none", border: "none", cursor: "pointer", fontSize: 12, color: m.color }}>
+                                  <m.icon size={12} />{m.label}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
 }
 
 // Generic config section (grid of ConfigCards)
-function ConfigSection({ title, subtitle, fields, onEdit }: { title: string; subtitle: string; fields: ConfigField[]; onEdit: (f: ConfigField, v: string) => void }) {
+function ConfigSection({ title, subtitle, fields, loading, onEdit }: { title: string; subtitle: string; fields: ConfigField[]; loading: boolean; onEdit: (f: ConfigField, v: string) => void }) {
   return (
     <div>
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>{title}</div>
         <div style={{ fontSize: 11, color: MUTED }}>{subtitle}</div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        {fields.map(f => <ConfigCard key={f.key} field={f} onEdit={onEdit} />)}
-      </div>
+      {loading ? (
+        <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading configuration…</div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {fields.map(f => <ConfigCard key={f.key} field={f} onEdit={onEdit} />)}
+        </div>
+      )}
     </div>
   );
 }
 
 // Level Income section
-function LevelIncomeSection({ rows, setRows }: { rows: LevelRow[]; setRows: React.Dispatch<React.SetStateAction<LevelRow[]>> }) {
+function LevelIncomeSection({ rows, loading, onToggle }: { rows: LevelRow[]; loading: boolean; onToggle: (level: number) => void }) {
   const TH: React.CSSProperties = { padding: "10px 14px", fontSize: 10, fontWeight: 700, color: MUTED, textAlign: "left", borderBottom: `1px solid ${BORDER}` };
   const TD: React.CSSProperties = { padding: "13px 14px", fontSize: 12, borderBottom: `1px solid ${BORDER}` };
   return (
@@ -450,34 +386,38 @@ function LevelIncomeSection({ rows, setRows }: { rows: LevelRow[]; setRows: Reac
         <div style={{ fontSize: 11, color: MUTED }}>Commission rates for each downline level.</div>
       </div>
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead><tr>{["LEVEL","COMMISSION %","QUALIFICATION","MAX DEPTH","STATUS"].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
-          <tbody>
-            {rows.map(r => (
-              <tr key={r.level}>
-                <td style={{ ...TD, paddingLeft: 18 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(212,175,55,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: GOLD }}>{r.level}</div>
-                </td>
-                <td style={{ ...TD, color: GOLD, fontWeight: 700, fontSize: 14 }}>{r.rate}%</td>
-                <td style={{ ...TD, color: MUTED }}>{r.qualification}</td>
-                <td style={{ ...TD, color: MUTED }}>10</td>
-                <td style={TD}>
-                  <button onClick={() => setRows(rs => rs.map(x => x.level === r.level ? { ...x, status: x.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" } : x))}
-                    style={{ fontSize: 9, fontWeight: 700, color: r.status === "ACTIVE" ? "#34d399" : "#fbbf24", background: r.status === "ACTIVE" ? "rgba(52,211,153,0.12)" : "rgba(251,191,36,0.12)", padding: "3px 8px", borderRadius: 5, border: "none", cursor: "pointer" }}>
-                    {r.status}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {loading ? (
+          <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading level config…</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr>{["LEVEL","COMMISSION %","QUALIFICATION","MAX DEPTH","STATUS"].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.level}>
+                  <td style={{ ...TD, paddingLeft: 18 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(212,175,55,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: GOLD }}>{r.level}</div>
+                  </td>
+                  <td style={{ ...TD, color: GOLD, fontWeight: 700, fontSize: 14 }}>{r.rate}%</td>
+                  <td style={{ ...TD, color: MUTED }}>{r.qualification}</td>
+                  <td style={{ ...TD, color: MUTED }}>10</td>
+                  <td style={TD}>
+                    <button onClick={() => onToggle(r.level)}
+                      style={{ fontSize: 9, fontWeight: 700, color: r.status === "ACTIVE" ? "#34d399" : "#fbbf24", background: r.status === "ACTIVE" ? "rgba(52,211,153,0.12)" : "rgba(251,191,36,0.12)", padding: "3px 8px", borderRadius: 5, border: "none", cursor: "pointer" }}>
+                      {r.status}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
 }
 
 // Salary section
-function SalarySection({ rows }: { rows: SalaryRow[] }) {
+function SalarySection({ rows, loading }: { rows: SalaryRow[]; loading: boolean }) {
   const TH: React.CSSProperties = { padding: "10px 14px", fontSize: 10, fontWeight: 700, color: MUTED, textAlign: "left", borderBottom: `1px solid ${BORDER}` };
   const TD: React.CSSProperties = { padding: "13px 14px", fontSize: 12, borderBottom: `1px solid ${BORDER}` };
   return (
@@ -487,124 +427,140 @@ function SalarySection({ rows }: { rows: SalaryRow[] }) {
         <div style={{ fontSize: 11, color: MUTED }}>Monthly salary by rank. Paid on the 1st of each month.</div>
       </div>
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead><tr>{["RANK","MONTHLY SALARY","DIRECT REFERRALS","TEAM VOLUME","RETENTION",""].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
-          <tbody>
-            {rows.map(r => (
-              <tr key={r.rank}>
-                <td style={{ ...TD, paddingLeft: 18 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: r.color }} />
-                    <span style={{ fontWeight: 700, color: "rgba(255,255,255,0.88)" }}>{r.rank}</span>
-                  </div>
-                </td>
-                <td style={{ ...TD, color: r.monthly > 0 ? "#34d399" : MUTED, fontWeight: r.monthly > 0 ? 700 : 400 }}>{r.monthly > 0 ? $(r.monthly) + "/mo" : "—"}</td>
-                <td style={{ ...TD, color: MUTED }}>{r.directs > 0 ? r.directs : "—"}</td>
-                <td style={{ ...TD, color: MUTED }}>{r.teamVolume}</td>
-                <td style={{ ...TD, color: MUTED }}>{r.retention}</td>
-                <td style={{ ...TD, paddingRight: 18 }}>
-                  <button style={{ padding: "4px 10px", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer", fontSize: 10, color: MUTED }}>Edit</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {loading ? (
+          <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading salary config…</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr>{["RANK","MONTHLY SALARY","DIRECT REFERRALS","TEAM VOLUME","RETENTION",""].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.rank}>
+                  <td style={{ ...TD, paddingLeft: 18 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: r.color }} />
+                      <span style={{ fontWeight: 700, color: "rgba(255,255,255,0.88)" }}>{r.rank}</span>
+                    </div>
+                  </td>
+                  <td style={{ ...TD, color: r.monthly > 0 ? "#34d399" : MUTED, fontWeight: r.monthly > 0 ? 700 : 400 }}>{r.monthly > 0 ? $(r.monthly) + "/mo" : "—"}</td>
+                  <td style={{ ...TD, color: MUTED }}>{r.directs > 0 ? r.directs : "—"}</td>
+                  <td style={{ ...TD, color: MUTED }}>{r.teamVolume}</td>
+                  <td style={{ ...TD, color: MUTED }}>{r.retention}</td>
+                  <td style={{ ...TD, paddingRight: 18 }}>
+                    <button style={{ padding: "4px 10px", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer", fontSize: 10, color: MUTED }}>Edit</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
 }
 
 // Rank config
-function RankConfigSection({ ranks }: { ranks: RankCard[] }) {
+function RankConfigSection({ ranks, loading }: { ranks: RankCard[]; loading: boolean }) {
   return (
     <div>
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Rank Configuration</div>
         <div style={{ fontSize: 11, color: MUTED }}>Qualification criteria and benefits for each platform rank.</div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-        {ranks.map(r => (
-          <div key={r.id} style={{ background: CARD, border: `1px solid ${r.color}28`, borderRadius: 14, padding: "18px 18px 16px", position: "relative", overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: r.color, opacity: 0.6 }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: `${r.color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Award size={16} style={{ color: r.color }} />
+      {loading ? (
+        <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading rank config…</div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+          {ranks.map(r => (
+            <div key={r.id} style={{ background: CARD, border: `1px solid ${r.color}28`, borderRadius: 14, padding: "18px 18px 16px", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: r.color, opacity: 0.6 }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: `${r.color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Award size={16} style={{ color: r.color }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>{r.name}</div>
+                  {r.salary > 0 && <div style={{ fontSize: 10, color: "#34d399", fontWeight: 600 }}>{$(r.salary)}/mo salary</div>}
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+                {[
+                  { label: "Min Invest", value: $(r.minInvest) },
+                  { label: "Team Size",  value: `${r.teamSize}+ members` },
+                  { label: "Group Vol",  value: r.groupVolume },
+                  { label: "Bonus",      value: r.bonus       },
+                ].map(s => (
+                  <div key={s.label} style={{ background: "rgba(255,255,255,0.025)", borderRadius: 8, padding: "8px 10px" }}>
+                    <div style={{ fontSize: 9, color: MUTED, marginBottom: 2 }}>{s.label.toUpperCase()}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.82)" }}>{s.value}</div>
+                  </div>
+                ))}
               </div>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>{r.name}</div>
-                {r.salary > 0 && <div style={{ fontSize: 10, color: "#34d399", fontWeight: 600 }}>{$(r.salary)}/mo salary</div>}
+                {r.benefits.map(b => (
+                  <div key={b} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                    <CheckCircle size={10} style={{ color: r.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 10, color: MUTED }}>{b}</span>
+                  </div>
+                ))}
               </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-              {[
-                { label: "Min Invest", value: $(r.minInvest) },
-                { label: "Team Size",  value: `${r.teamSize}+ members` },
-                { label: "Group Vol",  value: r.groupVolume },
-                { label: "Bonus",      value: r.bonus       },
-              ].map(s => (
-                <div key={s.label} style={{ background: "rgba(255,255,255,0.025)", borderRadius: 8, padding: "8px 10px" }}>
-                  <div style={{ fontSize: 9, color: MUTED, marginBottom: 2 }}>{s.label.toUpperCase()}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.82)" }}>{s.value}</div>
-                </div>
-              ))}
-            </div>
-            <div>
-              {r.benefits.map(b => (
-                <div key={b} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
-                  <CheckCircle size={10} style={{ color: r.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: 10, color: MUTED }}>{b}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 // Global config (toggles)
-function GlobalConfigSection({ fields, onEdit }: { fields: ConfigField[]; onEdit: (f: ConfigField, v: string) => void }) {
+function GlobalConfigSection({ fields, loading, onEdit }: { fields: ConfigField[]; loading: boolean; onEdit: (f: ConfigField, v: string) => void }) {
   return (
     <div>
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Global Configuration</div>
         <div style={{ fontSize: 11, color: MUTED }}>Platform-wide feature flags. Changes take effect immediately.</div>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {fields.map(f => {
-          const on = f.value === "true";
-          const isWarning = f.key === "gl.maintenance";
-          return (
-            <div key={f.key} style={{ background: CARD, border: `1px solid ${isWarning && on ? "rgba(248,113,113,0.3)" : BORDER}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
-                  {isWarning && on && <AlertTriangle size={13} style={{ color: "#f87171" }} />}
-                  <span style={{ fontSize: 13, fontWeight: 700, color: isWarning && on ? "#f87171" : "rgba(255,255,255,0.85)" }}>{f.label}</span>
+      {loading ? (
+        <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading global config…</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {fields.map(f => {
+            const on = f.value === "true";
+            const isWarning = f.key === "gl.maintenance";
+            return (
+              <div key={f.key} style={{ background: CARD, border: `1px solid ${isWarning && on ? "rgba(248,113,113,0.3)" : BORDER}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                    {isWarning && on && <AlertTriangle size={13} style={{ color: "#f87171" }} />}
+                    <span style={{ fontSize: 13, fontWeight: 700, color: isWarning && on ? "#f87171" : "rgba(255,255,255,0.85)" }}>{f.label}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: MUTED }}>{f.description}</div>
                 </div>
-                <div style={{ fontSize: 11, color: MUTED }}>{f.description}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: on ? "#34d399" : "#f87171" }}>{on ? "ENABLED" : "DISABLED"}</span>
+                  <button onClick={() => onEdit(f, on ? "false" : "true")}
+                    style={{ width: 48, height: 26, borderRadius: 13, background: on ? "rgba(52,211,153,0.2)" : "rgba(255,255,255,0.06)", border: `2px solid ${on ? "#34d399" : BORDER}`, cursor: "pointer", position: "relative" }}>
+                    <div style={{ position: "absolute", top: 3, left: on ? 22 : 3, width: 16, height: 16, borderRadius: "50%", background: on ? "#34d399" : MUTED, transition: "left 0.15s" }} />
+                  </button>
+                </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: on ? "#34d399" : "#f87171" }}>{on ? "ENABLED" : "DISABLED"}</span>
-                <button onClick={() => onEdit(f, on ? "false" : "true")}
-                  style={{ width: 48, height: 26, borderRadius: 13, background: on ? "rgba(52,211,153,0.2)" : "rgba(255,255,255,0.06)", border: `2px solid ${on ? "#34d399" : BORDER}`, cursor: "pointer", position: "relative" }}>
-                  <div style={{ position: "absolute", top: 3, left: on ? 22 : 3, width: 16, height: 16, borderRadius: "50%", background: on ? "#34d399" : MUTED, transition: "left 0.15s" }} />
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Version History ────────────────────────────────────────────────────────────
-function VersionHistory({ versions, onRollback }: { versions: ConfigVersion[]; onRollback: (v: ConfigVersion) => void }) {
+function VersionHistory({ versions, loading, onRollback }: { versions: ConfigVersion[]; loading: boolean; onRollback: (v: ConfigVersion) => void }) {
   return (
     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "16px 18px" }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: "0.07em", marginBottom: 14 }}>VERSION HISTORY</div>
-      {versions.map((v, i) => (
+      {loading ? (
+        <div style={{ color: MUTED, fontSize: 11, textAlign: "center", padding: "16px 0" }}>Loading…</div>
+      ) : versions.length === 0 ? (
+        <div style={{ color: MUTED, fontSize: 11, textAlign: "center", padding: "16px 0" }}>No versions yet.</div>
+      ) : versions.map((v, i) => (
         <div key={v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: i < versions.length - 1 ? `1px solid ${BORDER}` : "none" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -627,14 +583,18 @@ function VersionHistory({ versions, onRollback }: { versions: ConfigVersion[]; o
 }
 
 // ─── Audit Log ─────────────────────────────────────────────────────────────────
-function AuditLog({ entries }: { entries: AuditEntry[] }) {
+function AuditLog({ entries, loading }: { entries: AuditEntry[]; loading: boolean }) {
   return (
     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "16px 18px", marginTop: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: "0.07em" }}>CHANGE AUDIT LOG</div>
         <button style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 9px", background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer", fontSize: 10, color: MUTED }}><Download size={10} /> Export</button>
       </div>
-      {entries.slice(0, 8).map((e, i) => (
+      {loading ? (
+        <div style={{ color: MUTED, fontSize: 11, textAlign: "center", padding: "16px 0" }}>Loading…</div>
+      ) : entries.length === 0 ? (
+        <div style={{ color: MUTED, fontSize: 11, textAlign: "center", padding: "16px 0" }}>No changes recorded yet.</div>
+      ) : entries.slice(0, 8).map((e, i) => (
         <div key={e.id} style={{ padding: "10px 0", borderBottom: i < Math.min(entries.length - 1, 7) ? `1px solid ${BORDER}` : "none" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>{e.configName}</span>
@@ -652,63 +612,223 @@ function AuditLog({ entries }: { entries: AuditEntry[] }) {
   );
 }
 
+// ─── Helpers to map API types to local UI types ────────────────────────────────
+
+function mapSalaryRanksToRows(ranks: SalaryRankItem[]): SalaryRow[] {
+  return ranks.map(r => {
+    const meta = SALARY_META[r.rankName] ?? { color: MUTED, directs: 0, retention: "—" };
+    const bv   = r.requiredBusiness;
+    const teamVolume = bv > 0 ? (bv >= 1000 ? `$${Math.round(bv/1000)}K` : `$${bv}`) : "—";
+    return {
+      rank:       r.rankName,
+      color:      meta.color,
+      monthly:    r.monthlySalary,
+      directs:    meta.directs,
+      teamVolume,
+      retention:  r.monthlySalary > 0 ? "Monthly" : meta.retention,
+    };
+  });
+}
+
+function mapSalaryRanksToCards(ranks: SalaryRankItem[]): RankCard[] {
+  return ranks.map(r => {
+    const meta = RANK_META[r.rankName] ?? {
+      color: MUTED, gradient: "from-gray-500 to-gray-700",
+      minInvest: 0, teamSize: 0, groupVolume: "—", bonus: "—", benefits: [],
+    };
+    return {
+      id:          r.rankName.toLowerCase().replace(/\s+/g, "-"),
+      name:        r.rankName,
+      color:       meta.color,
+      gradient:    meta.gradient,
+      minInvest:   meta.minInvest,
+      teamSize:    meta.teamSize,
+      groupVolume: meta.groupVolume,
+      bonus:       meta.bonus,
+      salary:      r.monthlySalary,
+      benefits:    meta.benefits,
+    };
+  });
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function PlansPage() {
   const { toasts, toast, dismiss } = useToast();
-  const [active,  setActive]  = useState<SectionId>("plans");
-  const [plans,   setPlans]   = useState<Plan[]>(INITIAL_PLANS);
-  const [levels,  setLevels]  = useState<LevelRow[]>(INITIAL_LEVELS);
-  const [config,  setConfig]  = useState<ConfigState>(INITIAL_CONFIG);
-  const [audit,   setAudit]   = useState<AuditEntry[]>(INITIAL_AUDIT);
-  const [versions,setVersions]= useState<ConfigVersion[]>(INITIAL_VERSIONS);
-  const [planDrawer, setPlanDrawer] = useState<Plan | null>(null);
+  const [active,       setActive]      = useState<SectionId>("plans");
+  const [plans,        setPlans]        = useState<Plan[]>([]);
+  const [levels,       setLevels]       = useState<LevelRow[]>([]);
+  const [salary,       setSalary]       = useState<SalaryRow[]>([]);
+  const [ranks,        setRanks]        = useState<RankCard[]>([]);
+  const [config,       setConfig]       = useState<ConfigState>({ plans: [], roi: [], binary: [], orbit: [], level: [], salary: [], ranks: [], transfer: [], limits: [], global: [] });
+  const [audit,        setAudit]        = useState<AuditEntry[]>([]);
+  const [versions,     setVersions]     = useState<ConfigVersion[]>([]);
+  const [planDrawer,   setPlanDrawer]   = useState<Plan | null>(null);
   const [confirmPending, setConfirmPending] = useState<ConfirmPending | null>(null);
-  const [publishing, setPublishing] = useState(false);
+  const [publishing,   setPublishing]   = useState(false);
 
-  const handleEdit = useCallback((sectionId: SectionId, field: ConfigField, newVal: string) => {
+  // Loading flags
+  const [loadingPlans,    setLoadingPlans]    = useState(true);
+  const [loadingConfig,   setLoadingConfig]   = useState(false);
+  const [loadingLevel,    setLoadingLevel]    = useState(true);
+  const [loadingSalary,   setLoadingSalary]   = useState(true);
+  const [loadingVersions, setLoadingVersions] = useState(true);
+  const [loadingAudit,    setLoadingAudit]    = useState(true);
+
+  // Track which config sections are loaded to avoid duplicate fetches
+  const configLoaded = useRef(false);
+
+  // ─── Initial data load ───────────────────────────────────────────────────────
+  useEffect(() => {
+    // Parallel initial fetches
+    adminGetPlans()
+      .then(r => setPlans(r.plans as Plan[]))
+      .catch(() => toast("Failed to load plans.", "error"))
+      .finally(() => setLoadingPlans(false));
+
+    adminGetLevelConfig()
+      .then(r => setLevels(r.levels))
+      .catch(() => {})
+      .finally(() => setLoadingLevel(false));
+
+    adminGetSalaryRanks()
+      .then(r => {
+        setSalary(mapSalaryRanksToRows(r.ranks));
+        setRanks(mapSalaryRanksToCards(r.ranks));
+      })
+      .catch(() => {})
+      .finally(() => setLoadingSalary(false));
+
+    adminGetConfigVersions()
+      .then(r => setVersions(r.versions.map(v => ({ ...v, publishedAt: new Date(v.publishedAt) }))))
+      .catch(() => {})
+      .finally(() => setLoadingVersions(false));
+
+    adminGetConfigAudit()
+      .then(r => setAudit(r.entries.map(e => ({ ...e, timestamp: new Date(e.timestamp) }))))
+      .catch(() => {})
+      .finally(() => setLoadingAudit(false));
+  }, []);
+
+  // ─── Lazy-load system config on first config section visit ───────────────────
+  useEffect(() => {
+    const isConfigSection = ["roi","binary","orbit","transfer","limits","global"].includes(active);
+    if (!isConfigSection || configLoaded.current) return;
+    setLoadingConfig(true);
+    adminGetPlanConfig()
+      .then(sections => {
+        configLoaded.current = true;
+        setConfig(c => ({
+          ...c,
+          roi:      sections.roi      ?? [],
+          binary:   sections.binary   ?? [],
+          orbit:    sections.orbit    ?? [],
+          transfer: sections.transfer ?? [],
+          limits:   sections.limits   ?? [],
+          global:   sections.global   ?? [],
+        }));
+      })
+      .catch(() => toast("Failed to load configuration.", "error"))
+      .finally(() => setLoadingConfig(false));
+  }, [active]);
+
+  // ─── Refresh audit + versions after a save ───────────────────────────────────
+  const refreshSidebar = useCallback(() => {
+    adminGetConfigVersions()
+      .then(r => setVersions(r.versions.map(v => ({ ...v, publishedAt: new Date(v.publishedAt) }))))
+      .catch(() => {});
+    adminGetConfigAudit()
+      .then(r => setAudit(r.entries.map(e => ({ ...e, timestamp: new Date(e.timestamp) }))))
+      .catch(() => {});
+  }, []);
+
+  // ─── Handle config field edit ────────────────────────────────────────────────
+  const handleEdit = useCallback(async (sectionId: SectionId, field: ConfigField, newVal: string) => {
     if (field.type === "toggle") {
-      // Toggles apply immediately with audit
+      // Optimistic update
       setConfig(c => ({ ...c, [sectionId]: c[sectionId].map(f => f.key === field.key ? { ...f, value: newVal } : f) }));
-      const entry: AuditEntry = { id: `AU-${Date.now()}`, timestamp: new Date(), admin: "superadmin@primewave.io", configName: field.label, oldValue: field.value === "true" ? "Enabled" : "Disabled", newValue: newVal === "true" ? "Enabled" : "Disabled", reason: "Feature flag toggled by admin." };
-      setAudit(a => [entry, ...a]);
-      toast(`${field.label} ${newVal === "true" ? "enabled" : "disabled"}.`, newVal === "true" ? "success" : "info");
+      try {
+        await adminSaveConfigField(field.key, newVal, field.value, "Feature flag toggled by admin.", field.label);
+        refreshSidebar();
+        toast(`${field.label} ${newVal === "true" ? "enabled" : "disabled"}.`, newVal === "true" ? "success" : "info");
+      } catch {
+        // Rollback on failure
+        setConfig(c => ({ ...c, [sectionId]: c[sectionId].map(f => f.key === field.key ? { ...f, value: field.value } : f) }));
+        toast("Failed to save configuration.", "error");
+      }
     } else {
-      setConfirmPending({ configName: field.label, oldValue: field.unit ? `${field.value} ${field.unit}` : field.value, newValue: field.unit ? `${newVal} ${field.unit}` : newVal, sectionId, key: field.key });
+      setConfirmPending({
+        configName: field.label,
+        oldValue:   field.unit ? `${field.value} ${field.unit}` : field.value,
+        newValue:   field.unit ? `${newVal} ${field.unit}` : newVal,
+        sectionId,
+        key:        field.key,
+        rawNew:     newVal,
+        label:      field.label,
+      });
     }
-  }, [toast]);
+  }, [toast, refreshSidebar]);
 
-  const handleConfirm = useCallback((reason: string, _notes: string) => {
+  const handleConfirm = useCallback(async (reason: string, _notes: string) => {
     if (!confirmPending) return;
-    const { sectionId, key, configName, oldValue, newValue } = confirmPending;
-    setConfig(c => ({ ...c, [sectionId]: c[sectionId].map(f => f.key === key ? { ...f, value: newValue.replace(/[^0-9.:a-zA-Z%\s\/]/g, "") } : f) }));
-    const entry: AuditEntry = { id: `AU-${Date.now()}`, timestamp: new Date(), admin: "superadmin@primewave.io", configName, oldValue, newValue, reason };
-    setAudit(a => [entry, ...a]);
+    const { sectionId, key, configName, oldValue, rawNew, label } = confirmPending;
     setConfirmPending(null);
-    toast(`${configName} updated successfully.`, "success");
-  }, [confirmPending, toast]);
+
+    // Optimistic update
+    setConfig(c => ({ ...c, [sectionId]: c[sectionId].map(f => f.key === key ? { ...f, value: rawNew } : f) }));
+
+    try {
+      await adminSaveConfigField(key, rawNew, oldValue, reason, label);
+      refreshSidebar();
+      toast(`${configName} updated successfully.`, "success");
+    } catch {
+      // Rollback
+      setConfig(c => ({ ...c, [sectionId]: c[sectionId].map(f => f.key === key ? { ...f, value: oldValue } : f) }));
+      toast("Failed to save configuration.", "error");
+    }
+  }, [confirmPending, toast, refreshSidebar]);
 
   const handlePublish = useCallback(() => {
     setPublishing(true);
     setTimeout(() => {
       setPublishing(false);
-      const newVer: ConfigVersion = { id: `V-${Date.now()}`, version: (parseFloat(versions[0].version) + 0.1).toFixed(1), publishedBy: "superadmin@primewave.io", publishedAt: new Date(), changeCount: 1 };
-      setVersions(v => [newVer, ...v]);
-      toast("Configuration published successfully. v" + newVer.version + " is now live.", "success");
-    }, 1800);
-  }, [versions, toast]);
-
-  const handleRollback = useCallback((v: ConfigVersion) => {
-    toast(`Rolled back to v${v.version}. Configuration restored.`, "info");
+      toast("Configuration is up to date. All changes are saved automatically.", "info");
+    }, 800);
   }, [toast]);
 
-  // Memoize the make-edit handler per section
-  const makeEditHandler = (sid: SectionId) => (f: ConfigField, v: string) => handleEdit(sid, f, v);
+  const handleRollback = useCallback((v: ConfigVersion) => {
+    toast(`Rollback to v${v.version} is not available — changes are applied incrementally.`, "info");
+  }, [toast]);
 
-  const sectionTitle: Record<SectionId, string> = {
-    plans: "Investment Plans", roi: "ROI Engine", binary: "Binary Matching", orbit: "Binary Orbit",
-    level: "Level Income", salary: "Salary Income", ranks: "Rank Configuration",
-    transfer: "Transfer Rules", limits: "Platform Limits", global: "Global Configuration",
-  };
+  // ─── Level toggle ─────────────────────────────────────────────────────────────
+  const handleLevelToggle = useCallback(async (level: number) => {
+    const newLevels = levels.map(r => r.level === level ? { ...r, status: r.status === "ACTIVE" ? "INACTIVE" as const : "ACTIVE" as const } : r);
+    setLevels(newLevels);
+    try {
+      await adminSaveLevelConfig(newLevels);
+      refreshSidebar();
+      toast(`Level ${level} income ${newLevels.find(r => r.level === level)?.status?.toLowerCase()}.`, "info");
+    } catch {
+      setLevels(levels);
+      toast("Failed to save level config.", "error");
+    }
+  }, [levels, toast, refreshSidebar]);
+
+  // ─── Plan status change ───────────────────────────────────────────────────────
+  const handlePlanStatusChange = useCallback(async (id: string, status: PlanStatus) => {
+    setPlans(ps => ps.map(p => p.id === id ? { ...p, status } : p));
+    setPlanDrawer(null);
+    try {
+      await adminUpdatePlanStatus(id, status);
+      refreshSidebar();
+      toast(`Plan status updated to ${status}.`, "info");
+    } catch {
+      setPlans(ps => ps.map(p => p.id === id ? { ...p, status: p.status } : p));
+      toast("Failed to update plan status.", "error");
+    }
+  }, [toast, refreshSidebar]);
+
+  // Per-section edit handler
+  const makeEditHandler = (sid: SectionId) => (f: ConfigField, v: string) => handleEdit(sid, f, v);
 
   return (
     <AdminLayout>
@@ -730,7 +850,7 @@ export default function PlansPage() {
           </div>
         </div>
 
-        {/* Two-column layout: Left nav + Right content */}
+        {/* Three-column layout: Left nav + Center content + Right sidebar */}
         <div style={{ display: "grid", gridTemplateColumns: "220px 1fr 260px", gap: 16 }}>
 
           {/* Section nav */}
@@ -747,22 +867,22 @@ export default function PlansPage() {
 
           {/* Main content */}
           <div>
-            {active === "plans"    && <InvestmentPlansSection plans={plans} setPlans={setPlans} onView={p => { setPlanDrawer(p); }} />}
-            {active === "roi"      && <ConfigSection title="ROI Engine" subtitle="Configure the daily ROI distribution engine." fields={config.roi} onEdit={makeEditHandler("roi")} />}
-            {active === "binary"   && <ConfigSection title="Binary Matching" subtitle="Configure binary network matching rules and caps." fields={config.binary} onEdit={makeEditHandler("binary")} />}
-            {active === "orbit"    && <ConfigSection title="Binary Orbit" subtitle="Configure the binary orbit reward system." fields={config.orbit} onEdit={makeEditHandler("orbit")} />}
-            {active === "level"    && <LevelIncomeSection rows={levels} setRows={setLevels} />}
-            {active === "salary"   && <SalarySection rows={INITIAL_SALARY} />}
-            {active === "ranks"    && <RankConfigSection ranks={INITIAL_RANKS} />}
-            {active === "transfer" && <ConfigSection title="Transfer Rules" subtitle="72-hour release and transfer processing configuration." fields={config.transfer} onEdit={makeEditHandler("transfer")} />}
-            {active === "limits"   && <ConfigSection title="Platform Limits" subtitle="System-wide investment, withdrawal, and payout limits." fields={config.limits} onEdit={makeEditHandler("limits")} />}
-            {active === "global"   && <GlobalConfigSection fields={config.global} onEdit={makeEditHandler("global")} />}
+            {active === "plans"    && <InvestmentPlansSection plans={plans} loading={loadingPlans} setPlans={setPlans} onView={p => setPlanDrawer(p)} />}
+            {active === "roi"      && <ConfigSection title="ROI Engine" subtitle="Configure the daily ROI distribution engine." fields={config.roi} loading={loadingConfig} onEdit={makeEditHandler("roi")} />}
+            {active === "binary"   && <ConfigSection title="Binary Matching" subtitle="Configure binary network matching rules and caps." fields={config.binary} loading={loadingConfig} onEdit={makeEditHandler("binary")} />}
+            {active === "orbit"    && <ConfigSection title="Binary Orbit" subtitle="Configure the binary orbit reward system." fields={config.orbit} loading={loadingConfig} onEdit={makeEditHandler("orbit")} />}
+            {active === "level"    && <LevelIncomeSection rows={levels} loading={loadingLevel} onToggle={handleLevelToggle} />}
+            {active === "salary"   && <SalarySection rows={salary} loading={loadingSalary} />}
+            {active === "ranks"    && <RankConfigSection ranks={ranks} loading={loadingSalary} />}
+            {active === "transfer" && <ConfigSection title="Transfer Rules" subtitle="72-hour release and transfer processing configuration." fields={config.transfer} loading={loadingConfig} onEdit={makeEditHandler("transfer")} />}
+            {active === "limits"   && <ConfigSection title="Platform Limits" subtitle="System-wide investment, withdrawal, and payout limits." fields={config.limits} loading={loadingConfig} onEdit={makeEditHandler("limits")} />}
+            {active === "global"   && <GlobalConfigSection fields={config.global} loading={loadingConfig} onEdit={makeEditHandler("global")} />}
           </div>
 
-          {/* Right sidebar: Version History + Audit */}
+          {/* Right sidebar */}
           <div>
-            <VersionHistory versions={versions} onRollback={handleRollback} />
-            <AuditLog entries={audit} />
+            <VersionHistory versions={versions} loading={loadingVersions} onRollback={handleRollback} />
+            <AuditLog entries={audit} loading={loadingAudit} />
           </div>
         </div>
 
@@ -773,7 +893,7 @@ export default function PlansPage() {
         <PlanDrawer
           plan={plans.find(p => p.id === planDrawer.id) ?? planDrawer}
           onClose={() => setPlanDrawer(null)}
-          onStatusChange={(id, s) => { setPlans(ps => ps.map(p => p.id === id ? { ...p, status: s } : p)); setPlanDrawer(null); toast(`Plan status updated to ${s}.`, "info"); }}
+          onStatusChange={handlePlanStatusChange}
         />
       )}
       {confirmPending && (

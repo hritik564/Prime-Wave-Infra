@@ -1,0 +1,245 @@
+Sprint 20I — Plans & Compensation Backend Integration
+
+Objective
+
+Replace all mock configuration data with live backend integration while preserving the existing UI exactly as it is.
+
+IMPORTANT
+
+Do NOT redesign the Plans & Compensation Configuration Center.
+
+Do NOT modify layouts, styling, routing or components.
+
+Only replace mock configuration data and local interactions with backend operations.
+
+---
+
+Business Rules (LOCKED)
+
+1. Investment Plans
+
+New plans may be created.
+
+Existing plans that already have active investors become financially immutable.
+
+The following values cannot be modified once members have invested:
+
+• Investment Amount
+
+• BV
+
+• ROI
+
+• Duration
+
+If new terms are required, create a new plan version.
+
+---
+
+2. Compensation Rules
+
+Changes to:
+
+• Binary Matching
+
+• Level Income
+
+• Salary Income
+
+• Binary Orbit
+
+apply only to future calculations.
+
+Historical payouts must never be recalculated.
+
+---
+
+3. Transfer Rules
+
+72-hour transfer configuration affects only future transfers.
+
+Existing transfer schedules must continue using the rules that were active when the transfer started.
+
+---
+
+4. Version History
+
+Every configuration change creates a new configuration version.
+
+No configuration history may be overwritten.
+
+---
+
+Configuration Sections
+
+Replace mock data with backend configuration.
+
+Support:
+
+• Investment Plans
+
+• ROI Configuration
+
+• Binary Matching
+
+• Binary Orbit
+
+• Level Income
+
+• Salary Income
+
+• Rank Configuration
+
+• Transfer Rules
+
+• Platform Limits
+
+• Global Configuration
+
+---
+
+Investment Plans
+
+Load plans from backend.
+
+Support:
+
+• Pagination
+
+• Search
+
+• Sorting
+
+• Filtering
+
+• Loading state
+
+• Empty state
+
+---
+
+Plan Management
+
+Connect backend.
+
+Support:
+
+• Create Plan
+
+• Archive Plan
+
+• Enable
+
+• Disable
+
+If a plan has active investors:
+
+Display financial fields as read-only.
+
+---
+
+Configuration Editor
+
+Replace mock values with backend configuration.
+
+Save changes through backend.
+
+Display validation errors.
+
+---
+
+Version History
+
+Load configuration versions from backend.
+
+Display:
+
+Version
+
+Published By
+
+Published Date
+
+Summary
+
+Rollback availability (if supported)
+
+---
+
+Change Preview
+
+Before saving, display:
+
+Current Value
+
+↓
+
+New Value
+
+---
+
+Audit Log
+
+Replace mock audit with backend records.
+
+---
+
+Performance
+
+Lazy load configuration sections.
+
+Avoid duplicate API requests.
+
+Refresh only affected configuration.
+
+---
+
+Error Handling
+
+Handle:
+
+Validation failures
+
+Network failures
+
+Unauthorized
+
+Conflict responses
+
+Not found
+
+Display user-friendly messages.
+
+---
+
+Validation
+
+Verify:
+
+✓ Plans load.
+
+✓ Search works.
+
+✓ Filters work.
+
+✓ Plan creation works.
+
+✓ Archive works.
+
+✓ Enable/Disable works.
+
+✓ Immutable plans cannot be edited.
+
+✓ Configuration saves.
+
+✓ Version history loads.
+
+✓ Audit log loads.
+
+✓ Existing UI remains unchanged.
+
+---
+
+Goal
+
+Transform the Plans & Compensation Configuration Center into a production-ready configuration module that preserves Prime Wave's financial integrity by ensuring all compensation and investment rules are versioned, auditable and forward-compatible without modifying historical financial records.

@@ -63,6 +63,26 @@ import {
 } from "./admin-engine.controller";
 import { engineIdParamSchema, saveEngineNotesBodySchema } from "./admin-engine.schema";
 import {
+  getAllPlanConfigHandler,
+  saveConfigFieldHandler,
+  getVersionsHandler,
+  getAuditHandler,
+  getPlansHandler,
+  createPlanHandler,
+  updatePlanStatusHandler,
+  getLevelConfigHandler,
+  saveLevelConfigHandler,
+  getSalaryRanksHandler,
+} from "./admin-plans.controller";
+import {
+  saveConfigFieldSchema,
+  configKeyParamSchema,
+  createPlanSchema,
+  planIdParamSchema,
+  updatePlanStatusSchema,
+  saveLevelConfigSchema,
+} from "./admin-plans.schema";
+import {
   revenueReportHandler,
   dailyBusinessReportHandler,
   topEarnersHandler,
@@ -397,6 +417,31 @@ router.patch(
   withdrawalAdminGuard,
   validate(updateWithdrawalNotesSchema),
   updateWithdrawalNotesHandler,
+);
+
+// ── Plans & Compensation Configuration ───────────────────────────────────────
+// Specific sub-paths before param routes to avoid collision
+router.get( "/plans/config",              adminLimiter, superAdminGuard, getAllPlanConfigHandler);
+router.get( "/plans/versions",            adminLimiter, superAdminGuard, getVersionsHandler);
+router.get( "/plans/audit",               adminLimiter, superAdminGuard, getAuditHandler);
+router.get( "/plans/level-config",        adminLimiter, superAdminGuard, getLevelConfigHandler);
+router.put( "/plans/level-config",        adminLimiter, superAdminGuard, validate(saveLevelConfigSchema), saveLevelConfigHandler);
+router.get( "/plans/salary-ranks",        adminLimiter, superAdminGuard, getSalaryRanksHandler);
+router.get( "/plans",                     adminLimiter, superAdminGuard, getPlansHandler);
+router.post("/plans",                     adminLimiter, superAdminGuard, validate(createPlanSchema), createPlanHandler);
+router.patch(
+  "/plans/config/:key",
+  adminLimiter, superAdminGuard,
+  validate(configKeyParamSchema, "params"),
+  validate(saveConfigFieldSchema),
+  saveConfigFieldHandler,
+);
+router.patch(
+  "/plans/:id/status",
+  adminLimiter, superAdminGuard,
+  validate(planIdParamSchema, "params"),
+  validate(updatePlanStatusSchema),
+  updatePlanStatusHandler,
 );
 
 // ── Income Engine Control Center ──────────────────────────────────────────────
