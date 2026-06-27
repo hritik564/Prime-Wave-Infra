@@ -1,0 +1,149 @@
+# Prime Wave Verification Audit — Level Income Engine
+
+IMPORTANT
+
+Do NOT immediately modify any code.
+
+Your first responsibility is to audit the existing implementation and determine whether it already complies with Prime Wave's business rules.
+
+Only make code changes if you discover that the implementation violates one or more of the rules below.
+
+--------------------------------------------------------
+Prime Wave Business Rules (LOCKED)
+--------------------------------------------------------
+
+Rule 1
+
+Level Income is paid for a maximum of FIVE (5) levels only.
+
+No payout is ever allowed beyond Level 5.
+
+--------------------------------------------------------
+
+Rule 2
+
+A qualifying event must generate Level Income only ONE time.
+
+Once a qualifying investment has generated Level Income for all eligible uplines,
+
+it must never generate Level Income again.
+
+No duplicate payouts are permitted.
+
+--------------------------------------------------------
+
+Rule 3
+
+Historical Level Income must be immutable.
+
+If an administrator recalculates income,
+
+or background jobs are executed again,
+
+previously rewarded Level Income must NOT be generated again.
+
+--------------------------------------------------------
+
+Rule 4
+
+The payout chain must stop immediately when:
+
+• Level 5 has been reached
+
+OR
+
+• There are no more qualified uplines.
+
+--------------------------------------------------------
+
+Required Audit
+--------------------------------------------------------
+
+Inspect the backend implementation.
+
+Verify:
+
+1.
+
+How Level Income is generated.
+
+2.
+
+Where payout records are stored.
+
+3.
+
+How duplicate payouts are prevented.
+
+4.
+
+How the system remembers that a qualifying investment has already produced Level Income.
+
+5.
+
+Whether recalculation jobs could accidentally generate duplicate Level Income.
+
+6.
+
+Whether payouts are limited to exactly five levels.
+
+--------------------------------------------------------
+
+If implementation is already correct
+--------------------------------------------------------
+
+DO NOT modify any code.
+
+Instead provide a verification report including:
+
+✓ Maximum depth verified.
+
+✓ Duplicate protection verified.
+
+✓ One-time payout verified.
+
+✓ Historical immutability verified.
+
+✓ Backend implementation satisfies Prime Wave business rules.
+
+--------------------------------------------------------
+
+If implementation is NOT correct
+--------------------------------------------------------
+
+Fix ONLY the minimum required backend code.
+
+Do NOT redesign the module.
+
+Do NOT modify APIs.
+
+Do NOT change UI.
+
+Do NOT change database schema unless absolutely necessary.
+
+After fixing, provide:
+
+• What was wrong
+
+• What was changed
+
+• Why the fix was required
+
+• How duplicate payouts are now prevented
+
+• How the five-level limit is enforced
+
+--------------------------------------------------------
+
+Expected Result
+--------------------------------------------------------
+
+At the end of this audit I want a definitive answer—not an assumption.
+
+Either:
+
+"The existing implementation already satisfies all Prime Wave Level Income business rules."
+
+OR
+
+"The implementation violated the following rules..." followed by the exact fixes that were applied.
