@@ -6,7 +6,7 @@ import {
   BadgeCheck, Clock, Shield, CheckCircle, Pencil, Trash2,
   ChevronRight, Activity, FileText, BarChart2, Network,
   AlertTriangle, ChevronDown, Download, Search, Pin,
-  Globe, CalendarDays, Zap, Eye,
+  Globe, CalendarDays, Zap, Eye, UserCheck,
   File, ImageIcon, Receipt,
 } from "lucide-react";
 
@@ -313,23 +313,28 @@ function NetworkSnapshot({ m }: { m: DrawerMember }) {
 }
 
 // ─── Quick Action Panel ───────────────────────────────────────────────────────
-function QuickActionPanel({ onTabSwitch }: { onTabSwitch: (tab: string) => void }) {
+function QuickActionPanel({ m, onTabSwitch, onAction }: { m: DrawerMember; onTabSwitch: (tab: string) => void; onAction: (label: string) => void }) {
+  const suspended = m.status === "SUSPENDED" || m.status === "INACTIVE" || m.status === "BLOCKED";
   const actions = [
-    { icon: BadgeCheck, label: "Approve KYC",      color: "#34d399", bg: "rgba(52,211,153,0.07)"  },
-    { icon: ShieldX,    label: "Suspend",           color: "#f87171", bg: "rgba(248,113,113,0.07)" },
-    { icon: KeyRound,   label: "Reset Password",    color: "#60a5fa", bg: "rgba(96,165,250,0.07)"  },
-    { icon: Network,    label: "Binary Tree",       color: "#a78bfa", bg: "rgba(167,139,250,0.07)" },
-    { icon: TrendingUp, label: "Investments",       color: GOLD,      bg: "rgba(212,175,55,0.07)",  tab: "Investments" },
-    { icon: Wallet,     label: "Wallets",           color: "#67e8f9", bg: "rgba(103,232,249,0.07)", tab: "Wallets"     },
-    { icon: ArrowDownLeft, label: "Withdrawals",    color: "#fbbf24", bg: "rgba(251,191,36,0.07)"  },
-    { icon: LogIn,      label: "Impersonate",       color: GOLD_L,    bg: "rgba(212,175,55,0.07)"  },
-  ];
+    { icon: BadgeCheck,    label: "Approve KYC",   color: "#34d399", bg: "rgba(52,211,153,0.07)",   action: "Approve KYC"    },
+    suspended
+      ? { icon: UserCheck, label: "Activate",      color: "#34d399", bg: "rgba(52,211,153,0.07)",   action: "Activate Member" }
+      : { icon: ShieldX,   label: "Suspend",       color: "#f87171", bg: "rgba(248,113,113,0.07)",  action: "Suspend Member"  },
+    { icon: KeyRound,      label: "Reset Password",color: "#60a5fa", bg: "rgba(96,165,250,0.07)",   action: "Reset Password"  },
+    { icon: Network,       label: "Binary Tree",   color: "#a78bfa", bg: "rgba(167,139,250,0.07)",  tab:    "Network"         },
+    { icon: TrendingUp,    label: "Investments",   color: GOLD,      bg: "rgba(212,175,55,0.07)",   tab:    "Investments"     },
+    { icon: Wallet,        label: "Wallets",       color: "#67e8f9", bg: "rgba(103,232,249,0.07)",  tab:    "Wallets"         },
+    { icon: ArrowDownLeft, label: "Withdrawals",   color: "#fbbf24", bg: "rgba(251,191,36,0.07)",   tab:    "Wallets"         },
+    { icon: LogIn,         label: "Impersonate",   color: GOLD_L,    bg: "rgba(212,175,55,0.07)",   action: "Login As User"   },
+  ] as { icon: React.ElementType; label: string; color: string; bg: string; action?: string; tab?: string }[];
   return (
     <div style={{ marginBottom: 14 }}>
       <SectionTitle title="QUICK ACTIONS" />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
         {actions.map(a => (
-          <div key={a.label} onClick={() => a.tab && onTabSwitch(a.tab)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 11px", background: a.bg, border: `1px solid rgba(255,255,255,0.05)`, borderRadius: 8, cursor: "pointer", transition: "opacity 0.15s" }}
+          <div key={a.label}
+            onClick={() => { if (a.action) onAction(a.action); else if (a.tab) onTabSwitch(a.tab); }}
+            style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 11px", background: a.bg, border: `1px solid rgba(255,255,255,0.05)`, borderRadius: 8, cursor: "pointer", transition: "opacity 0.15s" }}
             onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "0.7"}
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "1"}>
             <a.icon size={12} style={{ color: a.color, flexShrink: 0 }} />
@@ -356,7 +361,7 @@ const TAB_ICONS: Record<Tab, React.ElementType> = {
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB: Overview — complete intelligence view
 // ─────────────────────────────────────────────────────────────────────────────
-function OverviewTab({ m, onTabSwitch }: { m: DrawerMember; onTabSwitch: (tab: Tab) => void }) {
+function OverviewTab({ m, onTabSwitch, onAction }: { m: DrawerMember; onTabSwitch: (tab: Tab) => void; onAction: (label: string) => void }) {
   return (
     <div>
       <HealthScoreCard m={m} />
@@ -364,7 +369,7 @@ function OverviewTab({ m, onTabSwitch }: { m: DrawerMember; onTabSwitch: (tab: T
       <FinancialSnapshot m={m} />
       <NetworkSnapshot m={m} />
       <MiniTimeline m={m} onViewAll={() => onTabSwitch("Activity")} />
-      <QuickActionPanel onTabSwitch={onTabSwitch} />
+      <QuickActionPanel m={m} onTabSwitch={onTabSwitch} onAction={onAction} />
     </div>
   );
 }
@@ -801,7 +806,7 @@ function DocumentsTab({ m }: { m: DrawerMember }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Header quick-actions dropdown
 // ─────────────────────────────────────────────────────────────────────────────
-function HeaderActions({ m, onTabSwitch }: { m: DrawerMember; onTabSwitch: (tab: Tab) => void }) {
+function HeaderActions({ m, onAction }: { m: DrawerMember; onAction: (label: string) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -811,12 +816,15 @@ function HeaderActions({ m, onTabSwitch }: { m: DrawerMember; onTabSwitch: (tab:
     return () => document.removeEventListener("mousedown", h);
   }, [open]);
 
+  const suspended = m.status === "SUSPENDED" || m.status === "INACTIVE" || m.status === "BLOCKED";
   const actions = [
     { icon: Eye,        label: "View Profile",   color: "rgba(255,255,255,0.7)" },
     { icon: Pencil,     label: "Edit Member",    color: "rgba(255,255,255,0.7)" },
-    { icon: BadgeCheck, label: "Approve KYC",   color: "#34d399"                },
-    { icon: ShieldX,    label: "Suspend Member",color: "#f87171"                },
-    { icon: KeyRound,   label: "Reset Password",color: "#60a5fa"                },
+    { icon: BadgeCheck, label: "Approve KYC",    color: "#34d399"               },
+    suspended
+      ? { icon: UserCheck, label: "Activate Member", color: "#34d399" }
+      : { icon: ShieldX,   label: "Suspend Member",  color: "#f87171" },
+    { icon: KeyRound,   label: "Reset Password", color: "#60a5fa"               },
     { icon: LogIn,      label: "Login As User",  color: GOLD                    },
     { icon: Trash2,     label: "Delete Member",  color: "#f87171"               },
   ];
@@ -831,7 +839,8 @@ function HeaderActions({ m, onTabSwitch }: { m: DrawerMember; onTabSwitch: (tab:
           {actions.map((a, i) => (
             <div key={a.label}>
               {(i === 2 || i === 5) && <div style={{ height: 1, background: BORDER }} />}
-              <div onClick={() => setOpen(false)} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 13px", cursor: "pointer", color: a.color, fontSize: 12 }}
+              <div onClick={() => { onAction(a.label); setOpen(false); }}
+                style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 13px", cursor: "pointer", color: a.color, fontSize: 12 }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}>
                 <a.icon size={13} style={{ flexShrink: 0 }} />{a.label}
@@ -847,7 +856,7 @@ function HeaderActions({ m, onTabSwitch }: { m: DrawerMember; onTabSwitch: (tab:
 // ─────────────────────────────────────────────────────────────────────────────
 // MemberDrawer — main export
 // ─────────────────────────────────────────────────────────────────────────────
-export default function MemberDrawer({ member, detail, onClose }: { member: DrawerMember | null; detail?: AdminUserDetail | null; onClose: () => void }) {
+export default function MemberDrawer({ member, detail, onClose, onAction }: { member: DrawerMember | null; detail?: AdminUserDetail | null; onClose: () => void; onAction?: (label: string) => void }) {
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
   const visible = !!member;
   const prevId  = useRef<string | null>(null);
@@ -889,7 +898,7 @@ export default function MemberDrawer({ member, detail, onClose }: { member: Draw
                   <div style={{ fontSize: 10, color: MUTED, fontFamily: "monospace" }}>{member.id}</div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  <HeaderActions m={member} onTabSwitch={setActiveTab} />
+                  <HeaderActions m={member} onAction={label => onAction?.(label)} />
                   <button onClick={onClose} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 7, cursor: "pointer", color: MUTED, padding: "6px 8px", display: "flex" }}>
                     <X size={14} />
                   </button>
@@ -941,7 +950,7 @@ export default function MemberDrawer({ member, detail, onClose }: { member: Draw
 
             {/* ── Tab content ──────────────────────────────────────────────── */}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px 28px" }}>
-              {activeTab === "Overview"    && <OverviewTab    m={member} onTabSwitch={setActiveTab} />}
+              {activeTab === "Overview"    && <OverviewTab    m={member} onTabSwitch={setActiveTab} onAction={label => onAction?.(label)} />}
               {activeTab === "Investments" && <InvestmentsTab m={member} detail={detail} />}
               {activeTab === "Wallets"     && <WalletsTab     m={member} />}
               {activeTab === "Network"     && <NetworkTab     m={member} />}

@@ -604,7 +604,9 @@ export default function MembersPage() {
         )}
       </div>
 
-      <MemberDrawer member={drawer} detail={drawerDetail} onClose={closeDrawer} />
+      <MemberDrawer member={drawer} detail={drawerDetail} onClose={closeDrawer}
+        onAction={label => { if (drawer) handleRowAction(drawer, label); }}
+      />
 
       {createOpen && (
         <MemberModal
