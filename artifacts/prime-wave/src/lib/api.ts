@@ -15,7 +15,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let body: unknown;
   try { body = await res.json(); } catch { body = null; }
 
-  if (res.status === 401) {
+  if (res.status === 401 || res.status === 403) {
     fireUnauthorized();
     throw new Error("Session expired. Please sign in again.");
   }

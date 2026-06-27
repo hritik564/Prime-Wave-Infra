@@ -53,10 +53,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const authLogout = useCallback(() => {
+    const wasAdmin = getStoredUser()?.type === "admin";
     clearAuth();
     setTokenState(null);
     setUser(null);
-    navigate("/login");
+    navigate(wasAdmin ? "/admin/login" : "/login");
   }, [navigate]);
 
   useEffect(() => {
