@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   TrendingUp, RefreshCw, Zap, Lock, Plus, X, Wallet, CheckCircle2, Loader2,
+  ChevronDown, Clock,
 } from "lucide-react";
 import { Link } from "wouter";
 import AppLayout from "@/components/layout/AppLayout";
@@ -9,7 +10,7 @@ import InvestmentTabs from "@/components/investments/InvestmentTabs";
 import { Badge } from "@/components/ui/badge";
 import {
   listInvestments, createInvestment, claimRoi, claimPrincipal, toggleAutoCompound,
-  getWallets, type ApiInvestment,
+  getWallets, getInvestmentEarnings, type ApiInvestment, type EarningsEntry,
 } from "@/lib/api";
 
 /* ─── Plan config ─── */
@@ -134,6 +135,22 @@ function InvestmentCard({
   const isCompleted = inv.status === "COMPLETED";
   const isMatured = inv.status === "MATURED";
 
+  const [showHistory, setShowHistory] = useState(false);
+  const [earnings, setEarnings] = useState<EarningsEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+
+  const handleToggleHistory = useCallback(() => {
+    if (!showHistory && !historyLoaded) {
+      setHistoryLoading(true);
+      getInvestmentEarnings(inv.id)
+        .then((r) => { setEarnings(r.data); setHistoryLoaded(true); })
+        .catch(() => {})
+        .finally(() => setHistoryLoading(false));
+    }
+    setShowHistory((h) => !h);
+  }, [showHistory, historyLoaded, inv.id]);
+
   return (
     <div
       className="rounded-2xl overflow-hidden mb-4"
@@ -162,19 +179,53 @@ function InvestmentCard({
       </div>
 
       <div className="p-5 space-y-4">
-        {/* Stat row */}
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: "Invested",   value: fmt(parseFloat(inv.amount)),       color: "rgba(255,255,255,0.9)" },
-            { label: "Claimable",  value: fmt(claimableRoi),                 color: "#34d399" },
-            { label: "Days Left",  value: isCompleted ? "Done" : `${daysRemaining}d`, color: isCompleted ? "#34d399" : "#D4AF37" },
-          ].map((s) => (
-            <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-              <p className="text-[10px] font-medium uppercase tracking-wide mb-1" style={{ color: "rgba(170,179,197,0.5)" }}>{s.label}</p>
-              <p className="text-sm font-bold font-heading" style={{ color: s.color }}>{s.value}</p>
-            </div>
-          ))}
-        </div>
+        {/* Stat row — auto compound shows compounded value instead of claimable */}
+        {inv.autoCompound && !isCompleted && !isMatured ? (
+          (() => {
+            const original  = parseFloat(inv.amount);
+            const current   = parseFloat(inv.currentPrincipal);
+            const gained    = current - original;
+            const gainedPct = original > 0 ? ((gained / original) * 100).toFixed(2) : "0.00";
+            return (
+              <div className="space-y-2">
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: "Original",      value: fmt(original), color: "rgba(255,255,255,0.7)" },
+                    { label: "Current Value", value: fmt(current),  color: "#D4AF37" },
+                    { label: "Days Left",     value: `${daysRemaining}d`, color: "#D4AF37" },
+                  ].map((s) => (
+                    <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                      <p className="text-[10px] font-medium uppercase tracking-wide mb-1" style={{ color: "rgba(170,179,197,0.5)" }}>{s.label}</p>
+                      <p className="text-sm font-bold font-heading" style={{ color: s.color }}>{s.value}</p>
+                    </div>
+                  ))}
+                </div>
+                {gained > 0 && (
+                  <div className="flex items-center justify-center gap-2 rounded-lg px-3 py-2"
+                    style={{ background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.18)" }}>
+                    <RefreshCw className="h-3 w-3 shrink-0" style={{ color: "#D4AF37" }} />
+                    <span className="text-xs font-semibold" style={{ color: "#D4AF37" }}>
+                      +{fmt(gained)} compounded ({gainedPct}% growth)
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })()
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "Invested",   value: fmt(parseFloat(inv.amount)),       color: "rgba(255,255,255,0.9)" },
+              { label: "Claimable",  value: fmt(claimableRoi),                 color: "#34d399" },
+              { label: "Days Left",  value: isCompleted ? "Done" : `${daysRemaining}d`, color: isCompleted ? "#34d399" : "#D4AF37" },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                <p className="text-[10px] font-medium uppercase tracking-wide mb-1" style={{ color: "rgba(170,179,197,0.5)" }}>{s.label}</p>
+                <p className="text-sm font-bold font-heading" style={{ color: s.color }}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Progress bar */}
         <div>
@@ -222,6 +273,83 @@ function InvestmentCard({
                 style={{ background: "#fff", left: inv.autoCompound ? "calc(100% - 22px)" : "2px" }}
               />
             </button>
+          </div>
+        )}
+
+        {/* Compound earnings history — only when autoCompound is ON and plan active */}
+        {inv.autoCompound && !isCompleted && !isMatured && (
+          <div>
+            <button
+              onClick={handleToggleHistory}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg transition-colors duration-200"
+              style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
+            >
+              <div className="flex items-center gap-2">
+                <Clock className="h-3.5 w-3.5" style={{ color: "rgba(170,179,197,0.45)" }} />
+                <span className="text-xs font-medium" style={{ color: "rgba(170,179,197,0.55)" }}>
+                  Compound History
+                </span>
+                {historyLoaded && earnings.length > 0 && (
+                  <span
+                    className="text-[10px] font-bold rounded-full px-1.5 py-0.5"
+                    style={{ background: "rgba(212,175,55,0.12)", color: "#D4AF37" }}
+                  >
+                    {earnings.length}
+                  </span>
+                )}
+              </div>
+              <ChevronDown
+                className="h-3.5 w-3.5 transition-transform duration-200"
+                style={{ color: "rgba(170,179,197,0.35)", transform: showHistory ? "rotate(180deg)" : "rotate(0deg)" }}
+              />
+            </button>
+            {showHistory && (
+              <div
+                className="mt-1.5 rounded-xl overflow-hidden"
+                style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
+              >
+                {historyLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="h-4 w-4 animate-spin" style={{ color: "#D4AF37" }} />
+                  </div>
+                ) : earnings.length === 0 ? (
+                  <div className="py-6 text-center">
+                    <p className="text-xs" style={{ color: "rgba(170,179,197,0.4)" }}>No compound entries yet</p>
+                  </div>
+                ) : (
+                  <>
+                    {earnings.slice(0, 10).map((e, i) => (
+                      <div
+                        key={e.id}
+                        className="flex items-center justify-between px-3 py-2.5"
+                        style={{ borderBottom: i < Math.min(earnings.length, 10) - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}
+                      >
+                        <div>
+                          <p className="text-xs font-semibold" style={{ color: "#D4AF37" }}>
+                            +{fmt(parseFloat(e.amount))}
+                          </p>
+                          <p className="text-[10px] mt-0.5" style={{ color: "rgba(170,179,197,0.45)" }}>
+                            {new Date(e.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            {" · "}{fmt(parseFloat(e.principalSnapshot))} principal
+                          </p>
+                        </div>
+                        <span
+                          className="text-[10px] font-semibold px-2 py-1 rounded-md shrink-0"
+                          style={{ background: "rgba(212,175,55,0.08)", color: "rgba(212,175,55,0.65)" }}
+                        >
+                          {parseFloat(e.dailyROIApplied).toFixed(2)}% daily
+                        </span>
+                      </div>
+                    ))}
+                    {earnings.length > 10 && (
+                      <p className="px-3 py-2 text-[10px] text-center" style={{ color: "rgba(170,179,197,0.35)" }}>
+                        +{earnings.length - 10} more entries
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 

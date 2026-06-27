@@ -999,7 +999,7 @@ export default function NetworkIntelligencePage() {
         {/* ── BINARY TREE ───────────────────────────────────────────────────── */}
         <Section title="Binary Tree" icon={<GitBranch style={{ width: 15, height: 15, color: GOLD }} />}>
           <div className="rounded-2xl overflow-hidden"
-            style={{ height: 480, background: "hsl(221 59% 9%)", border: "1px solid hsl(var(--border))", position: "relative" }}>
+            style={{ height: "clamp(340px, 55vh, 580px)", background: "hsl(221 59% 9%)", border: "1px solid hsl(var(--border))", position: "relative" }}>
             {loading
               ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", flexDirection: "column", gap: 12 }}>
                   <div className="animate-spin h-8 w-8 rounded-full"
@@ -1013,12 +1013,17 @@ export default function NetworkIntelligencePage() {
                   nodeTypes={nodeTypes}
                   colorMode="dark"
                   fitView
-                  fitViewOptions={{ padding: 0.28 }}
-                  minZoom={0.2}
+                  fitViewOptions={{ padding: 0.2 }}
+                  minZoom={0.1}
                   maxZoom={3}
                   nodesDraggable={false}
                   nodesConnectable={false}
                   elementsSelectable={false}
+                  panOnScroll={false}
+                  panOnDrag={true}
+                  zoomOnPinch={true}
+                  zoomOnScroll={true}
+                  zoomOnDoubleClick={false}
                   onNodeClick={(_, node) => {
                     if (node.type !== "emptySlot") handleNodeSelect(node.data as TreeNodeData);
                   }}
@@ -1040,7 +1045,7 @@ export default function NetworkIntelligencePage() {
             }
           </div>
           <p className="mt-2 text-xs text-center" style={{ color: "rgba(170,179,197,0.35)" }}>
-            Click a card to open member profile
+            Tap a card to view · Pinch to zoom · Drag to pan
           </p>
         </Section>
 

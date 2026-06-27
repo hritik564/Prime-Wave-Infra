@@ -1,0 +1,344 @@
+# Sprint 22 — Phase C: User Experience, Auto Compound & Mobile Completion
+
+Objective
+
+Complete the remaining user-facing functional issues while preserving all previously locked Prime Wave business rules.
+
+This sprint focuses on:
+
+• Auto Compound Visualization
+• Mobile Binary Tree
+• Mobile Responsiveness
+• User Dashboard Consistency
+
+Do NOT modify:
+
+• Binary calculations
+
+• ROI calculations
+
+• Wallet business rules
+
+• Active/Inactive eligibility
+
+• Referral system
+
+--------------------------------------------------------
+PART 1 — Auto Compound Dashboard
+--------------------------------------------------------
+
+Current Situation
+
+The backend Auto Compound calculation works correctly.
+
+However, the user dashboard does not properly visualize the compounding process.
+
+Improve the frontend.
+
+--------------------------------------------------------
+
+When Auto Compound is ENABLED
+
+Display:
+
+Current Compounded Principal
+
+Current ROI %
+
+Next ROI Amount
+
+Next ROI Time
+
+Lifetime Auto Compounded
+
+Current Cycle Return
+
+--------------------------------------------------------
+
+Investment Card
+
+Instead of showing only:
+
+Invested Amount
+
+display:
+
+Original Investment
+
+Current Compounded Value
+
+Total ROI Earned
+
+Current ROI Cycle
+
+Auto Compound Status
+
+--------------------------------------------------------
+
+Auto Compound History
+
+Create a history section.
+
+Each cycle should display:
+
+Date
+
+ROI Generated
+
+Amount Compounded
+
+Principal Before
+
+Principal After
+
+Next Cycle ROI
+
+Example
+
+12 Jun
+
+ROI +$25
+
+Compounded
+
+Principal
+
+$1000
+
+↓
+
+$1025
+
+Next ROI
+
+$25.62
+
+--------------------------------------------------------
+
+Dashboard
+
+Whenever Auto Compound runs,
+
+the dashboard must immediately reflect:
+
+Updated Principal
+
+Updated ROI
+
+Updated Investment Value
+
+Next Cycle Projection
+
+--------------------------------------------------------
+PART 2 — Mobile Binary Tree
+--------------------------------------------------------
+
+Current Issue
+
+Binary Tree does not appear on mobile.
+
+Fix this.
+
+The Binary Tree must work on:
+
+Phones
+
+Tablets
+
+Desktop
+
+--------------------------------------------------------
+
+Requirements
+
+Support:
+
+Pinch to Zoom
+
+Pan
+
+Tap Member Card
+
+Open Member Drawer
+
+Fit View
+
+Zoom Controls
+
+Reset View
+
+No horizontal layout breaking.
+
+--------------------------------------------------------
+
+Performance
+
+Do not rebuild the entire tree while interacting.
+
+Maintain current optimized rendering.
+
+--------------------------------------------------------
+PART 3 — Mobile Dashboard Optimization
+--------------------------------------------------------
+
+Review every page in the User Dashboard.
+
+Fix responsive issues.
+
+--------------------------------------------------------
+
+Dashboard
+
+Cards stack correctly.
+
+Charts resize correctly.
+
+No clipped text.
+
+--------------------------------------------------------
+
+Wallets
+
+Cards responsive.
+
+History responsive.
+
+Buttons responsive.
+
+--------------------------------------------------------
+
+Investments
+
+Cards responsive.
+
+History responsive.
+
+Auto Compound section responsive.
+
+--------------------------------------------------------
+
+Income Wallet
+
+Transfer progress responsive.
+
+72-hour queue responsive.
+
+History responsive.
+
+--------------------------------------------------------
+
+Withdrawal Wallet
+
+Responsive request flow.
+
+Responsive history.
+
+Responsive address display.
+
+--------------------------------------------------------
+
+Referral Page
+
+Left Referral Card
+
+Right Referral Card
+
+Copy buttons
+
+Share buttons
+
+Must display correctly on mobile.
+
+--------------------------------------------------------
+
+Binary Tree
+
+Fully usable.
+
+--------------------------------------------------------
+PART 4 — Dashboard Data Consistency
+--------------------------------------------------------
+
+Verify every dashboard widget.
+
+All values must originate from the same backend source.
+
+Portfolio
+
+Investment
+
+ROI
+
+Wallet Balances
+
+History
+
+Performance Charts
+
+No inconsistent numbers.
+
+--------------------------------------------------------
+PART 5 — UI Polish
+--------------------------------------------------------
+
+Review:
+
+Spacing
+
+Alignment
+
+Typography
+
+Loading States
+
+Empty States
+
+Error States
+
+Success Toasts
+
+Button Sizes
+
+Icon Alignment
+
+Animation Consistency
+
+Maintain Prime Wave design language.
+
+--------------------------------------------------------
+PART 6 — Validation
+--------------------------------------------------------
+
+Verify:
+
+✓ Auto Compound history updates correctly.
+
+✓ Investment value grows after compounding.
+
+✓ Next ROI updates correctly.
+
+✓ Binary Tree visible on mobile.
+
+✓ Binary Tree fully interactive.
+
+✓ Dashboard responsive.
+
+✓ Wallets responsive.
+
+✓ Referral page responsive.
+
+✓ Transfer progress responsive.
+
+✓ Charts responsive.
+
+✓ Portfolio values remain consistent.
+
+✓ No console errors.
+
+✓ No broken layouts.
+
+✓ Existing business rules remain unchanged.
+
+Goal
+
+Complete the final user-facing polish so the Prime Wave member dashboard is fully functional, mobile-friendly and production-ready while preserving all financial and business logic implemented in previous sprints.

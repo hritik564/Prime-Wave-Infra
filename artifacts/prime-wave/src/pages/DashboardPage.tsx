@@ -13,6 +13,7 @@ import {
   PiggyBank, Banknote, TrendingUp, GitBranch, Globe, Layers3,
   Clock, CheckCircle, DollarSign,
 } from "lucide-react";
+import { Link } from "wouter";
 import { useAuth } from "@/providers/AuthProvider";
 import { getProfile, listInvestments, getWalletHistory, getActiveStatus, type ProfileData, type ApiInvestment, type Transaction, type ActiveStatus } from "@/lib/api";
 
@@ -69,7 +70,7 @@ const TX_TYPE_POSITIVE: Record<string, boolean> = {
 const quickActions = [
   { label: "New Deposit",    icon: ArrowDownToLine, primary: true,  href: "/wallets/deposit"    },
   { label: "Withdraw Funds", icon: ArrowUpFromLine, primary: false, href: "/wallets/withdrawal" },
-  { label: "Binary Tree",    icon: GitFork,         primary: false, href: "/binary-tree"        },
+  { label: "My Network",     icon: GitFork,         primary: false, href: "/team"               },
   { label: "Notifications",  icon: Bell,            primary: false, href: "/notifications"      },
 ];
 
@@ -259,21 +260,32 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {quickActions.map((action) => {
                   const Icon = action.icon;
-                  const isNewDeposit = action.label === "New Deposit";
+                  const sharedClass = "flex items-center justify-center gap-2.5 rounded-xl font-semibold text-sm transition-all duration-200 active:scale-[0.97] min-h-[52px]";
+                  const primaryStyle = { background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)", color: "#0E1B37", border: "none", boxShadow: "0 4px 16px rgba(212,175,55,0.3)" };
+                  const secondaryStyle = { background: "hsl(var(--card))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" };
+                  if (action.label === "New Deposit") {
+                    return (
+                      <button
+                        key={action.label}
+                        onClick={() => setDepositOpen(true)}
+                        className={sharedClass}
+                        style={primaryStyle}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span>{action.label}</span>
+                      </button>
+                    );
+                  }
                   return (
-                    <button
+                    <Link
                       key={action.label}
-                      onClick={isNewDeposit ? () => setDepositOpen(true) : undefined}
-                      className="flex items-center justify-center gap-2.5 rounded-xl font-semibold text-sm transition-all duration-200 active:scale-[0.97] min-h-[52px]"
-                      style={
-                        action.primary
-                          ? { background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)", color: "#0E1B37", border: "none", boxShadow: "0 4px 16px rgba(212,175,55,0.3)" }
-                          : { background: "hsl(var(--card))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }
-                      }
+                      href={action.href}
+                      className={sharedClass}
+                      style={secondaryStyle}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
                       <span>{action.label}</span>
-                    </button>
+                    </Link>
                   );
                 })}
               </div>
