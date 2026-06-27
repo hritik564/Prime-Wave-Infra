@@ -1,17 +1,16 @@
 /**
  * Sprint 23B — Development Seed Dataset
  *
- * POST /api/dev/seed/23b      — idempotent: creates 63 users in a perfect binary tree
- *                               (levels 0-5, root=RD2), each with a $100 approved deposit
- *                               and a $100 PLAN_360 investment. Returns full JSON summary.
- *
- * GET  /api/dev/seed/23b/export — streams seed-users.xlsx for download
+ * DELETE /api/dev/seed/23b       — wipe all rd2* seed users, reset master to clean state
+ * POST   /api/dev/seed/23b       — 63-account perfect binary tree:
+ *                                  master = Level 0, RD2L/RD2R = Level 1, …, 32 leaves = Level 5
+ * GET    /api/dev/seed/23b/export — streams seed-users.xlsx
  *
  * Security: SUPER_ADMIN only (enforced by parent devRouter).
  */
 
 import { Router } from "express";
-import * as XLSX  from "xlsx";
+import * as XLSX from "xlsx";
 import { prisma } from "../config/prisma";
 import { registerUser } from "../auth/auth.service";
 import { createDepositRequest } from "../deposits/deposits.service";
@@ -26,29 +25,35 @@ const seedRouter = Router();
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const SEED_PASSWORD    = "RDprimewave@321!";
-const SEED_PLAN        = "PLAN_360" as const;
-const SEED_AMOUNT      = 100;
-const SEED_NETWORK     = "BEP20" as const;
-const COMPANY_WALLET   = "0xSEED23BTestCompanyWallet";
-const MASTER_REF_CODE  = "MASTERROOT";
+const SEED_PASSWORD  = "RDprimewave@321!";
+const SEED_PLAN      = "PLAN_360" as const;
+const SEED_AMOUNT    = 100;
+const SEED_NETWORK   = "BEP20" as const;
+const COMPANY_WALLET = "0xSEED23BTestCompanyWallet";
+const MASTER_USERNAME = "master";
 
 // ── Tree helpers ───────────────────────────────────────────────────────────────
 
 interface TreeNode {
   index:       number;
-  username:    string;          // "RD2", "RD2L", "RD2LL", …
+  username:    string;          // "RD2" (virtual/master prefix) | "RD2L" | "RD2LL" …
   parentIndex: number | null;
   position:    "LEFT" | "RIGHT" | null;
-  level:       number;
-  leg:         "L" | "R";      // leg used at registration (root defaults "L")
+  level:       number;          // 0 = master, 1-5 = seed users
+  leg:         "L" | "R" | null;
+  isNew:       boolean;         // false = master placeholder; true = register new user
 }
 
 /**
- * Build a BFS-ordered, 63-node perfect binary tree rooted at "RD2".
+ * 63-node BFS tree.
+ *   Node 0  = virtual master placeholder (username prefix "RD2"; NOT created — master already exists).
+ *   Nodes 1-62 = new accounts to register.
  *
- * Index i → left child at 2i+1, right child at 2i+2.
- * Left child always has an odd index; right child always has an even index > 0.
+ * Username derivation: child = parent.username + ("L" | "R")
+ *   → RD2L, RD2R, RD2LL, RD2LR, RD2RL, RD2RR, …
+ *
+ * Level formula: floor(log2(i + 1))
+ *   i=0 → 0 (master), i=1,2 → 1, i=3..6 → 2, …, i=31..62 → 5
  */
 function buildTree(): TreeNode[] {
   const nodes: TreeNode[] = [];
@@ -59,48 +64,42 @@ function buildTree(): TreeNode[] {
     const position    = i === 0
       ? null
       : (i % 2 === 1 ? "LEFT" : "RIGHT") as "LEFT" | "RIGHT";
-    const leg: "L" | "R" = position === "RIGHT" ? "R" : "L";  // root → "L"
+    const leg         = position === null ? null : (position === "LEFT" ? "L" : "R");
 
     const username = i === 0
       ? "RD2"
       : nodes[parentIndex!].username + (position === "LEFT" ? "L" : "R");
 
-    nodes.push({ index: i, username, parentIndex, position, level, leg });
+    nodes.push({ index: i, username, parentIndex, position, level, leg, isNew: i > 0 });
   }
 
   return nodes;
 }
 
-/** Deterministic, valid Indian mobile number (+91 + 10 digits). */
+/** Deterministic Indian mobile number (+91 + 10 digits, no repeats for i = 0..999). */
 function indianPhone(i: number): string {
-  const firstDigit = 6 + (i % 4);              // 6, 7, 8, or 9
-  const body       = String(100_000_000 + i * 1_579).slice(1); // 8 deterministic digits
+  const firstDigit = 6 + (i % 4);
+  const body       = String(100_000_000 + i * 1_579).slice(1);
   return `+91${firstDigit}${body}`;
 }
 
-/** Unique fake txHash — safe to call for any index. */
-function fakeTxHash(i: number): string {
+/** Unique deterministic-ish fake txHash per slot. */
+function fakeTxHash(slot: number): string {
   const rand = Math.floor(Math.random() * 0xffff_ffff).toString(16).padStart(8, "0");
-  return `0x23bseed${i.toString(16).padStart(4, "0")}${rand}`;
+  return `0x23bseed${slot.toString(16).padStart(4, "0")}${rand}`;
 }
 
-/** Return SUPER_ADMIN id — used for deposit approval. */
+/** Look up SUPER_ADMIN id (needed for deposit approval). */
 async function getAdminId(): Promise<string> {
   const admin = await prisma.admin.findFirst({
     where:  { role: "SUPER_ADMIN" },
     select: { id: true },
   });
-  if (!admin) {
-    throw new AppError(
-      "No SUPER_ADMIN found — seed one first",
-      HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      "NO_ADMIN",
-    );
-  }
+  if (!admin) throw new AppError("No SUPER_ADMIN found", HTTP_STATUS.INTERNAL_SERVER_ERROR, "NO_ADMIN");
   return admin.id;
 }
 
-// ── Result row shape ───────────────────────────────────────────────────────────
+// ── Seed row shape ─────────────────────────────────────────────────────────────
 
 interface SeedRow {
   index:               number;
@@ -122,49 +121,247 @@ interface SeedRow {
   status:              string;
 }
 
+// ── DELETE /api/dev/seed/23b ────────────────────────────────────────────────────
+
+seedRouter.delete("/23b", async (_req, res, next) => {
+  try {
+    logger.info("Seed 23B DELETE: starting — wipe rd2* users and reset master");
+
+    const master = await prisma.user.findFirst({
+      where:  { username: MASTER_USERNAME },
+      select: { id: true },
+    });
+    if (!master) throw new AppError("Master user not found", HTTP_STATUS.NOT_FOUND, "NO_MASTER");
+
+    const seedUsers = await prisma.user.findMany({
+      where:  { username: { startsWith: "rd2" } },
+      select: { id: true },
+    });
+    const seedIds = seedUsers.map(u => u.id);
+    logger.info({ count: seedIds.length }, "Seed 23B DELETE: seed users found");
+
+    if (seedIds.length > 0) {
+      // 1. IncomeTransferRelease → IncomeTransfer
+      const transfers = await prisma.incomeTransfer.findMany({
+        where:  { userId: { in: seedIds } },
+        select: { id: true },
+      });
+      if (transfers.length > 0) {
+        await prisma.incomeTransferRelease.deleteMany({
+          where: { transferId: { in: transfers.map(t => t.id) } },
+        });
+      }
+      await prisma.incomeTransfer.deleteMany({ where: { userId: { in: seedIds } } });
+
+      // 2. Salary
+      await prisma.salaryIncome.deleteMany({ where: { userId: { in: seedIds } } });
+      await prisma.salaryAchievement.deleteMany({ where: { userId: { in: seedIds } } });
+
+      // 3. Binary income
+      await prisma.binaryOrbitIncome.deleteMany({ where: { userId: { in: seedIds } } });
+      await prisma.binaryMatchIncome.deleteMany({ where: { userId: { in: seedIds } } });
+
+      // 4. BV ledgers (seed user as ancestor OR as investor)
+      const bvOr = [{ userId: { in: seedIds } }, { investorId: { in: seedIds } }];
+      await prisma.bvHistory.deleteMany({ where: { OR: bvOr } });
+      await prisma.matchBvLedger.deleteMany({ where: { OR: bvOr } });
+      await prisma.orbitBvLedger.deleteMany({ where: { OR: bvOr } });
+      await prisma.salaryBvLedger.deleteMany({ where: { OR: bvOr } });
+
+      // 5. Level income (seed user as receiver OR as source)
+      await prisma.levelIncome.deleteMany({
+        where: { OR: [{ receiverUserId: { in: seedIds } }, { sourceUserId: { in: seedIds } }] },
+      });
+
+      // 6. ROI ledger
+      await prisma.roiLedger.deleteMany({ where: { userId: { in: seedIds } } });
+
+      // 7. Wallet transactions for seed users
+      await prisma.walletTransaction.deleteMany({ where: { userId: { in: seedIds } } });
+
+      // 8. Investments / Deposits / Withdrawals
+      await prisma.investment.deleteMany({ where: { userId: { in: seedIds } } });
+      await prisma.depositRequest.deleteMany({ where: { userId: { in: seedIds } } });
+      await prisma.withdrawalRequest.deleteMany({ where: { userId: { in: seedIds } } });
+
+      // 9. Referral history (seed user as child OR as sponsor)
+      await prisma.referralHistory.deleteMany({
+        where: { OR: [{ userId: { in: seedIds } }, { sponsorId: { in: seedIds } }] },
+      });
+
+      // 10. Delete seed users (Wallet cascades via Cascade FK)
+      await prisma.user.deleteMany({ where: { id: { in: seedIds } } });
+
+      logger.info({ count: seedIds.length }, "Seed 23B DELETE: seed users removed");
+    }
+
+    // 11. Purge master's wallet transactions (all were generated by seed level income / deposits)
+    await prisma.walletTransaction.deleteMany({ where: { userId: master.id } });
+
+    // 12. Purge master's deposits and investments created by seed
+    await prisma.roiLedger.deleteMany({ where: { userId: master.id } });
+    await prisma.investment.deleteMany({ where: { userId: master.id } });
+    await prisma.depositRequest.deleteMany({ where: { userId: master.id } });
+
+    // 13. Reset master binary-tree cache and wallet balances
+    await prisma.user.update({
+      where: { id: master.id },
+      data: {
+        leftBV:              0,
+        rightBV:             0,
+        leftDeepestNodeId:   null,
+        rightDeepestNodeId:  null,
+        directLeftCount:     0,
+        directRightCount:    0,
+        directReferralCount: 0,
+      },
+    });
+
+    await prisma.wallet.update({
+      where: { userId: master.id },
+      data: {
+        depositWallet:          0,
+        incomeWallet:           0,
+        withdrawalWallet:       0,
+        lockedWithdrawalBalance:0,
+      },
+    });
+
+    // 14. Purge master level income records (received from seed users)
+    await prisma.levelIncome.deleteMany({ where: { receiverUserId: master.id } });
+
+    // 15. Purge master BV entries (as ancestor whose legs received BV from seed investments)
+    await prisma.bvHistory.deleteMany({ where: { userId: master.id } });
+    await prisma.matchBvLedger.deleteMany({ where: { userId: master.id } });
+    await prisma.orbitBvLedger.deleteMany({ where: { userId: master.id } });
+    await prisma.salaryBvLedger.deleteMany({ where: { userId: master.id } });
+
+    logger.info("Seed 23B DELETE: master reset complete");
+
+    sendSuccess(res, {
+      message: "Sprint 23B seed deleted — system restored to clean pre-seed state",
+      deleted: { seedUsersDeleted: seedIds.length, masterReset: true },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── POST /api/dev/seed/23b ─────────────────────────────────────────────────────
 
 seedRouter.post("/23b", async (_req, res, next) => {
   try {
-    logger.info("Seed 23B: starting — 63 accounts, BFS order");
+    logger.info("Seed 23B POST: starting — master = Level 0, 62 new users at levels 1–5");
 
     const nodes   = buildTree();
     const adminId = await getAdminId();
 
-    const idByIndex:   Record<number, string> = {};   // index → userId
-    const codeByIndex: Record<number, string> = {};   // index → referralCode
+    // Load master — it is node 0 (virtual "RD2" prefix for naming, not created again)
+    const masterUser = await prisma.user.findFirst({
+      where:  { username: MASTER_USERNAME },
+      select: { id: true, referralCode: true, wallet: { select: { id: true } } },
+    });
+    if (!masterUser) throw new AppError("Master user not found", HTTP_STATUS.NOT_FOUND, "NO_MASTER");
+
+    // Track IDs and referral codes by tree index; node 0 = master
+    const idByIndex:   Record<number, string> = { 0: masterUser.id };
+    const codeByIndex: Record<number, string> = { 0: masterUser.referralCode };
 
     const rows: SeedRow[] = [];
 
-    for (let i = 0; i < nodes.length; i++) {
+    // ── Node 0: master — deposit + investment ──────────────────────────────────
+    {
+      const walletId = masterUser.wallet!.id;
+
+      const existingDep = await prisma.depositRequest.findFirst({
+        where:   { userId: masterUser.id, status: "APPROVED" },
+        select:  { id: true },
+        orderBy: { createdAt: "desc" },
+      });
+      let masterDepositId: string;
+      if (existingDep) {
+        masterDepositId = existingDep.id;
+      } else {
+        const dep = await createDepositRequest(masterUser.id, {
+          amount:        SEED_AMOUNT,
+          network:       SEED_NETWORK,
+          txHash:        fakeTxHash(0),
+          companyWallet: COMPANY_WALLET,
+        });
+        await approveDeposit(adminId, dep.id);
+        masterDepositId = dep.id;
+        logger.info("Seed 23B: master deposit created & approved");
+      }
+
+      const existingInv = await prisma.investment.findFirst({
+        where:   { userId: masterUser.id, status: { in: ["ACTIVE", "MATURED"] } },
+        select:  { id: true, planType: true },
+        orderBy: { createdAt: "desc" },
+      });
+      let masterInvId: string;
+      let masterPlanType: string;
+      if (existingInv) {
+        masterInvId    = existingInv.id;
+        masterPlanType = existingInv.planType;
+      } else {
+        const inv = await createInvestment(masterUser.id, {
+          amount:       SEED_AMOUNT,
+          planType:     SEED_PLAN,
+          autoCompound: false,
+        });
+        masterInvId    = inv.id;
+        masterPlanType = inv.planType;
+        logger.info("Seed 23B: master investment created");
+      }
+
+      rows.push({
+        index:               0,
+        level:               0,
+        username:            "MASTER",
+        email:               "master@primewave.live",
+        password:            "Master@PrimeWave2025!",
+        phone:               "",
+        country:             "India",
+        userId:              masterUser.id,
+        referralCode:        masterUser.referralCode,
+        sponsorUsername:     "—",
+        binaryParentUsername:"—",
+        placement:           "ROOT",
+        walletId,
+        depositId:           masterDepositId,
+        investmentId:        masterInvId,
+        planType:            masterPlanType,
+        status:              "ACTIVE",
+      });
+    }
+
+    // ── Nodes 1-62: new seed users ─────────────────────────────────────────────
+    for (let i = 1; i < nodes.length; i++) {
       const node       = nodes[i];
       const usernameLC = node.username.toLowerCase();
       const email      = `${usernameLC}@primewave.live`;
       const phone      = indianPhone(i);
 
-      // ── 1. Register (or load existing) user ───────────────────────────────
+      // Sponsor = parent node's referral code;
+      // parentIndex 0 = master → use master's actual referralCode from DB
+      const sponsorCode = codeByIndex[node.parentIndex!];
 
+      // ── Register (or resume if already exists) ────────────────────────────
       let userId: string;
       let referralCode: string;
       let walletId: string;
 
       const existing = await prisma.user.findFirst({
         where:  { username: usernameLC },
-        select: {
-          id:           true,
-          referralCode: true,
-          wallet:       { select: { id: true } },
-        },
+        select: { id: true, referralCode: true, wallet: { select: { id: true } } },
       });
 
       if (existing) {
         userId       = existing.id;
         referralCode = existing.referralCode;
         walletId     = existing.wallet!.id;
-        logger.info({ username: usernameLC }, "Seed 23B: user exists — skipping registration");
+        logger.info({ username: usernameLC }, "Seed 23B: user already exists — skipping");
       } else {
-        const sponsorCode = i === 0 ? MASTER_REF_CODE : codeByIndex[node.parentIndex!];
-
         const { user } = await registerUser({
           email,
           username:     node.username,
@@ -173,7 +370,7 @@ seedRouter.post("/23b", async (_req, res, next) => {
           lastName:     "Seed",
           phone,
           referralCode: sponsorCode,
-          leg:          node.leg,
+          leg:          node.leg!,
         });
 
         userId       = user.id;
@@ -185,25 +382,26 @@ seedRouter.post("/23b", async (_req, res, next) => {
         });
         walletId = w!.id;
 
-        logger.info({ username: usernameLC, userId }, "Seed 23B: user created");
+        // Level 5 = leaf nodes (no downline) → INACTIVE per Prime Wave rules
+        if (node.level === 5) {
+          await prisma.user.update({ where: { id: userId }, data: { status: "INACTIVE" } });
+        }
+
+        logger.info({ username: usernameLC, userId, level: node.level }, "Seed 23B: user created");
       }
 
       idByIndex[i]   = userId;
       codeByIndex[i] = referralCode;
 
-      // ── 2. Deposit — create + approve if none exists ──────────────────────
-
-      const approvedDep = await prisma.depositRequest.findFirst({
-        where:  { userId, status: "APPROVED" },
-        select: { id: true },
+      // ── Deposit ───────────────────────────────────────────────────────────
+      const existingDep = await prisma.depositRequest.findFirst({
+        where:   { userId, status: "APPROVED" },
+        select:  { id: true },
         orderBy: { createdAt: "desc" },
       });
-
       let depositId: string;
-
-      if (approvedDep) {
-        depositId = approvedDep.id;
-        logger.info({ username: usernameLC }, "Seed 23B: approved deposit exists — skipping");
+      if (existingDep) {
+        depositId = existingDep.id;
       } else {
         const dep = await createDepositRequest(userId, {
           amount:        SEED_AMOUNT,
@@ -211,51 +409,36 @@ seedRouter.post("/23b", async (_req, res, next) => {
           txHash:        fakeTxHash(i),
           companyWallet: COMPANY_WALLET,
         });
-
         await approveDeposit(adminId, dep.id);
         depositId = dep.id;
-
-        logger.info({ username: usernameLC, depositId }, "Seed 23B: deposit created & approved");
       }
 
-      // ── 3. Investment — create if none exists ─────────────────────────────
-
+      // ── Investment ────────────────────────────────────────────────────────
       const existingInv = await prisma.investment.findFirst({
         where:   { userId, status: { in: ["ACTIVE", "MATURED"] } },
         select:  { id: true, planType: true },
         orderBy: { createdAt: "desc" },
       });
-
       let investmentId: string;
       let planType: string;
-
       if (existingInv) {
         investmentId = existingInv.id;
         planType     = existingInv.planType;
-        logger.info({ username: usernameLC }, "Seed 23B: investment exists — skipping");
       } else {
         const inv = await createInvestment(userId, {
           amount:       SEED_AMOUNT,
           planType:     SEED_PLAN,
           autoCompound: false,
         });
-
         investmentId = inv.id;
         planType     = inv.planType;
-
-        logger.info({ username: usernameLC, investmentId }, "Seed 23B: investment created");
       }
 
-      // ── 4. Collect result row ─────────────────────────────────────────────
-
-      const sponsorUsername = i === 0
-        ? "master"
-        : nodes[node.parentIndex!].username;
-
+      // ── Build result row ──────────────────────────────────────────────────
+      // Sponsor display: parent index 0 = master (real user, not "RD2")
+      const sponsorUsername =
+        node.parentIndex === 0 ? "MASTER" : nodes[node.parentIndex!].username;
       const binaryParentUsername = sponsorUsername;
-
-      // Level 5 = leaf nodes, no downline → INACTIVE per Prime Wave rules
-      const status = node.level === 5 ? "INACTIVE" : "ACTIVE";
 
       rows.push({
         index:               i,
@@ -269,34 +452,34 @@ seedRouter.post("/23b", async (_req, res, next) => {
         referralCode,
         sponsorUsername,
         binaryParentUsername,
-        placement:           node.position ?? "ROOT",
+        placement:           node.position!,
         walletId,
         depositId,
         investmentId,
         planType,
-        status,
+        status:              node.level === 5 ? "INACTIVE" : "ACTIVE",
       });
     }
 
     const activeCount   = rows.filter(r => r.status === "ACTIVE").length;
     const inactiveCount = rows.filter(r => r.status === "INACTIVE").length;
 
-    logger.info(
-      { total: rows.length, activeCount, inactiveCount },
-      "Seed 23B: complete",
-    );
+    logger.info({ total: rows.length, activeCount, inactiveCount }, "Seed 23B POST: complete");
 
     sendSuccess(res, {
-      message: "Sprint 23B seed complete — dataset ready for end-to-end testing",
+      message:
+        "Sprint 23B seed complete — perfect binary tree. " +
+        "Master = Level 0 → RD2L (LEFT) + RD2R (RIGHT) at Level 1.",
       summary: {
-        totalAccounts:      rows.length,
-        totalDeposits:      rows.length,
-        totalInvestments:   rows.length,
-        totalDepositValue:  `$${rows.length * SEED_AMOUNT}`,
-        totalInvestValue:   `$${rows.length * SEED_AMOUNT}`,
-        activeMembers:      activeCount,
-        inactiveMembers:    inactiveCount,
-        exportUrl:          "/api/dev/seed/23b/export",
+        totalAccounts:     rows.length,
+        totalDeposits:     rows.length,
+        totalInvestments:  rows.length,
+        totalDepositValue: `$${rows.length * SEED_AMOUNT}`,
+        totalInvestValue:  `$${rows.length * SEED_AMOUNT}`,
+        activeMembers:     activeCount,
+        inactiveMembers:   inactiveCount,
+        treeRoot:          "master → RD2L (LEFT), RD2R (RIGHT)",
+        exportUrl:         "/api/dev/seed/23b/export",
       },
       rows,
     });
@@ -309,103 +492,124 @@ seedRouter.post("/23b", async (_req, res, next) => {
 
 seedRouter.get("/23b/export", async (_req, res, next) => {
   try {
-    // Fetch all RD2* users with their latest active investment and approved deposit
-    const users = await prisma.user.findMany({
-      where: { username: { startsWith: "rd2" } },
-      orderBy: { createdAt: "asc" },
-      select: {
-        id:           true,
-        username:     true,
-        email:        true,
-        phone:        true,
-        referralCode: true,
-        status:       true,
-        sponsorId:    true,
-        binaryParentId: true,
-        position:     true,
-        wallet: {
-          select: { id: true, depositWallet: true, incomeWallet: true, withdrawalWallet: true },
+    const [masterUser, seedUsers] = await Promise.all([
+      prisma.user.findFirst({
+        where:  { username: MASTER_USERNAME },
+        select: {
+          id: true, username: true, email: true, phone: true,
+          referralCode: true, status: true, position: true,
+          wallet: {
+            select: { id: true, depositWallet: true, incomeWallet: true, withdrawalWallet: true },
+          },
+          investments: {
+            where: { status: { in: ["ACTIVE", "MATURED"] } },
+            orderBy: { createdAt: "desc" }, take: 1,
+            select: { id: true, planType: true, amount: true, status: true, startedAt: true, maturesAt: true },
+          },
+          depositRequests: {
+            where: { status: "APPROVED" },
+            orderBy: { createdAt: "desc" }, take: 1,
+            select: { id: true, amount: true, status: true, approvedAt: true },
+          },
         },
-        investments: {
-          where:   { status: { in: ["ACTIVE", "MATURED"] } },
-          orderBy: { createdAt: "desc" },
-          take:    1,
-          select:  { id: true, planType: true, amount: true, status: true, startedAt: true, maturesAt: true },
+      }),
+      prisma.user.findMany({
+        where:   { username: { startsWith: "rd2" } },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true, username: true, email: true, phone: true,
+          referralCode: true, status: true, position: true,
+          wallet: {
+            select: { id: true, depositWallet: true, incomeWallet: true, withdrawalWallet: true },
+          },
+          investments: {
+            where: { status: { in: ["ACTIVE", "MATURED"] } },
+            orderBy: { createdAt: "desc" }, take: 1,
+            select: { id: true, planType: true, amount: true, status: true, startedAt: true, maturesAt: true },
+          },
+          depositRequests: {
+            where: { status: "APPROVED" },
+            orderBy: { createdAt: "desc" }, take: 1,
+            select: { id: true, amount: true, status: true, approvedAt: true },
+          },
+          sponsor:      { select: { username: true } },
+          binaryParent: { select: { username: true } },
         },
-        depositRequests: {
-          where:   { status: "APPROVED" },
-          orderBy: { createdAt: "desc" },
-          take:    1,
-          select:  { id: true, amount: true, status: true, approvedAt: true },
-        },
-        sponsor: { select: { username: true } },
-        binaryParent: { select: { username: true } },
-      },
-    });
+      }),
+    ]);
 
-    if (users.length === 0) {
+    if (!masterUser && seedUsers.length === 0) {
       throw new AppError(
-        "No seed users found. Run POST /api/dev/seed/23b first.",
+        "No seed data found. Run POST /api/dev/seed/23b first.",
         HTTP_STATUS.NOT_FOUND,
         "NOT_SEEDED",
       );
     }
 
-    // Compute level from username length: "RD2" → 0, "RD2L" → 1, …
-    const sheetData = users.map(u => {
-      const inv  = u.investments[0];
-      const dep  = u.depositRequests[0];
-      const level = u.username.length - 3;  // "rd2" prefix = 3 chars
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const buildRow = (u: any, level: number, sponsorName: string, binaryParentName: string) => {
+      const inv = u.investments?.[0];
+      const dep = u.depositRequests?.[0];
       return {
-        "Username":              u.username.toUpperCase(),
-        "Email":                 u.email,
-        "Password":              SEED_PASSWORD,
-        "Phone":                 u.phone ?? "",
-        "Country":               "India",
-        "User ID":               u.id,
-        "Sponsor Username":      u.sponsor?.username?.toUpperCase() ?? "master",
-        "Binary Parent Username": u.binaryParent?.username?.toUpperCase() ?? u.sponsor?.username?.toUpperCase() ?? "master",
-        "Placement (Left/Right)": u.position ?? "ROOT",
-        "Level":                 level,
-        "Active / Inactive":     level >= 5 ? "INACTIVE" : "ACTIVE",
-        "Investment ID":         inv?.id ?? "",
-        "Investment Plan":       inv?.planType ?? "",
-        "Investment Amount":     inv ? `$${Number(inv.amount).toFixed(2)}` : "",
-        "Investment Status":     inv?.status ?? "",
-        "Investment Start":      inv?.startedAt?.toISOString().slice(0, 10) ?? "",
-        "Matures At":            inv?.maturesAt?.toISOString().slice(0, 10) ?? "",
-        "Deposit ID":            dep?.id ?? "",
-        "Deposit Amount":        dep ? `$${Number(dep.amount).toFixed(2)}` : "",
-        "Deposit Status":        dep?.status ?? "",
-        "Deposit Approved At":   dep?.approvedAt?.toISOString().slice(0, 10) ?? "",
-        "Wallet ID":             u.wallet?.id ?? "",
-        "Deposit Wallet":        `$${Number(u.wallet?.depositWallet ?? 0).toFixed(2)}`,
-        "Income Wallet":         `$${Number(u.wallet?.incomeWallet ?? 0).toFixed(2)}`,
-        "Withdrawal Wallet":     `$${Number(u.wallet?.withdrawalWallet ?? 0).toFixed(2)}`,
+        "Username":               (u.username as string).toUpperCase(),
+        "Email":                  u.email,
+        "Password":               u.username === MASTER_USERNAME ? "Master@PrimeWave2025!" : SEED_PASSWORD,
+        "Phone":                  u.phone ?? "",
+        "Country":                "India",
+        "User ID":                u.id,
+        "Sponsor":                sponsorName,
+        "Binary Parent":          binaryParentName,
+        "Placement":              u.position ?? "ROOT",
+        "Tree Level":             level,
+        "Investment Status":      level === 5 ? "INACTIVE" : "ACTIVE",
+        "Investment Plan":        inv?.planType ?? "",
+        "Investment Amount":      inv ? `$${Number(inv.amount).toFixed(2)}` : "",
+        "Investment ID":          inv?.id ?? "",
+        "Investment Start":       inv?.startedAt?.toISOString().slice(0, 10) ?? "",
+        "Matures At":             inv?.maturesAt?.toISOString().slice(0, 10) ?? "",
+        "Deposit Amount":         dep ? `$${Number(dep.amount).toFixed(2)}` : "",
+        "Deposit Status":         dep?.status ?? "",
+        "Deposit Approved At":    dep?.approvedAt?.toISOString().slice(0, 10) ?? "",
+        "Deposit ID":             dep?.id ?? "",
+        "Wallet ID":              u.wallet?.id ?? "",
+        "Deposit Wallet ($)":     Number(u.wallet?.depositWallet ?? 0).toFixed(2),
+        "Income Wallet ($)":      Number(u.wallet?.incomeWallet ?? 0).toFixed(2),
+        "Withdrawal Wallet ($)":  Number(u.wallet?.withdrawalWallet ?? 0).toFixed(2),
       };
-    });
+    };
+
+    const sheetData: ReturnType<typeof buildRow>[] = [];
+
+    // Row 0 — master (Level 0)
+    if (masterUser) {
+      sheetData.push(buildRow(masterUser, 0, "—", "—"));
+    }
+
+    // Rows 1-62 — rd2* seed users
+    for (const u of seedUsers) {
+      // Level derived from username length: "rd2l"→4-3=1, "rd2ll"→5-3=2, …
+      const level           = (u.username as string).length - 3;
+      const sponsorName     = u.sponsor?.username
+        ? (u.sponsor.username === MASTER_USERNAME ? "MASTER" : (u.sponsor.username as string).toUpperCase())
+        : "MASTER";
+      const binaryParentName = u.binaryParent?.username
+        ? (u.binaryParent.username === MASTER_USERNAME ? "MASTER" : (u.binaryParent.username as string).toUpperCase())
+        : sponsorName;
+      sheetData.push(buildRow(u, level, sponsorName, binaryParentName));
+    }
+
+    if (sheetData.length === 0) {
+      throw new AppError("No rows to export.", HTTP_STATUS.NOT_FOUND, "NO_ROWS");
+    }
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(sheetData);
-
-    // Auto column widths (rough estimate)
-    ws["!cols"] = Object.keys(sheetData[0] ?? {}).map(k => ({
-      wch: Math.max(k.length, 18),
-    }));
-
+    ws["!cols"] = Object.keys(sheetData[0]).map(k => ({ wch: Math.max(k.length + 2, 20) }));
     XLSX.utils.book_append_sheet(wb, ws, "Seed Users 23B");
 
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
-
-    res.setHeader(
-      "Content-Disposition",
-      'attachment; filename="seed-users.xlsx"',
-    );
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    );
+    res.setHeader("Content-Disposition", 'attachment; filename="seed-users.xlsx"');
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.send(buf);
   } catch (err) {
     next(err);
