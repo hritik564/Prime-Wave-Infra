@@ -4,20 +4,25 @@ import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 
 const TOTAL_HOURS = 72;
+const FEE_RATE    = new Prisma.Decimal("0.15"); // 15% one-time transfer fee
 
 // ── Create transfer ────────────────────────────────────────────────────────────
 
 /**
  * Enqueue an income→withdrawal transfer.
  *
- * Immediately deducts `amount` from the user's incomeWallet and creates an
- * IncomeTransfer record. No fee applies. The transfer engine releases 1/72
- * of the amount to withdrawalWallet every hour for 72 hours.
+ * Business rules (locked):
+ *   1. Deduct a one-time 15% transfer fee from the requested amount.
+ *   2. The remaining 85% (netAmount) enters the 72-hour release engine.
+ *   3. Income wallet is debited by the full originalAmount.
+ *   4. The fee is never credited to withdrawalWallet — only the net releases are.
  */
 export async function createIncomeTransfer(userId: string, amount: number) {
-  const totalAmount = new Prisma.Decimal(amount.toString());
-  const hourlySlice = totalAmount.div(new Prisma.Decimal(TOTAL_HOURS));
-  const nextReleaseAt = new Date(Date.now() + 60 * 60 * 1000); // +1 hour
+  const originalAmount = new Prisma.Decimal(amount.toString());
+  const transferFee    = originalAmount.mul(FEE_RATE);
+  const netAmount      = originalAmount.sub(transferFee);
+  const hourlySlice    = netAmount.div(new Prisma.Decimal(TOTAL_HOURS));
+  const nextReleaseAt  = new Date(Date.now() + 60 * 60 * 1000); // +1 hour
 
   return prisma.$transaction(async (tx) => {
     const wallet = await tx.wallet.findUnique({
@@ -29,7 +34,7 @@ export async function createIncomeTransfer(userId: string, amount: number) {
       throw new AppError("Wallet not found", HTTP_STATUS.NOT_FOUND, "WALLET_NOT_FOUND");
     }
 
-    if (wallet.incomeWallet.lessThan(totalAmount)) {
+    if (wallet.incomeWallet.lessThan(originalAmount)) {
       throw new AppError(
         `Insufficient income wallet balance. Available: $${wallet.incomeWallet.toFixed(2)}`,
         HTTP_STATUS.BAD_REQUEST,
@@ -37,35 +42,41 @@ export async function createIncomeTransfer(userId: string, amount: number) {
       );
     }
 
-    // Deduct from income wallet immediately
+    // Deduct full original amount from income wallet immediately
     await tx.wallet.update({
       where: { userId },
-      data:  { incomeWallet: { decrement: totalAmount } },
+      data:  { incomeWallet: { decrement: originalAmount } },
     });
 
-    // Deduction audit record
+    // Audit record — reflects the full deduction including fee
     await tx.walletTransaction.create({
       data: {
         walletId:    wallet.id,
         userId,
         type:        "INCOME_TRANSFER",
         status:      "SUCCESS",
-        amount:      totalAmount,
-        description: "Income transfer queued — 72-hour release started",
+        amount:      originalAmount,
+        description: "Income transfer queued — 15% fee applied, 72-hour release started",
         metadata: {
-          totalHours: TOTAL_HOURS,
-          hourlySlice: hourlySlice.toFixed(8),
+          originalAmount: originalAmount.toFixed(8),
+          transferFee:    transferFee.toFixed(8),
+          netAmount:      netAmount.toFixed(8),
+          feeRate:        "15%",
+          totalHours:     TOTAL_HOURS,
+          hourlySlice:    hourlySlice.toFixed(8),
         } as Prisma.InputJsonValue,
       },
     });
 
-    // Create transfer record
+    // Create transfer record — remainingAmount and hourlySlice are based on netAmount
     const transfer = await tx.incomeTransfer.create({
       data: {
         userId,
-        totalAmount,
+        totalAmount:     originalAmount,
+        transferFee,
+        netAmount,
         releasedAmount:  new Prisma.Decimal(0),
-        remainingAmount: totalAmount,
+        remainingAmount: netAmount,
         hourlySlice,
         hoursCompleted:  0,
         status:          "ACTIVE",
@@ -76,6 +87,8 @@ export async function createIncomeTransfer(userId: string, amount: number) {
     return {
       id:              transfer.id,
       totalAmount:     transfer.totalAmount.toFixed(8),
+      transferFee:     transfer.transferFee!.toFixed(8),
+      netAmount:       transfer.netAmount!.toFixed(8),
       releasedAmount:  transfer.releasedAmount.toFixed(8),
       remainingAmount: transfer.remainingAmount.toFixed(8),
       hourlySlice:     transfer.hourlySlice.toFixed(8),
@@ -150,6 +163,8 @@ function formatTransfer(t: NonNullable<TransferWithReleases>) {
   return {
     id:                    t.id,
     totalAmount:           t.totalAmount.toFixed(8),
+    transferFee:           t.transferFee?.toFixed(8) ?? null,
+    netAmount:             t.netAmount?.toFixed(8) ?? null,
     releasedAmount:        t.releasedAmount.toFixed(8),
     remainingAmount:       t.remainingAmount.toFixed(8),
     hourlySlice:           t.hourlySlice.toFixed(8),
@@ -162,10 +177,10 @@ function formatTransfer(t: NonNullable<TransferWithReleases>) {
     createdAt:             t.createdAt,
     completedAt:           t.completedAt,
     releases:              (t.releases ?? []).map((r) => ({
-      id:        r.id,
+      id:         r.id,
       hourNumber: r.hourNumber,
-      amount:    r.amount.toFixed(8),
-      createdAt: r.createdAt,
+      amount:     r.amount.toFixed(8),
+      createdAt:  r.createdAt,
     })),
   };
 }

@@ -1,0 +1,441 @@
+# Sprint 22 — Phase D: Admin Panel Mobile Optimization
+
+Objective
+
+Optimize the entire Prime Wave Admin Panel for tablets and mobile devices while preserving the existing desktop experience.
+
+IMPORTANT
+
+This sprint is RESPONSIVE ONLY.
+
+Do NOT change:
+
+• Business logic
+
+• Backend
+
+• APIs
+
+• Database
+
+• Permissions
+
+• Routing
+
+• Financial calculations
+
+Only improve responsive behaviour and mobile usability.
+
+--------------------------------------------------------
+1. Responsive Sidebar
+--------------------------------------------------------
+
+Desktop
+
+Keep existing sidebar.
+
+Tablet
+
+Collapse automatically.
+
+Mobile
+
+Replace with hamburger navigation.
+
+Support:
+
+• Open/Close animation
+
+• Overlay
+
+• Swipe close (if supported)
+
+• Remember active page
+
+--------------------------------------------------------
+2. Admin Dashboard
+--------------------------------------------------------
+
+Optimize KPI cards.
+
+Desktop
+
+4-column layout.
+
+Tablet
+
+2-column layout.
+
+Mobile
+
+Single-column stacked cards.
+
+Maintain spacing and readability.
+
+--------------------------------------------------------
+3. Tables
+--------------------------------------------------------
+
+Review every admin table.
+
+Including:
+
+Members
+
+Investments
+
+Withdrawals
+
+Wallets
+
+Binary
+
+Income Engine
+
+Reports
+
+Support
+
+Configuration
+
+Audit Logs
+
+Desktop
+
+Keep current tables.
+
+Tablet
+
+Allow responsive scrolling where appropriate.
+
+Mobile
+
+Convert rows into responsive cards.
+
+Each card should display:
+
+Primary Information
+
+Status
+
+Important Values
+
+Action Button
+
+Expandable Details
+
+Avoid horizontal scrolling wherever possible.
+
+--------------------------------------------------------
+4. Drawers
+--------------------------------------------------------
+
+Desktop
+
+Keep side drawers.
+
+Tablet
+
+Wider responsive drawers.
+
+Mobile
+
+Full-screen drawer.
+
+Maintain:
+
+Animations
+
+Tabs
+
+Actions
+
+Buttons
+
+Scrolling
+
+--------------------------------------------------------
+5. Charts
+--------------------------------------------------------
+
+Ensure all charts:
+
+Resize correctly.
+
+Maintain readability.
+
+Do not clip labels.
+
+Do not overflow containers.
+
+--------------------------------------------------------
+6. Search & Filters
+--------------------------------------------------------
+
+Desktop
+
+Keep existing layout.
+
+Tablet
+
+Collapse filters.
+
+Mobile
+
+Move filters into a slide-up panel or drawer.
+
+Maintain:
+
+Search
+
+Sort
+
+Filtering
+
+Reset
+
+Apply
+
+--------------------------------------------------------
+7. Configuration Pages
+--------------------------------------------------------
+
+Review:
+
+Investment Plans
+
+ROI Engine
+
+Binary
+
+Orbit
+
+Salary
+
+Level
+
+Wallet Rules
+
+Platform Limits
+
+Global Configuration
+
+Ensure:
+
+Cards stack correctly.
+
+Inputs resize correctly.
+
+Buttons remain accessible.
+
+No overlapping controls.
+
+--------------------------------------------------------
+8. Binary Tree
+--------------------------------------------------------
+
+Admin Binary Tree
+
+Maintain:
+
+Zoom
+
+Pan
+
+Drawer
+
+Member Selection
+
+Optimize layout for smaller screens.
+
+Do not break existing functionality.
+
+--------------------------------------------------------
+9. Reports
+--------------------------------------------------------
+
+Optimize:
+
+Financial Reports
+
+Member Reports
+
+Audit Reports
+
+Charts
+
+Tables
+
+Export Actions
+
+for mobile viewing.
+
+--------------------------------------------------------
+10. Admin Actions
+--------------------------------------------------------
+
+Ensure all actions remain touch-friendly.
+
+Approve
+
+Reject
+
+Suspend
+
+Activate
+
+Disable
+
+Assign
+
+View
+
+Edit
+
+Buttons should have sufficient spacing.
+
+--------------------------------------------------------
+11. Dialogs
+--------------------------------------------------------
+
+Review every dialog.
+
+Desktop
+
+Keep current layout.
+
+Mobile
+
+Responsive modal.
+
+Proper spacing.
+
+Scrollable content.
+
+Accessible buttons.
+
+--------------------------------------------------------
+12. Forms
+--------------------------------------------------------
+
+Review every admin form.
+
+Inputs
+
+Dropdowns
+
+Date Pickers
+
+Number Inputs
+
+Text Areas
+
+Checkboxes
+
+Radio Buttons
+
+Must all work correctly on mobile.
+
+--------------------------------------------------------
+13. Notifications
+--------------------------------------------------------
+
+Ensure:
+
+Toast messages
+
+Warnings
+
+Errors
+
+Success messages
+
+display correctly on all screen sizes.
+
+--------------------------------------------------------
+14. Performance
+--------------------------------------------------------
+
+Avoid unnecessary renders.
+
+Lazy load heavy pages.
+
+Keep scrolling smooth.
+
+Maintain responsive performance.
+
+--------------------------------------------------------
+15. Accessibility
+--------------------------------------------------------
+
+Ensure:
+
+Touch targets
+
+Keyboard support
+
+Focus states
+
+Readable typography
+
+Accessible spacing
+
+--------------------------------------------------------
+16. Final Responsive QA
+--------------------------------------------------------
+
+Verify every admin module.
+
+Dashboard
+
+Members
+
+Network Intelligence
+
+Investments
+
+Withdrawals
+
+Wallet Control
+
+Income Engine
+
+Plans & Compensation
+
+Reports
+
+Audit
+
+Settings
+
+Support
+
+Verify:
+
+✓ No horizontal overflow
+
+✓ No clipped text
+
+✓ No broken tables
+
+✓ No overlapping buttons
+
+✓ Drawers work
+
+✓ Modals work
+
+✓ Forms work
+
+✓ Search works
+
+✓ Filters work
+
+✓ Charts resize correctly
+
+✓ Binary Tree remains functional
+
+✓ Existing desktop layout remains unchanged
+
+Goal
+
+Deliver a fully responsive, enterprise-grade Admin Panel that provides an excellent experience across desktop, tablet and mobile devices without altering any business logic or backend functionality.

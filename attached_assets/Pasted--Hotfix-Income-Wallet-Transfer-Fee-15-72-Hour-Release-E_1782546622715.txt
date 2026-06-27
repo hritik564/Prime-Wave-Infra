@@ -1,0 +1,175 @@
+# Hotfix — Income Wallet Transfer Fee (15%) & 72-Hour Release Engine
+
+Objective
+
+Fix the Income Wallet transfer engine so it follows Prime Wave's locked business rules.
+
+This is a financial logic fix.
+
+Do NOT redesign the UI.
+
+Do NOT modify wallet architecture.
+
+Do NOT modify the 72-hour release engine except where required to apply the correct transfer amount.
+
+--------------------------------------------------------
+Business Rule (LOCKED)
+--------------------------------------------------------
+
+When a user transfers funds from the Income Wallet to the Withdrawal Wallet:
+
+1. Deduct a ONE-TIME transfer fee of 15%.
+
+2. The remaining 85% enters the 72-hour release engine.
+
+3. The transfer fee must NEVER be deducted again during hourly releases.
+
+Example:
+
+User transfers:
+
+$10.00
+
+Transfer Fee (15%)
+
+$1.50
+
+Net Transfer
+
+$8.50
+
+72-Hour Engine
+
+$8.50 ÷ 72
+
+=
+
+$0.118055... released every hour
+
+After 72 releases:
+
+Total Released = $8.50
+
+Total Fee = $1.50
+
+--------------------------------------------------------
+Transfer Record
+--------------------------------------------------------
+
+Every transfer must store:
+
+• Original Transfer Amount
+
+• Transfer Fee (15%)
+
+• Net Transfer Amount
+
+• Hourly Release Amount
+
+• Released Amount
+
+• Remaining Amount
+
+• Current Hour
+
+• Status
+
+Do not calculate the fee repeatedly.
+
+Persist these values when the transfer is created.
+
+--------------------------------------------------------
+User Interface
+--------------------------------------------------------
+
+Update the Transfer Details page.
+
+Display:
+
+Original Amount
+
+Transfer Fee (15%)
+
+Net Transfer Amount
+
+Released Amount
+
+Remaining Amount
+
+Current Hour
+
+Hours Remaining
+
+Progress %
+
+Estimated Completion Time
+
+Users should clearly understand where the 15% deduction occurred.
+
+--------------------------------------------------------
+Transfer History
+--------------------------------------------------------
+
+Each transfer history entry should display:
+
+Original Amount
+
+Fee Deducted
+
+Net Amount Released
+
+Transfer Created Time
+
+Completion Time
+
+--------------------------------------------------------
+Wallet Behaviour
+--------------------------------------------------------
+
+Immediately after transfer creation:
+
+Income Wallet
+
+↓
+
+Deduct Original Transfer Amount
+
+Transfer Queue
+
+↓
+
+Store Net Transfer Amount
+
+Withdrawal Wallet
+
+↓
+
+Receive ONLY hourly releases from the Net Transfer Amount
+
+The fee must never enter the Withdrawal Wallet.
+
+--------------------------------------------------------
+Validation
+--------------------------------------------------------
+
+Verify:
+
+✓ 15% fee deducted exactly once.
+
+✓ Only 85% enters the release engine.
+
+✓ Hourly release amount is calculated from the net amount.
+
+✓ Total released after 72 hours equals exactly the net transfer amount.
+
+✓ No double deduction occurs.
+
+✓ Progress calculations remain correct.
+
+✓ Transfer history displays fee correctly.
+
+✓ Wallet balances remain synchronized.
+
+Goal
+
+Ensure the Income Wallet transfer engine correctly deducts the one-time 15% transfer fee before starting the 72-hour release process, while maintaining complete financial accuracy and transparency.

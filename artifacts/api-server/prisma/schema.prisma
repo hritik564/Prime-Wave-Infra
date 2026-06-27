@@ -788,9 +788,14 @@ model Notification {
 
 // ── Income Transfer Engine ────────────────────────────────────────────────────
 //
-// When a user requests an income→withdrawal transfer, the full amount is held
-// in a queue and released as 1/72 slices every hour over 72 hours.
-// No fee applies — what goes in comes out over the 72 hours.
+// When a user requests an income→withdrawal transfer:
+//   1. A one-time 15% transfer fee is deducted from the original amount.
+//   2. The remaining 85% (netAmount) enters the 72-hour release queue.
+//   3. Every hour, 1/72 of netAmount is credited to the withdrawalWallet.
+//   4. After 72 releases: total released == netAmount (fee never enters engine).
+//
+// Legacy records (before fee was introduced) have transferFee/netAmount = null;
+// treat those as fee=0, netAmount=totalAmount.
 //
 // Status lifecycle:  ACTIVE → COMPLETED (after 72 hourly releases)
 
@@ -802,10 +807,12 @@ enum IncomeTransferStatus {
 model IncomeTransfer {
   id              String               @id @default(cuid())
   userId          String
-  totalAmount     Decimal              @db.Decimal(18, 8)
+  totalAmount     Decimal              @db.Decimal(18, 8)  // original user input
+  transferFee     Decimal?             @db.Decimal(18, 8)  // 15% fee (null = legacy record)
+  netAmount       Decimal?             @db.Decimal(18, 8)  // 85% net entering engine (null = legacy)
   releasedAmount  Decimal              @default(0) @db.Decimal(18, 8)
-  remainingAmount Decimal              @db.Decimal(18, 8)
-  hourlySlice     Decimal              @db.Decimal(18, 8)
+  remainingAmount Decimal              @db.Decimal(18, 8)  // tracks remaining of netAmount
+  hourlySlice     Decimal              @db.Decimal(18, 8)  // netAmount / 72
   hoursCompleted  Int                  @default(0)
   status          IncomeTransferStatus @default(ACTIVE)
   nextReleaseAt   DateTime

@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Send, Loader2, CheckCircle2, Clock, TrendingUp, RefreshCw } from "lucide-react";
+import { Send, Loader2, CheckCircle2, Clock, TrendingUp, RefreshCw, AlertCircle } from "lucide-react";
 import { transfer, type IncomeTransfer } from "@/lib/api";
 
-const GOLD = "#D4AF37";
+const GOLD       = "#D4AF37";
+const FEE_RATE   = 0.15;
 const TOTAL_HOURS = 72;
 
 function fmt(n: number | string) {
@@ -37,8 +38,13 @@ function useCountdown(nextReleaseAt: string | null | undefined) {
 
 function ActiveTransferCard({ t }: { t: IncomeTransfer }) {
   const countdown = useCountdown(t.status === "ACTIVE" ? t.nextReleaseAt : null);
-
   const barPct = t.completionPercent;
+
+  // Support legacy records (no fee) gracefully
+  const hasFee          = t.transferFee !== null && t.netAmount !== null;
+  const displayOriginal = fmt(t.totalAmount);
+  const displayFee      = hasFee ? fmt(t.transferFee!) : "$0.00";
+  const displayNet      = hasFee ? fmt(t.netAmount!) : fmt(t.totalAmount);
 
   return (
     <div
@@ -68,10 +74,35 @@ function ActiveTransferCard({ t }: { t: IncomeTransfer }) {
       </div>
 
       <div className="p-5 space-y-4">
+        {/* Fee breakdown */}
+        <div className="rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="px-4 py-2.5 flex items-center justify-between">
+            <span className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>Original Amount</span>
+            <span className="text-sm font-mono font-semibold text-foreground">{displayOriginal}</span>
+          </div>
+          {hasFee && (
+            <>
+              <div style={{ height: "1px", background: "rgba(255,255,255,0.05)" }} />
+              <div className="px-4 py-2.5 flex items-center justify-between">
+                <span className="text-xs flex items-center gap-1.5" style={{ color: "#f87171" }}>
+                  <AlertCircle className="h-3 w-3" />
+                  Transfer Fee (15%)
+                </span>
+                <span className="text-sm font-mono font-semibold" style={{ color: "#f87171" }}>-{displayFee}</span>
+              </div>
+              <div style={{ height: "1px", background: "rgba(255,255,255,0.05)" }} />
+              <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: "rgba(212,175,55,0.04)" }}>
+                <span className="text-xs font-semibold" style={{ color: GOLD }}>Net Amount (85%)</span>
+                <span className="text-sm font-mono font-bold" style={{ color: GOLD }}>{displayNet}</span>
+              </div>
+            </>
+          )}
+        </div>
+
         {/* Progress bar */}
         <div>
           <div className="flex justify-between text-xs mb-1.5">
-            <span style={{ color: "hsl(var(--muted-foreground))" }}>Progress</span>
+            <span style={{ color: "hsl(var(--muted-foreground))" }}>Release Progress</span>
             <span className="font-semibold" style={{ color: GOLD }}>{pct(barPct)}</span>
           </div>
           <div className="rounded-full overflow-hidden h-2" style={{ background: "rgba(255,255,255,0.06)" }}>
@@ -85,10 +116,10 @@ function ActiveTransferCard({ t }: { t: IncomeTransfer }) {
         {/* Stats grid */}
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: "Transfer Amount", value: fmt(t.totalAmount) },
-            { label: "Released",        value: fmt(t.releasedAmount), color: "#34d399" },
-            { label: "Remaining",       value: fmt(t.remainingAmount) },
-            { label: "Hourly Release",  value: fmt(t.hourlySlice) },
+            { label: "Released",       value: fmt(t.releasedAmount), color: "#34d399" },
+            { label: "Remaining",      value: fmt(t.remainingAmount) },
+            { label: "Hourly Release", value: fmt(t.hourlySlice) },
+            { label: "Hours Done",     value: `${t.hoursCompleted} / ${TOTAL_HOURS}` },
           ].map((s) => (
             <div key={s.label} className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
               <p className="text-[10px] uppercase tracking-widest mb-1" style={{ color: "hsl(var(--muted-foreground))" }}>{s.label}</p>
@@ -97,18 +128,16 @@ function ActiveTransferCard({ t }: { t: IncomeTransfer }) {
           ))}
         </div>
 
-        {/* Hours + countdown */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl px-3 py-2.5 flex items-center gap-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <TrendingUp className="h-4 w-4 shrink-0" style={{ color: GOLD }} />
-            <div>
-              <p className="text-[10px] uppercase tracking-widest" style={{ color: "hsl(var(--muted-foreground))" }}>Hours</p>
-              <p className="text-sm font-bold font-mono text-foreground">
-                {t.hoursCompleted} / {TOTAL_HOURS}
-              </p>
+        {/* Countdown */}
+        {t.status === "ACTIVE" && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl px-3 py-2.5 flex items-center gap-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <TrendingUp className="h-4 w-4 shrink-0" style={{ color: GOLD }} />
+              <div>
+                <p className="text-[10px] uppercase tracking-widest" style={{ color: "hsl(var(--muted-foreground))" }}>Hrs Remaining</p>
+                <p className="text-sm font-bold font-mono text-foreground">{t.hoursRemaining}</p>
+              </div>
             </div>
-          </div>
-          {t.status === "ACTIVE" && (
             <div className="rounded-xl px-3 py-2.5 flex items-center gap-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
               <Clock className="h-4 w-4 shrink-0" style={{ color: "#60a5fa" }} />
               <div>
@@ -116,8 +145,8 @@ function ActiveTransferCard({ t }: { t: IncomeTransfer }) {
                 <p className="text-sm font-bold font-mono text-foreground">{countdown}</p>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Est. completion */}
         {t.status === "ACTIVE" && t.estimatedCompletionAt && (
@@ -156,13 +185,16 @@ export default function TransferModule({
   transfers?: IncomeTransfer[];
   onTransferCreated?: (newIncomeBalance: number) => void;
 }) {
-  const [raw, setRaw]           = useState("");
+  const [raw, setRaw]               = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess]   = useState(false);
-  const [error, setError]       = useState<string>();
+  const [success, setSuccess]       = useState(false);
+  const [error, setError]           = useState<string>();
 
-  const amount  = parseFloat(raw) || 0;
-  const isValid = amount > 0 && amount <= availableBalance;
+  const amount       = parseFloat(raw) || 0;
+  const fee          = amount * FEE_RATE;
+  const netAmount    = amount - fee;
+  const hourlyAmount = netAmount / TOTAL_HOURS;
+  const isValid      = amount > 0 && amount <= availableBalance;
 
   const activeTransfers    = transfers.filter((t) => t.status === "ACTIVE");
   const completedTransfers = transfers.filter((t) => t.status === "COMPLETED");
@@ -186,17 +218,21 @@ export default function TransferModule({
 
   return (
     <div>
-      {/* ── How it works info box ── */}
+      {/* ── Fee notice ── */}
       <div
         className="rounded-xl px-4 py-3.5 mb-5 flex items-start gap-3"
-        style={{ background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.2)" }}
+        style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.2)" }}
       >
-        <RefreshCw className="h-4 w-4 mt-0.5 shrink-0" style={{ color: GOLD }} />
-        <p className="text-xs leading-relaxed" style={{ color: "rgba(170,179,197,0.7)" }}>
-          Transfers enter a <strong style={{ color: GOLD }}>72-hour release queue</strong>. Exactly{" "}
-          <strong style={{ color: GOLD }}>1/72</strong> of your amount is credited to your Withdrawal Wallet
-          every hour. No fee applies.
-        </p>
+        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" style={{ color: "#f87171" }} />
+        <div>
+          <p className="text-xs font-semibold mb-0.5" style={{ color: "#f87171" }}>15% Transfer Fee Applies</p>
+          <p className="text-xs leading-relaxed" style={{ color: "rgba(170,179,197,0.7)" }}>
+            A one-time <strong style={{ color: "#f87171" }}>15% fee</strong> is deducted when you initiate a transfer.
+            The remaining <strong style={{ color: GOLD }}>85%</strong> enters the{" "}
+            <strong style={{ color: GOLD }}>72-hour release queue</strong> — released as{" "}
+            <strong style={{ color: GOLD }}>1/72</strong> per hour to your Withdrawal Wallet.
+          </p>
+        </div>
       </div>
 
       {/* ── Active transfers ── */}
@@ -218,7 +254,7 @@ export default function TransferModule({
           <div>
             <h3 className="text-base font-semibold font-heading text-foreground">New Transfer</h3>
             <p className="text-xs mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>
-              Income Wallet → 72-hour queue → Withdrawal Wallet
+              Income Wallet → 15% fee → 72-hour queue → Withdrawal Wallet
             </p>
           </div>
           <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "rgba(212,175,55,0.1)" }}>
@@ -229,7 +265,7 @@ export default function TransferModule({
         <div className="p-5 space-y-4">
           <div>
             <label className="text-xs font-semibold uppercase tracking-widest mb-2 block" style={{ color: "hsl(var(--muted-foreground))" }}>
-              Amount (USDT)
+              Amount to Transfer (USDT)
             </label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold" style={{ color: "hsl(var(--muted-foreground))" }}>$</span>
@@ -263,15 +299,29 @@ export default function TransferModule({
             )}
           </div>
 
+          {/* Fee breakdown preview */}
           {amount > 0 && (
             <div className="rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <PreviewRow label="Transfer Amount" value={fmt(amount)} />
+              <PreviewRow label="Original Amount" value={fmt(amount)} />
               <div style={{ height: "1px", background: "rgba(255,255,255,0.05)" }} />
-              <PreviewRow label="Hourly Release (÷72)" value={`≈${fmt(amount / TOTAL_HOURS)}`} />
+              <div className="px-4 py-2.5 flex items-center justify-between">
+                <span className="text-sm flex items-center gap-1.5" style={{ color: "#f87171" }}>
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  Transfer Fee (15%)
+                </span>
+                <span className="text-sm font-mono font-semibold" style={{ color: "#f87171" }}>-{fmt(fee)}</span>
+              </div>
+              <div style={{ height: "1px", background: "rgba(255,255,255,0.05)" }} />
+              <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: "rgba(212,175,55,0.04)" }}>
+                <span className="text-sm font-semibold" style={{ color: GOLD }}>Net to Queue (85%)</span>
+                <span className="text-sm font-mono font-bold" style={{ color: GOLD }}>{fmt(netAmount)}</span>
+              </div>
+              <div style={{ height: "1px", background: "rgba(255,255,255,0.05)" }} />
+              <PreviewRow label="Hourly Release (÷72)" value={`≈${fmt(hourlyAmount)}`} />
               <div style={{ height: "1px", background: "rgba(255,255,255,0.05)" }} />
               <div className="px-4 py-3 flex items-center justify-between">
                 <span className="text-sm font-semibold text-foreground">You Receive (72 hrs)</span>
-                <span className="text-lg font-bold font-heading" style={{ color: GOLD }}>{fmt(amount)}</span>
+                <span className="text-lg font-bold font-heading" style={{ color: GOLD }}>{fmt(netAmount)}</span>
               </div>
             </div>
           )}
@@ -281,7 +331,7 @@ export default function TransferModule({
           {success && (
             <div className="flex items-center gap-2 justify-center py-2 rounded-xl" style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.2)" }}>
               <CheckCircle2 className="h-4 w-4" style={{ color: "#34d399" }} />
-              <p className="text-sm font-medium" style={{ color: "#34d399" }}>Transfer queued! Releases start in ~1 hour.</p>
+              <p className="text-sm font-medium" style={{ color: "#34d399" }}>Transfer queued! 15% fee deducted. Releases start in ~1 hour.</p>
             </div>
           )}
 
@@ -298,7 +348,7 @@ export default function TransferModule({
             {submitting ? (
               <><Loader2 className="h-4 w-4 animate-spin" /> Queuing Transfer…</>
             ) : (
-              <><Send className="h-4 w-4" /> Start 72-Hour Transfer</>
+              <><Send className="h-4 w-4" /> Transfer &amp; Start 72-Hour Release</>
             )}
           </button>
         </div>

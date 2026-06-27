@@ -201,18 +201,20 @@ export function toggleAutoCompound(id: string, autoCompound: boolean) {
 }
 
 export function getInvestmentEarnings(id: string) {
-  return request<{ data: EarningsEntry[]; meta: ListMeta }>(`/api/investments/${id}/earnings`);
+  return request<EarningsSummary>(`/api/investments/${id}/earnings`);
 }
 
-export interface EarningsEntry {
-  id: string;
-  type: string;
-  amount: string;
-  principalSnapshot: string;
-  dailyROIApplied: string;
-  compounded: boolean;
-  creditedToWallet: boolean;
-  createdAt: string;
+export interface EarningsSummary {
+  planType:        string;
+  dailyROI:        string;
+  durationDays:    number;
+  status:          string;
+  autoCompound:    boolean;
+  cyclesCompleted: number;
+  totalGenerated:  string;
+  totalCompounded: string;
+  totalClaimed:    string;
+  pendingClaimable: string;
 }
 
 /* ── Wallets ──────────────────────────────────────────────────────── */
@@ -237,6 +239,8 @@ export interface IncomeTransferRelease {
 export interface IncomeTransfer {
   id:                    string;
   totalAmount:           string;
+  transferFee:           string | null;
+  netAmount:             string | null;
   releasedAmount:        string;
   remainingAmount:       string;
   hourlySlice:           string;

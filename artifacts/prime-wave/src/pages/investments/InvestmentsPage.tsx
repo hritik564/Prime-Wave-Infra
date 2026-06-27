@@ -10,7 +10,7 @@ import InvestmentTabs from "@/components/investments/InvestmentTabs";
 import { Badge } from "@/components/ui/badge";
 import {
   listInvestments, createInvestment, claimRoi, claimPrincipal, toggleAutoCompound,
-  getWallets, getInvestmentEarnings, type ApiInvestment, type EarningsEntry,
+  getWallets, getInvestmentEarnings, type ApiInvestment, type EarningsSummary,
 } from "@/lib/api";
 
 /* ─── Plan config ─── */
@@ -136,7 +136,7 @@ function InvestmentCard({
   const isMatured = inv.status === "MATURED";
 
   const [showHistory, setShowHistory] = useState(false);
-  const [earnings, setEarnings] = useState<EarningsEntry[]>([]);
+  const [earnings, setEarnings] = useState<EarningsSummary | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
 
@@ -144,7 +144,7 @@ function InvestmentCard({
     if (!showHistory && !historyLoaded) {
       setHistoryLoading(true);
       getInvestmentEarnings(inv.id)
-        .then((r) => { setEarnings(r.data); setHistoryLoaded(true); })
+        .then((r) => { setEarnings(r); setHistoryLoaded(true); })
         .catch(() => {})
         .finally(() => setHistoryLoading(false));
     }
@@ -276,7 +276,7 @@ function InvestmentCard({
           </div>
         )}
 
-        {/* Compound earnings history — only when autoCompound is ON and plan active */}
+        {/* Compound earnings summary — only when autoCompound is ON and plan active */}
         {inv.autoCompound && !isCompleted && !isMatured && (
           <div>
             <button
@@ -287,14 +287,14 @@ function InvestmentCard({
               <div className="flex items-center gap-2">
                 <Clock className="h-3.5 w-3.5" style={{ color: "rgba(170,179,197,0.45)" }} />
                 <span className="text-xs font-medium" style={{ color: "rgba(170,179,197,0.55)" }}>
-                  Compound History
+                  Compound Summary
                 </span>
-                {historyLoaded && earnings.length > 0 && (
+                {historyLoaded && earnings && earnings.cyclesCompleted > 0 && (
                   <span
                     className="text-[10px] font-bold rounded-full px-1.5 py-0.5"
                     style={{ background: "rgba(212,175,55,0.12)", color: "#D4AF37" }}
                   >
-                    {earnings.length}
+                    {earnings.cyclesCompleted} cycles
                   </span>
                 )}
               </div>
@@ -312,41 +312,28 @@ function InvestmentCard({
                   <div className="flex items-center justify-center py-6">
                     <Loader2 className="h-4 w-4 animate-spin" style={{ color: "#D4AF37" }} />
                   </div>
-                ) : earnings.length === 0 ? (
+                ) : !earnings || earnings.cyclesCompleted === 0 ? (
                   <div className="py-6 text-center">
-                    <p className="text-xs" style={{ color: "rgba(170,179,197,0.4)" }}>No compound entries yet</p>
+                    <p className="text-xs" style={{ color: "rgba(170,179,197,0.4)" }}>No compound cycles yet</p>
                   </div>
                 ) : (
-                  <>
-                    {earnings.slice(0, 10).map((e, i) => (
+                  <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                    {[
+                      { label: "Compound Cycles",  value: `${earnings.cyclesCompleted}` },
+                      { label: "Total Generated",  value: `$${parseFloat(earnings.totalGenerated).toFixed(2)}`,   color: "#D4AF37" },
+                      { label: "Total Compounded", value: `$${parseFloat(earnings.totalCompounded).toFixed(2)}`,  color: "#F3D37A" },
+                      { label: "Total Claimed",    value: `$${parseFloat(earnings.totalClaimed).toFixed(2)}`,    color: "#34d399" },
+                    ].map((row, i, arr) => (
                       <div
-                        key={e.id}
+                        key={row.label}
                         className="flex items-center justify-between px-3 py-2.5"
-                        style={{ borderBottom: i < Math.min(earnings.length, 10) - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}
+                        style={{ borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}
                       >
-                        <div>
-                          <p className="text-xs font-semibold" style={{ color: "#D4AF37" }}>
-                            +{fmt(parseFloat(e.amount))}
-                          </p>
-                          <p className="text-[10px] mt-0.5" style={{ color: "rgba(170,179,197,0.45)" }}>
-                            {new Date(e.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                            {" · "}{fmt(parseFloat(e.principalSnapshot))} principal
-                          </p>
-                        </div>
-                        <span
-                          className="text-[10px] font-semibold px-2 py-1 rounded-md shrink-0"
-                          style={{ background: "rgba(212,175,55,0.08)", color: "rgba(212,175,55,0.65)" }}
-                        >
-                          {parseFloat(e.dailyROIApplied).toFixed(2)}% daily
-                        </span>
+                        <span className="text-xs" style={{ color: "rgba(170,179,197,0.55)" }}>{row.label}</span>
+                        <span className="text-xs font-semibold font-mono" style={{ color: row.color ?? "hsl(var(--foreground))" }}>{row.value}</span>
                       </div>
                     ))}
-                    {earnings.length > 10 && (
-                      <p className="px-3 py-2 text-[10px] text-center" style={{ color: "rgba(170,179,197,0.35)" }}>
-                        +{earnings.length - 10} more entries
-                      </p>
-                    )}
-                  </>
+                  </div>
                 )}
               </div>
             )}
