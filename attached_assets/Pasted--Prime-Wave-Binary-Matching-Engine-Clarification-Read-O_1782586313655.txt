@@ -1,0 +1,141 @@
+# Prime Wave — Binary Matching Engine Clarification (Read-Only)
+
+Objective
+
+Provide a detailed explanation of the Binary Matching Engine.
+
+IMPORTANT
+
+Do NOT modify code.
+
+Do NOT modify database records.
+
+Do NOT execute any cron jobs.
+
+Do NOT trigger any income generation.
+
+This is a READ-ONLY clarification.
+
+--------------------------------------------------------
+PART 1 — Binary Matching Calculation
+--------------------------------------------------------
+
+The previous audit reported:
+
+Master ID
+
+Left BV = 31
+
+Right BV = 31
+
+Matched BV = 31
+
+Expected Binary Income = $155
+
+Total expected Binary Income across all qualified users = $645
+
+I want the complete calculation.
+
+For EVERY user expected to receive Binary Income, provide:
+
+• Username
+
+• Left BV
+
+• Right BV
+
+• Matched BV
+
+• Rewarded BV (after any cap)
+
+• Binary %
+
+• Binary Income
+
+• Carry Forward Left
+
+• Carry Forward Right
+
+• Daily Flush amount
+
+Show the calculation step-by-step so it can be independently verified.
+
+Also provide:
+
+• Total users receiving Binary Income
+
+• Total Binary Income generated
+
+• Total BV matched
+
+• Total BV flushed
+
+• Total Carry Forward remaining
+
+--------------------------------------------------------
+PART 2 — Error Isolation Review
+--------------------------------------------------------
+
+The audit identified this code pattern:
+
+catch (err) {
+    skipped++;
+    throw err;
+}
+
+Please explain:
+
+1. Why is the exception re-thrown?
+
+2. Is this intentional?
+
+3. If a single user fails:
+
+• Which users lose their Binary Income?
+
+• Does the scheduler stop immediately?
+
+• Are previous successful transactions rolled back?
+
+• Are completed transactions committed?
+
+• Does the next scheduled cycle retry only the failed users, or everyone?
+
+4. Compare this behaviour with the Orbit Engine, which logs the error and continues.
+
+5. Would replacing:
+
+throw err;
+
+with:
+
+logger.error(...)
+continue;
+
+(or the equivalent non-blocking approach)
+
+preserve transaction integrity while allowing the remaining users to receive their Binary Income?
+
+6. Are there any hidden risks in making this change?
+
+--------------------------------------------------------
+PART 3 — Recommendation
+--------------------------------------------------------
+
+Based on the current implementation, answer:
+
+Should the Binary Matching Engine continue processing after an individual user failure?
+
+or
+
+Should the entire Binary Matching cycle abort?
+
+Justify the recommendation from both:
+
+• Financial integrity
+
+• Operational reliability
+
+Do NOT change any code.
+
+Only provide the technical explanation and recommendation.
