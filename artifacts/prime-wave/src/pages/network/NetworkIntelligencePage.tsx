@@ -15,7 +15,7 @@ import {
   Search, Award, Activity, Brain, GitBranch, UserPlus,
   X, ChevronLeft, ChevronRight, Link2, Target, Zap,
   ArrowRight, Star, ShieldCheck, Flame, Clock, BarChart2,
-  CircleDot, Wallet, ZoomIn, ZoomOut, Maximize2, Calendar,
+  CircleDot, Wallet, ZoomIn, ZoomOut, Maximize2, Calendar, Share2, Hash,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
@@ -675,7 +675,7 @@ export default function NetworkIntelligencePage() {
   const [treeDepth, setTreeDepth]       = useState(3);
   const [selectedMember, setSelectedMember] = useState<NetworkMember | null>(null);
   const [journeyOpen, setJourneyOpen]   = useState(false);
-  const [copied, setCopied]             = useState<"code" | "link" | null>(null);
+  const [copied, setCopied]             = useState<string | null>(null);
   const [memberLoading, setMemberLoading] = useState(false);
 
   // ── Initial parallel load ──────────────────────────────────────────────────
@@ -744,15 +744,25 @@ export default function NetworkIntelligencePage() {
   }, [tree, profile?.id, treeDepth, handleNodeSelect]);
 
   // ── Copy helpers ───────────────────────────────────────────────────────────
-  const copyCode = useCallback(() => {
+  const copyCode = useCallback((leg: "L" | "R") => {
     if (!profile) return;
-    navigator.clipboard.writeText(profile.referralCode).catch(() => {});
-    setCopied("code"); setTimeout(() => setCopied(null), 2000);
+    navigator.clipboard.writeText(`${profile.referralCode}-${leg}`).catch(() => {});
+    setCopied(`code-${leg}`); setTimeout(() => setCopied(null), 2000);
   }, [profile]);
-  const copyLink = useCallback(() => {
+  const copyLink = useCallback((leg: "L" | "R") => {
     if (!profile) return;
-    navigator.clipboard.writeText(`${window.location.origin}/register?ref=${profile.referralCode}`).catch(() => {});
-    setCopied("link"); setTimeout(() => setCopied(null), 2000);
+    navigator.clipboard.writeText(`${window.location.origin}/register?ref=${profile.referralCode}&leg=${leg}`).catch(() => {});
+    setCopied(`link-${leg}`); setTimeout(() => setCopied(null), 2000);
+  }, [profile]);
+  const shareLink = useCallback(async (leg: "L" | "R") => {
+    if (!profile) return;
+    const url = `${window.location.origin}/register?ref=${profile.referralCode}&leg=${leg}`;
+    if (navigator.share) {
+      try { await navigator.share({ url, title: "Join Prime Wave" }); } catch { /* dismissed */ }
+    } else {
+      navigator.clipboard.writeText(url).catch(() => {});
+      setCopied(`link-${leg}`); setTimeout(() => setCopied(null), 2000);
+    }
   }, [profile]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
@@ -1178,43 +1188,77 @@ export default function NetworkIntelligencePage() {
         {/* ── REFERRAL ──────────────────────────────────────────────────────── */}
         <div className="rounded-2xl p-5 mb-2"
           style={{ background: "linear-gradient(135deg,rgba(212,175,55,0.06) 0%,rgba(212,175,55,0.02) 100%)", border: "1px solid rgba(212,175,55,0.2)" }}>
-          <div className="flex items-center gap-2.5 mb-3">
+          <div className="flex items-center gap-2.5 mb-1">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.15)" }}>
               <Link2 style={{ width: 15, height: 15, color: GOLD }} />
             </div>
             <h3 className="text-base font-semibold font-heading text-foreground">Grow Your Network</h3>
           </div>
           <p style={{ fontSize: 12, color: MUTED, marginBottom: 14 }}>
-            Share your link to add more members to your binary tree and increase your weekly income.
+            Share the correct link to place new members on the Left or Right side of your tree.
           </p>
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-2">
-              <div className="flex-1 flex items-center gap-2 rounded-xl px-4 py-2.5"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <span style={{ fontSize: 10, color: MUTED, flexShrink: 0 }}>Code</span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: GOLD_L, letterSpacing: "0.14em" }}>
-                  {loading ? "—" : (profile?.referralCode ?? "—")}
-                </span>
-              </div>
-              <button onClick={copyCode}
-                className="h-10 w-10 flex items-center justify-center rounded-xl shrink-0 transition-all"
-                style={{ background: copied === "code" ? "rgba(52,211,153,0.12)" : "rgba(212,175,55,0.09)", border: `1px solid ${copied === "code" ? "rgba(52,211,153,0.3)" : "rgba(212,175,55,0.2)"}` }}>
-                {copied === "code" ? <CheckCheck style={{ width: 14, height: 14, color: "#34d399" }} /> : <Copy style={{ width: 14, height: 14, color: GOLD }} />}
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 rounded-xl px-4 py-2.5 overflow-hidden"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <p style={{ fontSize: 11, color: MUTED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {!loading && profile ? `${window.location.origin}/register?ref=${profile.referralCode}` : "—"}
-                </p>
-              </div>
-              <button onClick={copyLink}
-                className="h-10 w-10 flex items-center justify-center rounded-xl shrink-0 transition-all"
-                style={{ background: copied === "link" ? "rgba(52,211,153,0.12)" : "rgba(212,175,55,0.09)", border: `1px solid ${copied === "link" ? "rgba(52,211,153,0.3)" : "rgba(212,175,55,0.2)"}` }}>
-                {copied === "link" ? <CheckCheck style={{ width: 14, height: 14, color: "#34d399" }} /> : <Copy style={{ width: 14, height: 14, color: GOLD }} />}
-              </button>
-            </div>
+
+          {/* Left + Right cards */}
+          <div className="grid grid-cols-1 gap-3">
+            {(["L", "R"] as const).map((leg) => {
+              const isLeft = leg === "L";
+              const legColor   = isLeft ? "#60a5fa" : GOLD;
+              const legBg      = isLeft ? "rgba(96,165,250,0.08)"  : "rgba(212,175,55,0.08)";
+              const legBorder  = isLeft ? "rgba(96,165,250,0.18)"  : "rgba(212,175,55,0.18)";
+              const LegIcon    = isLeft ? ChevronLeft : ChevronRight;
+              const label      = isLeft ? "Left Team" : "Right Team";
+              const code       = loading || !profile ? "—" : `${profile.referralCode}-${leg}`;
+              const link       = loading || !profile ? "—" : `${window.location.origin}/register?ref=${profile.referralCode}&leg=${leg}`;
+
+              return (
+                <div key={leg} className="rounded-xl p-3.5 space-y-2.5"
+                  style={{ background: legBg, border: `1px solid ${legBorder}` }}>
+                  {/* Label */}
+                  <div className="flex items-center gap-1.5">
+                    <LegIcon style={{ width: 14, height: 14, color: legColor }} />
+                    <span style={{ fontSize: 11, fontWeight: 700, color: legColor, letterSpacing: "0.08em", textTransform: "uppercase" }}>{label}</span>
+                  </div>
+
+                  {/* Code row */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 flex items-center gap-2 rounded-lg px-3 py-2 min-w-0"
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                      <Hash style={{ width: 11, height: 11, color: MUTED, flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, fontWeight: 700, color: GOLD_L, letterSpacing: "0.12em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {code}
+                      </span>
+                    </div>
+                    <button onClick={() => copyCode(leg)}
+                      className="h-9 w-9 flex items-center justify-center rounded-lg shrink-0 transition-all"
+                      style={{ background: copied === `code-${leg}` ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.06)", border: `1px solid ${copied === `code-${leg}` ? "rgba(52,211,153,0.3)" : "rgba(255,255,255,0.1)"}` }}>
+                      {copied === `code-${leg}`
+                        ? <CheckCheck style={{ width: 13, height: 13, color: "#34d399" }} />
+                        : <Copy style={{ width: 13, height: 13, color: MUTED }} />}
+                    </button>
+                  </div>
+
+                  {/* Link row */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 rounded-lg px-3 py-2 min-w-0"
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                      <p style={{ fontSize: 10, color: MUTED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{link}</p>
+                    </div>
+                    <button onClick={() => copyLink(leg)}
+                      className="h-9 w-9 flex items-center justify-center rounded-lg shrink-0 transition-all"
+                      style={{ background: copied === `link-${leg}` ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.06)", border: `1px solid ${copied === `link-${leg}` ? "rgba(52,211,153,0.3)" : "rgba(255,255,255,0.1)"}` }}>
+                      {copied === `link-${leg}`
+                        ? <CheckCheck style={{ width: 13, height: 13, color: "#34d399" }} />
+                        : <Copy style={{ width: 13, height: 13, color: MUTED }} />}
+                    </button>
+                    <button onClick={() => void shareLink(leg)}
+                      className="h-9 w-9 flex items-center justify-center rounded-lg shrink-0 transition-all"
+                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                      <Share2 style={{ width: 13, height: 13, color: MUTED }} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
