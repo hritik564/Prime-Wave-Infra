@@ -3,6 +3,7 @@ import { processRoiCycle } from "./roi.engine";
 import { runMatchingCycle } from "../binary/matching.engine";
 import { runOrbitCycle } from "../binary/orbit.engine";
 import { runSalaryCycle } from "../salary";
+import { processTransferReleases } from "./transfer.engine";
 import { APP_TIMEZONE } from "../config/timezone";
 
 const CYCLE_MS = 12 * 60 * 60 * 1000; // 12 hours in ms
@@ -44,6 +45,13 @@ export function startScheduler(): void {
     void runCycle();
     setInterval(() => void runCycle(), CYCLE_MS);
   }, delayMs);
+
+  // ── Hourly income-transfer release engine ─────────────────────────────────
+  // Runs immediately (to catch any missed releases from a restart) then every
+  // 60 minutes thereafter.  Safe: the engine checks nextReleaseAt <= now before
+  // processing, so duplicate runs within a minute window are harmless.
+  void runTransferReleases();
+  setInterval(() => void runTransferReleases(), 60 * 60 * 1000);
 
   // ── Monthly salary cron (1st of month, 00:00 London) ──────────────────────
   const salaryDelay = msUntilNextMonthStart();
@@ -91,6 +99,14 @@ async function runSalaryMonth(): Promise<void> {
     await runSalaryCycle();
   } catch (err) {
     logger.error({ err }, "Scheduler: unhandled error in salary cron");
+  }
+}
+
+async function runTransferReleases(): Promise<void> {
+  try {
+    await processTransferReleases();
+  } catch (err) {
+    logger.error({ err }, "Scheduler: unhandled error in transfer release engine");
   }
 }
 

@@ -13,6 +13,7 @@ import {
   getWallets,
   getWalletHistory,
   getWithdrawalHistory,
+  getProfile,
   createWithdrawal,
   type Transaction,
   type WithdrawalRequest,
@@ -211,7 +212,7 @@ function WithdrawalModal({ available, walletAddress, onClose, onSuccess }: Withd
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function WithdrawalWalletPage() {
-  const { user }                  = useAuth();
+  const { user: _user }           = useAuth(); // retained for potential future use
   const [modalOpen, setModalOpen] = useState(false);
   const [balance, setBalance]     = useState<number>(0);
   const [txHistory, setTxHistory] = useState<Transaction[]>([]);
@@ -219,16 +220,20 @@ export default function WithdrawalWalletPage() {
   const [loading, setLoading]     = useState(true);
   const [toasts, setToasts]       = useState<ToastItem[]>([]);
 
+  const [walletAddress, setWalletAddress] = useState("");
+
   const load = useCallback(async () => {
     try {
-      const [walletData, txData, wrData] = await Promise.all([
+      const [walletData, txData, wrData, profileData] = await Promise.all([
         getWallets(),
         getWalletHistory({ limit: 50 }),
         getWithdrawalHistory({ limit: 50 }),
+        getProfile(),
       ]);
       setBalance(parseFloat(walletData.withdrawalWallet));
       setTxHistory(txData.data);
       setWithdrawalRequests(wrData.data);
+      setWalletAddress(profileData.walletAddress ?? "");
     } catch {
       // keep whatever we have
     } finally {
@@ -249,7 +254,7 @@ export default function WithdrawalWalletPage() {
     void load();
   }, [showToast, load]);
 
-  const walletAddress = (user as { walletAddress?: string } | null)?.walletAddress ?? "";
+  // walletAddress is loaded from the profile API in load() — always in sync with Settings
 
   return (
     <AppLayout pageTitle="Wallets" notificationCount={3}>

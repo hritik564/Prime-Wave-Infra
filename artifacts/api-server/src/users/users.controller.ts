@@ -6,6 +6,7 @@ import {
   getSponsor,
   getReferralLink,
 } from "./users.service";
+import { getMemberStatus } from "../eligibility/eligibility.service";
 import { sendSuccess } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
 import type { AuthenticatedRequest } from "../shared/types";
@@ -78,6 +79,20 @@ export async function getReferralLinkHandler(
     const { user } = req as AuthenticatedRequest;
     const result   = await getReferralLink(user.sub);
     sendSuccess(res, result, "Referral link fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getActiveStatusHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const status   = await getMemberStatus(user.sub);
+    sendSuccess(res, status, "Active status fetched successfully");
   } catch (err) {
     next(err);
   }

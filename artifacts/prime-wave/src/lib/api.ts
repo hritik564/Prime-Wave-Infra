@@ -104,6 +104,7 @@ export interface ProfileData {
   referralCode: string;
   referredBy: string | null;
   directReferralCount: number;
+  walletAddress: string | null;
   createdAt: string;
   wallet: {
     id: string;
@@ -226,11 +227,60 @@ export function getWallets() {
   return request<WalletBalances>("/api/wallets");
 }
 
+export interface IncomeTransferRelease {
+  id:         string;
+  hourNumber: number;
+  amount:     string;
+  createdAt:  string;
+}
+
+export interface IncomeTransfer {
+  id:                    string;
+  totalAmount:           string;
+  releasedAmount:        string;
+  remainingAmount:       string;
+  hourlySlice:           string;
+  hoursCompleted:        number;
+  hoursRemaining:        number;
+  completionPercent:     number;
+  status:                "ACTIVE" | "COMPLETED";
+  nextReleaseAt:         string;
+  estimatedCompletionAt: string | null;
+  createdAt:             string;
+  completedAt:           string | null;
+  releases:              IncomeTransferRelease[];
+}
+
 export function transfer(amount: number) {
-  return request<{ incomeWalletBalance: string; withdrawalWalletBalance: string }>(
+  return request<{
+    transfer:                IncomeTransfer;
+    incomeWalletBalance:     string;
+    withdrawalWalletBalance: string;
+  }>(
     "/api/wallets/transfer",
     { method: "POST", body: JSON.stringify({ amount }) },
   );
+}
+
+export function listTransfers(params?: { page?: number; limit?: number }) {
+  const q = new URLSearchParams();
+  if (params?.page)  q.set("page",  String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  const qs = q.toString() ? `?${q}` : "";
+  return request<{ data: IncomeTransfer[]; meta: ListMeta }>(`/api/wallets/transfers${qs}`);
+}
+
+export interface ActiveStatus {
+  isActive:         boolean;
+  hasInvestment:    boolean;
+  hasLeftReferral:  boolean;
+  hasRightReferral: boolean;
+  directLeftCount:  number;
+  directRightCount: number;
+}
+
+export function getActiveStatus() {
+  return request<ActiveStatus>("/api/users/active-status");
 }
 
 export interface Transaction {

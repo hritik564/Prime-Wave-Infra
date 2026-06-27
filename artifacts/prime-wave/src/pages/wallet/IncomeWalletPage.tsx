@@ -5,7 +5,7 @@ import PageContainer from "@/components/shared/PageContainer";
 import WalletTabs from "@/components/wallet/WalletTabs";
 import WalletHero from "@/components/wallet/WalletHero";
 import TransferModule from "@/components/wallet/TransferModule";
-import { getWallets, getWalletHistory, type Transaction } from "@/lib/api";
+import { getWallets, getWalletHistory, listTransfers, type Transaction, type IncomeTransfer } from "@/lib/api";
 
 function fmt(n: number) {
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -23,22 +23,25 @@ function timeAgo(dateStr: string): string {
 const CLAIM_TYPES = ["ROI_CLAIM", "PRINCIPAL_RELEASE"];
 
 export default function IncomeWalletPage() {
-  const [incomeBalance, setIncomeBalance] = useState(0);
+  const [incomeBalance, setIncomeBalance]         = useState(0);
   const [withdrawalBalance, setWithdrawalBalance] = useState(0);
-  const [claims, setClaims] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [claims, setClaims]                       = useState<Transaction[]>([]);
+  const [transfers, setTransfers]                 = useState<IncomeTransfer[]>([]);
+  const [loading, setLoading]                     = useState(true);
 
   const loadData = useCallback(async () => {
     try {
-      const [wallets, history] = await Promise.all([
+      const [wallets, history, txfResult] = await Promise.all([
         getWallets(),
         getWalletHistory({ limit: 20 }),
+        listTransfers({ limit: 20 }),
       ]);
       setIncomeBalance(parseFloat(wallets.incomeWallet));
       setWithdrawalBalance(parseFloat(wallets.withdrawalWallet));
       setClaims(history.data.filter((tx) => CLAIM_TYPES.includes(tx.type)));
+      setTransfers(txfResult.data);
     } catch {
-      // silently fail — balances remain at 0
+      // silently fail
     } finally {
       setLoading(false);
     }
@@ -46,10 +49,10 @@ export default function IncomeWalletPage() {
 
   useEffect(() => { void loadData(); }, [loadData]);
 
-  const handleTransferSuccess = useCallback((newIncome: number, newWithdrawal: number) => {
-    setIncomeBalance(newIncome);
-    setWithdrawalBalance(newWithdrawal);
-  }, []);
+  const handleTransferCreated = useCallback((newIncomeBalance: number) => {
+    setIncomeBalance(newIncomeBalance);
+    void loadData();
+  }, [loadData]);
 
   const roiTotal = claims
     .filter((c) => c.type === "ROI_CLAIM")
@@ -75,16 +78,17 @@ export default function IncomeWalletPage() {
               balance={fmt(incomeBalance)}
               description="Accumulated ROI, bonuses, and matured principal"
               subMetrics={[
-                { label: "ROI Claims",       value: fmt(roiTotal),       color: "#34d399" },
-                { label: "Principal Claims", value: fmt(principalTotal), color: "#60a5fa" },
+                { label: "ROI Claims",        value: fmt(roiTotal),          color: "#34d399" },
+                { label: "Principal Claims",  value: fmt(principalTotal),    color: "#60a5fa" },
                 { label: "Withdrawal Wallet", value: fmt(withdrawalBalance), color: "#c084fc" },
               ]}
             />
 
-            {/* Transfer Module */}
+            {/* 72-hour Transfer Module */}
             <TransferModule
               availableBalance={incomeBalance}
-              onTransferSuccess={handleTransferSuccess}
+              transfers={transfers}
+              onTransferCreated={handleTransferCreated}
             />
 
             {/* Claims History */}
@@ -126,7 +130,7 @@ export default function IncomeWalletPage() {
                         >
                           {isRoi
                             ? <TrendingUp className="h-4 w-4" style={{ color: "#34d399" }} />
-                            : <Layers className="h-4 w-4" style={{ color: "#60a5fa" }} />
+                            : <Layers    className="h-4 w-4" style={{ color: "#60a5fa" }} />
                           }
                         </div>
                         <div className="flex-1 min-w-0">

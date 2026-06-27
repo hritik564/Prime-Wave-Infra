@@ -1,9 +1,10 @@
 import type { Request, Response, NextFunction } from "express";
+import { getWalletBalances, getWalletHistory } from "./wallets.service";
 import {
-  getWalletBalances,
-  transferIncomeToWithdrawal,
-  getWalletHistory,
-} from "./wallets.service";
+  createIncomeTransfer,
+  listIncomeTransfers,
+  getIncomeTransfer,
+} from "./income-transfer.service";
 import { sendSuccess } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
 import type { AuthenticatedRequest } from "../shared/types";
@@ -30,8 +31,47 @@ export async function transfer(
 ): Promise<void> {
   try {
     const { user } = req as AuthenticatedRequest;
-    const result = await transferIncomeToWithdrawal(user.sub, req.body as TransferInput);
-    sendSuccess(res, result, "Transfer completed successfully");
+    const { amount } = req.body as TransferInput;
+    const queued = await createIncomeTransfer(user.sub, amount);
+    // Return updated balances so the UI can reflect the deduction immediately
+    const wallet = await getWalletBalances(user.sub);
+    sendSuccess(res, {
+      transfer:                queued,
+      incomeWalletBalance:     wallet.incomeWallet.toFixed(8),
+      withdrawalWalletBalance: wallet.withdrawalWallet.toFixed(8),
+    }, "Transfer queued. Funds will be released 1/72 per hour over 72 hours.");
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function listTransfers(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const q     = req.query as Record<string, string>;
+    const page  = Math.max(1, parseInt(q.page  ?? "1",  10) || 1);
+    const limit = Math.min(50, parseInt(q.limit ?? "10", 10) || 10);
+    const result = await listIncomeTransfers(user.sub, page, limit);
+    sendSuccess(res, result, "Transfers fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getTransferById(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const id = (req.params as { id: string }).id;
+    const result = await getIncomeTransfer(user.sub, id);
+    sendSuccess(res, result, "Transfer fetched successfully");
   } catch (err) {
     next(err);
   }
@@ -44,8 +84,6 @@ export async function getHistory(
 ): Promise<void> {
   try {
     const { user } = req as AuthenticatedRequest;
-    // Use getParsed() — validate(historyQuerySchema, "query") stored coerced
-    // data in res.locals because req.query is read-only in Express 5.
     const query = getParsed<HistoryQueryInput>(res, "query");
     const result = await getWalletHistory(user.sub, query);
     sendSuccess(res, result, "Transaction history fetched successfully");

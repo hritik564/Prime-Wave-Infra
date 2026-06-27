@@ -1,6 +1,7 @@
 import { prisma } from "../config/prisma";
 import { logger } from "../lib/logger";
 import { notificationService } from "../notifications/notifications.service";
+import { isMemberActive } from "../eligibility/eligibility.service";
 
 // ── Monthly salary payout engine ──────────────────────────────────────────────
 
@@ -59,6 +60,14 @@ export async function runSalaryCycle(now?: Date): Promise<void> {
       });
       expired++;
       logger.info({ userId: ach.userId, rankName: ach.rankName }, "Salary cron: achievement expired");
+      continue;
+    }
+
+    // ── 1b. Active member qualification ──────────────────────────────────────
+    const memberActive = await isMemberActive(ach.userId);
+    if (!memberActive) {
+      skipped++;
+      logger.info({ userId: ach.userId, rankName: ach.rankName }, "Salary cron: user is not an active member, skipping");
       continue;
     }
 

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
+import { isMemberActive } from "../eligibility/eligibility.service";
 import type { LevelIncomeHistoryQuery } from "./level-income.schema";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -58,6 +59,14 @@ export async function processLevelIncome(
 
     const ancestorId = current?.sponsorId;
     if (!ancestorId) break; // Chain ends — no more levels to pay
+
+    // Active Member Qualification — inactive ancestors are skipped (not stopped)
+    const ancestorActive = await isMemberActive(ancestorId, tx);
+    if (!ancestorActive) {
+      // Move up the chain without paying this level
+      currentUserId = ancestorId;
+      continue;
+    }
 
     const pct     = LEVEL_RULES[level]!;
     const percentage    = new Prisma.Decimal(pct);

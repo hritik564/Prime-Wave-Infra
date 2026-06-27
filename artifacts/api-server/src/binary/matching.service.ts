@@ -50,20 +50,30 @@ export async function processMatchingCycle(
   cycleStart: Date,
   cycleEnd:   Date,
 ): Promise<MatchingCycleResult> {
+  // Active Member Qualification (LOCKED):
+  //   • ≥1 direct referral on LEFT leg
+  //   • ≥1 direct referral on RIGHT leg
+  //   • At least one active investment ≥ $100
   const candidates = await prisma.user.findMany({
     where: {
-      status:              "ACTIVE",
-      directReferralCount: { gte: MIN_REFERRALS },
+      status:           "ACTIVE",
+      directLeftCount:  { gte: 1 },
+      directRightCount: { gte: 1 },
+      investments: {
+        some: {
+          status: "ACTIVE",
+          amount: { gte: new Prisma.Decimal("100") },
+        },
+      },
       OR: [
         { leftBV:  { gt: 0 } },
         { rightBV: { gt: 0 } },
       ],
     },
     select: {
-      id:                  true,
-      leftBV:              true,
-      rightBV:             true,
-      directReferralCount: true,
+      id:      true,
+      leftBV:  true,
+      rightBV: true,
     },
     orderBy: { id: "asc" },
   });

@@ -1,0 +1,328 @@
+# Sprint 22 — Phase B: Active Member Qualification & Income Transfer Engine
+
+Objective
+
+This sprint focuses on two core systems:
+
+1. Active Member Qualification Engine
+2. Income Wallet → Withdrawal Wallet 72-Hour Transfer Engine
+
+Do NOT redesign the UI.
+
+Do NOT modify investments.
+
+Do NOT modify Binary calculations.
+
+Do NOT modify ROI calculations.
+
+Only implement and enforce the business rules below.
+
+--------------------------------------------------------
+PART 1 — Active Member Qualification Engine
+--------------------------------------------------------
+
+Prime Wave Business Rule (LOCKED)
+
+A member is considered ACTIVE only if BOTH conditions are satisfied.
+
+Condition 1
+
+The member has at least:
+
+$100 Active Investment
+
+AND
+
+Condition 2
+
+The member has:
+
+• Minimum 1 Direct Referral on the LEFT leg
+
+AND
+
+• Minimum 1 Direct Referral on the RIGHT leg
+
+Both conditions are mandatory.
+
+--------------------------------------------------------
+
+Inactive Members
+
+Inactive members are eligible ONLY for:
+
+✓ ROI Income
+
+✓ Principal Return
+
+Inactive members are NOT eligible for:
+
+✗ Binary Income
+
+✗ Binary Orbit Income
+
+✗ Salary Income
+
+✗ Level Income
+
+These income engines must completely ignore inactive members.
+
+--------------------------------------------------------
+
+Implementation
+
+Create one centralized eligibility service.
+
+Example:
+
+isMemberActive(userId)
+
+Do NOT duplicate qualification logic inside Binary, Salary, Orbit and Level engines.
+
+Every income engine must call the centralized eligibility service.
+
+--------------------------------------------------------
+
+Active Status
+
+Whenever any of the following changes:
+
+• Investment
+
+• Sponsor Tree
+
+• Left Referral
+
+• Right Referral
+
+Automatically recalculate member status.
+
+No manual refresh should be required.
+
+--------------------------------------------------------
+
+User Dashboard
+
+Display member status.
+
+ACTIVE
+
+or
+
+INACTIVE
+
+If inactive, show:
+
+Requirements Remaining
+
+Examples:
+
+✓ Minimum Investment Completed
+
+✓ Left Referral Completed
+
+❌ Right Referral Required
+
+OR
+
+❌ Minimum $100 Investment Required
+
+✓ Left Referral Completed
+
+✓ Right Referral Completed
+
+This should update automatically.
+
+--------------------------------------------------------
+PART 2 — Income Wallet Transfer Engine
+--------------------------------------------------------
+
+Prime Wave Business Rule (LOCKED)
+
+Income Wallet receives ONLY:
+
+• ROI
+
+• Principal Return
+
+When user clicks:
+
+Transfer to Withdrawal Wallet
+
+The transfer must:
+
+Create a Transfer Record
+
+↓
+
+Enter 72-Hour Queue
+
+↓
+
+Automatically release
+
+1/72
+
+every hour
+
+↓
+
+Credit released amount into Withdrawal Wallet
+
+No admin approval.
+
+Fully automatic.
+
+--------------------------------------------------------
+
+Transfer Dashboard
+
+Replace current behaviour.
+
+Users must see:
+
+Transfer Amount
+
+Released Amount
+
+Remaining Amount
+
+Current Hour
+
+Hours Remaining
+
+Completion Percentage
+
+Estimated Completion Time
+
+Countdown until next hourly release
+
+Transfer Status
+
+--------------------------------------------------------
+
+Transfer History
+
+Every transfer should include:
+
+Transfer Created
+
+Hourly Release Entries
+
+Transfer Completed
+
+Timestamp
+
+Amount Released
+
+Remaining Balance
+
+--------------------------------------------------------
+
+Functional Behaviour
+
+The backend must actually process hourly releases.
+
+Do not simulate the timer only.
+
+Every hour:
+
+Release:
+
+1/72
+
+of the transfer amount.
+
+Credit it into Withdrawal Wallet.
+
+Update:
+
+Released Amount
+
+Remaining Amount
+
+Progress
+
+Completion %
+
+When all 72 releases complete:
+
+Status becomes:
+
+Completed
+
+--------------------------------------------------------
+
+Wallet Synchronization
+
+Whenever a release occurs:
+
+Income Wallet
+
+↓
+
+Decrease Remaining Transfer
+
+Withdrawal Wallet
+
+↓
+
+Increase Balance
+
+Everything should remain synchronized.
+
+--------------------------------------------------------
+
+Withdrawal Address Synchronization
+
+Current issue:
+
+Withdrawal address updated in Settings does not appear in Withdrawal Wallet.
+
+Fix this.
+
+Both screens must use the same backend source.
+
+Updating the withdrawal address should immediately reflect everywhere.
+
+--------------------------------------------------------
+
+Validation
+
+Verify:
+
+✓ Active status updates automatically.
+
+✓ Inactive users receive ONLY ROI and Principal.
+
+✓ Binary Income blocked for inactive users.
+
+✓ Orbit blocked for inactive users.
+
+✓ Salary blocked for inactive users.
+
+✓ Level Income blocked for inactive users.
+
+✓ Active users receive all eligible income.
+
+✓ Transfer creates correctly.
+
+✓ 72-hour queue starts immediately.
+
+✓ Hourly releases execute correctly.
+
+✓ Withdrawal Wallet updates hourly.
+
+✓ Transfer history records every release.
+
+✓ Dashboard progress updates correctly.
+
+✓ Countdown timer works.
+
+✓ Withdrawal address stays synchronized.
+
+--------------------------------------------------------
+
+Goal
+
+Implement Prime Wave's centralized Active Member Qualification Engine together with the fully functional 72-hour Income Wallet Transfer Engine so that income eligibility, wallet movement and user visibility all strictly follow the platform's locked business rules.

@@ -96,6 +96,8 @@ model User {
 
   referredBy          String?
   directReferralCount Int     @default(0)
+  directLeftCount     Int     @default(0)
+  directRightCount    Int     @default(0)
 
   // ── Binary tree ───────────────────────────────────────────────────────────
   position              BinaryPosition?
@@ -159,6 +161,7 @@ model User {
   bvHistoryInvested BvHistory[]      @relation("BvHistoryInvestor")
 
   notifications     Notification[]
+  incomeTransfers   IncomeTransfer[]
 
   @@map("users")
 }
@@ -781,4 +784,53 @@ model Notification {
   @@index([userId, isRead])
   @@index([createdAt])
   @@map("notifications")
+}
+
+// ── Income Transfer Engine ────────────────────────────────────────────────────
+//
+// When a user requests an income→withdrawal transfer, the full amount is held
+// in a queue and released as 1/72 slices every hour over 72 hours.
+// No fee applies — what goes in comes out over the 72 hours.
+//
+// Status lifecycle:  ACTIVE → COMPLETED (after 72 hourly releases)
+
+enum IncomeTransferStatus {
+  ACTIVE
+  COMPLETED
+}
+
+model IncomeTransfer {
+  id              String               @id @default(cuid())
+  userId          String
+  totalAmount     Decimal              @db.Decimal(18, 8)
+  releasedAmount  Decimal              @default(0) @db.Decimal(18, 8)
+  remainingAmount Decimal              @db.Decimal(18, 8)
+  hourlySlice     Decimal              @db.Decimal(18, 8)
+  hoursCompleted  Int                  @default(0)
+  status          IncomeTransferStatus @default(ACTIVE)
+  nextReleaseAt   DateTime
+  createdAt       DateTime             @default(now())
+  completedAt     DateTime?
+
+  user     User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  releases IncomeTransferRelease[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([nextReleaseAt])
+  @@map("income_transfers")
+}
+
+// One record per hourly release fired by the transfer cron engine.
+model IncomeTransferRelease {
+  id         String   @id @default(cuid())
+  transferId String
+  hourNumber Int
+  amount     Decimal  @db.Decimal(18, 8)
+  createdAt  DateTime @default(now())
+
+  transfer IncomeTransfer @relation(fields: [transferId], references: [id], onDelete: Restrict)
+
+  @@index([transferId])
+  @@map("income_transfer_releases")
 }

@@ -121,10 +121,15 @@ export async function registerUser(input: RegisterInput) {
       },
     });
 
-    // Increment sponsor's directReferralCount atomically
+    // Increment sponsor's directReferralCount and leg-specific count atomically
     await tx.user.update({
       where: { id: sponsorId },
-      data:  { directReferralCount: { increment: 1 } },
+      data: {
+        directReferralCount: { increment: 1 },
+        ...(position === "LEFT"
+          ? { directLeftCount: { increment: 1 } }
+          : { directRightCount: { increment: 1 } }),
+      },
     });
 
     // Create permanent referral history record — includes placement leg for audit

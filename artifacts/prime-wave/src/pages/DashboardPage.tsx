@@ -14,7 +14,7 @@ import {
   Clock, CheckCircle, DollarSign,
 } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
-import { getProfile, listInvestments, getWalletHistory, type ProfileData, type ApiInvestment, type Transaction } from "@/lib/api";
+import { getProfile, listInvestments, getWalletHistory, getActiveStatus, type ProfileData, type ApiInvestment, type Transaction, type ActiveStatus } from "@/lib/api";
 
 /* ── Inline toast ── */
 interface ToastItem { id: number; message: string }
@@ -81,19 +81,22 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [investments, setInvestments] = useState<ApiInvestment[]>([]);
   const [recentTxs, setRecentTxs] = useState<Transaction[]>([]);
+  const [activeStatus, setActiveStatus] = useState<ActiveStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [profileData, invResult, historyResult] = await Promise.all([
+        const [profileData, invResult, historyResult, statusResult] = await Promise.all([
           getProfile(),
           listInvestments({ limit: 100 }),
           getWalletHistory({ limit: 5 }),
+          getActiveStatus(),
         ]);
         setProfile(profileData);
         setInvestments(invResult.data);
         setRecentTxs(historyResult.data);
+        setActiveStatus(statusResult);
       } catch {
         // silently fail — show zeros
       } finally {
@@ -159,6 +162,53 @@ export default function DashboardPage() {
           </div>
         ) : (
           <>
+            {/* ── Active Member Status ── */}
+            <div
+              className="rounded-2xl overflow-hidden mb-5 lg:mb-6"
+              style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}
+            >
+              <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid hsl(var(--border))" }}>
+                <div>
+                  <h3 className="text-base font-semibold font-heading text-foreground">Member Status</h3>
+                  <p className="text-xs mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>
+                    Income eligibility — all three required for Binary, Orbit &amp; Salary
+                  </p>
+                </div>
+                <div
+                  className="px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest"
+                  style={
+                    activeStatus?.isActive
+                      ? { background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.3)" }
+                      : { background: "rgba(248,113,113,0.12)", color: "#f87171", border: "1px solid rgba(248,113,113,0.3)" }
+                  }
+                >
+                  {activeStatus?.isActive ? "ACTIVE" : "INACTIVE"}
+                </div>
+              </div>
+              <div className="px-5 py-4 space-y-2.5">
+                {[
+                  { label: "Min. $100 Active Investment", done: activeStatus?.hasInvestment  ?? false },
+                  { label: "Left Leg Referral",           done: activeStatus?.hasLeftReferral  ?? false },
+                  { label: "Right Leg Referral",          done: activeStatus?.hasRightReferral ?? false },
+                ].map((req) => (
+                  <div key={req.label} className="flex items-center gap-3">
+                    <div
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                      style={req.done ? { background: "rgba(52,211,153,0.15)", color: "#34d399" } : { background: "rgba(248,113,113,0.12)", color: "#f87171" }}
+                    >
+                      {req.done ? "✓" : "✗"}
+                    </div>
+                    <span className="text-sm flex-1" style={{ color: req.done ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))" }}>
+                      {req.label}
+                    </span>
+                    <span className="text-xs font-semibold" style={{ color: req.done ? "#34d399" : "#f87171" }}>
+                      {req.done ? "Met" : "Required"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* ── Hero Card ── */}
             <HeroCard
               totalInvestment={fmt(totalInvested)}

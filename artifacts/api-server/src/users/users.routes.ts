@@ -5,6 +5,7 @@ import {
   getDirectReferralsHandler,
   getSponsorHandler,
   getReferralLinkHandler,
+  getActiveStatusHandler,
 } from "./users.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 import { validate } from "../middleware/validate.middleware";
@@ -26,6 +27,9 @@ router.get("/referral-link", getReferralLinkHandler);
 
 // GET /api/users/sponsor
 router.get("/sponsor", getSponsorHandler);
+
+// GET /api/users/active-status — active member qualification status + requirements
+router.get("/active-status", getActiveStatusHandler);
 
 // GET /api/users/direct-referrals — paginated list of users sponsored by caller
 router.get(
