@@ -10,9 +10,11 @@ import {
   getPlans,
   createPlan,
   updatePlanStatus,
+  updatePlanConfig,
   getLevelConfig,
   saveLevelConfig,
   getSalaryRanks,
+  updateSalaryRank,
 } from "./admin-plans.service";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
@@ -25,7 +27,7 @@ export async function getAllPlanConfigHandler(req: AuthenticatedRequest, res: Re
 }
 
 export async function saveConfigFieldHandler(req: AuthenticatedRequest, res: Response) {
-  const { key }                         = getParsed(res, "params") as { key: string };
+  const { key }                            = getParsed(res, "params") as { key: string };
   const { value, oldValue, reason, label } = req.body as { value: string; oldValue?: string; reason: string; label?: string };
   const adminId    = req.user.sub;
   const adminEmail = req.user.email;
@@ -71,7 +73,7 @@ export async function createPlanHandler(req: AuthenticatedRequest, res: Response
     status:       "ACTIVE",
     benefits:     body.benefits     ?? [],
     notes:        body.notes        ?? "",
-    claimWindow:  body.claimWindow  ?? "24 hours",
+    claimWindow:  body.claimWindow  ?? "",
   }, adminId, adminEmail);
   sendCreated(res, plan, "Plan created");
 }
@@ -86,6 +88,15 @@ export async function updatePlanStatusHandler(req: AuthenticatedRequest, res: Re
   }
   const plan = await updatePlanStatus(id, status, adminId, adminEmail);
   sendSuccess(res, plan, "Plan status updated");
+}
+
+export async function updatePlanConfigHandler(req: AuthenticatedRequest, res: Response) {
+  const { id }                    = getParsed(res, "params") as { id: string };
+  const { roi, minInvest, maxInvest } = req.body as { roi?: number; minInvest?: number; maxInvest?: number | null };
+  const adminId    = req.user.sub;
+  const adminEmail = req.user.email;
+  const plan = await updatePlanConfig(id, { roi, minInvest, maxInvest }, adminId, adminEmail);
+  sendSuccess(res, plan, "Plan config updated");
 }
 
 // ─── Level Config ─────────────────────────────────────────────────────────────
@@ -108,4 +119,14 @@ export async function saveLevelConfigHandler(req: AuthenticatedRequest, res: Res
 export async function getSalaryRanksHandler(req: AuthenticatedRequest, res: Response) {
   const data = await getSalaryRanks();
   sendSuccess(res, { ranks: data }, "Salary ranks fetched");
+}
+
+export async function updateSalaryRankHandler(req: AuthenticatedRequest, res: Response) {
+  const { rankName }                                         = getParsed(res, "params") as { rankName: string };
+  const { monthlySalary, requiredBusiness, requiresDualDirects, isActive } =
+    req.body as { monthlySalary?: number; requiredBusiness?: number; requiresDualDirects?: boolean; isActive?: boolean };
+  const adminId    = req.user.sub;
+  const adminEmail = req.user.email;
+  const rank = await updateSalaryRank(rankName, { monthlySalary, requiredBusiness, requiresDualDirects, isActive }, adminId, adminEmail);
+  sendSuccess(res, rank, "Salary rank updated");
 }

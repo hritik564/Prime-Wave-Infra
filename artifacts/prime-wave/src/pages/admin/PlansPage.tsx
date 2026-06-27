@@ -3,15 +3,14 @@ import AdminLayout from "./AdminLayout";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
 import {
   Package, Zap, BarChart2, TrendingUp, DollarSign, Award,
-  ArrowRightLeft, Shield, Globe, Settings, Edit2, Check,
-  X, MoreVertical, ChevronRight, History, FileText,
-  RotateCcw, Eye, Copy, Archive, Trash2, CheckCircle,
-  AlertTriangle, Plus, Download, RefreshCw,
+  Wallet, Shield, Globe, Edit2, Check,
+  X, ChevronRight, RotateCcw, Eye, Download,
+  CheckCircle, AlertTriangle, Lock, Info,
 } from "lucide-react";
 import {
   adminGetPlans,
-  adminCreatePlan,
   adminUpdatePlanStatus,
+  adminUpdatePlanConfig,
   adminGetPlanConfig,
   adminSaveConfigField,
   adminGetConfigVersions,
@@ -19,7 +18,7 @@ import {
   adminGetLevelConfig,
   adminSaveLevelConfig,
   adminGetSalaryRanks,
-  type PlanItem,
+  adminUpdateSalaryRank,
   type PlanConfigSections,
   type PlanVersionEntry,
   type PlanAuditEntry,
@@ -27,7 +26,7 @@ import {
   type SalaryRankItem,
 } from "@/lib/api";
 
-// ─── Design tokens ─────────────────────────────────────────────────────────────
+// ─── Design tokens ──────────────────────────────────────────────────────────
 const GOLD   = "#D4AF37";
 const GOLD_L = "#F3D37A";
 const MUTED  = "rgba(170,179,197,0.48)";
@@ -35,83 +34,65 @@ const BORDER = "rgba(255,255,255,0.07)";
 const CARD   = "hsl(222 62% 9%)";
 const BG     = "hsl(222 62% 7%)";
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
-type PlanStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
+// ─── Types ──────────────────────────────────────────────────────────────────
+type PlanStatus = "ACTIVE" | "INACTIVE";
 interface Plan {
   id: string; name: string; color: string;
   minInvest: number; maxInvest: number | null;
-  roi: number; duration: number; autoCompound: boolean;
+  roi: number; duration: number;
   status: PlanStatus; members: number;
-  benefits: string[]; notes: string; claimWindow: string;
 }
-
-interface LevelRow { level: number; rate: number; qualification: string; status: "ACTIVE" | "INACTIVE" }
-interface SalaryRow { rank: string; color: string; monthly: number; directs: number; teamVolume: string; retention: string }
-interface RankCard { id: string; name: string; color: string; gradient: string; minInvest: number; teamSize: number; groupVolume: string; bonus: string; salary: number; benefits: string[] }
 interface ConfigField { key: string; label: string; value: string; unit?: string; type: "text" | "number" | "toggle"; description?: string }
-interface AuditEntry { id: string; timestamp: Date; admin: string; configName: string; oldValue: string; newValue: string; reason: string }
+interface AuditEntry  { id: string; timestamp: Date; admin: string; configName: string; oldValue: string; newValue: string; reason: string }
 interface ConfigVersion { id: string; version: string; publishedBy: string; publishedAt: Date; changeCount: number }
+interface ConfirmPending { configName: string; oldValue: string; newValue: string; onConfirm: (reason: string) => Promise<void> }
 
-type SectionId = "plans" | "roi" | "binary" | "orbit" | "level" | "salary" | "ranks" | "transfer" | "limits" | "global";
+type SectionId = "plans" | "roi" | "binary" | "orbit" | "level" | "salary" | "ranks" | "wallet" | "limits" | "global";
 type ConfigState = Record<SectionId, ConfigField[]>;
 
-// ─── Static display metadata for ranks ─────────────────────────────────────────
-const RANK_META: Record<string, { color: string; gradient: string; minInvest: number; teamSize: number; groupVolume: string; bonus: string; benefits: string[] }> = {
-  "Bronze":      { color: "#cd7f32", gradient: "from-[#cd7f32] to-[#8B4513]", minInvest: 100,   teamSize: 2,   groupVolume: "$500",   bonus: "$25",    benefits: ["Level 1-2 income","Binary eligible"] },
-  "Silver":      { color: "#c0c0c0", gradient: "from-[#c0c0c0] to-[#808080]", minInvest: 500,   teamSize: 5,   groupVolume: "$2K",    bonus: "$100",   benefits: ["Level 1-3 income","Binary + Orbit"] },
-  "Gold":        { color: GOLD,      gradient: "from-[#D4AF37] to-[#B8860B]", minInvest: 1000,  teamSize: 10,  groupVolume: "$10K",   bonus: "$500",   benefits: ["Level 1-5 income","All binary types"] },
-  "Platinum":    { color: GOLD,      gradient: "from-[#D4AF37] to-[#B8860B]", minInvest: 1000,  teamSize: 10,  groupVolume: "$10K",   bonus: "$500",   benefits: ["Level 1-5 income","All binary types"] },
-  "Diamond":     { color: "#a5f3fc", gradient: "from-[#a5f3fc] to-[#0ea5e9]", minInvest: 5000,  teamSize: 25,  groupVolume: "$50K",   bonus: "$2000",  benefits: ["Level 1-7 income","Salary eligible","Priority support"] },
-  "Crown":       { color: "#a78bfa", gradient: "from-[#a78bfa] to-[#7c3aed]", minInvest: 10000, teamSize: 50,  groupVolume: "$200K",  bonus: "$5000",  benefits: ["Level 1-9 income","Full compensation","Dedicated manager"] },
-  "Royal Crown": { color: "#f87171", gradient: "from-[#f87171] to-[#dc2626]", minInvest: 50000, teamSize: 100, groupVolume: "$500K",  bonus: "$10000", benefits: ["All income types","Board access","Crown ceremony invite"] },
+// ─── Rank display metadata ──────────────────────────────────────────────────
+const RANK_META: Record<string, { color: string; benefits: string[] }> = {
+  "Bronze":         { color: "#cd7f32", benefits: ["Level 1–2 income","Binary eligible","Standard support"] },
+  "Silver":         { color: "#c0c0c0", benefits: ["Level 1–3 income","Binary + Orbit eligible","Standard support"] },
+  "Gold":           { color: "#D4AF37", benefits: ["Level 1–5 income","All binary types","Priority queue"] },
+  "Platinum":       { color: "#e5e4e2", benefits: ["Level 1–6 income","All binary types","Priority processing"] },
+  "Sapphire":       { color: "#0f52ba", benefits: ["Level 1–7 income","Salary eligible","Fast withdrawal"] },
+  "Ruby":           { color: "#e0115f", benefits: ["Level 1–8 income","Salary + Orbit bonus","Dedicated support"] },
+  "Emerald":        { color: "#50c878", benefits: ["Level 1–9 income","All income types","Senior support"] },
+  "Diamond":        { color: "#a5f3fc", benefits: ["Level 1–9 income","All income types","VIP status","Priority withdrawal"] },
+  "Ambassador":     { color: "#a78bfa", benefits: ["All income types","Dedicated manager","Ambassador badge","Board updates"] },
+  "Sovereign Crown":{ color: GOLD,      benefits: ["All income types","Board access","Crown ceremony invite","Maximum salary"] },
 };
 
-const SALARY_META: Record<string, { color: string; directs: number; retention: string }> = {
-  "Bronze":      { color: "#cd7f32", directs: 0,  retention: "—" },
-  "Silver":      { color: "#c0c0c0", directs: 0,  retention: "—" },
-  "Gold":        { color: GOLD,      directs: 3,  retention: "Monthly" },
-  "Platinum":    { color: GOLD,      directs: 3,  retention: "Monthly" },
-  "Diamond":     { color: "#a5f3fc", directs: 5,  retention: "Monthly" },
-  "Crown":       { color: "#a78bfa", directs: 10, retention: "Monthly" },
-  "Royal Crown": { color: "#f87171", directs: 20, retention: "Monthly" },
-};
-
-// ─── Nav items ─────────────────────────────────────────────────────────────────
+// ─── Nav items ──────────────────────────────────────────────────────────────
 const NAV_ITEMS: { id: SectionId; icon: React.ElementType; label: string }[] = [
-  { id: "plans",    icon: Package,       label: "Investment Plans"    },
-  { id: "roi",      icon: TrendingUp,    label: "ROI Engine"          },
-  { id: "binary",   icon: BarChart2,     label: "Binary Matching"     },
-  { id: "orbit",    icon: Zap,           label: "Binary Orbit"        },
-  { id: "level",    icon: ChevronRight,  label: "Level Income"        },
-  { id: "salary",   icon: DollarSign,    label: "Salary Income"       },
-  { id: "ranks",    icon: Award,         label: "Ranks"               },
-  { id: "transfer", icon: ArrowRightLeft,label: "Transfer Rules"      },
-  { id: "limits",   icon: Shield,        label: "Platform Limits"     },
-  { id: "global",   icon: Globe,         label: "Global Config"       },
+  { id: "plans",  icon: Package,    label: "Investment Plans"   },
+  { id: "roi",    icon: TrendingUp, label: "ROI Engine"         },
+  { id: "binary", icon: BarChart2,  label: "Binary Matching"    },
+  { id: "orbit",  icon: Zap,        label: "Binary Orbit"       },
+  { id: "level",  icon: ChevronRight,label:"Level Income"       },
+  { id: "salary", icon: DollarSign, label: "Salary Income"      },
+  { id: "ranks",  icon: Award,      label: "Ranks"              },
+  { id: "wallet", icon: Wallet,     label: "Wallet Rules"       },
+  { id: "limits", icon: Shield,     label: "Platform Limits"    },
+  { id: "global", icon: Globe,      label: "Global Configuration"},
 ];
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-const $ = (n: number) => "$" + n.toLocaleString("en-US");
+// ─── Helpers ────────────────────────────────────────────────────────────────
+const fmt$ = (n: number) => "$" + n.toLocaleString("en-US");
 const fmtDate = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-const timeAgo = (d: Date) => { const h = Math.round((Date.now()-d.getTime())/3600000); return h < 24 ? `${h}h ago` : `${Math.round(h/24)}d ago`; };
-const PLAN_STATUS: Record<PlanStatus,{color:string;bg:string}> = {
+const timeAgo = (d: Date) => { const h = Math.round((Date.now() - d.getTime()) / 3600000); return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`; };
+const PLAN_STATUS_STYLE: Record<string, { color: string; bg: string }> = {
   ACTIVE:   { color: "#34d399", bg: "rgba(52,211,153,0.12)"  },
   INACTIVE: { color: "#fbbf24", bg: "rgba(251,191,36,0.12)"  },
-  ARCHIVED: { color: MUTED,     bg: "rgba(170,179,197,0.08)" },
 };
 
-// ─── Confirm Modal ─────────────────────────────────────────────────────────────
-interface ConfirmPending { configName: string; oldValue: string; newValue: string; sectionId: SectionId; key: string; rawNew: string; label: string }
-
-function ConfirmModal({ pending, onConfirm, onCancel }: {
-  pending: ConfirmPending;
-  onConfirm: (reason: string, notes: string) => void;
-  onCancel: () => void;
-}) {
+// ─── Confirm Modal ───────────────────────────────────────────────────────────
+function ConfirmModal({ pending, onCancel }: { pending: ConfirmPending; onCancel: () => void }) {
   const [reason, setReason] = useState("");
   const [notes,  setNotes]  = useState("");
   const [ack,    setAck]    = useState(false);
-  const ok = reason.trim() && ack;
+  const ok = reason.trim().length > 0 && ack;
   return (
     <>
       <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.55)" }} onClick={onCancel} />
@@ -126,18 +107,18 @@ function ConfirmModal({ pending, onConfirm, onCancel }: {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "14px 16px", marginBottom: 18 }}>
           <div style={{ textAlign: "center", flex: 1 }}>
-            <div style={{ fontSize: 9, color: MUTED, marginBottom: 4 }}>CURRENT VALUE</div>
+            <div style={{ fontSize: 9, color: MUTED, marginBottom: 4 }}>CURRENT</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#f87171", fontFamily: "monospace" }}>{pending.oldValue}</div>
           </div>
           <ChevronRight size={18} style={{ color: MUTED, flexShrink: 0 }} />
           <div style={{ textAlign: "center", flex: 1 }}>
-            <div style={{ fontSize: 9, color: MUTED, marginBottom: 4 }}>NEW VALUE</div>
+            <div style={{ fontSize: 9, color: MUTED, marginBottom: 4 }}>NEW</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#34d399", fontFamily: "monospace" }}>{pending.newValue}</div>
           </div>
         </div>
         <div style={{ marginBottom: 14 }}>
           <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: MUTED, marginBottom: 6 }}>REASON FOR CHANGE <span style={{ color: "#f87171" }}>*</span></label>
-          <input value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Board decision, member feedback, competitive adjustment…" style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "9px 12px", fontSize: 12, color: "rgba(255,255,255,0.8)", outline: "none", boxSizing: "border-box" }} />
+          <input value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Board decision, member feedback…" style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "9px 12px", fontSize: 12, color: "rgba(255,255,255,0.8)", outline: "none", boxSizing: "border-box" }} />
         </div>
         <div style={{ marginBottom: 18 }}>
           <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: MUTED, marginBottom: 6 }}>ADMIN NOTES <span style={{ color: MUTED }}>(optional)</span></label>
@@ -147,28 +128,27 @@ function ConfirmModal({ pending, onConfirm, onCancel }: {
           <div onClick={() => setAck(a => !a)} style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${ack ? GOLD : BORDER}`, background: ack ? `${GOLD}18` : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             {ack && <Check size={11} style={{ color: GOLD }} />}
           </div>
-          <span style={{ fontSize: 11, color: MUTED }}>I confirm this configuration change is intentional and has been reviewed.</span>
+          <span style={{ fontSize: 11, color: MUTED }}>I confirm this change is intentional and has been reviewed.</span>
         </label>
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={onCancel} style={{ flex: 1, padding: "10px 0", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 9, cursor: "pointer", fontSize: 12, fontWeight: 600, color: MUTED }}>Cancel</button>
-          <button onClick={() => ok && onConfirm(reason, notes)} disabled={!ok} style={{ flex: 1, padding: "10px 0", background: ok ? "rgba(212,175,55,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${ok ? "rgba(212,175,55,0.3)" : BORDER}`, borderRadius: 9, cursor: ok ? "pointer" : "not-allowed", fontSize: 12, fontWeight: 700, color: ok ? GOLD_L : MUTED }}>Save Changes</button>
+          <button onClick={() => ok && pending.onConfirm(reason)} disabled={!ok}
+            style={{ flex: 1, padding: "10px 0", background: ok ? "rgba(212,175,55,0.12)" : "rgba(255,255,255,0.03)", border: `1px solid ${ok ? "rgba(212,175,55,0.3)" : BORDER}`, borderRadius: 9, cursor: ok ? "pointer" : "not-allowed", fontSize: 12, fontWeight: 700, color: ok ? GOLD_L : MUTED }}>
+            Save Changes
+          </button>
         </div>
       </div>
     </>
   );
 }
 
-// ─── Config Card (editable) ────────────────────────────────────────────────────
+// ─── Config Card ─────────────────────────────────────────────────────────────
 function ConfigCard({ field, onEdit }: { field: ConfigField; onEdit: (f: ConfigField, newVal: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft,   setDraft]   = useState(field.value);
-
   const isToggle = field.type === "toggle";
   const display  = field.unit ? `${field.value} ${field.unit}` : field.value;
-
-  const handleToggle = () => { onEdit(field, field.value === "true" ? "false" : "true"); };
-  const handleApply  = () => { if (draft !== field.value) onEdit(field, draft); setEditing(false); };
-
+  const handleApply = () => { if (draft !== field.value) onEdit(field, draft); setEditing(false); };
   return (
     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "16px 18px" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
@@ -177,7 +157,7 @@ function ConfigCard({ field, onEdit }: { field: ConfigField; onEdit: (f: ConfigF
           {field.description && <div style={{ fontSize: 10, color: MUTED, lineHeight: 1.5 }}>{field.description}</div>}
         </div>
         {isToggle ? (
-          <button onClick={handleToggle} style={{ flexShrink: 0, width: 44, height: 24, borderRadius: 12, background: field.value === "true" ? "rgba(52,211,153,0.2)" : "rgba(255,255,255,0.06)", border: `2px solid ${field.value === "true" ? "#34d399" : BORDER}`, cursor: "pointer", position: "relative", transition: "all 0.15s" }}>
+          <button onClick={() => onEdit(field, field.value === "true" ? "false" : "true")} style={{ flexShrink: 0, width: 44, height: 24, borderRadius: 12, background: field.value === "true" ? "rgba(52,211,153,0.2)" : "rgba(255,255,255,0.06)", border: `2px solid ${field.value === "true" ? "#34d399" : BORDER}`, cursor: "pointer", position: "relative" }}>
             <div style={{ position: "absolute", top: 2, left: field.value === "true" ? 20 : 2, width: 16, height: 16, borderRadius: "50%", background: field.value === "true" ? "#34d399" : MUTED, transition: "left 0.15s" }} />
           </button>
         ) : (
@@ -186,12 +166,8 @@ function ConfigCard({ field, onEdit }: { field: ConfigField; onEdit: (f: ConfigF
           </button>
         )}
       </div>
-      {!isToggle && (
-        <div style={{ fontSize: 20, fontWeight: 800, color: GOLD_L, fontFamily: "monospace", marginBottom: editing ? 12 : 0 }}>{display}</div>
-      )}
-      {isToggle && (
-        <div style={{ fontSize: 13, fontWeight: 700, color: field.value === "true" ? "#34d399" : "#f87171" }}>{field.value === "true" ? "Enabled" : "Disabled"}</div>
-      )}
+      {!isToggle && <div style={{ fontSize: 20, fontWeight: 800, color: GOLD_L, fontFamily: "monospace", marginBottom: editing ? 12 : 0 }}>{display}</div>}
+      {isToggle && <div style={{ fontSize: 13, fontWeight: 700, color: field.value === "true" ? "#34d399" : "#f87171" }}>{field.value === "true" ? "Enabled" : "Disabled"}</div>}
       {editing && (
         <div style={{ paddingTop: 10, borderTop: `1px solid ${BORDER}` }}>
           <div style={{ fontSize: 10, color: MUTED, marginBottom: 6 }}>
@@ -200,7 +176,7 @@ function ConfigCard({ field, onEdit }: { field: ConfigField; onEdit: (f: ConfigF
             <span style={{ color: "#34d399", fontFamily: "monospace" }}>{draft || "…"}{field.unit ? ` ${field.unit}` : ""}</span>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
-            <input value={draft} onChange={e => setDraft(e.target.value)} style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: `1px solid rgba(212,175,55,0.3)`, borderRadius: 7, padding: "7px 10px", fontSize: 12, color: GOLD_L, outline: "none", fontFamily: "monospace" }} autoFocus />
+            <input value={draft} onChange={e => setDraft(e.target.value)} style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 7, padding: "7px 10px", fontSize: 12, color: GOLD_L, outline: "none", fontFamily: "monospace" }} autoFocus />
             <button onClick={handleApply} style={{ padding: "7px 12px", background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 7, cursor: "pointer", fontSize: 11, fontWeight: 700, color: GOLD_L }}>Apply</button>
             <button onClick={() => setEditing(false)} style={{ padding: "7px 10px", background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, borderRadius: 7, cursor: "pointer", color: MUTED }}><X size={12} /></button>
           </div>
@@ -210,13 +186,54 @@ function ConfigCard({ field, onEdit }: { field: ConfigField; onEdit: (f: ConfigF
   );
 }
 
-// ─── Plan Drawer ───────────────────────────────────────────────────────────────
-function PlanDrawer({ plan, onClose, onStatusChange }: { plan: Plan; onClose: () => void; onStatusChange: (id: string, s: PlanStatus) => void }) {
-  const sc = PLAN_STATUS[plan.status];
+// ─── Fixed Plan Drawer ───────────────────────────────────────────────────────
+function FixedPlanDrawer({ plan, onClose, onStatusChange, onRequestConfirm, onToast }: {
+  plan: Plan;
+  onClose: () => void;
+  onStatusChange: (id: string, s: PlanStatus) => void;
+  onRequestConfirm: (name: string, oldVal: string, newVal: string, action: (reason: string) => Promise<void>) => void;
+  onToast: (msg: string, t: "success" | "error" | "info") => void;
+}) {
+  const sc = PLAN_STATUS_STYLE[plan.status] ?? PLAN_STATUS_STYLE.INACTIVE;
+  const locked = plan.members > 0;
+  const [editField, setEditField] = useState<"roi" | "minInvest" | "maxInvest" | null>(null);
+  const [draft, setDraft] = useState("");
+
+  const startEdit = (field: "roi" | "minInvest" | "maxInvest") => {
+    const cur = field === "roi" ? String(plan.roi) : field === "minInvest" ? String(plan.minInvest) : String(plan.maxInvest ?? "");
+    setDraft(cur);
+    setEditField(field);
+  };
+
+  const applyEdit = () => {
+    if (!editField) return;
+    const rawNum = parseFloat(draft);
+    if (isNaN(rawNum) || rawNum < 0) { setEditField(null); return; }
+    const newVal = editField === "maxInvest" && draft === "" ? null : rawNum;
+    const labels: Record<string, string> = { roi: "Daily ROI %", minInvest: "Minimum Investment", maxInvest: "Maximum Investment" };
+    const oldDisplay = editField === "roi" ? `${plan.roi}%` : editField === "minInvest" ? fmt$(plan.minInvest) : plan.maxInvest ? fmt$(plan.maxInvest) : "Unlimited";
+    const newDisplay = editField === "roi" ? `${rawNum}%` : fmt$(rawNum);
+    setEditField(null);
+    onRequestConfirm(
+      `${plan.name} — ${labels[editField]}`,
+      oldDisplay,
+      newDisplay,
+      async () => {
+        onClose();
+        try {
+          await adminUpdatePlanConfig(plan.id, { [editField]: newVal });
+          onToast(`${plan.name} ${labels[editField]} updated.`, "success");
+        } catch {
+          onToast("Failed to update plan.", "error");
+        }
+      }
+    );
+  };
+
   return (
     <>
       <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.35)" }} onClick={onClose} />
-      <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: 440, zIndex: 201, background: BG, borderLeft: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", boxShadow: "-12px 0 50px rgba(0,0,0,0.5)" }}>
+      <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: 420, zIndex: 201, background: BG, borderLeft: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", boxShadow: "-12px 0 50px rgba(0,0,0,0.5)" }}>
         <div style={{ padding: "18px 20px 14px", borderBottom: `1px solid ${BORDER}` }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -224,90 +241,92 @@ function PlanDrawer({ plan, onClose, onStatusChange }: { plan: Plan; onClose: ()
                 <Package size={16} style={{ color: plan.color }} />
               </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.92)" }}>{plan.name} Plan</div>
-                <div style={{ fontSize: 10, color: MUTED }}>{plan.members} active members</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>{plan.name}</div>
+                <div style={{ fontSize: 10, color: MUTED }}>{plan.duration}-day fixed duration · {plan.members} active investors</div>
               </div>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: sc.color, background: sc.bg, padding: "4px 10px", borderRadius: 6 }}>{plan.status}</span>
               <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: MUTED }}><X size={16} /></button>
             </div>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
-            {plan.status === "ACTIVE" && <button onClick={() => onStatusChange(plan.id, "INACTIVE")} style={{ flex: 1, padding: "7px 0", background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 700, color: "#fbbf24" }}>Deactivate</button>}
-            {plan.status === "INACTIVE" && <button onClick={() => onStatusChange(plan.id, "ACTIVE")} style={{ flex: 1, padding: "7px 0", background: "rgba(52,211,153,0.07)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 700, color: "#34d399" }}>Activate</button>}
-            <button style={{ flex: 1, padding: "7px 0", background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 600, color: MUTED }}>Duplicate</button>
-            <button onClick={() => onStatusChange(plan.id, "ARCHIVED")} style={{ flex: 1, padding: "7px 0", background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 600, color: "#f87171" }}>Archive</button>
+            {plan.status === "ACTIVE"   && <button onClick={() => onStatusChange(plan.id, "INACTIVE")} style={{ flex: 1, padding: "7px 0", background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 700, color: "#fbbf24" }}>Deactivate</button>}
+            {plan.status === "INACTIVE" && <button onClick={() => onStatusChange(plan.id, "ACTIVE")}   style={{ flex: 1, padding: "7px 0", background: "rgba(52,211,153,0.07)",  border: "1px solid rgba(52,211,153,0.25)",  borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 700, color: "#34d399" }}>Activate</button>}
           </div>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-            {[
-              { label: "Min Investment", value: $(plan.minInvest),  color: "#34d399" },
-              { label: "Max Investment", value: plan.maxInvest ? $(plan.maxInvest) : "Unlimited", color: "#34d399" },
-              { label: "Daily ROI",      value: `${plan.roi}%`,     color: GOLD    },
-              { label: "Duration",       value: `${plan.duration} days`, color: "#60a5fa" },
-              { label: "Auto Compound",  value: plan.autoCompound ? "Yes" : "No", color: plan.autoCompound ? "#34d399" : MUTED },
-              { label: "Claim Window",   value: plan.claimWindow,   color: "#a78bfa" },
-            ].map(s => (
-              <div key={s.label} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "10px 12px" }}>
-                <div style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>{s.label.toUpperCase()}</div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: s.color }}>{s.value}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, marginBottom: 10 }}>BENEFITS</div>
-            {plan.benefits.map(b => (
-              <div key={b} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
-                <CheckCircle size={12} style={{ color: "#34d399", flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }}>{b}</span>
-              </div>
-            ))}
-          </div>
-          {plan.notes && (
-            <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "14px 16px" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, marginBottom: 6 }}>NOTES</div>
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", lineHeight: 1.6 }}>{plan.notes}</div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
+          {locked && (
+            <div style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <Lock size={14} style={{ color: "#fbbf24", flexShrink: 0, marginTop: 1 }} />
+              <div style={{ fontSize: 11, color: "#fbbf24", lineHeight: 1.5 }}>This plan has active investors. Financial settings are locked to protect existing investments.</div>
             </div>
           )}
+          <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, marginBottom: 12 }}>PLAN CONFIGURATION</div>
+          {[
+            { label: "Daily ROI %", field: "roi" as const, display: `${plan.roi}%`, color: GOLD },
+            { label: "Minimum Investment", field: "minInvest" as const, display: fmt$(plan.minInvest), color: "#34d399" },
+            { label: "Maximum Investment", field: "maxInvest" as const, display: plan.maxInvest ? fmt$(plan.maxInvest) : "Unlimited", color: "#34d399" },
+          ].map(({ label, field, display, color }) => (
+            <div key={field} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 10, color: MUTED, marginBottom: 3 }}>{label.toUpperCase()}</div>
+                  {editField === field ? (
+                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                      <input value={draft} onChange={e => setDraft(e.target.value)} autoFocus
+                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 6, padding: "5px 9px", fontSize: 13, color: GOLD_L, outline: "none", fontFamily: "monospace", width: 120 }} />
+                      <button onClick={applyEdit} style={{ padding: "5px 10px", background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 6, cursor: "pointer", fontSize: 10, fontWeight: 700, color: GOLD_L }}>Apply</button>
+                      <button onClick={() => setEditField(null)} style={{ padding: "5px 8px", background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer", color: MUTED }}><X size={11} /></button>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 18, fontWeight: 800, color, fontFamily: "monospace" }}>{display}</div>
+                  )}
+                </div>
+                {!locked && editField !== field && (
+                  <button onClick={() => startEdit(field)} style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 7, cursor: "pointer", padding: "4px 8px", color: MUTED }}>
+                    <Edit2 size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 14px", marginTop: 4 }}>
+            <div style={{ fontSize: 10, color: MUTED, marginBottom: 3 }}>DURATION</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#60a5fa", fontFamily: "monospace" }}>{plan.duration} days</div>
+              <span style={{ fontSize: 9, fontWeight: 700, color: MUTED, background: "rgba(255,255,255,0.05)", padding: "2px 7px", borderRadius: 4 }}>IMMUTABLE</span>
+            </div>
+          </div>
         </div>
       </div>
     </>
   );
 }
 
-// ─── Section components ─────────────────────────────────────────────────────────
-// Investment Plans
-function InvestmentPlansSection({ plans, loading, setPlans, onView }: { plans: Plan[]; loading: boolean; setPlans: React.Dispatch<React.SetStateAction<Plan[]>>; onView: (p: Plan) => void }) {
+// ─── Investment Plans Section ────────────────────────────────────────────────
+function InvestmentPlansSection({ plans, loading, onView }: { plans: Plan[]; loading: boolean; onView: (p: Plan) => void }) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const [menuId,  setMenuId]  = useState<string | null>(null);
   const TH: React.CSSProperties = { padding: "10px 14px", fontSize: 10, fontWeight: 700, color: MUTED, textAlign: "left", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" };
   const TD: React.CSSProperties = { padding: "13px 14px", fontSize: 12, color: "rgba(255,255,255,0.75)", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" };
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Investment Plans</div>
-          <div style={{ fontSize: 11, color: MUTED }}>Manage all investment plan configurations.</div>
-        </div>
-        <button style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 700, color: GOLD_L }}>
-          <Plus size={13} /> Create Plan
-        </button>
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Investment Plans</div>
+        <div style={{ fontSize: 11, color: MUTED }}>Four system-defined plans. Plan name and duration are immutable.</div>
       </div>
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
         {loading ? (
           <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading plans…</div>
-        ) : plans.length === 0 ? (
-          <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>No plans configured.</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr>
-              {["PLAN NAME","INVESTMENT RANGE","ROI %","DURATION","AUTO COMPOUND","STATUS","MEMBERS",""].map((h, i) => <th key={h+i} style={TH}>{h}</th>)}
+              {["PLAN","DURATION","ROI %","INVESTMENT RANGE","INVESTORS","STATUS",""].map((h, i) => <th key={h + i} style={TH}>{h}</th>)}
             </tr></thead>
             <tbody>
               {plans.map(p => {
-                const sc = PLAN_STATUS[p.status];
+                const sc = PLAN_STATUS_STYLE[p.status] ?? PLAN_STATUS_STYLE.INACTIVE;
+                const locked = p.members > 0;
                 return (
                   <tr key={p.id} onClick={() => onView(p)} onMouseEnter={() => setHovered(p.id)} onMouseLeave={() => setHovered(null)}
                     style={{ cursor: "pointer", background: hovered === p.id ? "rgba(255,255,255,0.025)" : "transparent" }}>
@@ -317,33 +336,13 @@ function InvestmentPlansSection({ plans, loading, setPlans, onView }: { plans: P
                         <span style={{ fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>{p.name}</span>
                       </div>
                     </td>
-                    <td style={TD}>{$(p.minInvest)} – {p.maxInvest ? $(p.maxInvest) : "∞"}</td>
+                    <td style={TD}><span style={{ fontFamily: "monospace", color: "#60a5fa", fontWeight: 700 }}>{p.duration}d</span></td>
                     <td style={{ ...TD, color: GOLD, fontWeight: 700 }}>{p.roi}%</td>
-                    <td style={TD}>{p.duration}d</td>
-                    <td style={TD}><span style={{ fontSize: 11, fontWeight: 600, color: p.autoCompound ? "#34d399" : MUTED }}>{p.autoCompound ? "Yes" : "No"}</span></td>
+                    <td style={TD}>{fmt$(p.minInvest)} – {p.maxInvest ? fmt$(p.maxInvest) : "∞"}</td>
+                    <td style={{ ...TD, color: MUTED }}>{p.members.toLocaleString()}</td>
                     <td style={TD}><span style={{ fontSize: 10, fontWeight: 700, color: sc.color, background: sc.bg, padding: "3px 8px", borderRadius: 5 }}>{p.status}</span></td>
-                    <td style={TD}>{p.members.toLocaleString()}</td>
-                    <td style={{ ...TD, paddingRight: 18 }} onClick={e => e.stopPropagation()}>
-                      <div style={{ position: "relative" }}>
-                        <button onClick={() => setMenuId(id => id === p.id ? null : p.id)} style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer", padding: "4px 8px", color: MUTED }}><MoreVertical size={14} /></button>
-                        {menuId === p.id && (
-                          <>
-                            <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={() => setMenuId(null)} />
-                            <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 51, background: "hsl(222 62% 10%)", border: `1px solid ${BORDER}`, borderRadius: 10, padding: "4px 0", minWidth: 150, boxShadow: "0 10px 40px rgba(0,0,0,0.5)" }}>
-                              {[
-                                { label: "View", icon: Eye,     color: "rgba(255,255,255,0.75)", onClick: () => { onView(p); setMenuId(null); } },
-                                { label: "Edit", icon: Edit2,   color: GOLD_L, onClick: () => setMenuId(null) },
-                                { label: "Duplicate", icon: Copy, color: MUTED, onClick: () => setMenuId(null) },
-                                { label: "Archive",icon: Archive,color: "#f87171", onClick: () => { setPlans(ps => ps.map(x => x.id === p.id ? { ...x, status: "ARCHIVED" as PlanStatus } : x)); setMenuId(null); } },
-                              ].map(m => (
-                                <button key={m.label} onClick={m.onClick} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "8px 14px", background: "none", border: "none", cursor: "pointer", fontSize: 12, color: m.color }}>
-                                  <m.icon size={12} />{m.label}
-                                </button>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </div>
+                    <td style={{ ...TD, paddingRight: 18 }}>
+                      {locked && <Lock size={11} style={{ color: "#fbbf24" }} />}
                     </td>
                   </tr>
                 );
@@ -356,7 +355,7 @@ function InvestmentPlansSection({ plans, loading, setPlans, onView }: { plans: P
   );
 }
 
-// Generic config section (grid of ConfigCards)
+// ─── Generic Config Section ───────────────────────────────────────────────────
 function ConfigSection({ title, subtitle, fields, loading, onEdit }: { title: string; subtitle: string; fields: ConfigField[]; loading: boolean; onEdit: (f: ConfigField, v: string) => void }) {
   return (
     <div>
@@ -375,39 +374,131 @@ function ConfigSection({ title, subtitle, fields, loading, onEdit }: { title: st
   );
 }
 
-// Level Income section
-function LevelIncomeSection({ rows, loading, onToggle }: { rows: LevelRow[]; loading: boolean; onToggle: (level: number) => void }) {
+// ─── Level Income Section ────────────────────────────────────────────────────
+function LevelIncomeSection({ rows, loading, onChange, onRequestConfirm, onToast, refreshSidebar }: {
+  rows: LevelConfigItem[];
+  loading: boolean;
+  onChange: (updated: LevelConfigItem[]) => void;
+  onRequestConfirm: (name: string, oldVal: string, newVal: string, action: (reason: string) => Promise<void>) => void;
+  onToast: (msg: string, t: "success" | "error" | "info") => void;
+  refreshSidebar: () => void;
+}) {
+  const [editState, setEditState] = useState<{ level: number; field: "rate" | "qualification"; draft: string } | null>(null);
   const TH: React.CSSProperties = { padding: "10px 14px", fontSize: 10, fontWeight: 700, color: MUTED, textAlign: "left", borderBottom: `1px solid ${BORDER}` };
-  const TD: React.CSSProperties = { padding: "13px 14px", fontSize: 12, borderBottom: `1px solid ${BORDER}` };
+  const TD: React.CSSProperties = { padding: "12px 14px", fontSize: 12, borderBottom: `1px solid ${BORDER}` };
+
+  const startEdit = (level: number, field: "rate" | "qualification", cur: string) => setEditState({ level, field, draft: cur });
+
+  const handleApplyRate = (level: number, oldRate: number, newRate: number) => {
+    setEditState(null);
+    if (newRate === oldRate || isNaN(newRate)) return;
+    onRequestConfirm(
+      `Level ${level} Commission Rate`,
+      `${oldRate}%`,
+      `${newRate}%`,
+      async () => {
+        const newRows = rows.map(r => r.level === level ? { ...r, rate: newRate } : r);
+        onChange(newRows);
+        try {
+          await adminSaveLevelConfig(newRows);
+          refreshSidebar();
+          onToast(`Level ${level} rate updated to ${newRate}%.`, "success");
+        } catch {
+          onChange(rows);
+          onToast("Failed to save level config.", "error");
+        }
+      }
+    );
+  };
+
+  const handleApplyQual = async (level: number, newQual: string) => {
+    setEditState(null);
+    const newRows = rows.map(r => r.level === level ? { ...r, qualification: newQual } : r);
+    onChange(newRows);
+    try {
+      await adminSaveLevelConfig(newRows);
+      refreshSidebar();
+      onToast(`Level ${level} qualification updated.`, "info");
+    } catch {
+      onChange(rows);
+      onToast("Failed to save level config.", "error");
+    }
+  };
+
+  const handleToggle = async (level: number) => {
+    const row = rows.find(r => r.level === level);
+    if (!row) return;
+    const newStatus = row.status === "ACTIVE" ? "INACTIVE" as const : "ACTIVE" as const;
+    const newRows = rows.map(r => r.level === level ? { ...r, status: newStatus } : r);
+    onChange(newRows);
+    try {
+      await adminSaveLevelConfig(newRows);
+      refreshSidebar();
+      onToast(`Level ${level} income ${newStatus.toLowerCase()}.`, "info");
+    } catch {
+      onChange(rows);
+      onToast("Failed to save level config.", "error");
+    }
+  };
+
   return (
     <div>
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Level Income</div>
-        <div style={{ fontSize: 11, color: MUTED }}>Commission rates for each downline level.</div>
+        <div style={{ fontSize: 11, color: MUTED }}>Commission rates for each downline level. Click any value to edit.</div>
       </div>
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
         {loading ? (
           <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading level config…</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead><tr>{["LEVEL","COMMISSION %","QUALIFICATION","MAX DEPTH","STATUS"].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
+            <thead><tr>{["LEVEL","COMMISSION %","QUALIFICATION RULE","STATUS"].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
             <tbody>
-              {rows.map(r => (
-                <tr key={r.level}>
-                  <td style={{ ...TD, paddingLeft: 18 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(212,175,55,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: GOLD }}>{r.level}</div>
-                  </td>
-                  <td style={{ ...TD, color: GOLD, fontWeight: 700, fontSize: 14 }}>{r.rate}%</td>
-                  <td style={{ ...TD, color: MUTED }}>{r.qualification}</td>
-                  <td style={{ ...TD, color: MUTED }}>10</td>
-                  <td style={TD}>
-                    <button onClick={() => onToggle(r.level)}
-                      style={{ fontSize: 9, fontWeight: 700, color: r.status === "ACTIVE" ? "#34d399" : "#fbbf24", background: r.status === "ACTIVE" ? "rgba(52,211,153,0.12)" : "rgba(251,191,36,0.12)", padding: "3px 8px", borderRadius: 5, border: "none", cursor: "pointer" }}>
-                      {r.status}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {rows.map(r => {
+                const editingRate = editState?.level === r.level && editState.field === "rate";
+                const editingQual = editState?.level === r.level && editState.field === "qualification";
+                return (
+                  <tr key={r.level}>
+                    <td style={{ ...TD, paddingLeft: 18 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(212,175,55,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: GOLD }}>{r.level}</div>
+                    </td>
+                    <td style={TD}>
+                      {editingRate ? (
+                        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                          <input value={editState.draft} onChange={e => setEditState(s => s ? { ...s, draft: e.target.value } : null)} autoFocus
+                            style={{ width: 70, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 6, padding: "4px 8px", fontSize: 12, color: GOLD_L, outline: "none", fontFamily: "monospace" }} />
+                          <button onClick={() => handleApplyRate(r.level, r.rate, parseFloat(editState.draft))} style={{ padding: "4px 8px", background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 5, cursor: "pointer", fontSize: 10, fontWeight: 700, color: GOLD_L }}>✓</button>
+                          <button onClick={() => setEditState(null)} style={{ padding: "4px 6px", background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, borderRadius: 5, cursor: "pointer", color: MUTED }}><X size={10} /></button>
+                        </div>
+                      ) : (
+                        <button onClick={() => startEdit(r.level, "rate", String(r.rate))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 700, color: GOLD, fontFamily: "monospace", padding: 0, display: "flex", alignItems: "center", gap: 5 }}>
+                          {r.rate}% <Edit2 size={10} style={{ color: MUTED, opacity: 0.5 }} />
+                        </button>
+                      )}
+                    </td>
+                    <td style={{ ...TD, color: MUTED, maxWidth: 240 }}>
+                      {editingQual ? (
+                        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                          <input value={editState.draft} onChange={e => setEditState(s => s ? { ...s, draft: e.target.value } : null)} autoFocus
+                            style={{ flex: 1, background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "rgba(255,255,255,0.8)", outline: "none" }} />
+                          <button onClick={() => handleApplyQual(r.level, editState.draft)} style={{ padding: "4px 8px", background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: 5, cursor: "pointer", fontSize: 10, fontWeight: 700, color: "#34d399" }}>✓</button>
+                          <button onClick={() => setEditState(null)} style={{ padding: "4px 6px", background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, borderRadius: 5, cursor: "pointer", color: MUTED }}><X size={10} /></button>
+                        </div>
+                      ) : (
+                        <button onClick={() => startEdit(r.level, "qualification", r.qualification)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: MUTED, textAlign: "left", padding: 0, display: "flex", alignItems: "center", gap: 5 }}>
+                          {r.qualification} <Edit2 size={10} style={{ opacity: 0.4 }} />
+                        </button>
+                      )}
+                    </td>
+                    <td style={TD}>
+                      <button onClick={() => handleToggle(r.level)}
+                        style={{ fontSize: 9, fontWeight: 700, color: r.status === "ACTIVE" ? "#34d399" : "#fbbf24", background: r.status === "ACTIVE" ? "rgba(52,211,153,0.12)" : "rgba(251,191,36,0.12)", padding: "3px 8px", borderRadius: 5, border: "none", cursor: "pointer" }}>
+                        {r.status}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -416,40 +507,153 @@ function LevelIncomeSection({ rows, loading, onToggle }: { rows: LevelRow[]; loa
   );
 }
 
-// Salary section
-function SalarySection({ rows, loading }: { rows: SalaryRow[]; loading: boolean }) {
+// ─── Salary Income Section ───────────────────────────────────────────────────
+function SalaryIncomeSection({ ranks, loading, onChange, onRequestConfirm, onToast, refreshSidebar }: {
+  ranks: SalaryRankItem[];
+  loading: boolean;
+  onChange: (updated: SalaryRankItem[]) => void;
+  onRequestConfirm: (name: string, oldVal: string, newVal: string, action: (reason: string) => Promise<void>) => void;
+  onToast: (msg: string, t: "success" | "error" | "info") => void;
+  refreshSidebar: () => void;
+}) {
+  const [editId, setEditId] = useState<string | null>(null);
+  const [draftSalary, setDraftSalary] = useState("");
+  const [draftBV,     setDraftBV]     = useState("");
   const TH: React.CSSProperties = { padding: "10px 14px", fontSize: 10, fontWeight: 700, color: MUTED, textAlign: "left", borderBottom: `1px solid ${BORDER}` };
-  const TD: React.CSSProperties = { padding: "13px 14px", fontSize: 12, borderBottom: `1px solid ${BORDER}` };
+  const TD: React.CSSProperties = { padding: "12px 14px", fontSize: 12, borderBottom: `1px solid ${BORDER}` };
+  const meta = (name: string) => RANK_META[name] ?? { color: MUTED, benefits: [] };
+
+  const startEdit = (r: SalaryRankItem) => {
+    setEditId(r.rankName);
+    setDraftSalary(String(r.monthlySalary));
+    setDraftBV(String(r.requiredBusiness));
+  };
+
+  const cancelEdit = () => setEditId(null);
+
+  const saveFinancial = (r: SalaryRankItem) => {
+    const newSalary = parseFloat(draftSalary);
+    const newBV     = parseFloat(draftBV);
+    if (isNaN(newSalary) || isNaN(newBV)) { cancelEdit(); return; }
+    const changed = newSalary !== r.monthlySalary || newBV !== r.requiredBusiness;
+    if (!changed) { cancelEdit(); return; }
+    setEditId(null);
+    onRequestConfirm(
+      `Salary Config — ${r.rankName}`,
+      `$${r.monthlySalary}/mo · $${r.requiredBusiness} BV`,
+      `$${newSalary}/mo · $${newBV} BV`,
+      async () => {
+        const updated = ranks.map(x => x.rankName === r.rankName ? { ...x, monthlySalary: newSalary, requiredBusiness: newBV } : x);
+        onChange(updated);
+        try {
+          await adminUpdateSalaryRank(r.rankName, { monthlySalary: newSalary, requiredBusiness: newBV });
+          refreshSidebar();
+          onToast(`${r.rankName} salary config updated.`, "success");
+        } catch {
+          onChange(ranks);
+          onToast("Failed to save salary config.", "error");
+        }
+      }
+    );
+  };
+
+  const toggleDualDirects = async (r: SalaryRankItem) => {
+    const newVal = !r.requiresDualDirects;
+    const updated = ranks.map(x => x.rankName === r.rankName ? { ...x, requiresDualDirects: newVal } : x);
+    onChange(updated);
+    try {
+      await adminUpdateSalaryRank(r.rankName, { requiresDualDirects: newVal });
+      refreshSidebar();
+      onToast(`${r.rankName} dual directs ${newVal ? "required" : "not required"}.`, "info");
+    } catch {
+      onChange(ranks);
+      onToast("Failed to save.", "error");
+    }
+  };
+
+  const toggleActive = async (r: SalaryRankItem) => {
+    const newVal = !r.isActive;
+    const updated = ranks.map(x => x.rankName === r.rankName ? { ...x, isActive: newVal } : x);
+    onChange(updated);
+    try {
+      await adminUpdateSalaryRank(r.rankName, { isActive: newVal });
+      refreshSidebar();
+      onToast(`${r.rankName} ${newVal ? "enabled" : "disabled"}.`, "info");
+    } catch {
+      onChange(ranks);
+      onToast("Failed to save.", "error");
+    }
+  };
+
   return (
     <div>
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Salary Income</div>
-        <div style={{ fontSize: 11, color: MUTED }}>Monthly salary by rank. Paid on the 1st of each month.</div>
+        <div style={{ fontSize: 11, color: MUTED }}>Configure monthly salary amounts and qualification requirements per rank.</div>
       </div>
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
         {loading ? (
           <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading salary config…</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead><tr>{["RANK","MONTHLY SALARY","DIRECT REFERRALS","TEAM VOLUME","RETENTION",""].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
+            <thead><tr>
+              {["RANK","MONTHLY SALARY","TEAM BV REQUIRED","DUAL DIRECTS","ENABLED",""].map(h => <th key={h} style={TH}>{h}</th>)}
+            </tr></thead>
             <tbody>
-              {rows.map(r => (
-                <tr key={r.rank}>
-                  <td style={{ ...TD, paddingLeft: 18 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: r.color }} />
-                      <span style={{ fontWeight: 700, color: "rgba(255,255,255,0.88)" }}>{r.rank}</span>
-                    </div>
-                  </td>
-                  <td style={{ ...TD, color: r.monthly > 0 ? "#34d399" : MUTED, fontWeight: r.monthly > 0 ? 700 : 400 }}>{r.monthly > 0 ? $(r.monthly) + "/mo" : "—"}</td>
-                  <td style={{ ...TD, color: MUTED }}>{r.directs > 0 ? r.directs : "—"}</td>
-                  <td style={{ ...TD, color: MUTED }}>{r.teamVolume}</td>
-                  <td style={{ ...TD, color: MUTED }}>{r.retention}</td>
-                  <td style={{ ...TD, paddingRight: 18 }}>
-                    <button style={{ padding: "4px 10px", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer", fontSize: 10, color: MUTED }}>Edit</button>
-                  </td>
-                </tr>
-              ))}
+              {ranks.map(r => {
+                const m = meta(r.rankName);
+                const editing = editId === r.rankName;
+                return (
+                  <tr key={r.rankName}>
+                    <td style={{ ...TD, paddingLeft: 18 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 9, height: 9, borderRadius: "50%", background: m.color }} />
+                        <span style={{ fontWeight: 700, color: "rgba(255,255,255,0.88)" }}>{r.rankName}</span>
+                      </div>
+                    </td>
+                    <td style={TD}>
+                      {editing ? (
+                        <input value={draftSalary} onChange={e => setDraftSalary(e.target.value)} style={{ width: 90, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(212,175,55,0.3)", borderRadius: 6, padding: "4px 8px", fontSize: 12, color: GOLD_L, outline: "none", fontFamily: "monospace" }} autoFocus />
+                      ) : (
+                        <span style={{ color: r.monthlySalary > 0 ? "#34d399" : MUTED, fontWeight: r.monthlySalary > 0 ? 700 : 400 }}>
+                          {r.monthlySalary > 0 ? fmt$(r.monthlySalary) + "/mo" : "—"}
+                        </span>
+                      )}
+                    </td>
+                    <td style={TD}>
+                      {editing ? (
+                        <input value={draftBV} onChange={e => setDraftBV(e.target.value)} style={{ width: 90, background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "4px 8px", fontSize: 12, color: "rgba(255,255,255,0.8)", outline: "none", fontFamily: "monospace" }} />
+                      ) : (
+                        <span style={{ color: MUTED }}>
+                          {r.requiredBusiness > 0 ? (r.requiredBusiness >= 1000 ? `$${Math.round(r.requiredBusiness / 1000)}K` : fmt$(r.requiredBusiness)) : "—"}
+                        </span>
+                      )}
+                    </td>
+                    <td style={TD}>
+                      <button onClick={() => toggleDualDirects(r)}
+                        style={{ fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 5, border: "none", cursor: "pointer", color: r.requiresDualDirects ? "#34d399" : MUTED, background: r.requiresDualDirects ? "rgba(52,211,153,0.12)" : "rgba(255,255,255,0.04)" }}>
+                        {r.requiresDualDirects ? "Required" : "Not Required"}
+                      </button>
+                    </td>
+                    <td style={TD}>
+                      <button onClick={() => toggleActive(r)}
+                        style={{ fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 5, border: "none", cursor: "pointer", color: r.isActive ? "#34d399" : "#fbbf24", background: r.isActive ? "rgba(52,211,153,0.12)" : "rgba(251,191,36,0.12)" }}>
+                        {r.isActive ? "Enabled" : "Disabled"}
+                      </button>
+                    </td>
+                    <td style={{ ...TD, paddingRight: 14 }}>
+                      {editing ? (
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button onClick={() => saveFinancial(r)} style={{ padding: "4px 9px", background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", borderRadius: 5, cursor: "pointer", fontSize: 10, fontWeight: 700, color: GOLD_L }}>Save</button>
+                          <button onClick={cancelEdit} style={{ padding: "4px 7px", background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, borderRadius: 5, cursor: "pointer", color: MUTED }}><X size={10} /></button>
+                        </div>
+                      ) : (
+                        <button onClick={() => startEdit(r)} style={{ padding: "4px 10px", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer", fontSize: 10, color: MUTED }}>Edit</button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -458,60 +662,112 @@ function SalarySection({ rows, loading }: { rows: SalaryRow[]; loading: boolean 
   );
 }
 
-// Rank config
-function RankConfigSection({ ranks, loading }: { ranks: RankCard[]; loading: boolean }) {
+// ─── Ranks Section ───────────────────────────────────────────────────────────
+function RanksSection({ ranks, loading }: { ranks: SalaryRankItem[]; loading: boolean }) {
+  const meta = (name: string) => RANK_META[name] ?? { color: MUTED, benefits: [] };
   return (
     <div>
       <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Rank Configuration</div>
-        <div style={{ fontSize: 11, color: MUTED }}>Qualification criteria and benefits for each platform rank.</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Ranks</div>
+        <div style={{ fontSize: 11, color: MUTED }}>Visual overview of all ranks. Salary values are read from Salary Income configuration.</div>
       </div>
       {loading ? (
-        <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading rank config…</div>
+        <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading ranks…</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-          {ranks.map(r => (
-            <div key={r.id} style={{ background: CARD, border: `1px solid ${r.color}28`, borderRadius: 14, padding: "18px 18px 16px", position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: r.color, opacity: 0.6 }} />
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: `${r.color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Award size={16} style={{ color: r.color }} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>{r.name}</div>
-                  {r.salary > 0 && <div style={{ fontSize: 10, color: "#34d399", fontWeight: 600 }}>{$(r.salary)}/mo salary</div>}
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-                {[
-                  { label: "Min Invest", value: $(r.minInvest) },
-                  { label: "Team Size",  value: `${r.teamSize}+ members` },
-                  { label: "Group Vol",  value: r.groupVolume },
-                  { label: "Bonus",      value: r.bonus       },
-                ].map(s => (
-                  <div key={s.label} style={{ background: "rgba(255,255,255,0.025)", borderRadius: 8, padding: "8px 10px" }}>
-                    <div style={{ fontSize: 9, color: MUTED, marginBottom: 2 }}>{s.label.toUpperCase()}</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.82)" }}>{s.value}</div>
+          {ranks.map(r => {
+            const m = meta(r.rankName);
+            const qualification = r.requiresDualDirects ? "Dual directs required on each leg" : "Single active direct required";
+            return (
+              <div key={r.rankName} style={{ background: CARD, border: `1px solid ${m.color}28`, borderRadius: 14, padding: "18px 18px 16px", position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: m.color, opacity: 0.6 }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: `${m.color}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Award size={16} style={{ color: m.color }} />
                   </div>
-                ))}
-              </div>
-              <div>
-                {r.benefits.map(b => (
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.92)" }}>{r.rankName}</div>
+                    {r.monthlySalary > 0
+                      ? <div style={{ fontSize: 10, color: "#34d399", fontWeight: 600 }}>{fmt$(r.monthlySalary)}/mo salary</div>
+                      : <div style={{ fontSize: 10, color: MUTED }}>No salary</div>
+                    }
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+                  {[
+                    { label: "Team BV",     value: r.requiredBusiness > 0 ? (r.requiredBusiness >= 1000 ? `$${Math.round(r.requiredBusiness/1000)}K` : fmt$(r.requiredBusiness)) : "—" },
+                    { label: "Dual Directs",value: r.requiresDualDirects ? "Required" : "Not required" },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: "rgba(255,255,255,0.025)", borderRadius: 8, padding: "8px 10px" }}>
+                      <div style={{ fontSize: 9, color: MUTED, marginBottom: 2 }}>{s.label.toUpperCase()}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.82)" }}>{s.value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10, color: "#60a5fa", marginBottom: 8, fontStyle: "italic" }}>{qualification}</div>
+                {m.benefits.map(b => (
                   <div key={b} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
-                    <CheckCircle size={10} style={{ color: r.color, flexShrink: 0 }} />
+                    <CheckCircle size={10} style={{ color: m.color, flexShrink: 0 }} />
                     <span style={{ fontSize: 10, color: MUTED }}>{b}</span>
                   </div>
                 ))}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-// Global config (toggles)
+// ─── Wallet Rules Section ────────────────────────────────────────────────────
+function WalletRulesSection({ fields, loading, onEdit }: { fields: ConfigField[]; loading: boolean; onEdit: (f: ConfigField, v: string) => void }) {
+  const walletBox = (title: string, items: string[], receiveLabel: string, color: string) => (
+    <div style={{ background: CARD, border: `1px solid ${color}28`, borderRadius: 12, padding: "14px 16px", flex: 1 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color, letterSpacing: "0.08em", marginBottom: 10 }}>{title}</div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, marginBottom: 6 }}>{receiveLabel}</div>
+      {items.map(i => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+          <CheckCircle size={10} style={{ color, flexShrink: 0 }} />
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>{i}</span>
+        </div>
+      ))}
+    </div>
+  );
+  return (
+    <div>
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Wallet Rules</div>
+        <div style={{ fontSize: 11, color: MUTED }}>Prime Wave wallet structure and transfer release configuration.</div>
+      </div>
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, alignItems: "stretch" }}>
+        {walletBox("INCOME WALLET", ["ROI earnings", "Principal (on plan completion)"], "RECEIVES", "#60a5fa")}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: "0 4px" }}>
+          <div style={{ fontSize: 9, color: MUTED, textAlign: "center", marginBottom: 4 }}>TRANSFER</div>
+          <ChevronRight size={20} style={{ color: "#60a5fa" }} />
+          <div style={{ fontSize: 9, color: MUTED, textAlign: "center", marginTop: 4 }}>72h release</div>
+        </div>
+        {walletBox("WITHDRAWAL WALLET", ["Binary income", "Orbit income", "Level income", "Salary income", "Completed income transfers"], "RECEIVES", "#34d399")}
+      </div>
+      <div style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 20, display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <Info size={14} style={{ color: "#60a5fa", flexShrink: 0, marginTop: 1 }} />
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", lineHeight: 1.6 }}>
+          Transfers from the Income Wallet to the Withdrawal Wallet are released in tranches over the configured window. Binary, Orbit, Level, and Salary income are deposited directly to the Withdrawal Wallet without a release window.
+        </div>
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: MUTED, marginBottom: 12 }}>RELEASE CONFIGURATION</div>
+      {loading ? (
+        <div style={{ padding: 30, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading configuration…</div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+          {fields.map(f => <ConfigCard key={f.key} field={f} onEdit={onEdit} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Global Config Section ────────────────────────────────────────────────────
 function GlobalConfigSection({ fields, loading, onEdit }: { fields: ConfigField[]; loading: boolean; onEdit: (f: ConfigField, v: string) => void }) {
   return (
     <div>
@@ -551,8 +807,8 @@ function GlobalConfigSection({ fields, loading, onEdit }: { fields: ConfigField[
   );
 }
 
-// ─── Version History ────────────────────────────────────────────────────────────
-function VersionHistory({ versions, loading, onRollback }: { versions: ConfigVersion[]; loading: boolean; onRollback: (v: ConfigVersion) => void }) {
+// ─── Version History ──────────────────────────────────────────────────────────
+function VersionHistory({ versions, loading }: { versions: ConfigVersion[]; loading: boolean }) {
   return (
     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "16px 18px" }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: "0.07em", marginBottom: 14 }}>VERSION HISTORY</div>
@@ -567,22 +823,17 @@ function VersionHistory({ versions, loading, onRollback }: { versions: ConfigVer
               <span style={{ fontSize: 12, fontWeight: 700, color: i === 0 ? GOLD_L : "rgba(255,255,255,0.75)" }}>v{v.version}</span>
               {i === 0 && <span style={{ fontSize: 9, fontWeight: 700, color: GOLD, background: "rgba(212,175,55,0.12)", padding: "1px 6px", borderRadius: 4 }}>CURRENT</span>}
             </div>
-            <div style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>{timeAgo(v.publishedAt)} · {v.changeCount} changes</div>
+            <div style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>{timeAgo(v.publishedAt)} · {v.changeCount} change{v.changeCount !== 1 ? "s" : ""}</div>
             <div style={{ fontSize: 10, color: MUTED }}>{v.publishedBy.split("@")[0]}</div>
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button style={{ padding: "4px 9px", background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer", fontSize: 10, color: MUTED, display: "flex", alignItems: "center", gap: 4 }}><Eye size={10} /> Compare</button>
-            {i > 0 && (
-              <button onClick={() => onRollback(v)} style={{ padding: "4px 9px", background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: 6, cursor: "pointer", fontSize: 10, color: "#fbbf24", display: "flex", alignItems: "center", gap: 4 }}><RotateCcw size={10} /> Rollback</button>
-            )}
-          </div>
+          <button style={{ padding: "4px 9px", background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer", fontSize: 10, color: MUTED, display: "flex", alignItems: "center", gap: 4 }}><Eye size={10} /> Compare</button>
         </div>
       ))}
     </div>
   );
 }
 
-// ─── Audit Log ─────────────────────────────────────────────────────────────────
+// ─── Audit Log ────────────────────────────────────────────────────────────────
 function AuditLog({ entries, loading }: { entries: AuditEntry[]; loading: boolean }) {
   return (
     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "16px 18px", marginTop: 16 }}>
@@ -612,61 +863,22 @@ function AuditLog({ entries, loading }: { entries: AuditEntry[]; loading: boolea
   );
 }
 
-// ─── Helpers to map API types to local UI types ────────────────────────────────
-
-function mapSalaryRanksToRows(ranks: SalaryRankItem[]): SalaryRow[] {
-  return ranks.map(r => {
-    const meta = SALARY_META[r.rankName] ?? { color: MUTED, directs: 0, retention: "—" };
-    const bv   = r.requiredBusiness;
-    const teamVolume = bv > 0 ? (bv >= 1000 ? `$${Math.round(bv/1000)}K` : `$${bv}`) : "—";
-    return {
-      rank:       r.rankName,
-      color:      meta.color,
-      monthly:    r.monthlySalary,
-      directs:    meta.directs,
-      teamVolume,
-      retention:  r.monthlySalary > 0 ? "Monthly" : meta.retention,
-    };
-  });
-}
-
-function mapSalaryRanksToCards(ranks: SalaryRankItem[]): RankCard[] {
-  return ranks.map(r => {
-    const meta = RANK_META[r.rankName] ?? {
-      color: MUTED, gradient: "from-gray-500 to-gray-700",
-      minInvest: 0, teamSize: 0, groupVolume: "—", bonus: "—", benefits: [],
-    };
-    return {
-      id:          r.rankName.toLowerCase().replace(/\s+/g, "-"),
-      name:        r.rankName,
-      color:       meta.color,
-      gradient:    meta.gradient,
-      minInvest:   meta.minInvest,
-      teamSize:    meta.teamSize,
-      groupVolume: meta.groupVolume,
-      bonus:       meta.bonus,
-      salary:      r.monthlySalary,
-      benefits:    meta.benefits,
-    };
-  });
-}
-
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PlansPage() {
   const { toasts, toast, dismiss } = useToast();
-  const [active,       setActive]      = useState<SectionId>("plans");
-  const [plans,        setPlans]        = useState<Plan[]>([]);
-  const [levels,       setLevels]       = useState<LevelRow[]>([]);
-  const [salary,       setSalary]       = useState<SalaryRow[]>([]);
-  const [ranks,        setRanks]        = useState<RankCard[]>([]);
-  const [config,       setConfig]       = useState<ConfigState>({ plans: [], roi: [], binary: [], orbit: [], level: [], salary: [], ranks: [], transfer: [], limits: [], global: [] });
-  const [audit,        setAudit]        = useState<AuditEntry[]>([]);
-  const [versions,     setVersions]     = useState<ConfigVersion[]>([]);
-  const [planDrawer,   setPlanDrawer]   = useState<Plan | null>(null);
+  const [active,   setActive]   = useState<SectionId>("plans");
+  const [plans,    setPlans]    = useState<Plan[]>([]);
+  const [levels,   setLevels]   = useState<LevelConfigItem[]>([]);
+  const [salaryRanks, setSalaryRanks] = useState<SalaryRankItem[]>([]);
+  const [config,   setConfig]   = useState<ConfigState>({
+    plans: [], roi: [], binary: [], orbit: [], level: [], salary: [], ranks: [], wallet: [], limits: [], global: [],
+  });
+  const [audit,    setAudit]    = useState<AuditEntry[]>([]);
+  const [versions, setVersions] = useState<ConfigVersion[]>([]);
+  const [planDrawer,     setPlanDrawer]     = useState<Plan | null>(null);
   const [confirmPending, setConfirmPending] = useState<ConfirmPending | null>(null);
-  const [publishing,   setPublishing]   = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
-  // Loading flags
   const [loadingPlans,    setLoadingPlans]    = useState(true);
   const [loadingConfig,   setLoadingConfig]   = useState(false);
   const [loadingLevel,    setLoadingLevel]    = useState(true);
@@ -674,14 +886,12 @@ export default function PlansPage() {
   const [loadingVersions, setLoadingVersions] = useState(true);
   const [loadingAudit,    setLoadingAudit]    = useState(true);
 
-  // Track which config sections are loaded to avoid duplicate fetches
   const configLoaded = useRef(false);
 
-  // ─── Initial data load ───────────────────────────────────────────────────────
+  // ── Initial load ─────────────────────────────────────────────────────────
   useEffect(() => {
-    // Parallel initial fetches
     adminGetPlans()
-      .then(r => setPlans(r.plans as Plan[]))
+      .then(r => setPlans(r.plans.map(p => ({ id: p.id, name: p.name, color: p.color, minInvest: p.minInvest, maxInvest: p.maxInvest, roi: p.roi, duration: p.duration, status: (p.status === "ARCHIVED" ? "INACTIVE" : p.status) as PlanStatus, members: p.members }))))
       .catch(() => toast("Failed to load plans.", "error"))
       .finally(() => setLoadingPlans(false));
 
@@ -691,10 +901,7 @@ export default function PlansPage() {
       .finally(() => setLoadingLevel(false));
 
     adminGetSalaryRanks()
-      .then(r => {
-        setSalary(mapSalaryRanksToRows(r.ranks));
-        setRanks(mapSalaryRanksToCards(r.ranks));
-      })
+      .then(r => setSalaryRanks(r.ranks))
       .catch(() => {})
       .finally(() => setLoadingSalary(false));
 
@@ -709,9 +916,9 @@ export default function PlansPage() {
       .finally(() => setLoadingAudit(false));
   }, []);
 
-  // ─── Lazy-load system config on first config section visit ───────────────────
+  // ── Lazy-load system config ──────────────────────────────────────────────
   useEffect(() => {
-    const isConfigSection = ["roi","binary","orbit","transfer","limits","global"].includes(active);
+    const isConfigSection = ["roi","binary","orbit","wallet","limits","global"].includes(active);
     if (!isConfigSection || configLoaded.current) return;
     setLoadingConfig(true);
     adminGetPlanConfig()
@@ -719,19 +926,19 @@ export default function PlansPage() {
         configLoaded.current = true;
         setConfig(c => ({
           ...c,
-          roi:      sections.roi      ?? [],
-          binary:   sections.binary   ?? [],
-          orbit:    sections.orbit    ?? [],
-          transfer: sections.transfer ?? [],
-          limits:   sections.limits   ?? [],
-          global:   sections.global   ?? [],
+          roi:    sections.roi    ?? [],
+          binary: sections.binary ?? [],
+          orbit:  sections.orbit  ?? [],
+          wallet: sections.wallet ?? [],
+          limits: sections.limits ?? [],
+          global: sections.global ?? [],
         }));
       })
       .catch(() => toast("Failed to load configuration.", "error"))
       .finally(() => setLoadingConfig(false));
   }, [active]);
 
-  // ─── Refresh audit + versions after a save ───────────────────────────────────
+  // ── Refresh sidebar after saves ──────────────────────────────────────────
   const refreshSidebar = useCallback(() => {
     adminGetConfigVersions()
       .then(r => setVersions(r.versions.map(v => ({ ...v, publishedAt: new Date(v.publishedAt) }))))
@@ -741,51 +948,66 @@ export default function PlansPage() {
       .catch(() => {});
   }, []);
 
-  // ─── Handle config field edit ────────────────────────────────────────────────
+  // ── Confirm request helper ───────────────────────────────────────────────
+  const requestConfirm = useCallback((
+    configName: string,
+    oldValue:   string,
+    newValue:   string,
+    onConfirm:  (reason: string) => Promise<void>,
+  ) => {
+    setConfirmPending({ configName, oldValue, newValue, onConfirm: async (reason) => {
+      setConfirmPending(null);
+      await onConfirm(reason);
+    }});
+  }, []);
+
+  // ── Config field edit ────────────────────────────────────────────────────
   const handleEdit = useCallback(async (sectionId: SectionId, field: ConfigField, newVal: string) => {
     if (field.type === "toggle") {
-      // Optimistic update
       setConfig(c => ({ ...c, [sectionId]: c[sectionId].map(f => f.key === field.key ? { ...f, value: newVal } : f) }));
       try {
         await adminSaveConfigField(field.key, newVal, field.value, "Feature flag toggled by admin.", field.label);
         refreshSidebar();
         toast(`${field.label} ${newVal === "true" ? "enabled" : "disabled"}.`, newVal === "true" ? "success" : "info");
       } catch {
-        // Rollback on failure
         setConfig(c => ({ ...c, [sectionId]: c[sectionId].map(f => f.key === field.key ? { ...f, value: field.value } : f) }));
         toast("Failed to save configuration.", "error");
       }
     } else {
-      setConfirmPending({
-        configName: field.label,
-        oldValue:   field.unit ? `${field.value} ${field.unit}` : field.value,
-        newValue:   field.unit ? `${newVal} ${field.unit}` : newVal,
-        sectionId,
-        key:        field.key,
-        rawNew:     newVal,
-        label:      field.label,
-      });
+      requestConfirm(
+        field.label,
+        field.unit ? `${field.value} ${field.unit}` : field.value,
+        field.unit ? `${newVal} ${field.unit}` : newVal,
+        async () => {
+          setConfig(c => ({ ...c, [sectionId]: c[sectionId].map(f => f.key === field.key ? { ...f, value: newVal } : f) }));
+          try {
+            await adminSaveConfigField(field.key, newVal, field.value, "Configuration updated by admin.", field.label);
+            refreshSidebar();
+            toast(`${field.label} updated.`, "success");
+          } catch {
+            setConfig(c => ({ ...c, [sectionId]: c[sectionId].map(f => f.key === field.key ? { ...f, value: field.value } : f) }));
+            toast("Failed to save configuration.", "error");
+          }
+        }
+      );
+    }
+  }, [toast, refreshSidebar, requestConfirm]);
+
+  const makeEditHandler = (sid: SectionId) => (f: ConfigField, v: string) => handleEdit(sid, f, v);
+
+  // ── Plan status change ───────────────────────────────────────────────────
+  const handlePlanStatusChange = useCallback(async (id: string, status: PlanStatus) => {
+    setPlans(ps => ps.map(p => p.id === id ? { ...p, status } : p));
+    setPlanDrawer(null);
+    try {
+      await adminUpdatePlanStatus(id, status);
+      refreshSidebar();
+      toast(`Plan ${status === "ACTIVE" ? "activated" : "deactivated"}.`, "info");
+    } catch {
+      setPlans(ps => ps.map(p => p.id === id ? { ...p, status: p.status } : p));
+      toast("Failed to update plan status.", "error");
     }
   }, [toast, refreshSidebar]);
-
-  const handleConfirm = useCallback(async (reason: string, _notes: string) => {
-    if (!confirmPending) return;
-    const { sectionId, key, configName, oldValue, rawNew, label } = confirmPending;
-    setConfirmPending(null);
-
-    // Optimistic update
-    setConfig(c => ({ ...c, [sectionId]: c[sectionId].map(f => f.key === key ? { ...f, value: rawNew } : f) }));
-
-    try {
-      await adminSaveConfigField(key, rawNew, oldValue, reason, label);
-      refreshSidebar();
-      toast(`${configName} updated successfully.`, "success");
-    } catch {
-      // Rollback
-      setConfig(c => ({ ...c, [sectionId]: c[sectionId].map(f => f.key === key ? { ...f, value: oldValue } : f) }));
-      toast("Failed to save configuration.", "error");
-    }
-  }, [confirmPending, toast, refreshSidebar]);
 
   const handlePublish = useCallback(() => {
     setPublishing(true);
@@ -795,41 +1017,7 @@ export default function PlansPage() {
     }, 800);
   }, [toast]);
 
-  const handleRollback = useCallback((v: ConfigVersion) => {
-    toast(`Rollback to v${v.version} is not available — changes are applied incrementally.`, "info");
-  }, [toast]);
-
-  // ─── Level toggle ─────────────────────────────────────────────────────────────
-  const handleLevelToggle = useCallback(async (level: number) => {
-    const newLevels = levels.map(r => r.level === level ? { ...r, status: r.status === "ACTIVE" ? "INACTIVE" as const : "ACTIVE" as const } : r);
-    setLevels(newLevels);
-    try {
-      await adminSaveLevelConfig(newLevels);
-      refreshSidebar();
-      toast(`Level ${level} income ${newLevels.find(r => r.level === level)?.status?.toLowerCase()}.`, "info");
-    } catch {
-      setLevels(levels);
-      toast("Failed to save level config.", "error");
-    }
-  }, [levels, toast, refreshSidebar]);
-
-  // ─── Plan status change ───────────────────────────────────────────────────────
-  const handlePlanStatusChange = useCallback(async (id: string, status: PlanStatus) => {
-    setPlans(ps => ps.map(p => p.id === id ? { ...p, status } : p));
-    setPlanDrawer(null);
-    try {
-      await adminUpdatePlanStatus(id, status);
-      refreshSidebar();
-      toast(`Plan status updated to ${status}.`, "info");
-    } catch {
-      setPlans(ps => ps.map(p => p.id === id ? { ...p, status: p.status } : p));
-      toast("Failed to update plan status.", "error");
-    }
-  }, [toast, refreshSidebar]);
-
-  // Per-section edit handler
-  const makeEditHandler = (sid: SectionId) => (f: ConfigField, v: string) => handleEdit(sid, f, v);
-
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <AdminLayout>
       <div style={{ padding: "24px 28px", minHeight: "100vh", background: BG, boxSizing: "border-box" }}>
@@ -850,7 +1038,7 @@ export default function PlansPage() {
           </div>
         </div>
 
-        {/* Three-column layout: Left nav + Center content + Right sidebar */}
+        {/* 3-column layout */}
         <div style={{ display: "grid", gridTemplateColumns: "220px 1fr 260px", gap: 16 }}>
 
           {/* Section nav */}
@@ -867,21 +1055,21 @@ export default function PlansPage() {
 
           {/* Main content */}
           <div>
-            {active === "plans"    && <InvestmentPlansSection plans={plans} loading={loadingPlans} setPlans={setPlans} onView={p => setPlanDrawer(p)} />}
-            {active === "roi"      && <ConfigSection title="ROI Engine" subtitle="Configure the daily ROI distribution engine." fields={config.roi} loading={loadingConfig} onEdit={makeEditHandler("roi")} />}
-            {active === "binary"   && <ConfigSection title="Binary Matching" subtitle="Configure binary network matching rules and caps." fields={config.binary} loading={loadingConfig} onEdit={makeEditHandler("binary")} />}
-            {active === "orbit"    && <ConfigSection title="Binary Orbit" subtitle="Configure the binary orbit reward system." fields={config.orbit} loading={loadingConfig} onEdit={makeEditHandler("orbit")} />}
-            {active === "level"    && <LevelIncomeSection rows={levels} loading={loadingLevel} onToggle={handleLevelToggle} />}
-            {active === "salary"   && <SalarySection rows={salary} loading={loadingSalary} />}
-            {active === "ranks"    && <RankConfigSection ranks={ranks} loading={loadingSalary} />}
-            {active === "transfer" && <ConfigSection title="Transfer Rules" subtitle="72-hour release and transfer processing configuration." fields={config.transfer} loading={loadingConfig} onEdit={makeEditHandler("transfer")} />}
-            {active === "limits"   && <ConfigSection title="Platform Limits" subtitle="System-wide investment, withdrawal, and payout limits." fields={config.limits} loading={loadingConfig} onEdit={makeEditHandler("limits")} />}
-            {active === "global"   && <GlobalConfigSection fields={config.global} loading={loadingConfig} onEdit={makeEditHandler("global")} />}
+            {active === "plans"  && <InvestmentPlansSection plans={plans} loading={loadingPlans} onView={p => setPlanDrawer(p)} />}
+            {active === "roi"    && <ConfigSection title="ROI Engine" subtitle="Automatic daily ROI distribution. No manual claim required." fields={config.roi} loading={loadingConfig} onEdit={makeEditHandler("roi")} />}
+            {active === "binary" && <ConfigSection title="Binary Matching" subtitle="Configure binary network matching rules and caps." fields={config.binary} loading={loadingConfig} onEdit={makeEditHandler("binary")} />}
+            {active === "orbit"  && <ConfigSection title="Binary Orbit" subtitle="Configure the binary orbit reward system." fields={config.orbit} loading={loadingConfig} onEdit={makeEditHandler("orbit")} />}
+            {active === "level"  && <LevelIncomeSection rows={levels} loading={loadingLevel} onChange={setLevels} onRequestConfirm={requestConfirm} onToast={toast} refreshSidebar={refreshSidebar} />}
+            {active === "salary" && <SalaryIncomeSection ranks={salaryRanks} loading={loadingSalary} onChange={setSalaryRanks} onRequestConfirm={requestConfirm} onToast={toast} refreshSidebar={refreshSidebar} />}
+            {active === "ranks"  && <RanksSection ranks={salaryRanks} loading={loadingSalary} />}
+            {active === "wallet" && <WalletRulesSection fields={config.wallet} loading={loadingConfig} onEdit={makeEditHandler("wallet")} />}
+            {active === "limits" && <ConfigSection title="Platform Limits" subtitle="System-wide investment, withdrawal, and income limits." fields={config.limits} loading={loadingConfig} onEdit={makeEditHandler("limits")} />}
+            {active === "global" && <GlobalConfigSection fields={config.global} loading={loadingConfig} onEdit={makeEditHandler("global")} />}
           </div>
 
           {/* Right sidebar */}
           <div>
-            <VersionHistory versions={versions} loading={loadingVersions} onRollback={handleRollback} />
+            <VersionHistory versions={versions} loading={loadingVersions} />
             <AuditLog entries={audit} loading={loadingAudit} />
           </div>
         </div>
@@ -890,14 +1078,16 @@ export default function PlansPage() {
       </div>
 
       {planDrawer && (
-        <PlanDrawer
+        <FixedPlanDrawer
           plan={plans.find(p => p.id === planDrawer.id) ?? planDrawer}
           onClose={() => setPlanDrawer(null)}
           onStatusChange={handlePlanStatusChange}
+          onRequestConfirm={requestConfirm}
+          onToast={toast}
         />
       )}
       {confirmPending && (
-        <ConfirmModal pending={confirmPending} onConfirm={handleConfirm} onCancel={() => setConfirmPending(null)} />
+        <ConfirmModal pending={confirmPending} onCancel={() => setConfirmPending(null)} />
       )}
     </AdminLayout>
   );

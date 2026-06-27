@@ -1639,12 +1639,12 @@ export interface PlanConfigField {
 }
 
 export interface PlanConfigSections {
-  roi:      PlanConfigField[];
-  binary:   PlanConfigField[];
-  orbit:    PlanConfigField[];
-  transfer: PlanConfigField[];
-  limits:   PlanConfigField[];
-  global:   PlanConfigField[];
+  roi:    PlanConfigField[];
+  binary: PlanConfigField[];
+  orbit:  PlanConfigField[];
+  wallet: PlanConfigField[];
+  limits: PlanConfigField[];
+  global: PlanConfigField[];
 }
 
 export interface PlanVersionEntry {
@@ -1739,4 +1739,24 @@ export function adminSaveLevelConfig(levels: LevelConfigItem[]) {
 
 export function adminGetSalaryRanks() {
   return request<{ ranks: SalaryRankItem[] }>("/api/admin/plans/salary-ranks");
+}
+
+export function adminUpdatePlanConfig(
+  id:   string,
+  data: { roi?: number; minInvest?: number; maxInvest?: number | null },
+) {
+  return request<PlanItem>(`/api/admin/plans/${id}`, {
+    method: "PATCH",
+    body:   JSON.stringify(data),
+  });
+}
+
+export function adminUpdateSalaryRank(
+  rankName: string,
+  data:     { monthlySalary?: number; requiredBusiness?: number; requiresDualDirects?: boolean; isActive?: boolean },
+) {
+  return request<SalaryRankItem>(`/api/admin/plans/salary-ranks/${encodeURIComponent(rankName)}`, {
+    method: "PATCH",
+    body:   JSON.stringify(data),
+  });
 }

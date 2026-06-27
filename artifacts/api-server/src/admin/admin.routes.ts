@@ -70,9 +70,11 @@ import {
   getPlansHandler,
   createPlanHandler,
   updatePlanStatusHandler,
+  updatePlanConfigHandler,
   getLevelConfigHandler,
   saveLevelConfigHandler,
   getSalaryRanksHandler,
+  updateSalaryRankHandler,
 } from "./admin-plans.controller";
 import {
   saveConfigFieldSchema,
@@ -80,7 +82,10 @@ import {
   createPlanSchema,
   planIdParamSchema,
   updatePlanStatusSchema,
+  updatePlanConfigSchema,
   saveLevelConfigSchema,
+  rankNameParamSchema,
+  updateSalaryRankSchema,
 } from "./admin-plans.schema";
 import {
   revenueReportHandler,
@@ -442,6 +447,20 @@ router.patch(
   validate(planIdParamSchema, "params"),
   validate(updatePlanStatusSchema),
   updatePlanStatusHandler,
+);
+router.patch(
+  "/plans/salary-ranks/:rankName",
+  adminLimiter, superAdminGuard,
+  validate(rankNameParamSchema, "params"),
+  validate(updateSalaryRankSchema),
+  updateSalaryRankHandler,
+);
+router.patch(
+  "/plans/:id",
+  adminLimiter, superAdminGuard,
+  validate(planIdParamSchema, "params"),
+  validate(updatePlanConfigSchema),
+  updatePlanConfigHandler,
 );
 
 // ── Income Engine Control Center ──────────────────────────────────────────────

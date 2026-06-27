@@ -1,0 +1,338 @@
+# Sprint 20I.1 — Restructure Plans & Compensation Configuration (Business Rule Alignment)
+
+The backend architecture is correct. The API layer, version history, audit logs, persistence, optimistic updates, and configuration service must remain exactly as they are.
+
+This sprint is NOT a redesign.
+
+It is a business-rule alignment.
+
+The UI theme, layout, version history panel, audit log, confirmation modals, publish workflow, optimistic updates, rollback handling, and backend endpoints must remain untouched.
+
+Only restructure the configuration sections so they accurately reflect Prime Wave's business rules.
+
+--------------------------------------------------------------------
+1. Investment Plans
+--------------------------------------------------------------------
+
+Remove the generic MLM plans.
+
+Delete:
+
+- Starter
+- Growth
+- Pro
+- Elite
+- Crown
+- Legacy
+
+Replace them with exactly four fixed plans.
+
+- Plan 90
+- Plan 180
+- Plan 270
+- Plan 360
+
+These names are system-defined and cannot be renamed.
+
+The duration is fixed.
+
+Plan 90  -> 90 Days
+Plan 180 -> 180 Days
+Plan 270 -> 270 Days
+Plan 360 -> 360 Days
+
+Admin may configure ONLY:
+
+• ROI %
+• Minimum Investment
+• Maximum Investment
+• Active / Disabled
+
+Duration and plan name are immutable.
+
+If a plan already has active investors:
+
+- lock financial edits
+- display an informational notice
+- continue allowing enable/disable if business rules allow
+
+Keep version history and audit logging exactly as they currently work.
+
+--------------------------------------------------------------------
+2. ROI Engine
+--------------------------------------------------------------------
+
+Keep:
+
+• Daily ROI %
+• Maximum ROI Cap
+• Duration
+• Execution Time
+
+Remove:
+
+• Claim Window
+
+Prime Wave does not use claimable ROI.
+
+ROI is distributed automatically.
+
+No claim button.
+No claim expiry.
+
+--------------------------------------------------------------------
+3. Binary Matching
+--------------------------------------------------------------------
+
+Keep:
+
+• Matching Percentage
+• Daily Match Cap
+• Carry Forward Cap
+• Daily Flush Time
+• Execution Time
+
+Remove:
+
+• Carry Expiry
+
+Carry does NOT expire by age.
+
+Carry remains until the configured daily flush.
+
+Rename:
+
+Flush Cycle
+
+to
+
+Daily Flush Time
+
+--------------------------------------------------------------------
+4. Binary Orbit
+--------------------------------------------------------------------
+
+Replace the current fields.
+
+Keep only:
+
+• Orbit %
+• Minimum BV Qualification
+• Orbit Execution Schedule
+• Orbit Execution Time
+
+Remove:
+
+• Carry Forward
+• Carry Days
+• Weekly Carry Settings
+
+Orbit does not have carry-forward configuration.
+
+--------------------------------------------------------------------
+5. Level Income
+--------------------------------------------------------------------
+
+Keep the table layout.
+
+Replace static qualification labels.
+
+Instead of hardcoded values like:
+
+Gold
+Diamond
+Crown
+
+make qualification configurable.
+
+Each level should support:
+
+• Percentage
+• Qualification Rule
+• Enabled
+
+No hardcoded rank names.
+
+--------------------------------------------------------------------
+6. Salary Income
+--------------------------------------------------------------------
+
+This page should configure SalaryRankConfig only.
+
+Editable fields:
+
+• Salary Amount
+• Required Direct Referrals
+• Required Team BV
+• Qualification Rule
+• Enabled
+
+Remove unrelated columns that duplicate rank information.
+
+Salary configuration must map directly to SalaryRankConfig.
+
+--------------------------------------------------------------------
+7. Ranks
+--------------------------------------------------------------------
+
+Keep the existing card layout.
+
+Replace placeholder requirements.
+
+Each rank card should display:
+
+• Rank Name
+• Required Team BV
+• Required Direct Referrals
+• Benefits
+• Monthly Salary
+• Qualification Summary
+
+Do NOT duplicate Salary configuration.
+
+Ranks are a visual overview only.
+
+Salary values must be read from SalaryRankConfig.
+
+--------------------------------------------------------------------
+8. Replace "Transfer Rules" with "Wallet Rules"
+--------------------------------------------------------------------
+
+Rename:
+
+Transfer Rules
+
+to
+
+Wallet Rules
+
+This page must represent Prime Wave wallet behavior.
+
+Income Wallet
+
+Receives ONLY:
+
+• ROI
+• Principal
+
+Supports:
+
+Transfer to Withdrawal Wallet
+
+Transfer behaviour:
+
+• 72 hour release
+• One release every hour
+• 72 total releases
+
+Withdrawal Wallet receives:
+
+• Binary Income
+• Orbit Income
+• Level Income
+• Salary Income
+• Completed Income Wallet Transfers
+
+Do NOT show:
+
+• Transfer Fee
+• Queue Size
+• Hourly Percentage
+• Maximum Queue
+• Generic Transfer Engine settings
+
+These do not exist in Prime Wave.
+
+Display the actual wallet rules clearly instead.
+
+--------------------------------------------------------------------
+9. Platform Limits
+--------------------------------------------------------------------
+
+Keep:
+
+• Minimum Withdrawal
+• Maximum Withdrawal
+• Maximum Daily Withdrawal
+• Maximum Binary Income
+• Maximum Salary
+
+Add:
+
+• Maximum Investment Per User
+
+Remove duplicate or unnecessary limits.
+
+--------------------------------------------------------------------
+10. Global Configuration
+--------------------------------------------------------------------
+
+Rename the feature switches.
+
+Use:
+
+• Maintenance Mode
+• Registration Enabled
+• ROI Engine Enabled
+• Binary Engine Enabled
+• Orbit Engine Enabled
+• Salary Engine Enabled
+• Withdrawal Engine Enabled
+• Notifications Enabled
+• KYC Required
+
+Keep persistence, version history and audit logging exactly as they work today.
+
+--------------------------------------------------------------------
+11. Sidebar
+--------------------------------------------------------------------
+
+Replace the configuration navigation with:
+
+Investment Plans
+
+ROI Engine
+
+Binary Matching
+
+Binary Orbit
+
+Level Income
+
+Salary Income
+
+Ranks
+
+Wallet Rules
+
+Platform Limits
+
+Global Configuration
+
+Remove "Transfer Rules" entirely.
+
+--------------------------------------------------------------------
+12. Preserve Existing Functionality
+--------------------------------------------------------------------
+
+Do NOT modify:
+
+• API routes
+• Backend schema
+• Database structure
+• Audit logging
+• Version history
+• Publish workflow
+• Optimistic updates
+• Rollback
+• Confirmation dialogs
+• Permissions
+• Loading states
+• Error handling
+• Responsive behaviour
+
+Only align the configuration model with Prime Wave's business rules.
+
+This is a refinement sprint.
+
+The goal is to keep all existing backend infrastructure while making the Plans & Compensation module accurately represent Prime Wave instead of a generic MLM system.

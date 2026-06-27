@@ -39,28 +39,25 @@ export interface VersionEntry {
 // ─── Default data ─────────────────────────────────────────────────────────────
 
 const DEFAULT_PLANS: PlanCatalogItem[] = [
-  { id: "p1", name: "Starter",  color: "#60a5fa", minInvest: 100,   maxInvest: 999,    roi: 0.5,  duration: 365, autoCompound: false, status: "ACTIVE",   members: 0, benefits: ["Daily ROI","24h claim window","Level income eligible"],       notes: "Entry plan for new members.",      claimWindow: "24 hours" },
-  { id: "p2", name: "Growth",   color: "#34d399", minInvest: 1000,  maxInvest: 4999,   roi: 0.75, duration: 365, autoCompound: false, status: "ACTIVE",   members: 0, benefits: ["Daily ROI","Binary eligible","Level income up to level 5"],   notes: "Most popular plan.",               claimWindow: "24 hours" },
-  { id: "p3", name: "Pro",      color: "#D4AF37", minInvest: 5000,  maxInvest: 9999,   roi: 1.0,  duration: 365, autoCompound: true,  status: "ACTIVE",   members: 0, benefits: ["Daily ROI","Auto-compound","Binary eligible","Orbit eligible"], notes: "Pro-level compensation.",          claimWindow: "24 hours" },
-  { id: "p4", name: "Elite",    color: "#a78bfa", minInvest: 10000, maxInvest: 49999,  roi: 1.25, duration: 365, autoCompound: true,  status: "ACTIVE",   members: 0, benefits: ["Priority processing","Salary eligible","All income types"],   notes: "Requires Gold rank minimum.",      claimWindow: "12 hours" },
-  { id: "p5", name: "Crown",    color: "#f87171", minInvest: 50000, maxInvest: null,   roi: 1.5,  duration: 365, autoCompound: true,  status: "ACTIVE",   members: 0, benefits: ["Dedicated support","Crown bonus","All income types"],           notes: "Invite only. Crown rank required.", claimWindow: "12 hours" },
-  { id: "p6", name: "Legacy",   color: "rgba(170,179,197,0.48)", minInvest: 500, maxInvest: 4999, roi: 0.6, duration: 180, autoCompound: false, status: "ARCHIVED", members: 0, benefits: ["Basic ROI"], notes: "Retired plan.", claimWindow: "48 hours" },
+  { id: "plan-90",  name: "Plan 90",  color: "#60a5fa", minInvest: 100, maxInvest: null, roi: 0.5,  duration: 90,  autoCompound: false, status: "ACTIVE", members: 0, benefits: [], notes: "", claimWindow: "" },
+  { id: "plan-180", name: "Plan 180", color: "#34d399", minInvest: 100, maxInvest: null, roi: 0.75, duration: 180, autoCompound: false, status: "ACTIVE", members: 0, benefits: [], notes: "", claimWindow: "" },
+  { id: "plan-270", name: "Plan 270", color: "#D4AF37", minInvest: 100, maxInvest: null, roi: 1.0,  duration: 270, autoCompound: false, status: "ACTIVE", members: 0, benefits: [], notes: "", claimWindow: "" },
+  { id: "plan-360", name: "Plan 360", color: "#a78bfa", minInvest: 100, maxInvest: null, roi: 1.25, duration: 360, autoCompound: false, status: "ACTIVE", members: 0, benefits: [], notes: "", claimWindow: "" },
 ];
 
 const DEFAULT_LEVELS: LevelConfigItem[] = [
-  { level: 1, rate: 5.0, qualification: "Any Active Plan",  status: "ACTIVE"   },
-  { level: 2, rate: 3.0, qualification: "Bronze or above",  status: "ACTIVE"   },
-  { level: 3, rate: 2.0, qualification: "Silver or above",  status: "ACTIVE"   },
-  { level: 4, rate: 1.5, qualification: "Gold or above",    status: "ACTIVE"   },
-  { level: 5, rate: 1.0, qualification: "Gold or above",    status: "ACTIVE"   },
-  { level: 6, rate: 0.8, qualification: "Diamond or above", status: "ACTIVE"   },
-  { level: 7, rate: 0.6, qualification: "Diamond or above", status: "ACTIVE"   },
-  { level: 8, rate: 0.5, qualification: "Crown",            status: "ACTIVE"   },
-  { level: 9, rate: 0.4, qualification: "Crown",            status: "ACTIVE"   },
-  { level:10, rate: 0.3, qualification: "Crown",            status: "INACTIVE" },
+  { level: 1,  rate: 5.0, qualification: "Active investment required", status: "ACTIVE"   },
+  { level: 2,  rate: 3.0, qualification: "Active investment required", status: "ACTIVE"   },
+  { level: 3,  rate: 2.0, qualification: "Active investment required", status: "ACTIVE"   },
+  { level: 4,  rate: 1.5, qualification: "Active investment required", status: "ACTIVE"   },
+  { level: 5,  rate: 1.0, qualification: "Active investment required", status: "ACTIVE"   },
+  { level: 6,  rate: 0.8, qualification: "Active investment required", status: "ACTIVE"   },
+  { level: 7,  rate: 0.6, qualification: "Active investment required", status: "ACTIVE"   },
+  { level: 8,  rate: 0.5, qualification: "Active investment required", status: "ACTIVE"   },
+  { level: 9,  rate: 0.4, qualification: "Active investment required", status: "ACTIVE"   },
+  { level: 10, rate: 0.3, qualification: "Active investment required", status: "INACTIVE" },
 ];
 
-// All config keys with their defaults, labels, and section groupings
 interface ConfigDef {
   key: string; value: string; unit?: string;
   type: "text" | "number" | "toggle";
@@ -68,43 +65,44 @@ interface ConfigDef {
 }
 
 const CONFIG_DEFS: ConfigDef[] = [
-  { section:"roi",      key:"roi.default_rate", value:"0.5",    unit:"%/day",  type:"number", label:"Default ROI Rate",     description:"Base daily ROI applied to all eligible plans." },
-  { section:"roi",      key:"roi.max_cap",       value:"200",    unit:"%",      type:"number", label:"Maximum ROI Cap",      description:"Total lifetime ROI cap as % of principal." },
-  { section:"roi",      key:"roi.duration",      value:"365",    unit:"days",   type:"number", label:"ROI Duration",         description:"Plan duration before principal lock expires." },
-  { section:"roi",      key:"roi.claim_window",  value:"24",     unit:"hours",  type:"number", label:"Claim Window",         description:"Hours within which ROI must be claimed." },
-  { section:"roi",      key:"roi.exec_time",     value:"00:00",  unit:"UTC",    type:"text",   label:"Execution Time",       description:"Daily cron time for ROI distribution." },
-  { section:"roi",      key:"roi.exec_freq",     value:"Daily",                 type:"text",   label:"Execution Frequency",  description:"How often the ROI engine runs." },
-  { section:"binary",   key:"bin.match_rate",    value:"10",     unit:"%",      type:"number", label:"Matching Rate",        description:"% of weaker leg BV awarded as matching bonus." },
-  { section:"binary",   key:"bin.daily_cap",     value:"10000",  unit:"$",      type:"number", label:"Daily Match Cap",      description:"Max daily binary reward per member." },
-  { section:"binary",   key:"bin.carry_cap",     value:"50000",  unit:"BV",     type:"number", label:"Carry Forward Cap",    description:"Max carry-forward BV allowed per leg." },
-  { section:"binary",   key:"bin.flush_cycle",   value:"Daily",                 type:"text",   label:"Flush Cycle",          description:"When unmatched BV is flushed." },
-  { section:"binary",   key:"bin.exec_time",     value:"00:30",  unit:"UTC",    type:"text",   label:"Execution Time",       description:"Daily matching run time." },
-  { section:"binary",   key:"bin.carry_exp",     value:"30",     unit:"days",   type:"number", label:"Carry Expiry",         description:"Days before carry forward expires." },
-  { section:"orbit",    key:"orb.reward_rate",   value:"5",      unit:"%",      type:"number", label:"Orbit Reward Rate",    description:"% orbit reward on top of matching." },
-  { section:"orbit",    key:"orb.min_bv",        value:"5000",   unit:"BV/leg", type:"number", label:"Minimum BV Required",  description:"BV each leg must achieve to trigger orbit." },
-  { section:"orbit",    key:"orb.flush_cycle",   value:"Weekly",                type:"text",   label:"Flush Logic",          description:"Orbit BV flush frequency." },
-  { section:"orbit",    key:"orb.exec_day",      value:"Monday",                type:"text",   label:"Execution Day",        description:"Day orbit rewards are distributed." },
-  { section:"orbit",    key:"orb.exec_time",     value:"01:00",  unit:"UTC",    type:"text",   label:"Execution Time",       description:"Weekly orbit run time." },
-  { section:"orbit",    key:"orb.carry_days",    value:"30",     unit:"days",   type:"number", label:"Carry Forward Days",   description:"Days orbit BV can carry forward." },
-  { section:"transfer", key:"tr.release_hours",  value:"72",     unit:"hours",  type:"number", label:"Release Window",       description:"Hours before deposit is released for use." },
-  { section:"transfer", key:"tr.hourly_rate",    value:"1.39",   unit:"%/h",    type:"number", label:"Hourly Release Rate",  description:"% of transfer released per hour." },
-  { section:"transfer", key:"tr.fee_pct",        value:"2",      unit:"%",      type:"number", label:"Transfer Fee",         description:"Platform fee applied to each transfer." },
-  { section:"transfer", key:"tr.min_amount",     value:"10",     unit:"$",      type:"number", label:"Minimum Transfer",     description:"Minimum single transfer amount." },
-  { section:"transfer", key:"tr.max_amount",     value:"50000",  unit:"$",      type:"number", label:"Maximum Transfer",     description:"Maximum single transfer amount." },
-  { section:"transfer", key:"tr.max_queue",      value:"100",    unit:"txns",   type:"number", label:"Maximum Queue Size",   description:"Max concurrent transfers in queue." },
-  { section:"limits",   key:"lim.max_invest",    value:"500000", unit:"$",      type:"number", label:"Maximum Investment",   description:"Maximum cumulative investment per user." },
-  { section:"limits",   key:"lim.min_withdraw",  value:"20",     unit:"$",      type:"number", label:"Minimum Withdrawal",   description:"Minimum withdrawal request amount." },
-  { section:"limits",   key:"lim.max_withdraw",  value:"100000", unit:"$",      type:"number", label:"Maximum Withdrawal",   description:"Max single withdrawal amount." },
-  { section:"limits",   key:"lim.daily_payout",  value:"50000",  unit:"$",      type:"number", label:"Max Daily Payout",     description:"Maximum total payout per member per day." },
-  { section:"limits",   key:"lim.max_binary",    value:"10000",  unit:"$/day",  type:"number", label:"Max Binary Reward",    description:"Binary matching daily reward ceiling." },
-  { section:"limits",   key:"lim.max_salary",    value:"10000",  unit:"$/mo",   type:"number", label:"Maximum Salary",       description:"Maximum monthly salary any rank can earn." },
-  { section:"global",   key:"gl.maintenance",    value:"false",                 type:"toggle", label:"Maintenance Mode",     description:"Suspends all member-facing operations." },
-  { section:"global",   key:"gl.registration",   value:"true",                  type:"toggle", label:"Registration Enabled", description:"New member registration toggle." },
-  { section:"global",   key:"gl.investment",     value:"true",                  type:"toggle", label:"Investment Enabled",   description:"Allow new investment creation." },
-  { section:"global",   key:"gl.withdrawal",     value:"true",                  type:"toggle", label:"Withdrawal Enabled",   description:"Allow withdrawal requests." },
-  { section:"global",   key:"gl.binary",         value:"true",                  type:"toggle", label:"Binary Enabled",       description:"Binary matching engine active." },
-  { section:"global",   key:"gl.notifications",  value:"true",                  type:"toggle", label:"Notifications Enabled",description:"Push and email notification system." },
-  { section:"global",   key:"gl.kyc_required",   value:"false",                 type:"toggle", label:"KYC Required",         description:"Require identity verification for withdrawals." },
+  // ── ROI Engine ─────────────────────────────────────────────────────────────
+  { section:"roi",    key:"roi.default_rate",      value:"0.5",   unit:"%/day",  type:"number", label:"Daily ROI %",              description:"Base daily ROI applied automatically to all eligible plans." },
+  { section:"roi",    key:"roi.max_cap",           value:"200",   unit:"%",      type:"number", label:"Maximum ROI Cap",           description:"Total lifetime ROI cap as a percentage of principal invested." },
+  { section:"roi",    key:"roi.duration",          value:"365",   unit:"days",   type:"number", label:"Duration",                  description:"Number of days in the ROI earning period." },
+  { section:"roi",    key:"roi.exec_time",         value:"00:00", unit:"UTC",    type:"text",   label:"Execution Time",            description:"Daily cron time for automatic ROI distribution." },
+  { section:"roi",    key:"roi.exec_freq",         value:"Daily",               type:"text",   label:"Execution Frequency",       description:"How often the ROI engine distributes earnings." },
+  // ── Binary Matching ────────────────────────────────────────────────────────
+  { section:"binary", key:"bin.match_rate",        value:"10",    unit:"%",      type:"number", label:"Matching Percentage",       description:"% of the weaker leg BV awarded as binary matching bonus." },
+  { section:"binary", key:"bin.daily_cap",         value:"10000", unit:"$",      type:"number", label:"Daily Match Cap",           description:"Maximum daily binary matching reward per member." },
+  { section:"binary", key:"bin.carry_cap",         value:"50000", unit:"BV",     type:"number", label:"Carry Forward Cap",         description:"Maximum carry-forward BV allowed per leg." },
+  { section:"binary", key:"bin.flush_cycle",       value:"Daily",               type:"text",   label:"Daily Flush Time",          description:"When unmatched BV is flushed each day. Carry does not expire by age." },
+  { section:"binary", key:"bin.exec_time",         value:"00:30", unit:"UTC",    type:"text",   label:"Execution Time",            description:"Daily time the binary matching engine runs." },
+  // ── Binary Orbit ───────────────────────────────────────────────────────────
+  { section:"orbit",  key:"orb.reward_rate",       value:"5",     unit:"%",      type:"number", label:"Orbit %",                   description:"Orbit reward percentage on top of binary matching." },
+  { section:"orbit",  key:"orb.min_bv",            value:"5000",  unit:"BV/leg", type:"number", label:"Minimum BV Qualification",  description:"BV each leg must achieve to trigger orbit distribution." },
+  { section:"orbit",  key:"orb.exec_day",          value:"Monday",              type:"text",   label:"Orbit Execution Schedule",  description:"Day of the week orbit rewards are distributed." },
+  { section:"orbit",  key:"orb.exec_time",         value:"01:00", unit:"UTC",    type:"text",   label:"Orbit Execution Time",      description:"Time of day the orbit engine processes distributions." },
+  // ── Wallet Rules ───────────────────────────────────────────────────────────
+  { section:"wallet", key:"wal.release_hours",     value:"72",    unit:"hours",  type:"number", label:"Release Window",            description:"Total hours over which Income Wallet transfers release to Withdrawal Wallet." },
+  { section:"wallet", key:"wal.hourly_releases",   value:"1",     unit:"/hour",  type:"number", label:"Releases Per Hour",         description:"Number of release tranches sent every hour during the release window." },
+  { section:"wallet", key:"wal.total_releases",    value:"72",    unit:"releases",type:"number",label:"Total Releases Per Transfer","description":"Total release tranches for each Income Wallet transfer (= Release Window × Releases/Hour)." },
+  // ── Platform Limits ────────────────────────────────────────────────────────
+  { section:"limits", key:"lim.min_withdraw",      value:"20",    unit:"$",      type:"number", label:"Minimum Withdrawal",        description:"Minimum withdrawal request amount." },
+  { section:"limits", key:"lim.max_withdraw",      value:"100000",unit:"$",      type:"number", label:"Maximum Withdrawal",        description:"Maximum single withdrawal amount." },
+  { section:"limits", key:"lim.max_daily_withdraw",value:"50000", unit:"$",      type:"number", label:"Maximum Daily Withdrawal",  description:"Maximum total withdrawal per member per day." },
+  { section:"limits", key:"lim.max_binary",        value:"10000", unit:"$/day",  type:"number", label:"Maximum Binary Income",     description:"Daily binary matching income ceiling per member." },
+  { section:"limits", key:"lim.max_salary",        value:"10000", unit:"$/mo",   type:"number", label:"Maximum Salary",            description:"Maximum monthly salary any rank can earn." },
+  { section:"limits", key:"lim.max_invest_per_user",value:"500000",unit:"$",     type:"number", label:"Maximum Investment Per User","description":"Maximum cumulative active investment allowed per member." },
+  // ── Global Configuration ───────────────────────────────────────────────────
+  { section:"global", key:"gl.maintenance",        value:"false",               type:"toggle", label:"Maintenance Mode",          description:"Suspends all member-facing operations platform-wide." },
+  { section:"global", key:"gl.registration",       value:"true",                type:"toggle", label:"Registration Enabled",      description:"Allow new member registration." },
+  { section:"global", key:"gl.roi_engine",         value:"true",                type:"toggle", label:"ROI Engine Enabled",        description:"Automatic daily ROI distribution engine." },
+  { section:"global", key:"gl.binary_engine",      value:"true",                type:"toggle", label:"Binary Engine Enabled",     description:"Binary matching engine active." },
+  { section:"global", key:"gl.orbit_engine",       value:"true",                type:"toggle", label:"Orbit Engine Enabled",      description:"Binary orbit distribution engine active." },
+  { section:"global", key:"gl.salary_engine",      value:"true",                type:"toggle", label:"Salary Engine Enabled",     description:"Monthly salary processing engine active." },
+  { section:"global", key:"gl.withdrawal_engine",  value:"true",                type:"toggle", label:"Withdrawal Engine Enabled", description:"Allow withdrawal requests to be processed." },
+  { section:"global", key:"gl.notifications",      value:"true",                type:"toggle", label:"Notifications Enabled",     description:"Push and email notification delivery." },
+  { section:"global", key:"gl.kyc_required",       value:"false",               type:"toggle", label:"KYC Required",              description:"Require identity verification before withdrawal." },
 ];
 
 const CONFIG_KEYS = CONFIG_DEFS.map(d => d.key);
@@ -115,7 +113,7 @@ export async function ensureDefaultSettings() {
   for (const def of CONFIG_DEFS) {
     await prisma.systemSettings.upsert({
       where:  { key: def.key },
-      update: {}, // never overwrite existing
+      update: {},
       create: { key: def.key, value: def.value, description: def.label },
     });
   }
@@ -131,9 +129,8 @@ export async function getAllPlanConfig() {
   const byKey: Record<string, string> = {};
   for (const r of rows) byKey[r.key] = r.value;
 
-  // Build per-section ConfigField arrays
   const sections: Record<string, { key: string; label: string; value: string; unit?: string; type: "text" | "number" | "toggle"; description?: string }[]> = {
-    roi: [], binary: [], orbit: [], transfer: [], limits: [], global: [],
+    roi: [], binary: [], orbit: [], wallet: [], limits: [], global: [],
   };
   for (const def of CONFIG_DEFS) {
     sections[def.section]?.push({
@@ -236,11 +233,11 @@ export async function getConfigAudit() {
 // ─── Plans catalog ─────────────────────────────────────────────────────────────
 
 const PLANS_KEY = "plans.catalog";
+const FIXED_PLAN_IDS = new Set(["plan-90", "plan-180", "plan-270", "plan-360"]);
 
 export async function getPlans(): Promise<PlanCatalogItem[]> {
   const row = await prisma.systemSettings.findUnique({ where: { key: PLANS_KEY } });
   if (!row) {
-    // Seed defaults + get real member counts
     const withCounts = await attachMemberCounts(DEFAULT_PLANS);
     await prisma.systemSettings.create({
       data: { key: PLANS_KEY, value: JSON.stringify(withCounts), description: "Investment plans catalog" },
@@ -249,6 +246,16 @@ export async function getPlans(): Promise<PlanCatalogItem[]> {
   }
   try {
     const plans = JSON.parse(row.value) as PlanCatalogItem[];
+    // Migration: if the catalog doesn't contain any of the 4 fixed plan IDs, reset to defaults.
+    const hasFixedPlans = plans.some(p => FIXED_PLAN_IDS.has(p.id));
+    if (!hasFixedPlans) {
+      const withCounts = await attachMemberCounts(DEFAULT_PLANS);
+      await prisma.systemSettings.update({
+        where: { key: PLANS_KEY },
+        data: { value: JSON.stringify(withCounts) },
+      });
+      return withCounts;
+    }
     return attachMemberCounts(plans);
   } catch {
     return DEFAULT_PLANS;
@@ -328,6 +335,44 @@ export async function updatePlanStatus(
   return { ...plan, status };
 }
 
+export async function updatePlanConfig(
+  planId:     string,
+  data:       { roi?: number; minInvest?: number; maxInvest?: number | null },
+  adminId:    string,
+  adminEmail: string,
+): Promise<PlanCatalogItem> {
+  const current = await getPlans();
+  const plan = current.find(p => p.id === planId);
+  if (!plan) throw new Error(`Plan ${planId} not found`);
+
+  const updated = current.map(p =>
+    p.id === planId
+      ? {
+          ...p,
+          ...(data.roi        !== undefined && { roi:       data.roi }),
+          ...(data.minInvest  !== undefined && { minInvest: data.minInvest }),
+          ...(data.maxInvest  !== undefined && { maxInvest: data.maxInvest }),
+        }
+      : p
+  );
+  await savePlansCatalog(updated.map(p => ({ ...p, members: p.members })));
+
+  await prisma.adminLog.create({
+    data: {
+      adminId,
+      action: "CONFIG_UPDATED",
+      details: {
+        planId, label: `Plan config: ${plan.name}`,
+        oldValue: JSON.stringify({ roi: plan.roi, minInvest: plan.minInvest, maxInvest: plan.maxInvest }),
+        newValue: JSON.stringify(data),
+        reason: "Plan configuration updated by admin.", adminEmail,
+      } as Prisma.InputJsonValue,
+    },
+  });
+  await appendVersion(adminEmail, 1);
+  return updated.find(p => p.id === planId)!;
+}
+
 // ─── Level income config ──────────────────────────────────────────────────────
 
 const LEVEL_CONFIG_KEY = "level.config";
@@ -373,13 +418,58 @@ export async function getSalaryRanks() {
     orderBy: { requiredBusiness: "asc" },
   });
   return ranks.map(r => ({
-    id:                 r.id,
-    rankName:           r.rankName,
-    monthlySalary:      parseFloat(r.monthlySalary.toString()),
-    requiredBusiness:   parseFloat(r.requiredBusiness.toString()),
-    durationMonths:     r.durationMonths,
+    id:                  r.id,
+    rankName:            r.rankName,
+    monthlySalary:       parseFloat(r.monthlySalary.toString()),
+    requiredBusiness:    parseFloat(r.requiredBusiness.toString()),
+    durationMonths:      r.durationMonths,
     requiresDualDirects: r.requiresDualDirects,
-    allowSpill:         r.allowSpill,
-    isActive:           r.isActive,
+    allowSpill:          r.allowSpill,
+    isActive:            r.isActive,
   }));
+}
+
+export async function updateSalaryRank(
+  rankName:   string,
+  data:       { monthlySalary?: number; requiredBusiness?: number; requiresDualDirects?: boolean; isActive?: boolean },
+  adminId:    string,
+  adminEmail: string,
+) {
+  const existing = await prisma.salaryRankConfig.findUnique({ where: { rankName } });
+  if (!existing) throw new Error(`Rank "${rankName}" not found`);
+
+  const updated = await prisma.salaryRankConfig.update({
+    where: { rankName },
+    data: {
+      ...(data.monthlySalary       !== undefined && { monthlySalary:       data.monthlySalary }),
+      ...(data.requiredBusiness    !== undefined && { requiredBusiness:    data.requiredBusiness }),
+      ...(data.requiresDualDirects !== undefined && { requiresDualDirects: data.requiresDualDirects }),
+      ...(data.isActive            !== undefined && { isActive:            data.isActive }),
+    },
+  });
+
+  await prisma.adminLog.create({
+    data: {
+      adminId,
+      action: "CONFIG_UPDATED",
+      details: {
+        key: `salary.${rankName}`, label: `Salary Config: ${rankName}`,
+        oldValue: JSON.stringify({ monthlySalary: parseFloat(existing.monthlySalary.toString()), requiredBusiness: parseFloat(existing.requiredBusiness.toString()) }),
+        newValue: JSON.stringify(data),
+        reason: "Salary rank configuration updated.", adminEmail,
+      } as Prisma.InputJsonValue,
+    },
+  });
+  await appendVersion(adminEmail, 1);
+
+  return {
+    id:                  updated.id,
+    rankName:            updated.rankName,
+    monthlySalary:       parseFloat(updated.monthlySalary.toString()),
+    requiredBusiness:    parseFloat(updated.requiredBusiness.toString()),
+    durationMonths:      updated.durationMonths,
+    requiresDualDirects: updated.requiresDualDirects,
+    allowSpill:          updated.allowSpill,
+    isActive:            updated.isActive,
+  };
 }
