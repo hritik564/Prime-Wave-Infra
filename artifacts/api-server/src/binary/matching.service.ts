@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
+import { logger } from "../lib/logger";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { MatchingHistoryQuery } from "./matching.schema";
@@ -13,9 +14,19 @@ const MIN_REFERRALS  = 2;                          // directReferralCount floor
 
 // ── Result type ───────────────────────────────────────────────────────────────
 
+export interface MatchingCycleFailure {
+  userId:          string;
+  username:        string;
+  matchedBV:       string;
+  expectedIncome:  string;
+  error:           string;
+  timestamp:       string;
+}
+
 export interface MatchingCycleResult {
   processed:          number;
   skipped:            number;
+  failedUsers:        MatchingCycleFailure[];
   totalIncome:        Prisma.Decimal;
   totalMatchedBV:     Prisma.Decimal;
   totalRewardedBV:    Prisma.Decimal;
@@ -71,15 +82,17 @@ export async function processMatchingCycle(
       ],
     },
     select: {
-      id:      true,
-      leftBV:  true,
-      rightBV: true,
+      id:       true,
+      username: true,
+      leftBV:   true,
+      rightBV:  true,
     },
     orderBy: { id: "asc" },
   });
 
   let processed           = 0;
   let skipped             = 0;
+  const failedUsers: MatchingCycleFailure[] = [];
   let totalIncome         = new Prisma.Decimal(0);
   let totalMatchedBV      = new Prisma.Decimal(0);
   let totalRewardedBV     = new Prisma.Decimal(0);
@@ -189,13 +202,39 @@ export async function processMatchingCycle(
       processed++;
     } catch (err) {
       skipped++;
-      throw err;
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const stack  = err instanceof Error ? err.stack   : undefined;
+
+      logger.error(
+        {
+          userId:         user.id,
+          username:       user.username,
+          cycleId:        cycleStart.toISOString(),
+          matchedBV:      matchedBV.toFixed(8),
+          expectedIncome: rewardedBV.times(INCOME_PER_BV).toFixed(2),
+          error:          errMsg,
+          stack,
+          cycleStart,
+          cycleEnd,
+        },
+        "Binary matching cycle: user processing failed — skipping user, continuing cycle",
+      );
+
+      failedUsers.push({
+        userId:         user.id,
+        username:       user.username,
+        matchedBV:      matchedBV.toFixed(8),
+        expectedIncome: rewardedBV.times(INCOME_PER_BV).toFixed(2),
+        error:          errMsg,
+        timestamp:      new Date().toISOString(),
+      });
     }
   }
 
   return {
     processed,
     skipped,
+    failedUsers,
     totalIncome,
     totalMatchedBV,
     totalRewardedBV,

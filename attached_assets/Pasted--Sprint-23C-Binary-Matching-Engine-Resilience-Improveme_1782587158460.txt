@@ -1,0 +1,267 @@
+# Sprint 23C — Binary Matching Engine Resilience Improvement
+
+Objective
+
+Improve the Binary Matching Engine so that a failure while processing one member does NOT stop the entire Binary Matching cycle.
+
+IMPORTANT
+
+This is a resilience improvement ONLY.
+
+Do NOT modify any Prime Wave business rules.
+
+Do NOT modify any financial calculations.
+
+Do NOT modify database schema.
+
+Do NOT modify scheduler timing.
+
+Do NOT modify wallet architecture.
+
+Do NOT modify Binary BV logic.
+
+Do NOT modify Carry Forward logic.
+
+Do NOT modify Flush logic.
+
+Do NOT modify Matching Percentage.
+
+Do NOT modify transaction boundaries.
+
+The ONLY behavioral change should be how the engine reacts when an individual user's transaction fails.
+
+--------------------------------------------------------
+Current Behaviour
+--------------------------------------------------------
+
+Current implementation:
+
+for each qualified user
+
+↓
+
+Start Prisma Transaction
+
+↓
+
+Process Binary Income
+
+↓
+
+Commit
+
+↓
+
+If transaction fails:
+
+catch (err) {
+
+    skipped++;
+
+    throw err;
+
+}
+
+Result:
+
+The Binary Matching cycle aborts immediately.
+
+Remaining qualified users are never processed.
+
+--------------------------------------------------------
+Required Behaviour
+--------------------------------------------------------
+
+Every user must continue to be processed independently.
+
+If one user's transaction fails:
+
+✓ Roll back ONLY that user's transaction.
+
+✓ Log the error.
+
+✓ Record the skipped user.
+
+✓ Continue processing every remaining qualified user.
+
+One failed member must never prevent other qualified members from receiving Binary Income.
+
+--------------------------------------------------------
+Logging
+--------------------------------------------------------
+
+Create structured logging for failures.
+
+Include:
+
+• Username
+
+• User ID
+
+• Binary Cycle ID (if available)
+
+• Error message
+
+• Stack trace (server log)
+
+• Matched BV
+
+• Expected Binary Income
+
+• Timestamp
+
+This information should make debugging straightforward.
+
+--------------------------------------------------------
+Cycle Summary
+--------------------------------------------------------
+
+At the end of every Binary Matching cycle generate a summary.
+
+Include:
+
+Processed Users
+
+Skipped Users
+
+Failed User List
+
+Total Binary Income Generated
+
+Total Matched BV
+
+Total Flushed BV
+
+Total Carry Forward Left
+
+Total Carry Forward Right
+
+Execution Time
+
+--------------------------------------------------------
+Failure Behaviour
+--------------------------------------------------------
+
+If one user fails:
+
+Transaction for that user must roll back completely.
+
+No Binary Income.
+
+No Wallet Credit.
+
+No Ledger Entry.
+
+No BV Flush.
+
+No Carry Forward modification.
+
+Everything for that user remains exactly as it was before processing.
+
+All remaining qualified users continue normally.
+
+--------------------------------------------------------
+Database Integrity
+--------------------------------------------------------
+
+Maintain:
+
+Independent Prisma transaction per user.
+
+Already committed users remain committed.
+
+Failed user rolls back completely.
+
+No partial writes.
+
+No double credits.
+
+No duplicate ledger entries.
+
+--------------------------------------------------------
+Non-Regression Requirements
+--------------------------------------------------------
+
+The following MUST remain completely unchanged:
+
+✓ Binary calculation formula
+
+✓ Matching percentage
+
+✓ 50 BV reward cap
+
+✓ Carry Forward calculation
+
+✓ BV Flush logic
+
+✓ Wallet destination
+
+✓ Ledger creation
+
+✓ Audit logging
+
+✓ Scheduler timing
+
+✓ Active member qualification
+
+✓ Binary eligibility rules
+
+✓ Business rules
+
+This sprint is NOT a financial logic change.
+
+It is ONLY an operational resilience improvement.
+
+--------------------------------------------------------
+Testing
+--------------------------------------------------------
+
+Without modifying existing business logic, verify:
+
+✓ Normal cycle (all users succeed)
+
+Behaviour is identical to the current implementation.
+
+✓ Simulated single-user failure
+
+That user rolls back.
+
+Remaining users continue.
+
+✓ Simulated multiple failures
+
+Only failed users roll back.
+
+Remaining users continue.
+
+✓ No duplicate payments.
+
+✓ No duplicate ledger entries.
+
+✓ No BV corruption.
+
+✓ No Carry Forward corruption.
+
+✓ No scheduler interruption.
+
+--------------------------------------------------------
+Final Report
+--------------------------------------------------------
+
+Provide:
+
+• Files modified
+
+• Exact code path changed
+
+• Confirmation that only error-handling behaviour changed
+
+• Confirmation that financial calculations remain identical
+
+• Confirmation that transaction integrity is preserved
+
+• Confirmation that the Binary Matching Engine is now resilient to individual member failures
+
+Goal
+
+Bring the Binary Matching Engine into alignment with the operational resilience pattern already used by the Orbit Engine, ensuring that transient failures affecting one member do not prevent other qualified members from receiving their Binary Income while preserving every existing Prime Wave financial business rule.
