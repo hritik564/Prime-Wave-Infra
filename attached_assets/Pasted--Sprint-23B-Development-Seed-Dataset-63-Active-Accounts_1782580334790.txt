@@ -1,0 +1,331 @@
+# Sprint 23B — Development Seed Dataset (63 Active Accounts)
+
+Objective
+
+Create a complete development seed dataset for Prime Wave.
+
+This dataset will be used for end-to-end testing.
+
+Do NOT modify any business rules.
+
+Use the existing platform logic wherever possible instead of inserting data directly into tables.
+
+--------------------------------------------------------
+Binary Tree Structure
+--------------------------------------------------------
+
+Create a perfect binary tree up to Level 5.
+
+Level 0
+
+Master ID
+
+1 Account
+
+Level 1
+
+2 Accounts
+
+Level 2
+
+4 Accounts
+
+Level 3
+
+8 Accounts
+
+Level 4
+
+16 Accounts
+
+Level 5
+
+32 Accounts
+
+Total Accounts
+
+63
+
+(including Master ID)
+
+--------------------------------------------------------
+Placement
+--------------------------------------------------------
+
+Every account must have:
+
+Correct Sponsor
+
+Correct Binary Parent
+
+Correct Left/Right Placement
+
+Correct Upline Chain
+
+Correct Downline Chain
+
+There should be NO empty positions.
+
+The binary tree must be complete.
+
+--------------------------------------------------------
+User Details
+--------------------------------------------------------
+
+Generate:
+
+Username
+
+Email
+
+Password
+
+Phone
+
+Country
+
+--------------------------------------------------------
+
+Username Format
+
+Use deterministic usernames.
+
+Example:
+
+RD2
+
+RD2L
+
+RD2R
+
+RD2LL
+
+RD2LR
+
+RD2RL
+
+RD2RR
+
+Continue this naming convention throughout the entire tree.
+
+The username should clearly represent the position within the binary tree.
+
+--------------------------------------------------------
+
+Email
+
+<username>@primewave.live
+
+Examples
+
+RD2@primewave.live
+
+RD2L@primewave.live
+
+RD2LR@primewave.live
+
+--------------------------------------------------------
+
+Password
+
+Use the same password for every account.
+
+RDprimewave@321!
+
+--------------------------------------------------------
+
+Country
+
+India
+
+--------------------------------------------------------
+
+Phone
+
+Generate random Indian mobile numbers.
+
+--------------------------------------------------------
+Wallet Funding
+--------------------------------------------------------
+
+For EVERY account including the Master ID:
+
+Create a Deposit of
+
+$100
+
+using the normal deposit flow.
+
+After the deposit is approved,
+
+credit the Deposit Wallet.
+
+Do NOT insert balances manually.
+
+Use the existing wallet and ledger logic.
+
+--------------------------------------------------------
+Investment
+--------------------------------------------------------
+
+Immediately after the Deposit Wallet is funded,
+
+execute a normal investment using the existing investment flow.
+
+Investment Amount
+
+$100
+
+Plan
+
+360 Days
+
+Auto Compound
+
+OFF
+
+This should create:
+
+Investment Record
+
+Wallet Ledger
+
+Audit Log
+
+Investment History
+
+All normal platform events
+
+No direct database inserts.
+
+--------------------------------------------------------
+Qualification
+--------------------------------------------------------
+
+After seeding completes,
+
+every account must satisfy the ACTIVE member rule.
+
+Every account should have:
+
+✓ Active $100 investment
+
+✓ Minimum one Left direct referral (except Level 5)
+
+✓ Minimum one Right direct referral (except Level 5)
+
+Level 5 members naturally have no downline and therefore will remain INACTIVE according to Prime Wave business rules.
+
+Do NOT bypass this rule.
+
+The status must be determined by the existing qualification engine.
+
+--------------------------------------------------------
+Export
+--------------------------------------------------------
+
+Generate an Excel file.
+
+seed-users.xlsx
+
+Include:
+
+Username
+
+Email
+
+Password
+
+Phone
+
+Country
+
+User ID
+
+Sponsor Username
+
+Binary Parent Username
+
+Placement (Left/Right)
+
+Level
+
+Active / Inactive Status
+
+Investment ID
+
+Investment Plan
+
+Wallet ID
+
+--------------------------------------------------------
+Verification
+--------------------------------------------------------
+
+Verify:
+
+✓ 63 total accounts exist.
+
+✓ Binary tree is complete.
+
+✓ Sponsorship hierarchy is correct.
+
+✓ Binary placements are correct.
+
+✓ Every account has a $100 approved deposit.
+
+✓ Every account has one active $100 investment.
+
+✓ Every investment is in the 360-Day plan.
+
+✓ Auto Compound is OFF for every investment.
+
+✓ Wallet balances are correct.
+
+✓ Investment history is correct.
+
+✓ Audit logs are created.
+
+✓ Deposit ledger entries exist.
+
+✓ Investment ledger entries exist.
+
+✓ Excel file generated successfully.
+
+--------------------------------------------------------
+Final Report
+--------------------------------------------------------
+
+Provide:
+
+Total Accounts Created
+
+Total Deposits Created
+
+Total Investments Created
+
+Total Deposit Value
+
+$6,300
+
+Total Investment Value
+
+$6,300
+
+Number of ACTIVE members
+
+Number of INACTIVE members
+
+Location of:
+
+seed-users.xlsx
+
+Confirm that the dataset is ready for complete end-to-end testing.
+
+IMPORTANT
+
+Use the existing Prime Wave services for deposits, approvals, wallet credits and investments.
+
+Do NOT populate tables directly unless absolutely required for system integrity.
+
+The goal is to create a realistic dataset that behaves exactly like real users interacting with the platform.

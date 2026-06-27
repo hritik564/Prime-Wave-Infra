@@ -14,6 +14,7 @@ import { sendSuccess } from "../shared/response";
 import { logger } from "../lib/logger";
 import { requireAdminRoles } from "../middleware/auth.middleware";
 import networkRouter from "./dev-network.router";
+import seedRouter    from "./dev-seed.router";
 
 const devRouter = Router();
 
@@ -22,6 +23,9 @@ devRouter.use(requireAdminRoles("SUPER_ADMIN"));
 
 // ── Network & BV generator sub-router ────────────────────────────────────────
 devRouter.use("/network", networkRouter);
+
+// ── Sprint 23B seed sub-router ───────────────────────────────────────────────
+devRouter.use("/seed", seedRouter);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
