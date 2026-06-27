@@ -11,20 +11,14 @@ import { notificationService } from "../notifications/notifications.service";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import { sendSuccess } from "../shared/response";
-import { env } from "../config/env";
 import { logger } from "../lib/logger";
+import { requireAdminRoles } from "../middleware/auth.middleware";
 import networkRouter from "./dev-network.router";
 
 const devRouter = Router();
 
-// ── Security gate: development only ──────────────────────────────────────────
-devRouter.use((_req, res, next) => {
-  if (env.NODE_ENV !== "development") {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  next();
-});
+// ── Security gate: SUPER_ADMIN only (works in all environments) ───────────────
+devRouter.use(requireAdminRoles("SUPER_ADMIN"));
 
 // ── Network & BV generator sub-router ────────────────────────────────────────
 devRouter.use("/network", networkRouter);
@@ -59,7 +53,7 @@ devRouter.get("/status", async (_req, res, next) => {
       ]);
 
     sendSuccess(res, {
-      environment:       env.NODE_ENV,
+      environment:       process.env["NODE_ENV"] ?? "production",
       serverTime:        new Date().toISOString(),
       timezone:          "Europe/London",
       activeInvestments,
