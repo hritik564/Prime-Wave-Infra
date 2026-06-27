@@ -1016,3 +1016,77 @@ export function getNetworkPulse() {
 export function getLegBreakdown() {
   return request<LegBreakdown>("/api/network/leg-breakdown");
 }
+
+/* ── Admin Investments ─────────────────────────────────────────────────────── */
+
+export type AdminInvStatus = "ACTIVE" | "MATURED" | "COMPLETED";
+export type AdminPlanType  = "PLAN_90" | "PLAN_180" | "PLAN_270" | "PLAN_360";
+
+export interface AdminInvestmentItem {
+  id:                string;
+  userId:            string;
+  username:          string;
+  firstName:         string;
+  lastName:          string;
+  email:             string;
+  sponsorUsername:   string | null;
+  planType:          AdminPlanType;
+  amount:            string;
+  currentPrincipal:  string;
+  dailyROI:          string;
+  durationDays:      number;
+  autoCompound:      boolean;
+  claimableROI:      string;
+  claimablePrincipal: string;
+  status:            AdminInvStatus;
+  startedAt:         string;
+  maturesAt:         string;
+  completedAt:       string | null;
+  createdAt:         string;
+}
+
+export interface AdminInvestmentStats {
+  totalCount:        number;
+  activeCount:       number;
+  maturedCount:      number;
+  completedCount:    number;
+  totalCapital:      string;
+  totalClaimableROI: string;
+}
+
+export interface AdminInvestmentPlanDist {
+  planType: AdminPlanType;
+  count:    number;
+}
+
+export interface AdminInvestmentListResponse {
+  investments:      AdminInvestmentItem[];
+  meta:             { total: number; page: number; limit: number; totalPages: number };
+  stats:            AdminInvestmentStats;
+  planDistribution: AdminInvestmentPlanDist[];
+}
+
+export function getAdminInvestments(params: {
+  page?:      number;
+  limit?:     number;
+  status?:    AdminInvStatus;
+  planType?:  AdminPlanType;
+  search?:    string;
+  sortBy?:    "createdAt" | "amount";
+  sortOrder?: "asc" | "desc";
+}) {
+  const q = new URLSearchParams({
+    page:  String(params.page  ?? 1),
+    limit: String(params.limit ?? 20),
+  });
+  if (params.status)    q.set("status",    params.status);
+  if (params.planType)  q.set("planType",  params.planType);
+  if (params.search)    q.set("search",    params.search);
+  if (params.sortBy)    q.set("sortBy",    params.sortBy);
+  if (params.sortOrder) q.set("sortOrder", params.sortOrder);
+  return request<AdminInvestmentListResponse>(`/api/admin/investments?${q}`);
+}
+
+export function getAdminInvestment(id: string) {
+  return request<AdminInvestmentItem & { updatedAt: string }>(`/api/admin/investments/${id}`);
+}

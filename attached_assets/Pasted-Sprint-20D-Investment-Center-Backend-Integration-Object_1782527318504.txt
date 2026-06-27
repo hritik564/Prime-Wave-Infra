@@ -1,0 +1,304 @@
+Sprint 20D — Investment Center Backend Integration
+
+Objective
+
+Replace all mock investment data and local interactions with live backend integration while preserving the existing UI exactly as it is.
+
+IMPORTANT
+
+Do NOT redesign the Investment Center.
+
+Do NOT modify layouts, styling, routing or components.
+
+Only replace mock data and local actions with backend operations.
+
+## Business Rule (Locked)
+
+Investments NEVER require admin approval.
+
+Once a user successfully invests, the investment is automatically:
+
+* Recorded in the database
+* Marked as Active
+* Linked to the user's account
+* Added to the ROI engine
+* Added to Binary BV calculations
+* Added to Audit History
+
+The Investment Center is for monitoring, auditing and managing investments—not approving them.
+
+---
+
+Investment List
+
+Replace mock investment records with backend data.
+
+Support:
+
+* Server-side pagination
+* Search
+* Sorting
+* Filtering
+* Loading state
+* Empty state
+* Error state
+
+---
+
+Statistics Cards
+
+Replace all mock KPI values with live backend values.
+
+Keep existing UI.
+
+---
+
+Investment Drawer
+
+Load complete investment details from backend.
+
+Load data on demand.
+
+Do not preload all drawer data.
+
+Display:
+
+* Investment Summary
+* Member Details
+* ROI Schedule
+* Binary Contribution
+* Wallet Movement
+* Transaction Details
+* Timeline
+* Audit Log
+* Admin Notes
+
+---
+
+Search
+
+Connect backend search.
+
+Support:
+
+* Username
+* Member ID
+* Investment ID
+* Transaction ID
+* Wallet Address
+
+---
+
+Filters
+
+Connect all existing filters.
+
+Status
+
+Plan
+
+Date
+
+Amount Range
+
+Investment Status
+
+---
+
+Platform Rules
+
+Investments are financial records.
+
+Once Active:
+
+✓ View
+
+✓ Audit
+
+✓ Notes
+
+✓ Freeze (if supported)
+
+✓ View ROI Schedule
+
+✓ View Wallet Movement
+
+✗ Cannot edit Amount
+
+✗ Cannot edit Plan
+
+✗ Cannot edit ROI
+
+✗ Cannot edit Duration
+
+If an admin attempts to edit locked financial values, display:
+
+"This investment is an active financial record and cannot be modified."
+
+---
+
+Create Investment
+
+Remove manual Create Investment workflow unless explicitly required by future business rules.
+
+Investments should originate only from successful user investments.
+
+---
+
+Cancel Investment
+
+Only allow cancellation before activation if supported by business rules.
+
+If already Active:
+
+Disable Cancel.
+
+Display:
+
+"Active investments cannot be cancelled."
+
+---
+
+Freeze Investment
+
+Support a Freeze action.
+
+Freeze temporarily prevents future income generation while preserving the investment record.
+
+Require:
+
+Reason
+
+Admin Notes
+
+Confirmation
+
+Backend endpoint if available.
+
+---
+
+Wallet Movement
+
+Load every financial movement related to the investment.
+
+Examples:
+
+Investment Created
+
+ROI Generated
+
+ROI Claimed
+
+Principal Claimed
+
+Binary BV Generated
+
+Transfer Released
+
+Withdrawal Processed
+
+---
+
+ROI Schedule
+
+Display live ROI schedule.
+
+Include:
+
+Start Date
+
+End Date
+
+ROI %
+
+Claim Status
+
+Remaining ROI
+
+Next Eligible Claim
+
+---
+
+Audit Log
+
+Replace mock audit records with backend audit history.
+
+---
+
+Timeline
+
+Replace mock timeline with backend events.
+
+---
+
+Admin Notes
+
+Load and save through backend.
+
+---
+
+Performance
+
+Load drawer lazily.
+
+Avoid duplicate API requests.
+
+Refresh only affected records after updates.
+
+---
+
+Error Handling
+
+Handle:
+
+Validation failures
+
+Network failures
+
+Unauthorized
+
+Conflict responses
+
+Not found
+
+Show user-friendly messages.
+
+---
+
+Validation
+
+Verify:
+
+✓ Investment list loads.
+
+✓ Search works.
+
+✓ Filters work.
+
+✓ Statistics load correctly.
+
+✓ Drawer loads complete investment information.
+
+✓ ROI Schedule loads.
+
+✓ Wallet Movement loads.
+
+✓ Timeline loads.
+
+✓ Audit Log loads.
+
+✓ Admin Notes work.
+
+✓ Active investments cannot be edited.
+
+✓ Active investments cannot be cancelled.
+
+✓ Freeze works (if supported).
+
+✓ Existing UI remains unchanged.
+
+---
+
+Goal
+
+Transform the Investment Center into a production-ready financial ledger where administrators can monitor, audit and investigate every investment without compromising financial integrity or altering immutable investment records.

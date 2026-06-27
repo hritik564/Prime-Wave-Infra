@@ -32,6 +32,11 @@ import {
 } from "./admin-users.controller";
 import { walletAdjustmentHandler } from "./admin-wallet-adjustments.controller";
 import {
+  listAdminInvestmentsHandler,
+  getAdminInvestmentHandler,
+} from "./admin-investments.controller";
+import { adminInvestmentListQuerySchema } from "./admin-investments.schema";
+import {
   revenueReportHandler,
   dailyBusinessReportHandler,
   topEarnersHandler,
@@ -227,6 +232,20 @@ router.post(
   financeAdminGuard,
   validate(walletAdjustmentSchema),
   walletAdjustmentHandler,
+);
+
+// ── Investment monitoring — SUPER_ADMIN only ──────────────────────────────────
+router.get(
+  "/investments",
+  adminLimiter, superAdminGuard,
+  validate(adminInvestmentListQuerySchema, "query"),
+  listAdminInvestmentsHandler,
+);
+
+router.get(
+  "/investments/:id",
+  adminLimiter, superAdminGuard,
+  getAdminInvestmentHandler,
 );
 
 // ── Withdrawal admin — SUPER_ADMIN and FINANCE_ADMIN only ─────────────────────
