@@ -417,7 +417,7 @@ function ReferralCards({ referralCode }: { referralCode: string | null }) {
   ];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 mb-5 lg:mb-8">
+    <div className="grid grid-cols-2 gap-3 lg:gap-4 mb-5 lg:mb-8">
       {legs.map(({ leg, label, icon, color, bg, border }) => {
         const code = referralCode ? `${referralCode}-${leg}` : "—";
         const link = referralCode
