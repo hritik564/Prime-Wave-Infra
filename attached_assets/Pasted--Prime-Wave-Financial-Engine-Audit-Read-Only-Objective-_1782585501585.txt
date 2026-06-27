@@ -1,0 +1,351 @@
+# Prime Wave Financial Engine Audit (Read-Only)
+
+Objective
+
+Perform a COMPLETE READ-ONLY audit of every Prime Wave financial engine.
+
+IMPORTANT
+
+DO NOT modify any code.
+
+DO NOT modify any database records.
+
+DO NOT run any cron jobs.
+
+DO NOT trigger any income generation.
+
+DO NOT repair anything.
+
+This is an audit only.
+
+I want to verify that every financial engine will behave exactly according to Prime Wave business rules when the next cycle executes.
+
+--------------------------------------------------------
+Environment
+--------------------------------------------------------
+
+Current seeded dataset:
+
+• 63 accounts
+
+• Complete binary tree
+
+• $100 approved deposit for every account
+
+• $100 investment for every account
+
+• 360 Day Plan
+
+• Auto Compound OFF
+
+Use this dataset to validate every engine.
+
+--------------------------------------------------------
+Audit 1 — ROI Engine
+--------------------------------------------------------
+
+Verify:
+
+✓ ROI cycle scheduler
+
+✓ ROI calculation
+
+✓ Investment eligibility
+
+✓ Matured investment handling
+
+✓ Auto Compound OFF behaviour
+
+✓ Income Wallet credit
+
+✓ ROI history creation
+
+✓ Ledger entries
+
+Report:
+
+• Expected ROI for Master ID
+
+• Expected ROI for a Level 5 member
+
+• Expected total ROI generated for one cycle
+
+--------------------------------------------------------
+Audit 2 — Principal Engine
+--------------------------------------------------------
+
+Verify:
+
+✓ Principal released only after maturity
+
+✓ No early principal release
+
+✓ Wallet destination
+
+✓ Ledger
+
+✓ History
+
+--------------------------------------------------------
+Audit 3 — Binary Matching Engine
+--------------------------------------------------------
+
+Verify:
+
+✓ Matching cycle scheduler
+
+✓ Matching percentage
+
+✓ Left BV calculation
+
+✓ Right BV calculation
+
+✓ Matching BV
+
+✓ Carry Forward
+
+✓ Daily Flush
+
+✓ Active member eligibility
+
+✓ Wallet destination
+
+✓ Ledger
+
+✓ History
+
+For Master ID report:
+
+• Left BV
+
+• Right BV
+
+• Matching BV
+
+• Expected Binary Income
+
+--------------------------------------------------------
+Audit 4 — Binary Orbit Engine
+--------------------------------------------------------
+
+Verify:
+
+✓ Qualification
+
+✓ Orbit calculation
+
+✓ Active member eligibility
+
+✓ Wallet destination
+
+✓ Ledger
+
+✓ History
+
+Report:
+
+Expected Orbit income for Master ID.
+
+--------------------------------------------------------
+Audit 5 — Level Income Engine
+--------------------------------------------------------
+
+Verify:
+
+✓ Five level maximum
+
+✓ One-time payout
+
+✓ Duplicate protection
+
+✓ Active qualification
+
+✓ Sponsor traversal
+
+✓ Ledger
+
+✓ History
+
+Report:
+
+Expected Level Income
+
+Actual Level Income
+
+Explain any differences.
+
+--------------------------------------------------------
+Audit 6 — Salary Engine
+--------------------------------------------------------
+
+Verify:
+
+✓ Qualification
+
+✓ Rank eligibility
+
+✓ Active member eligibility
+
+✓ Salary generation
+
+✓ Wallet destination
+
+✓ Ledger
+
+✓ History
+
+Report:
+
+Whether Master currently qualifies.
+
+Expected salary amount.
+
+--------------------------------------------------------
+Audit 7 — Wallet Architecture
+--------------------------------------------------------
+
+Verify:
+
+Deposit Wallet
+
+↓
+
+Investment
+
+↓
+
+Income Wallet
+
+↓
+
+72 Hour Transfer
+
+↓
+
+Withdrawal Wallet
+
+↓
+
+Withdrawal Request
+
+Every credit must enter the correct wallet.
+
+Verify:
+
+✓ No income credited to incorrect wallet.
+
+✓ Ledger consistency.
+
+✓ Wallet balances.
+
+--------------------------------------------------------
+Audit 8 — 72 Hour Transfer Engine
+--------------------------------------------------------
+
+Verify:
+
+✓ 15% fee deduction
+
+✓ 85% enters queue
+
+✓ Hourly release
+
+✓ 72 releases
+
+✓ Progress tracking
+
+✓ Completion logic
+
+✓ History
+
+--------------------------------------------------------
+Audit 9 — Active Member Engine
+--------------------------------------------------------
+
+Verify:
+
+Qualification:
+
+✓ Active Investment
+
+✓ Left Direct
+
+✓ Right Direct
+
+Verify:
+
+Binary
+
+Orbit
+
+Salary
+
+Level
+
+all respect Active status.
+
+--------------------------------------------------------
+Audit 10 — Financial Integrity
+--------------------------------------------------------
+
+Verify:
+
+✓ No duplicate income
+
+✓ No duplicate ledger entries
+
+✓ No duplicate wallet credits
+
+✓ No orphan records
+
+✓ No missing audit logs
+
+✓ No broken sponsor chains
+
+✓ No broken binary placements
+
+✓ No inconsistent balances
+
+--------------------------------------------------------
+Final Report
+--------------------------------------------------------
+
+Provide a detailed report.
+
+For EACH engine report:
+
+PASS
+
+or
+
+FAIL
+
+If FAIL:
+
+Explain:
+
+• Exact issue
+
+• Affected records
+
+• Root cause
+
+• Business rule violated
+
+Do NOT fix anything.
+
+--------------------------------------------------------
+Overall Summary
+--------------------------------------------------------
+
+Conclude with:
+
+✓ Engines verified
+
+✓ Engines requiring fixes
+
+✓ Financial risks before launch
+
+✓ Recommendation on whether Prime Wave is financially ready for end-to-end testing.
+
+The goal is to independently verify every financial engine before any live execution occurs.
