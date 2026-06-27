@@ -1,0 +1,303 @@
+# Prime Wave — Complete Environment Reset & Fresh Start
+
+Objective
+
+Prepare Prime Wave for complete end-to-end testing from a clean state.
+
+This is a PRE-LAUNCH RESET.
+
+There are NO real users.
+
+There are NO real funds.
+
+There is NO production history that must be preserved.
+
+The goal is to make both the Development and Production environments start from the exact same clean baseline.
+
+IMPORTANT
+
+Before making ANY changes:
+
+1. Verify both Development and Production databases.
+
+2. Create a full backup/export (or snapshot if supported) of BOTH databases.
+
+3. Confirm the backup completed successfully.
+
+Only then begin the reset.
+
+--------------------------------------------------------
+PART 1 — Reset Development Database
+--------------------------------------------------------
+
+Delete ALL runtime data including:
+
+• Users
+• Sponsors
+• Binary Tree
+• Placements
+• Referral Relationships
+• Investments
+• Deposit History
+• Withdrawal Requests
+• Deposit Wallet balances
+• Income Wallet balances
+• Withdrawal Wallet balances
+• ROI History
+• Principal History
+• Binary Income
+• Level Income
+• Salary Income
+• Orbit Income
+• Matching History
+• Carry Forward
+• Wallet Transfers
+• 72-Hour Transfer Queue
+• Notifications
+• Sessions
+• Login Tokens
+• Activity History
+• Reports generated from user activity
+• Support Tickets (test data)
+• Test Audit Logs
+• Cached data
+
+--------------------------------------------------------
+PART 2 — Reset Production Database
+--------------------------------------------------------
+
+Perform the EXACT SAME reset on the Production database.
+
+This production environment is currently used ONLY for internal testing.
+
+No real users exist.
+
+No real funds exist.
+
+The goal is for both environments to contain identical clean data.
+
+--------------------------------------------------------
+PART 3 — Preserve Platform Configuration
+--------------------------------------------------------
+
+DO NOT delete:
+
+• Database Schema
+• Prisma Migrations
+• Source Code
+• API Routes
+• System Configuration
+• Global Configuration
+• Investment Plans
+• ROI Configuration
+• Binary Configuration
+• Wallet Rules
+• Platform Limits
+• Salary Configuration
+• Level Configuration
+• Rank Configuration
+• Version History
+• Admin Roles
+• Permissions
+• Feature Flags
+• System Settings
+
+Business rules must remain exactly as implemented.
+
+--------------------------------------------------------
+PART 4 — Create Root Account
+--------------------------------------------------------
+
+After both databases are reset, automatically create one Root Account.
+
+Username:
+
+master
+
+Display Name:
+
+Master ID
+
+Role:
+
+Super Admin
+
+Properties:
+
+• No Sponsor
+• No Upline
+• No Binary Parent
+• Root of the Binary Tree
+• Eligible to receive future Left and Right referrals
+
+Wallets:
+
+Deposit Wallet:
+
+0
+
+Income Wallet:
+
+0
+
+Withdrawal Wallet:
+
+0
+
+No investments.
+
+No transfers.
+
+No withdrawals.
+
+--------------------------------------------------------
+PART 5 — Seed Default Platform
+--------------------------------------------------------
+
+Ensure the following still exist after reset:
+
+Investment Plans
+
+• Plan 90
+
+• Plan 180
+
+• Plan 270
+
+• Plan 360
+
+Default Configuration
+
+• ROI Engine
+
+• Binary Engine
+
+• Level Income
+
+• Salary Income
+
+• Orbit Engine
+
+• Wallet Rules
+
+• Platform Limits
+
+• Global Settings
+
+All configuration should remain exactly as it was before the reset.
+
+--------------------------------------------------------
+PART 6 — Synchronization Verification
+--------------------------------------------------------
+
+Verify:
+
+Development Database
+
+✓ Clean
+
+Production Database
+
+✓ Clean
+
+Root Account exists in BOTH databases.
+
+Investment Plans match.
+
+Configuration matches.
+
+Wallet Rules match.
+
+Business Rules match.
+
+Schema versions match.
+
+--------------------------------------------------------
+PART 7 — End-to-End Verification
+--------------------------------------------------------
+
+Verify:
+
+✓ Root account can log in.
+
+✓ Admin Panel works.
+
+✓ User Dashboard works.
+
+✓ Binary Tree contains only the Root account.
+
+✓ No orphan records remain.
+
+✓ No wallet balances remain.
+
+✓ No investment history remains.
+
+✓ No transfer queue remains.
+
+✓ No notification history remains.
+
+✓ No test data remains.
+
+--------------------------------------------------------
+PART 8 — Final Report
+--------------------------------------------------------
+
+Provide a complete report including:
+
+Development Database
+
+• Users deleted
+
+• Investments deleted
+
+• Wallet records deleted
+
+• Income records deleted
+
+• Transfers deleted
+
+Production Database
+
+• Users deleted
+
+• Investments deleted
+
+• Wallet records deleted
+
+• Income records deleted
+
+• Transfers deleted
+
+Confirm:
+
+✓ Backup created successfully.
+
+✓ Development reset completed.
+
+✓ Production reset completed.
+
+✓ Root account created.
+
+✓ Both databases are synchronized.
+
+✓ Prime Wave is ready for fresh end-to-end testing from the beginning.
+
+IMPORTANT
+
+Do NOT point Development and Production to the same database.
+
+They must remain separate databases.
+
+They should share:
+
+• The same schema
+
+• The same migrations
+
+• The same configuration
+
+• The same business rules
+
+But each environment must maintain its own independent data.
+
+The reset is intended only to establish an identical clean starting point for both environments.

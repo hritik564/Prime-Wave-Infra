@@ -3,6 +3,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./cron";
 import { prisma } from "./config/prisma";
+import { maybeResetForLaunch } from "./admin/scripts/resetForLaunch";
 
 // One-time admin password reset — runs only when ADMIN_RESET_PASSWORD is set.
 // Remove the env var after the first successful deploy to disable this.
@@ -45,6 +46,9 @@ app.listen(port, (err) => {
 
   // One-time admin password reset (disabled when env var is absent)
   maybeResetAdminPassword().catch((e) => logger.error({ e }, "maybeResetAdminPassword failed"));
+
+  // Pre-launch DB reset — runs only when RESET_FOR_LAUNCH=true; remove env var after first deploy
+  maybeResetForLaunch().catch((e) => logger.error({ e }, "maybeResetForLaunch failed"));
 
   // Start 12-hour ROI cycle scheduler (fires at 00:00 and 12:00 UTC)
   startScheduler();
