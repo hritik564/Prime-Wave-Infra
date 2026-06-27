@@ -398,123 +398,126 @@ function ReferralCards({ referralCode }: { referralCode: string | null }) {
   }
 
   const legs: { leg: "LEFT" | "RIGHT"; label: string; icon: React.ReactNode; color: string; bg: string; border: string }[] = [
-    {
-      leg: "LEFT",
-      label: "Left Leg",
-      icon: <ArrowLeft className="h-4 w-4" />,
-      color: "#60a5fa",
-      bg: "rgba(96,165,250,0.08)",
-      border: "rgba(96,165,250,0.18)",
-    },
-    {
-      leg: "RIGHT",
-      label: "Right Leg",
-      icon: <ArrowRight className="h-4 w-4" />,
-      color: "#c084fc",
-      bg: "rgba(192,132,252,0.08)",
-      border: "rgba(192,132,252,0.18)",
-    },
+    { leg: "LEFT",  label: "Left Leg",  icon: <ArrowLeft className="h-3.5 w-3.5" />,  color: "#60a5fa", bg: "rgba(96,165,250,0.08)",  border: "rgba(96,165,250,0.18)"  },
+    { leg: "RIGHT", label: "Right Leg", icon: <ArrowRight className="h-3.5 w-3.5" />, color: "#c084fc", bg: "rgba(192,132,252,0.08)", border: "rgba(192,132,252,0.18)" },
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 lg:gap-4 mb-5 lg:mb-8">
-      {legs.map(({ leg, label, icon, color, bg, border }) => {
-        const code = referralCode ? `${referralCode}-${leg}` : "—";
-        const link = referralCode
-          ? `${window.location.origin}/register?ref=${referralCode}&leg=${leg}`
-          : "—";
-        const codeKey = `code-${leg}`;
-        const linkKey = `link-${leg}`;
-
-        return (
-          <div
-            key={leg}
-            className="rounded-2xl overflow-hidden"
-            style={{
-              background: "hsl(var(--card))",
-              border: `1px solid ${border}`,
-              boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
-            }}
-          >
-            {/* Header */}
+    <>
+      {/* ── Mobile: compact 2-col side by side ── */}
+      <div className="grid grid-cols-2 gap-2.5 mb-5 lg:hidden">
+        {legs.map(({ leg, label, icon, color, bg, border }) => {
+          const code    = referralCode ? `${referralCode}-${leg}` : "—";
+          const link    = referralCode ? `${window.location.origin}/register?ref=${referralCode}&leg=${leg}` : "—";
+          const codeKey = `code-${leg}`;
+          const linkKey = `link-${leg}`;
+          return (
             <div
-              className="flex items-center gap-3 px-4 py-3"
-              style={{ borderBottom: `1px solid ${border}`, background: bg }}
+              key={leg}
+              className="rounded-xl overflow-hidden flex flex-col"
+              style={{ background: "hsl(var(--card))", border: `1px solid ${border}`, boxShadow: "0 4px 16px rgba(0,0,0,0.3)" }}
             >
+              {/* Compact header */}
               <div
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                style={{ background: `${color}1a`, color }}
+                className="flex items-center gap-2 px-3 py-2.5"
+                style={{ borderBottom: `1px solid ${border}`, background: bg }}
               >
-                {icon}
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md" style={{ background: `${color}1a`, color }}>
+                  {icon}
+                </div>
+                <span className="text-xs font-bold font-heading" style={{ color }}>{label}</span>
               </div>
-              <div>
-                <p className="text-sm font-semibold font-heading" style={{ color }}>
-                  {label} Referral
-                </p>
-                <p className="text-[10px]" style={{ color: "rgba(170,179,197,0.6)" }}>
-                  Share to grow your {leg.toLowerCase()} team
-                </p>
-              </div>
-            </div>
 
-            {/* Code row */}
-            <div className="px-4 pt-3 pb-2">
-              <p className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "rgba(170,179,197,0.5)" }}>
-                Referral Code
-              </p>
-              <div
-                className="flex items-center gap-2 rounded-lg px-3 py-2"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
-              >
-                <span className="flex-1 text-sm font-mono font-semibold truncate" style={{ color: "hsl(var(--foreground))" }}>
-                  {code}
-                </span>
-                <button
-                  onClick={() => copyText(code, codeKey)}
-                  className="shrink-0 flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-all"
-                  style={{
-                    background: copied === codeKey ? "rgba(52,211,153,0.12)" : `${color}12`,
-                    color: copied === codeKey ? "#34d399" : color,
-                    border: `1px solid ${copied === codeKey ? "rgba(52,211,153,0.3)" : `${color}30`}`,
-                  }}
-                >
-                  {copied === codeKey ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                  <span>{copied === codeKey ? "Copied" : "Copy"}</span>
-                </button>
+              {/* Code */}
+              <div className="px-3 pt-2.5 pb-1.5">
+                <p className="text-[9px] font-medium uppercase tracking-widest mb-1" style={{ color: "rgba(170,179,197,0.45)" }}>Code</p>
+                <div className="flex items-center gap-1.5 rounded-lg px-2 py-1.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <span className="flex-1 text-[11px] font-mono font-semibold truncate" style={{ color: "hsl(var(--foreground))" }}>{code}</span>
+                  <button
+                    onClick={() => copyText(code, codeKey)}
+                    className="shrink-0 flex items-center justify-center rounded p-1 transition-all"
+                    style={{ background: copied === codeKey ? "rgba(52,211,153,0.15)" : `${color}15`, color: copied === codeKey ? "#34d399" : color }}
+                  >
+                    {copied === codeKey ? <Check className="h-2.5 w-2.5" /> : <Copy className="h-2.5 w-2.5" />}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* Link row */}
-            <div className="px-4 pb-4">
-              <p className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "rgba(170,179,197,0.5)" }}>
-                Referral Link
-              </p>
-              <div
-                className="flex items-center gap-2 rounded-lg px-3 py-2"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
-              >
-                <Link2 className="h-3.5 w-3.5 shrink-0" style={{ color: "rgba(170,179,197,0.4)" }} />
-                <span className="flex-1 text-xs font-mono truncate" style={{ color: "rgba(170,179,197,0.7)" }}>
-                  {link}
-                </span>
+              {/* Link */}
+              <div className="px-3 pb-3">
+                <p className="text-[9px] font-medium uppercase tracking-widest mb-1" style={{ color: "rgba(170,179,197,0.45)" }}>Link</p>
                 <button
                   onClick={() => copyText(link, linkKey)}
-                  className="shrink-0 flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-all"
+                  className="w-full flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11px] font-medium transition-all"
                   style={{
-                    background: copied === linkKey ? "rgba(52,211,153,0.12)" : `${color}12`,
+                    background: copied === linkKey ? "rgba(52,211,153,0.1)" : `${color}10`,
                     color: copied === linkKey ? "#34d399" : color,
-                    border: `1px solid ${copied === linkKey ? "rgba(52,211,153,0.3)" : `${color}30`}`,
+                    border: `1px solid ${copied === linkKey ? "rgba(52,211,153,0.25)" : `${color}25`}`,
                   }}
                 >
-                  {copied === linkKey ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                  <span>{copied === linkKey ? "Copied" : "Copy"}</span>
+                  {copied === linkKey ? <Check className="h-3 w-3" /> : <Link2 className="h-3 w-3" />}
+                  <span>{copied === linkKey ? "Copied!" : "Copy Link"}</span>
                 </button>
               </div>
             </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+
+      {/* ── Desktop: full 2-col cards ── */}
+      <div className="hidden lg:grid grid-cols-2 gap-4 mb-8">
+        {legs.map(({ leg, label, icon, color, bg, border }) => {
+          const code    = referralCode ? `${referralCode}-${leg}` : "—";
+          const link    = referralCode ? `${window.location.origin}/register?ref=${referralCode}&leg=${leg}` : "—";
+          const codeKey = `code-${leg}`;
+          const linkKey = `link-${leg}`;
+          return (
+            <div
+              key={leg}
+              className="rounded-2xl overflow-hidden"
+              style={{ background: "hsl(var(--card))", border: `1px solid ${border}`, boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}
+            >
+              <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${border}`, background: bg }}>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: `${color}1a`, color }}>{icon}</div>
+                <div>
+                  <p className="text-sm font-semibold font-heading" style={{ color }}>{label} Referral</p>
+                  <p className="text-[10px]" style={{ color: "rgba(170,179,197,0.6)" }}>Share to grow your {leg.toLowerCase()} team</p>
+                </div>
+              </div>
+              <div className="px-4 pt-3 pb-2">
+                <p className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "rgba(170,179,197,0.5)" }}>Referral Code</p>
+                <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <span className="flex-1 text-sm font-mono font-semibold truncate" style={{ color: "hsl(var(--foreground))" }}>{code}</span>
+                  <button
+                    onClick={() => copyText(code, codeKey)}
+                    className="shrink-0 flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-all"
+                    style={{ background: copied === codeKey ? "rgba(52,211,153,0.12)" : `${color}12`, color: copied === codeKey ? "#34d399" : color, border: `1px solid ${copied === codeKey ? "rgba(52,211,153,0.3)" : `${color}30`}` }}
+                  >
+                    {copied === codeKey ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    <span>{copied === codeKey ? "Copied" : "Copy"}</span>
+                  </button>
+                </div>
+              </div>
+              <div className="px-4 pb-4">
+                <p className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: "rgba(170,179,197,0.5)" }}>Referral Link</p>
+                <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <Link2 className="h-3.5 w-3.5 shrink-0" style={{ color: "rgba(170,179,197,0.4)" }} />
+                  <span className="flex-1 text-xs font-mono truncate" style={{ color: "rgba(170,179,197,0.7)" }}>{link}</span>
+                  <button
+                    onClick={() => copyText(link, linkKey)}
+                    className="shrink-0 flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-all"
+                    style={{ background: copied === linkKey ? "rgba(52,211,153,0.12)" : `${color}12`, color: copied === linkKey ? "#34d399" : color, border: `1px solid ${copied === linkKey ? "rgba(52,211,153,0.3)" : `${color}30`}` }}
+                  >
+                    {copied === linkKey ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    <span>{copied === linkKey ? "Copied" : "Copy"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
