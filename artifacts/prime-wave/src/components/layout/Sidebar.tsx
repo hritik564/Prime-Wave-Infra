@@ -1,7 +1,8 @@
 "use client";
 
 import { useLocation, Link } from "wouter";
-import { X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { X, User, ChevronRight } from "lucide-react";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -17,6 +18,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAuth } from "@/providers/AuthProvider";
+import { getActiveStatus, type ActiveStatus } from "@/lib/api";
 
 interface NavItem {
   label: string;
@@ -72,6 +75,14 @@ interface SidebarProps {
 
 export default function Sidebar({ onClose }: SidebarProps) {
   const [location] = useLocation();
+  const { user }   = useAuth();
+  const [status, setStatus] = useState<ActiveStatus | null>(null);
+
+  useEffect(() => {
+    getActiveStatus()
+      .then(setStatus)
+      .catch(() => {/* silently fail */});
+  }, []);
 
   return (
     <div
@@ -191,22 +202,54 @@ export default function Sidebar({ onClose }: SidebarProps) {
         </div>
       )}
 
-      {/* Pro Member badge */}
-      <div
-        className="m-3 p-3.5 rounded-lg"
-        style={{
-          background: "rgba(212, 175, 55, 0.06)",
-          border: "1px solid rgba(212, 175, 55, 0.12)",
-        }}
-      >
-        <p
-          className="text-xs leading-relaxed"
-          style={{ color: "hsl(var(--muted-foreground))" }}
+      {/* Profile + Active Status section */}
+      <div className="px-3 pb-3">
+        {/* Divider */}
+        <div className="mb-3" style={{ height: "1px", background: "var(--sidebar-border)" }} />
+
+        {/* Profile row — links to Settings */}
+        <Link
+          href="/settings"
+          className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-150 hover:bg-white/5 group"
         >
-          <span className="gold-text font-semibold">Pro Member</span>
-          <br />
-          Your account is active and earning
-        </p>
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+            style={{ background: "rgba(212,175,55,0.12)", border: "1px solid rgba(212,175,55,0.2)" }}
+          >
+            <User className="h-4 w-4" style={{ color: "#D4AF37" }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground leading-none truncate">
+              {user?.firstName && user?.lastName
+                ? `${user.firstName} ${user.lastName}`
+                : (user?.username ?? "My Account")}
+            </p>
+            <p className="text-[10px] mt-0.5 truncate" style={{ color: "hsl(var(--muted-foreground))" }}>
+              {user?.email ?? "View profile"}
+            </p>
+          </div>
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity" style={{ color: "hsl(var(--muted-foreground))" }} />
+        </Link>
+
+        {/* Active / Inactive status pill */}
+        <div
+          className="mt-2 flex items-center justify-between rounded-xl px-3 py-2.5"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+        >
+          <span className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
+            Member Status
+          </span>
+          <span
+            className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full"
+            style={
+              status?.isActive
+                ? { background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)" }
+                : { background: "rgba(248,113,113,0.10)", color: "#f87171", border: "1px solid rgba(248,113,113,0.22)" }
+            }
+          >
+            {status === null ? "…" : status.isActive ? "Active" : "Inactive"}
+          </span>
+        </div>
       </div>
     </div>
   );
