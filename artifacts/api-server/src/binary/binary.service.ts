@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
@@ -98,6 +99,122 @@ function formatNode(raw: RawNode): BinaryTreeNode {
  *  3. Placement is permanent — no updates after commit.
  *  4. Entire operation runs inside a serializable Prisma transaction.
  */
+/**
+ * Core binary tree placement logic — runs inside an existing transaction.
+ * Exported so that registration can call it within its own atomic transaction.
+ *
+ * Callers must guarantee:
+ *   • newUser was just created with sponsorId already set
+ *   • newUser.binaryParentId is null
+ */
+export async function placeUserTx(
+  tx: Prisma.TransactionClient,
+  sponsorId: string,
+  userId: string,
+  position: "LEFT" | "RIGHT",
+): Promise<void> {
+  // ── 1. Load target user ───────────────────────────────────────────────────
+  const target = await tx.user.findUnique({
+    where:  { id: userId },
+    select: { id: true, sponsorId: true, binaryParentId: true },
+  });
+
+  if (!target) {
+    throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
+  }
+
+  if (target.sponsorId !== sponsorId) {
+    throw new AppError(
+      "You can only place users you directly sponsored",
+      HTTP_STATUS.FORBIDDEN,
+      "NOT_YOUR_REFERRAL",
+    );
+  }
+
+  if (target.binaryParentId !== null) {
+    throw new AppError(
+      "User is already placed in the binary tree",
+      HTTP_STATUS.CONFLICT,
+      "ALREADY_PLACED",
+    );
+  }
+
+  // ── 2. Load sponsor with deepest-node cache ──────────────────────────────
+  const sponsor = await tx.user.findUnique({
+    where:  { id: sponsorId },
+    select: { id: true, leftDeepestNodeId: true, rightDeepestNodeId: true },
+  });
+
+  if (!sponsor) {
+    throw new AppError("Sponsor not found", HTTP_STATUS.NOT_FOUND, "SPONSOR_NOT_FOUND");
+  }
+
+  // ── 3. Resolve placement target (O(1) via cache) ─────────────────────────
+  //
+  // The cache pointer holds the id of the node whose slot in that direction
+  // is guaranteed to be empty.  null means the sponsor's own slot is empty.
+  const cacheId =
+    position === "LEFT" ? sponsor.leftDeepestNodeId : sponsor.rightDeepestNodeId;
+
+  const placementTargetId = cacheId ?? sponsorId;
+
+  // ── 4. Guard: verify the cache is consistent (slot really is empty) ───────
+  if (cacheId !== null) {
+    const cacheNode = await tx.user.findUnique({
+      where:  { id: cacheId },
+      select: { binaryChildren: { select: { position: true } } },
+    });
+
+    if (cacheNode) {
+      const childPositions = cacheNode.binaryChildren.map((c) => c.position);
+      if (childPositions.includes(position)) {
+        // Cache is stale — this should not happen in normal operation.
+        throw new AppError(
+          "Binary placement cache inconsistency detected. Contact support.",
+          HTTP_STATUS.INTERNAL_SERVER_ERROR,
+          "CACHE_INCONSISTENCY",
+        );
+      }
+    }
+  }
+
+  // ── 5. Place the user ────────────────────────────────────────────────────
+  await tx.user.update({
+    where: { id: userId },
+    data:  { binaryParentId: placementTargetId, position },
+  });
+
+  // ── 6. Update the placement target's deepest-node cache ──────────────────
+  //   (The new user's own slot is empty → it becomes the deepest node.)
+  if (position === "LEFT") {
+    await tx.user.update({
+      where: { id: placementTargetId },
+      data:  { leftDeepestNodeId: userId },
+    });
+  } else {
+    await tx.user.update({
+      where: { id: placementTargetId },
+      data:  { rightDeepestNodeId: userId },
+    });
+  }
+
+  // ── 7. Update sponsor's top-level deepest-node cache ─────────────────────
+  //   Skip if sponsor IS the placement target (already updated above).
+  if (placementTargetId !== sponsorId) {
+    if (position === "LEFT") {
+      await tx.user.update({
+        where: { id: sponsorId },
+        data:  { leftDeepestNodeId: userId },
+      });
+    } else {
+      await tx.user.update({
+        where: { id: sponsorId },
+        data:  { rightDeepestNodeId: userId },
+      });
+    }
+  }
+}
+
 export async function placeUser(sponsorId: string, input: PlaceUserInput): Promise<void> {
   const { userId, position } = input;
 
@@ -105,108 +222,7 @@ export async function placeUser(sponsorId: string, input: PlaceUserInput): Promi
     throw new AppError("Cannot place yourself", HTTP_STATUS.BAD_REQUEST, "SELF_PLACEMENT");
   }
 
-  await prisma.$transaction(async (tx) => {
-    // ── 1. Load target user ─────────────────────────────────────────────────
-    const target = await tx.user.findUnique({
-      where:  { id: userId },
-      select: { id: true, sponsorId: true, binaryParentId: true },
-    });
-
-    if (!target) {
-      throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
-    }
-
-    if (target.sponsorId !== sponsorId) {
-      throw new AppError(
-        "You can only place users you directly sponsored",
-        HTTP_STATUS.FORBIDDEN,
-        "NOT_YOUR_REFERRAL",
-      );
-    }
-
-    if (target.binaryParentId !== null) {
-      throw new AppError(
-        "User is already placed in the binary tree",
-        HTTP_STATUS.CONFLICT,
-        "ALREADY_PLACED",
-      );
-    }
-
-    // ── 2. Load sponsor with deepest-node cache ────────────────────────────
-    const sponsor = await tx.user.findUnique({
-      where:  { id: sponsorId },
-      select: { id: true, leftDeepestNodeId: true, rightDeepestNodeId: true },
-    });
-
-    if (!sponsor) {
-      throw new AppError("Sponsor not found", HTTP_STATUS.NOT_FOUND, "SPONSOR_NOT_FOUND");
-    }
-
-    // ── 3. Resolve placement target (O(1) via cache) ───────────────────────
-    //
-    // The cache pointer holds the id of the node whose slot in that direction
-    // is guaranteed to be empty.  null means the sponsor's own slot is empty.
-    const cacheId =
-      position === "LEFT" ? sponsor.leftDeepestNodeId : sponsor.rightDeepestNodeId;
-
-    const placementTargetId = cacheId ?? sponsorId;
-
-    // ── 4. Guard: verify the cache is consistent (slot really is empty) ────
-    if (cacheId !== null) {
-      const cacheNode = await tx.user.findUnique({
-        where:  { id: cacheId },
-        select: { binaryChildren: { select: { position: true } } },
-      });
-
-      if (cacheNode) {
-        const childPositions = cacheNode.binaryChildren.map((c) => c.position);
-        if (childPositions.includes(position)) {
-          // Cache is stale — this should not happen in normal operation.
-          throw new AppError(
-            "Binary placement cache inconsistency detected. Contact support.",
-            HTTP_STATUS.INTERNAL_SERVER_ERROR,
-            "CACHE_INCONSISTENCY",
-          );
-        }
-      }
-    }
-
-    // ── 5. Place the user ──────────────────────────────────────────────────
-    await tx.user.update({
-      where: { id: userId },
-      data:  { binaryParentId: placementTargetId, position },
-    });
-
-    // ── 6. Update the placement target's deepest-node cache ───────────────
-    //   (The new user's own slot is empty → it becomes the deepest node.)
-    if (position === "LEFT") {
-      await tx.user.update({
-        where: { id: placementTargetId },
-        data:  { leftDeepestNodeId: userId },
-      });
-    } else {
-      await tx.user.update({
-        where: { id: placementTargetId },
-        data:  { rightDeepestNodeId: userId },
-      });
-    }
-
-    // ── 7. Update sponsor's top-level deepest-node cache ──────────────────
-    //   Skip if sponsor IS the placement target (already updated above).
-    if (placementTargetId !== sponsorId) {
-      if (position === "LEFT") {
-        await tx.user.update({
-          where: { id: sponsorId },
-          data:  { leftDeepestNodeId: userId },
-        });
-      } else {
-        await tx.user.update({
-          where: { id: sponsorId },
-          data:  { rightDeepestNodeId: userId },
-        });
-      }
-    }
-  });
+  await prisma.$transaction((tx) => placeUserTx(tx, sponsorId, userId, position));
 }
 
 // ── Tree ──────────────────────────────────────────────────────────────────────

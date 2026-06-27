@@ -214,9 +214,9 @@ networkRouter.post("/generate", async (req, res, next) => {
       firstName:    "Left",
       lastName:     "Direct",
       referralCode: owner.referralCode,
+      leg:          "L",
     });
     await prisma.user.update({ where: { id: ld.id }, data: { isTestUser: true } });
-    await placeUser(ownerId, { userId: ld.id, position: "LEFT" });
     created.push({ id: ld.id, username: ld.username, referralCode: ld.referralCode, role: "Left Direct" });
 
     // ── Right Direct ─────────────────────────────────────────────────────────
@@ -227,9 +227,9 @@ networkRouter.post("/generate", async (req, res, next) => {
       firstName:    "Right",
       lastName:     "Direct",
       referralCode: owner.referralCode,
+      leg:          "R",
     });
     await prisma.user.update({ where: { id: rd.id }, data: { isTestUser: true } });
-    await placeUser(ownerId, { userId: rd.id, position: "RIGHT" });
     created.push({ id: rd.id, username: rd.username, referralCode: rd.referralCode, role: "Right Direct" });
 
     // ── Left Team Members (sponsored by Left Direct) ──────────────────────────
@@ -241,9 +241,9 @@ networkRouter.post("/generate", async (req, res, next) => {
         firstName:    `LChild${i + 1}`,
         lastName:     "Test",
         referralCode: ld.referralCode,
+        leg:          pos === "LEFT" ? "L" : "R",
       });
       await prisma.user.update({ where: { id: child.id }, data: { isTestUser: true } });
-      await placeUser(ld.id, { userId: child.id, position: pos });
       created.push({ id: child.id, username: child.username, referralCode: child.referralCode, role: `Left Child ${i + 1} (${pos})` });
     }
 
@@ -256,9 +256,9 @@ networkRouter.post("/generate", async (req, res, next) => {
         firstName:    `RChild${i + 1}`,
         lastName:     "Test",
         referralCode: rd.referralCode,
+        leg:          pos === "LEFT" ? "L" : "R",
       });
       await prisma.user.update({ where: { id: child.id }, data: { isTestUser: true } });
-      await placeUser(rd.id, { userId: child.id, position: pos });
       created.push({ id: child.id, username: child.username, referralCode: child.referralCode, role: `Right Child ${i + 1} (${pos})` });
     }
 

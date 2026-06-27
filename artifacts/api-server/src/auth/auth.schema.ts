@@ -23,8 +23,13 @@ export const registerSchema = z.object({
     .string()
     .regex(/^\+?[1-9]\d{7,14}$/, "Invalid phone number format")
     .optional(),
-  referralCode: z.string().optional(),
-  binaryPlacement: z.enum(["LEFT", "RIGHT"]).optional(),
+  referralCode: z
+    .string()
+    .min(1, "A referral code is required to join Prime Wave"),
+  leg: z.enum(["L", "R"], {
+    required_error: "Placement leg is required (use a Left or Right referral link)",
+    invalid_type_error: "Placement leg must be L or R",
+  }),
 });
 
 export const loginSchema = z.object({

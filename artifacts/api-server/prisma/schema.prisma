@@ -295,10 +295,11 @@ model RoiLedger {
 }
 
 model ReferralHistory {
-  id        String   @id @default(cuid())
+  id        String          @id @default(cuid())
   sponsorId String
-  userId    String   @unique
-  createdAt DateTime @default(now())
+  userId    String          @unique
+  leg       BinaryPosition?
+  createdAt DateTime        @default(now())
 
   sponsor User @relation("ReferralHistorySponsor", fields: [sponsorId], references: [id], onDelete: Restrict)
   user    User @relation("ReferralHistoryUser",    fields: [userId],    references: [id], onDelete: Restrict)

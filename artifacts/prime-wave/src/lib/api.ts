@@ -75,8 +75,8 @@ export function register(data: {
   email: string;
   phone: string;
   password: string;
-  referralCode?: string;
-  binaryPlacement: "LEFT" | "RIGHT";
+  referralCode: string;
+  leg: "L" | "R";
 }) {
   return request<AuthResponse>("/api/auth/register", {
     method: "POST",

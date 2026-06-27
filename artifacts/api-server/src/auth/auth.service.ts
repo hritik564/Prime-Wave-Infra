@@ -7,6 +7,7 @@ import { HTTP_STATUS } from "../shared/constants";
 import type { RegisterInput, LoginInput, ChangePasswordInput } from "./auth.schema";
 import type { AuthPayload } from "../shared/types";
 import { notificationService } from "../notifications/notifications.service";
+import { placeUserTx } from "../binary/binary.service";
 
 function generateReferralCode(): string {
   return Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -18,11 +19,39 @@ function signToken(payload: AuthPayload): string {
   });
 }
 
+/**
+ * Parse the referral code and leg from the registration input.
+ *
+ * Supports two formats:
+ *   • Explicit: referralCode="ABCD1234", leg="L"
+ *   • Suffix:   referralCode="ABCD1234-L" (leg in code overrides explicit leg)
+ *
+ * Returns { baseCode, position } where position is the Prisma enum value.
+ */
+function parseReferral(referralCode: string, leg: "L" | "R"): { baseCode: string; position: "LEFT" | "RIGHT" } {
+  let baseCode = referralCode.trim().toUpperCase();
+  let resolvedLeg = leg;
+
+  if (baseCode.endsWith("-L")) {
+    baseCode = baseCode.slice(0, -2);
+    resolvedLeg = "L";
+  } else if (baseCode.endsWith("-R")) {
+    baseCode = baseCode.slice(0, -2);
+    resolvedLeg = "R";
+  }
+
+  const position: "LEFT" | "RIGHT" = resolvedLeg === "L" ? "LEFT" : "RIGHT";
+  return { baseCode, position };
+}
+
 export async function registerUser(input: RegisterInput) {
-  const { email, username, password, firstName, lastName, phone, referralCode } = input;
+  const { email, username, password, firstName, lastName, phone, referralCode: rawCode, leg } = input;
 
   const emailLower    = email.toLowerCase();
   const usernameLower = username.toLowerCase();
+
+  // Parse leg from code (supports both explicit leg and ABCD1234-L suffix format)
+  const { baseCode, position } = parseReferral(rawCode, leg);
 
   // ── Duplicate check (outside tx — CPU work follows, tx held open minimally) ──
   const existing = await prisma.user.findFirst({
@@ -49,20 +78,17 @@ export async function registerUser(input: RegisterInput) {
   const passwordHash = await bcrypt.hash(password, rounds);
   const userReferralCode = generateReferralCode();
 
-  // ── Atomic: validate sponsor + create user + update sponsor + history ─────────
+  // ── Atomic: validate sponsor + create user + update sponsor + history + place ─
   const user = await prisma.$transaction(async (tx) => {
-    // Resolve referral code inside the transaction for full consistency
-    let sponsorId: string | undefined;
-    if (referralCode) {
-      const sponsor = await tx.user.findUnique({
-        where: { referralCode },
-        select: { id: true },
-      });
-      if (!sponsor) {
-        throw new AppError("Invalid referral code", HTTP_STATUS.BAD_REQUEST, "INVALID_REFERRAL");
-      }
-      sponsorId = sponsor.id;
+    // Resolve referral code — required for all registrations
+    const sponsor = await tx.user.findUnique({
+      where:  { referralCode: baseCode },
+      select: { id: true },
+    });
+    if (!sponsor) {
+      throw new AppError("Invalid referral code", HTTP_STATUS.BAD_REQUEST, "INVALID_REFERRAL");
     }
+    const sponsorId = sponsor.id;
 
     // Create the new user (wallet nested)
     const newUser = await tx.user.create({
@@ -74,8 +100,8 @@ export async function registerUser(input: RegisterInput) {
         lastName,
         phone,
         referralCode: userReferralCode,
-        referredBy:   sponsorId,   // loose string reference (kept for compatibility)
-        sponsorId,                 // proper FK for tree queries
+        referredBy:   sponsorId,
+        sponsorId,
         wallet: {
           create: {
             depositWallet:    0,
@@ -95,18 +121,19 @@ export async function registerUser(input: RegisterInput) {
       },
     });
 
-    if (sponsorId) {
-      // Increment sponsor's directReferralCount atomically
-      await tx.user.update({
-        where: { id: sponsorId },
-        data:  { directReferralCount: { increment: 1 } },
-      });
+    // Increment sponsor's directReferralCount atomically
+    await tx.user.update({
+      where: { id: sponsorId },
+      data:  { directReferralCount: { increment: 1 } },
+    });
 
-      // Create permanent referral history record
-      await tx.referralHistory.create({
-        data: { sponsorId, userId: newUser.id },
-      });
-    }
+    // Create permanent referral history record — includes placement leg for audit
+    await tx.referralHistory.create({
+      data: { sponsorId, userId: newUser.id, leg: position },
+    });
+
+    // Auto-place user in the binary tree using the leg from the referral link/code
+    await placeUserTx(tx, sponsorId, newUser.id, position);
 
     return newUser;
   });

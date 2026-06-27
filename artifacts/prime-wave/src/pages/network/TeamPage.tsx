@@ -1,8 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Users, TrendingUp, UserCheck, UserX, Copy, CheckCheck,
   Search, Link2, Hash, Award, Activity, ChevronRight, UserPlus,
+  ChevronLeft, Share2,
 } from "lucide-react";
+import { getProfile } from "@/lib/api";
 import { Link } from "wouter";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
@@ -29,9 +31,14 @@ interface TeamActivity {
   time: string;
 }
 
-/* ─── Constants ─── */
-const REFERRAL_CODE = "PRIMEWAVE001";
-const REFERRAL_LINK = "https://primewave.io/ref/PRIMEWAVE001";
+/* ─── Build referral URLs for a given code and leg ─── */
+function buildReferralLink(referralCode: string, leg: "L" | "R"): string {
+  const base = window.location.origin;
+  return `${base}/signup?ref=${referralCode}&leg=${leg}`;
+}
+function buildReferralCode(referralCode: string, leg: "L" | "R"): string {
+  return `${referralCode}-${leg}`;
+}
 
 const TEAM_STATS = {
   totalTeamSize: 47,
@@ -215,26 +222,159 @@ function ReferralCard({ r }: { r: DirectReferral }) {
   );
 }
 
+/* ─── Dual Referral Card ─── */
+function DualReferralCard({ referralCode }: { referralCode: string }) {
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const copyText = (value: string, key: string) => {
+    navigator.clipboard.writeText(value).catch(() => {});
+    setCopied(key);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const share = async (value: string) => {
+    if (navigator.share) {
+      try { await navigator.share({ url: value, title: "Join Prime Wave" }); } catch { /* dismissed */ }
+    } else {
+      copyText(value, `share-${value}`);
+    }
+  };
+
+  const legs: Array<{ leg: "L" | "R"; label: string; color: string; Icon: typeof ChevronLeft }> = [
+    { leg: "L", label: "Left Team", color: "#60a5fa", Icon: ChevronLeft },
+    { leg: "R", label: "Right Team", color: "#D4AF37", Icon: ChevronRight },
+  ];
+
+  return (
+    <div
+      className="rounded-2xl p-5 mb-5 lg:mb-6"
+      style={{ background: "hsl(var(--card))", border: "1px solid rgba(212,175,55,0.18)", boxShadow: "0 0 0 1px rgba(212,175,55,0.05), 0 4px 24px rgba(0,0,0,0.3)" }}
+    >
+      <div className="flex items-center gap-2.5 mb-4">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "rgba(212,175,55,0.1)" }}>
+          <Link2 className="h-4 w-4" style={{ color: "#D4AF37" }} />
+        </div>
+        <div>
+          <h3 className="text-base font-semibold font-heading text-foreground">Your Referral Links</h3>
+          <p className="text-[11px]" style={{ color: "rgba(170,179,197,0.5)" }}>Share the correct link to place members on the right side</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {legs.map(({ leg, label, color, Icon }) => {
+          const link = buildReferralLink(referralCode, leg);
+          const code = buildReferralCode(referralCode, leg);
+          const linkKey = `link-${leg}`;
+          const codeKey = `code-${leg}`;
+
+          return (
+            <div
+              key={leg}
+              className="rounded-xl p-4 space-y-3"
+              style={{
+                background: "rgba(255,255,255,0.025)",
+                border: `1px solid ${leg === "L" ? "rgba(96,165,250,0.15)" : "rgba(212,175,55,0.15)"}`,
+              }}
+            >
+              {/* Header */}
+              <div className="flex items-center gap-2">
+                <div
+                  className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0"
+                  style={{ background: leg === "L" ? "rgba(96,165,250,0.1)" : "rgba(212,175,55,0.1)" }}
+                >
+                  <Icon className="h-4 w-4" style={{ color }} />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider" style={{ color }}>{label}</span>
+              </div>
+
+              {/* Code row */}
+              <div className="rounded-lg px-3 py-2.5 flex items-center justify-between gap-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Hash className="h-3.5 w-3.5 shrink-0" style={{ color: "rgba(170,179,197,0.45)" }} />
+                  <div className="min-w-0">
+                    <p className="text-[9px] uppercase tracking-wide font-semibold mb-0.5" style={{ color: "rgba(170,179,197,0.4)" }}>Code</p>
+                    <p className="text-sm font-bold text-foreground tracking-wider truncate">{code}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => copyText(code, codeKey)}
+                  className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-all duration-200 shrink-0"
+                  style={
+                    copied === codeKey
+                      ? { background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.2)" }
+                      : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.08)" }
+                  }
+                >
+                  {copied === codeKey ? <CheckCheck className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  {copied === codeKey ? "Copied" : "Copy"}
+                </button>
+              </div>
+
+              {/* Link row */}
+              <div className="rounded-lg px-3 py-2.5 flex items-center justify-between gap-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <Link2 className="h-3.5 w-3.5 shrink-0" style={{ color: "rgba(170,179,197,0.45)" }} />
+                  <div className="min-w-0">
+                    <p className="text-[9px] uppercase tracking-wide font-semibold mb-0.5" style={{ color: "rgba(170,179,197,0.4)" }}>Link</p>
+                    <p className="text-xs text-foreground truncate" style={{ maxWidth: 160 }}>{link}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => copyText(link, linkKey)}
+                    className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-all duration-200"
+                    style={
+                      copied === linkKey
+                        ? { background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.2)" }
+                        : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.08)" }
+                    }
+                  >
+                    {copied === linkKey ? <CheckCheck className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    {copied === linkKey ? "Copied" : "Copy"}
+                  </button>
+                  <button
+                    onClick={() => void share(link)}
+                    className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-all duration-200"
+                    style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.08)" }}
+                  >
+                    <Share2 className="h-3 w-3" />
+                    Share
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Main Page ─── */
 export default function TeamPage() {
   const [search, setSearch] = useState("");
-  const [copied, setCopied] = useState<"code" | "link" | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
 
   const filteredReferrals = useMemo(() => {
     const q = search.toLowerCase().trim();
     if (!q) return DIRECT_REFERRALS;
     return DIRECT_REFERRALS.filter(
-      (r) => r.username.toLowerCase().includes(q) || REFERRAL_CODE.toLowerCase().includes(q)
+      (r) => r.username.toLowerCase().includes(q)
     );
   }, [search]);
 
   const hasReferrals = DIRECT_REFERRALS.length > 0;
 
-  const copyText = (type: "code" | "link") => {
-    const value = type === "code" ? REFERRAL_CODE : REFERRAL_LINK;
-    navigator.clipboard.writeText(value).catch(() => {});
-    setCopied(type);
-    setTimeout(() => setCopied(null), 2000);
+  // Fetch real referral code from user profile
+  useEffect(() => {
+    getProfile()
+      .then((p) => setReferralCode(p.referralCode))
+      .catch(() => {});
+  }, []);
+
+  const copyLink = (leg: "L" | "R") => {
+    if (!referralCode) return;
+    navigator.clipboard.writeText(buildReferralLink(referralCode, leg)).catch(() => {});
   };
 
   return (
@@ -294,63 +434,18 @@ export default function TeamPage() {
         </div>
 
         {/* ── Referral Section ── */}
-        <div
-          className="rounded-2xl p-5 mb-5 lg:mb-6"
-          style={{ background: "hsl(var(--card))", border: "1px solid rgba(212,175,55,0.18)", boxShadow: "0 0 0 1px rgba(212,175,55,0.05), 0 4px 24px rgba(0,0,0,0.3)" }}
-        >
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "rgba(212,175,55,0.1)" }}>
-              <Link2 className="h-4 w-4" style={{ color: "#D4AF37" }} />
-            </div>
-            <h3 className="text-base font-semibold font-heading text-foreground">Your Referral</h3>
-          </div>
-
-          {/* Referral Code */}
-          <div className="rounded-xl p-3.5 mb-3 flex items-center justify-between gap-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <div className="flex items-center gap-2.5 min-w-0">
-              <Hash className="h-4 w-4 shrink-0" style={{ color: "rgba(170,179,197,0.5)" }} />
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-wide font-medium mb-0.5" style={{ color: "rgba(170,179,197,0.45)" }}>Referral Code</p>
-                <p className="text-sm font-bold text-foreground tracking-wider">{REFERRAL_CODE}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => copyText("code")}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-200 min-h-[40px] shrink-0"
-              style={
-                copied === "code"
-                  ? { background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.2)" }
-                  : { background: "rgba(212,175,55,0.08)", color: "#D4AF37", border: "1px solid rgba(212,175,55,0.18)" }
-              }
+        {referralCode
+          ? <DualReferralCard referralCode={referralCode} />
+          : (
+            <div
+              className="rounded-2xl p-5 mb-5 lg:mb-6 flex items-center gap-3"
+              style={{ background: "hsl(var(--card))", border: "1px solid rgba(212,175,55,0.18)" }}
             >
-              {copied === "code" ? <CheckCheck className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              {copied === "code" ? "Copied!" : "Copy Code"}
-            </button>
-          </div>
-
-          {/* Referral Link */}
-          <div className="rounded-xl p-3.5 flex items-center justify-between gap-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <div className="flex items-center gap-2.5 min-w-0">
-              <Link2 className="h-4 w-4 shrink-0" style={{ color: "rgba(170,179,197,0.5)" }} />
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-wide font-medium mb-0.5" style={{ color: "rgba(170,179,197,0.45)" }}>Referral Link</p>
-                <p className="text-xs text-foreground truncate" style={{ maxWidth: "180px" }}>{REFERRAL_LINK}</p>
-              </div>
+              <Link2 className="h-4 w-4 shrink-0" style={{ color: "rgba(212,175,55,0.4)" }} />
+              <span className="text-sm" style={{ color: "rgba(170,179,197,0.5)" }}>Loading referral links…</span>
             </div>
-            <button
-              onClick={() => copyText("link")}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-200 min-h-[40px] shrink-0"
-              style={
-                copied === "link"
-                  ? { background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.2)" }
-                  : { background: "rgba(212,175,55,0.08)", color: "#D4AF37", border: "1px solid rgba(212,175,55,0.18)" }
-              }
-            >
-              {copied === "link" ? <CheckCheck className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              {copied === "link" ? "Copied!" : "Copy Link"}
-            </button>
-          </div>
-        </div>
+          )
+        }
 
         {/* ── Direct Referrals ── */}
         <div className="mb-5 lg:mb-6">
@@ -394,7 +489,7 @@ export default function TeamPage() {
                 Share your referral link to grow your team and start earning network income.
               </p>
               <button
-                onClick={() => copyText("link")}
+                onClick={() => copyLink("L")}
                 className="flex items-center gap-2 rounded-xl px-6 py-3.5 font-semibold text-sm"
                 style={{ background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)", color: "#0E1B37", boxShadow: "0 4px 16px rgba(212,175,55,0.3)" }}
               >

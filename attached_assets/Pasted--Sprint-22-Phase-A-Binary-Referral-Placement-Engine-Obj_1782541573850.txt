@@ -1,0 +1,269 @@
+# Sprint 22 — Phase A: Binary Referral & Placement Engine
+
+Objective
+
+Align the Prime Wave binary referral system with the locked business rules.
+
+This sprint focuses ONLY on:
+
+• Referral Links
+• Referral Codes
+• Binary Placement
+• Signup Flow
+• Level Income Verification
+
+Do NOT modify wallets.
+
+Do NOT modify investments.
+
+Do NOT modify ROI.
+
+Do NOT modify the UI design unless explicitly mentioned.
+
+Do NOT redesign pages.
+
+Only implement and verify the business rules below.
+
+--------------------------------------------------------
+1. Dual Referral System (LOCKED)
+--------------------------------------------------------
+
+Every member must have:
+
+• Left Referral Link
+
+• Right Referral Link
+
+• Left Referral Code
+
+• Right Referral Code
+
+Example:
+
+https://primewave.com/signup?ref=ABCD1234&leg=L
+
+https://primewave.com/signup?ref=ABCD1234&leg=R
+
+Each referral code must also support Left and Right placement.
+
+Example
+
+ABCD1234-L
+
+ABCD1234-R
+
+(or follow the existing referral format while preserving left/right distinction.)
+
+Both referral links and referral codes must be visible inside the user's Referral section.
+
+Users must be able to:
+
+• Copy Left Link
+
+• Copy Right Link
+
+• Copy Left Code
+
+• Copy Right Code
+
+• Share Left Link
+
+• Share Right Link
+
+--------------------------------------------------------
+2. Signup Flow (LOCKED)
+--------------------------------------------------------
+
+Remove the manual Left / Right selector completely.
+
+Users must NEVER choose placement during registration.
+
+Placement is determined automatically from:
+
+• Left Referral Link
+
+• Right Referral Link
+
+OR
+
+• Left Referral Code
+
+• Right Referral Code
+
+If neither exists:
+
+Registration should fail with a clear validation message.
+
+Referral becomes mandatory.
+
+Every new member must have a sponsor.
+
+--------------------------------------------------------
+3. Binary Placement Engine
+--------------------------------------------------------
+
+When registration succeeds:
+
+If Left referral was used
+
+↓
+
+Place member in sponsor's Left leg.
+
+If Right referral was used
+
+↓
+
+Place member in sponsor's Right leg.
+
+Verify:
+
+• Correct binary placement
+
+• Parent relationship
+
+• Sponsor relationship
+
+• Tree rendering
+
+• Left/Right counts
+
+• Binary statistics
+
+• Network Intelligence
+
+Everything must update correctly.
+
+--------------------------------------------------------
+4. Binary Validation
+--------------------------------------------------------
+
+After placement verify:
+
+• BV flows through correct ancestry.
+
+• Left BV updates correctly.
+
+• Right BV updates correctly.
+
+• Carry Forward remains correct.
+
+• Matching remains correct.
+
+• Binary Income generation remains unchanged.
+
+Do NOT change Binary calculation logic.
+
+Only verify the new placement mechanism integrates correctly.
+
+--------------------------------------------------------
+5. Level Income Verification
+--------------------------------------------------------
+
+Verify backend implementation.
+
+Business Rules (LOCKED)
+
+Maximum Level Income depth:
+
+5 Levels
+
+Only one payout per qualifying event.
+
+No duplicate Level Income.
+
+No payouts beyond Level 5.
+
+If implementation already matches these rules:
+
+Do NOT modify it.
+
+If not:
+
+Fix backend implementation.
+
+--------------------------------------------------------
+6. Referral UI
+--------------------------------------------------------
+
+Update the existing Referral page.
+
+Display:
+
+Left Referral Card
+
+• Left Link
+
+• Left Code
+
+• Copy
+
+• Share
+
+Right Referral Card
+
+• Right Link
+
+• Right Code
+
+• Copy
+
+• Share
+
+Keep the existing Prime Wave design language.
+
+Do not redesign the page.
+
+--------------------------------------------------------
+7. Audit
+--------------------------------------------------------
+
+Record:
+
+Referral Link Used
+
+Referral Code Used
+
+Placement Leg
+
+Sponsor
+
+Registration Time
+
+This should appear in backend audit history.
+
+--------------------------------------------------------
+8. Validation
+--------------------------------------------------------
+
+Verify:
+
+✓ Left referral link places member on Left.
+
+✓ Right referral link places member on Right.
+
+✓ Left referral code places member on Left.
+
+✓ Right referral code places member on Right.
+
+✓ Manual Left/Right selector removed.
+
+✓ Registration fails without sponsor.
+
+✓ Binary tree updates correctly.
+
+✓ Binary statistics update correctly.
+
+✓ Matching remains correct.
+
+✓ Carry Forward remains correct.
+
+✓ Level Income never exceeds 5 levels.
+
+✓ Level Income is never duplicated.
+
+✓ Existing UI remains unchanged.
+
+Goal
+
+Implement the complete Prime Wave dual-referral binary placement system while preserving all existing binary business rules and ensuring every new registration is placed automatically in the correct leg.
