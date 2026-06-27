@@ -1239,3 +1239,124 @@ export function adminUpdateWithdrawalNotes(id: string, adminNotes: string) {
     { method: "PATCH", body: JSON.stringify({ adminNotes }) },
   );
 }
+
+/* ── Admin Wallet Control Center ──────────────────────────────────── */
+
+export type AdminUserStatus = "ACTIVE" | "INACTIVE" | "BLOCKED" | "SUSPENDED";
+
+export interface AdminWalletUser {
+  id:           string;
+  username:     string;
+  email:        string;
+  firstName:    string;
+  lastName:     string;
+  status:       AdminUserStatus;
+  referralCode: string;
+  sponsor:      { username: string } | null;
+  investments:  Array<{ planType: AdminPlanType }>;
+  transactions: Array<{ createdAt: string }>;
+}
+
+export interface AdminWalletItem {
+  id:                      string;
+  userId:                  string;
+  depositWallet:           string;
+  incomeWallet:            string;
+  withdrawalWallet:        string;
+  lockedWithdrawalBalance: string;
+  updatedAt:               string;
+  user:                    AdminWalletUser;
+}
+
+export interface AdminWalletListResponse {
+  wallets: AdminWalletItem[];
+  meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean };
+}
+
+export interface AdminWalletStats {
+  totalDepositWallet:      string;
+  totalIncomeWallet:       string;
+  totalWithdrawalWallet:   string;
+  totalLockedBalance:      string;
+  totalPlatformValue:      string;
+  avgWalletBalance:        string;
+  totalWallets:            number;
+  activeCount:             number;
+  lockedCount:             number;
+  frozenCount:             number;
+  flaggedCount:            number;
+  completedTransfersToday: number;
+}
+
+export interface AdminWalletTx {
+  id:          string;
+  type:        string;
+  status:      string;
+  amount:      string;
+  fee:         string | null;
+  netAmount:   string | null;
+  description: string | null;
+  metadata:    unknown;
+  createdAt:   string;
+}
+
+export interface AdminWalletLog {
+  id:        string;
+  action:    string;
+  details:   unknown;
+  createdAt: string;
+  admin: { email: string; firstName: string; lastName: string };
+}
+
+export interface AdminWalletDetail {
+  wallet:          AdminWalletItem;
+  transactions:    AdminWalletTx[];
+  adminLogs:       AdminWalletLog[];
+  adminNotes:      string;
+  lastTx:          string;
+  lifetimeCredits: string;
+  lifetimeDebits:  string;
+}
+
+export function getAdminWallets(params: {
+  page?:      number;
+  limit?:     number;
+  search?:    string;
+  status?:    "ACTIVE" | "LOCKED" | "FROZEN" | "FLAGGED";
+  sortBy?:    "depositWallet" | "incomeWallet" | "withdrawalWallet" | "updatedAt";
+  sortOrder?: "asc" | "desc";
+}) {
+  const q = new URLSearchParams({ page: String(params.page ?? 1), limit: String(params.limit ?? 25) });
+  if (params.search)    q.set("search",    params.search);
+  if (params.status)    q.set("status",    params.status);
+  if (params.sortBy)    q.set("sortBy",    params.sortBy);
+  if (params.sortOrder) q.set("sortOrder", params.sortOrder);
+  return request<AdminWalletListResponse>(`/api/admin/wallets?${q}`);
+}
+
+export function getAdminWalletStats() {
+  return request<AdminWalletStats>("/api/admin/wallets/stats");
+}
+
+export function getAdminWalletById(userId: string) {
+  return request<AdminWalletDetail>(`/api/admin/wallets/${userId}`);
+}
+
+export function adminSaveWalletNotes(userId: string, notes: string) {
+  return request<{ userId: string; username: string; notes: string }>(
+    `/api/admin/wallets/${userId}/notes`,
+    { method: "PATCH", body: JSON.stringify({ notes }) },
+  );
+}
+
+export function adminWalletAdjustment(
+  userId:     string,
+  walletType: "DEPOSIT" | "INCOME" | "WITHDRAWAL",
+  amount:     number,
+  reason:     string,
+) {
+  return request<{ userId: string; walletType: string; adjustment: string; direction: string; reason: string }>(
+    "/api/admin/wallet-adjustments",
+    { method: "POST", body: JSON.stringify({ userId, walletType, amount, reason }) },
+  );
+}

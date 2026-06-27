@@ -1,0 +1,335 @@
+Sprint 20F — Wallet Control Center Backend Integration
+
+Objective
+
+Replace all mock wallet data and local interactions with live backend integration while preserving the existing UI exactly as it is.
+
+IMPORTANT
+
+Do NOT redesign the Wallet Control Center.
+
+Do NOT modify layouts, styling, routing or components.
+
+Only replace mock data and local interactions with backend operations.
+
+---
+
+Business Rules (LOCKED)
+
+Prime Wave has three wallets.
+
+1. Deposit Wallet
+
+• Receives user deposits.
+
+• Used only to purchase investment plans.
+
+2. Income Wallet
+
+Receives ONLY:
+
+• ROI
+
+• Principal (Capital Return)
+
+Users can transfer funds from the Income Wallet.
+
+When a transfer is initiated:
+
+• No admin approval is required.
+
+• The transfer automatically enters the 72-hour release engine.
+
+• The transfer is released automatically in 72 equal hourly releases.
+
+• Released funds are credited to the Withdrawal Wallet.
+
+3. Withdrawal Wallet
+
+Receives:
+
+• Binary Income
+
+• Binary Orbit Income
+
+• Level Income
+
+• Salary Income
+
+• Released transfers arriving from the Income Wallet every hour through the 72-hour release engine.
+
+Users request withdrawals ONLY from the Withdrawal Wallet.
+
+Withdrawal requests require manual admin approval and are handled by the Withdrawal Center.
+
+The Wallet Control Center is a monitoring and auditing module.
+
+It must NEVER manually trigger wallet movements or bypass business rules.
+
+---
+
+Wallet List
+
+Replace mock wallet records with backend data.
+
+Support:
+
+• Server-side pagination
+
+• Search
+
+• Sorting
+
+• Filtering
+
+• Loading state
+
+• Empty state
+
+• Error state
+
+---
+
+Statistics Cards
+
+Replace all mock KPI values with live backend values.
+
+Keep existing UI unchanged.
+
+---
+
+Wallet Drawer
+
+Load complete wallet information on demand.
+
+Display:
+
+• Wallet Summary
+
+• Deposit Wallet
+
+• Income Wallet
+
+• Withdrawal Wallet
+
+• Recent Transactions
+
+• Income Transfer Queue
+
+• Audit Log
+
+• Admin Notes
+
+---
+
+Search
+
+Connect backend.
+
+Support:
+
+• Username
+
+• Member ID
+
+• Wallet Address
+
+• Transaction ID
+
+---
+
+Filters
+
+Connect backend filters.
+
+Wallet Type
+
+Status
+
+Country
+
+Date
+
+---
+
+Income Transfer Queue (72-Hour Engine)
+
+Replace mock data with live backend data.
+
+Display:
+
+Transfer Amount
+
+Transfer Started
+
+Released Amount
+
+Remaining Amount
+
+Current Hour
+
+Hours Remaining
+
+Completion Percentage
+
+Next Release Time
+
+Transfer Status
+
+This section is READ ONLY.
+
+Administrators cannot:
+
+• Start transfers
+
+• Pause transfers
+
+• Edit transfers
+
+• Cancel transfers
+
+The transfer engine operates automatically according to platform rules.
+
+---
+
+Deposit Wallet History
+
+Load backend transaction history.
+
+Examples:
+
+Deposit Received
+
+Investment Purchased
+
+Refund (if applicable)
+
+---
+
+Income Wallet History
+
+Load backend transaction history.
+
+Examples:
+
+ROI Credited
+
+Principal Credited
+
+Transfer Started
+
+---
+
+Withdrawal Wallet History
+
+Load backend transaction history.
+
+Examples:
+
+Binary Income
+
+Binary Orbit
+
+Level Income
+
+Salary Income
+
+Hourly Transfer Release
+
+Withdrawal Requested
+
+Withdrawal Approved
+
+Withdrawal Completed
+
+---
+
+Wallet Alerts
+
+Replace mock alerts with backend data where available.
+
+Examples:
+
+Large Incoming Credit
+
+Transfer Delay
+
+Suspicious Activity
+
+Frozen Account
+
+Negative Balance
+
+---
+
+Audit Log
+
+Replace mock audit history with backend records.
+
+---
+
+Admin Notes
+
+Load and save through backend.
+
+---
+
+Performance
+
+Load drawer lazily.
+
+Avoid duplicate API requests.
+
+Refresh only affected wallet records.
+
+---
+
+Error Handling
+
+Handle:
+
+Validation failures
+
+Network failures
+
+Unauthorized
+
+Not found
+
+Gracefully display user-friendly messages.
+
+---
+
+Validation
+
+Verify:
+
+✓ Wallet list loads.
+
+✓ Search works.
+
+✓ Filters work.
+
+✓ Statistics load correctly.
+
+✓ Wallet drawer loads correctly.
+
+✓ Deposit Wallet history loads correctly.
+
+✓ Income Wallet history loads correctly.
+
+✓ Withdrawal Wallet history loads correctly.
+
+✓ 72-hour transfer queue displays live backend data.
+
+✓ Audit Log loads.
+
+✓ Admin Notes work.
+
+✓ Existing UI remains unchanged.
+
+---
+
+Goal
+
+Transform the Wallet Control Center into a production-ready monitoring and auditing module that provides complete visibility into every wallet, every balance movement and every automatic transfer while strictly enforcing Prime Wave's financial business rules without allowing manual administrative intervention.

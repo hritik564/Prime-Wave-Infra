@@ -36,6 +36,13 @@ import {
 } from "./admin-users.controller";
 import { walletAdjustmentHandler } from "./admin-wallet-adjustments.controller";
 import {
+  getAdminWalletsHandler,
+  getAdminWalletStatsHandler,
+  getAdminWalletByIdHandler,
+  saveWalletNotesHandler,
+} from "./admin-wallets.controller";
+import { adminWalletListQuerySchema, saveWalletNotesSchema } from "./admin-wallets.schema";
+import {
   listAdminInvestmentsHandler,
   getAdminInvestmentHandler,
 } from "./admin-investments.controller";
@@ -229,6 +236,37 @@ router.get(
   adminLimiter,
   superAdminGuard,
   userIncomeSummaryHandler,
+);
+
+// ── Wallet Control Center — SUPER_ADMIN + FINANCE_ADMIN ──────────────────────
+router.get(
+  "/wallets",
+  adminLimiter,
+  financeAdminGuard,
+  validate(adminWalletListQuerySchema, "query"),
+  getAdminWalletsHandler,
+);
+
+router.get(
+  "/wallets/stats",
+  adminLimiter,
+  financeAdminGuard,
+  getAdminWalletStatsHandler,
+);
+
+router.get(
+  "/wallets/:userId",
+  adminLimiter,
+  financeAdminGuard,
+  getAdminWalletByIdHandler,
+);
+
+router.patch(
+  "/wallets/:userId/notes",
+  adminLimiter,
+  financeAdminGuard,
+  validate(saveWalletNotesSchema),
+  saveWalletNotesHandler,
 );
 
 // ── Wallet adjustments — SUPER_ADMIN + FINANCE_ADMIN ─────────────────────────

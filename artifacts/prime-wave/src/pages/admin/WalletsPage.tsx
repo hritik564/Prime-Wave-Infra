@@ -1,4 +1,4 @@
-import { useState, useMemo, memo, useCallback } from "react";
+import { useState, useMemo, memo, useCallback, useEffect, useRef } from "react";
 import AdminLayout from "./AdminLayout";
 import WalletDrawer, {
   DrawerWallet, WalletStatus, WalletTransaction, TransferQueueItem, WalletAlert, AuditEntry,
@@ -11,6 +11,11 @@ import {
   Wallet, TrendingUp, TrendingDown, Clock, Flag, CheckCircle,
   BarChart2, Users, ChevronDown,
 } from "lucide-react";
+import {
+  getAdminWallets, getAdminWalletStats, getAdminWalletById,
+  adminSaveWalletNotes, adminWalletAdjustment, adminBlockUser, adminActivateUser,
+  type AdminWalletItem, type AdminWalletStats, type AdminWalletDetail,
+} from "@/lib/api";
 
 const GOLD   = "#D4AF37";
 const GOLD_L = "#F3D37A";
@@ -28,114 +33,149 @@ const STATUS_CFG: Record<WalletStatus, { label: string; color: string; bg: strin
   FLAGGED: { label: "Flagged", color: "#f87171", bg: "rgba(248,113,113,0.12)" },
 };
 
-// ─── Mock data factory ────────────────────────────────────────────────────────
-let _id = 0;
-const uid  = ()  => `WMB${String(++_id).padStart(7, "0")}`;
-const rand = (a: number, b: number) => Math.round((Math.random() * (b - a) + a) * 100) / 100;
+// ── Data mapping helpers ───────────────────────────────────────────────────────
 
-const COUNTRIES = ["US","GB","NG","IN","AE","CA","AU","ZA","KE","PK","PH","BD","MY","GH","BR"];
-const PLANS     = ["Starter","Growth","Pro","Elite","Platinum", null];
-const STATUSES: WalletStatus[] = ["ACTIVE","ACTIVE","ACTIVE","ACTIVE","LOCKED","FROZEN","FLAGGED","ACTIVE"];
-const NAMES = [
-  ["Alex","Chen"],["Ben","Osei"],["Carlos","Vega"],["Diana","Patel"],["Edward","Kim"],
-  ["Fatima","Hassan"],["Grace","Liu"],["Hassan","Malik"],["Iris","Santos"],["James","Nwosu"],
-  ["Kwame","Asante"],["Leila","Ahmad"],["Marco","Ferrari"],["Nadia","Petrov"],["Omar","Sheikh"],
-  ["Priya","Sharma"],["Quinn","Moore"],["Ravi","Gupta"],["Sara","Williams"],["Tunde","Adeyemi"],
-  ["Uma","Patel"],["Victor","Okonkwo"],["Wendy","Zhang"],["Xavier","Martin"],["Yemi","Balogun"],
-  ["Zara","Khan"],["Aisha","Diallo"],["Bruno","Costa"],["Clara","Anderson"],["David","Chukwu"],
-  ["Elena","Ivanova"],["Femi","Taiwo"],["George","Papadopoulos"],["Hannah","Müller"],["Ibrahim","Al-Rashid"],
-  ["Julia","Nakamura"],["Kevin","O'Brien"],["Lina","Bergström"],["Mohammed","Al-Farsi"],["Nina","Johansson"],
-  ["Oscar","Fernández"],["Paula","Rodrigues"],["Raj","Mehta"],["Sophie","Dupont"],["Tariq","Al-Amin"],
-  ["Uche","Eze"],["Valentina","Romano"],["William","Thompson"],["Xin","Li"],["Yara","Khalid"],
-  ["Zaid","Mansour"],["Amara","Diop"],["Bashir","Saleh"],["Chloe","Bernard"],["Dayo","Afolabi"],
-  ["Emmanuel","Nkosi"],["Farida","Yusuf"],["Gabriel","Sousa"],["Hana","Kimura"],["Ismail","Fadel"],
-];
+function mapUserStatusToWalletStatus(s: string): WalletStatus {
+  if (s === "BLOCKED")   return "FROZEN";
+  if (s === "SUSPENDED") return "FLAGGED";
+  if (s === "INACTIVE")  return "LOCKED";
+  return "ACTIVE";
+}
 
-function makeTx(i: number): WalletTransaction[] {
-  const types: WalletTransaction["type"][] = [
-    "ROI_CREDIT","BINARY_INCOME","WITHDRAWAL_APPROVED","WALLET_TRANSFER","PRINCIPAL_CLAIM","DEPOSIT_APPROVED",
-  ];
-  const wallets: WalletTransaction["wallet"][] = ["DEPOSIT","INCOME","WITHDRAWAL"];
-  const notes = [
-    "Auto-processed by income engine","Admin-approved","Member-initiated","System cron",
-    "Weekly ROI distribution","Binary plan payout","Referral bonus applied",
-  ];
-  return Array.from({ length: 10 }, (_, j) => ({
-    id: `TX${i}-${j}`,
-    type: types[(i + j) % types.length],
-    amount: rand(50, 2000),
-    wallet: wallets[(i + j) % 3],
-    timestamp: new Date(Date.now() - (j * 8 + i) * 3600000),
-    note: notes[(i + j) % notes.length],
+function mapPlanType(pt?: string): string | null {
+  if (!pt) return null;
+  const m: Record<string, string> = { PLAN_90: "90 Day", PLAN_180: "180 Day", PLAN_270: "270 Day", PLAN_360: "360 Day" };
+  return m[pt] ?? pt;
+}
+
+const TX_TYPE_MAP: Record<string, WalletTransaction["type"]> = {
+  DEPOSIT:           "DEPOSIT_APPROVED",
+  INVESTMENT:        "ADJUSTMENT_DEBIT",
+  ROI_CLAIM:         "ROI_CREDIT",
+  PRINCIPAL_RELEASE: "PRINCIPAL_CLAIM",
+  INCOME_TRANSFER:   "WALLET_TRANSFER",
+  BINARY_MATCH:      "BINARY_INCOME",
+  BINARY_ORBIT:      "BINARY_INCOME",
+  LEVEL_INCOME:      "BINARY_INCOME",
+  SALARY:            "BINARY_INCOME",
+  WITHDRAWAL:        "WITHDRAWAL_APPROVED",
+};
+
+const TX_WALLET_MAP: Record<string, WalletTransaction["wallet"]> = {
+  DEPOSIT:           "DEPOSIT",
+  INVESTMENT:        "DEPOSIT",
+  ROI_CLAIM:         "INCOME",
+  PRINCIPAL_RELEASE: "INCOME",
+  INCOME_TRANSFER:   "INCOME",
+  BINARY_MATCH:      "WITHDRAWAL",
+  BINARY_ORBIT:      "WITHDRAWAL",
+  LEVEL_INCOME:      "WITHDRAWAL",
+  SALARY:            "WITHDRAWAL",
+  WITHDRAWAL:        "WITHDRAWAL",
+};
+
+function mapTransactions(txs: AdminWalletDetail["transactions"]): WalletTransaction[] {
+  return txs.map(tx => ({
+    id:        tx.id,
+    type:      TX_TYPE_MAP[tx.type] ?? "ADJUSTMENT_CREDIT",
+    amount:    parseFloat(tx.amount),
+    wallet:    TX_WALLET_MAP[tx.type] ?? "DEPOSIT",
+    timestamp: new Date(tx.createdAt),
+    note:      tx.description ?? tx.type.replace(/_/g, " ").toLowerCase(),
   }));
 }
 
-function makeQueue(i: number): TransferQueueItem[] {
-  if (i % 4 === 0) return [];
-  return [{
-    id: `TQ${i}`,
-    total: rand(500, 5000),
-    released: rand(100, 500),
-    hoursElapsed: (i * 7) % 72,
-    totalHours: 72,
-    status: (["PROCESSING","PROCESSING","COMPLETED","PAUSED"] as const)[i % 4],
-  }];
+function mapTransferQueue(txs: AdminWalletDetail["transactions"]): TransferQueueItem[] {
+  return txs
+    .filter(tx => tx.type === "INCOME_TRANSFER" && tx.status === "SUCCESS")
+    .slice(0, 5)
+    .map(tx => ({
+      id:           tx.id,
+      total:        parseFloat(tx.amount),
+      released:     parseFloat(tx.netAmount ?? tx.amount),
+      hoursElapsed: 72,
+      totalHours:   72,
+      status:       "COMPLETED" as const,
+    }));
 }
 
-function makeAlerts(i: number, status: WalletStatus): WalletAlert[] {
+function buildAlerts(detail: AdminWalletDetail): WalletAlert[] {
   const alerts: WalletAlert[] = [];
-  if (status === "FROZEN")  alerts.push({ id: `AL${i}-0`, type: "FROZEN",             message: "Wallet frozen by admin pending compliance review.", severity: "error", timestamp: new Date(Date.now() - 3600000) });
-  if (status === "FLAGGED") alerts.push({ id: `AL${i}-1`, type: "SUSPICIOUS_ACTIVITY", message: "Unusual withdrawal pattern detected. 4 large withdrawals in 24 hours.", severity: "error", timestamp: new Date(Date.now() - 7200000) });
-  if (i % 5 === 0) alerts.push({ id: `AL${i}-2`, type: "LARGE_BALANCE", message: "Deposit wallet balance exceeds $10,000 threshold.", severity: "info", timestamp: new Date(Date.now() - 86400000) });
-  if (i % 7 === 0) alerts.push({ id: `AL${i}-3`, type: "TRANSFER_DELAYED", message: "72-hour transfer queue item is past expected completion time.", severity: "warn", timestamp: new Date(Date.now() - 10800000) });
+  const { status } = detail.wallet.user;
+  const dep = parseFloat(detail.wallet.depositWallet);
+  if (status === "BLOCKED") {
+    alerts.push({ id: "al-frozen", type: "FROZEN",             message: "Wallet frozen by admin pending compliance review.", severity: "error", timestamp: new Date(detail.wallet.updatedAt) });
+  }
+  if (status === "SUSPENDED") {
+    alerts.push({ id: "al-susp",   type: "SUSPICIOUS_ACTIVITY", message: "Account suspended. Activity under review.",           severity: "error", timestamp: new Date(detail.wallet.updatedAt) });
+  }
+  if (dep > 10000) {
+    alerts.push({ id: "al-large",  type: "LARGE_BALANCE",       message: `Deposit wallet balance $${dep.toFixed(2)} exceeds $10,000 threshold.`, severity: "info", timestamp: new Date() });
+  }
   return alerts;
 }
 
-function makeAudit(i: number): AuditEntry[] {
-  const admins = ["superadmin@primewave.io","finance@primewave.io","rewards@primewave.io"];
-  const actions = [
-    { action: "Balance Adjusted",  old: "$0.00",       new: "$1,500.00", reason: "Initial deposit credited" },
-    { action: "Status Changed",    old: "ACTIVE",      new: "LOCKED",    reason: "Compliance hold" },
-    { action: "Transfer Executed", old: "$3,200.00",   new: "$1,700.00", reason: "Withdrawal preparation" },
-    { action: "Status Changed",    old: "LOCKED",      new: "ACTIVE",    reason: "Compliance cleared" },
-    { action: "Balance Adjusted",  old: "$1,700.00",   new: "$2,200.00", reason: "ROI manual correction" },
-  ];
-  return actions.map((a, j) => ({
-    id: `AUD${i}-${j}`,
-    timestamp: new Date(Date.now() - (j * 48 + i) * 3600000),
-    admin: admins[(i + j) % admins.length],
-    action: a.action, oldValue: a.old, newValue: a.new, reason: a.reason,
-  }));
+function mapAuditLog(logs: AdminWalletDetail["adminLogs"]): AuditEntry[] {
+  return logs.map(log => {
+    const det = log.details as Record<string, unknown> | null;
+    return {
+      id:        log.id,
+      timestamp: new Date(log.createdAt),
+      admin:     log.admin.email,
+      action:    log.action.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase()),
+      oldValue:  (det?.["oldValue"] as string | undefined) ?? (det?.["direction"] as string | undefined) ?? "—",
+      newValue:  (det?.["amount"] as string | undefined) ?? (det?.["newValue"] as string | undefined) ?? "—",
+      reason:    (det?.["reason"] as string | undefined) ?? "—",
+    };
+  });
 }
 
-function makeMember(i: number): DrawerWallet {
-  const [firstName, lastName] = NAMES[i % NAMES.length];
-  const username = `${firstName.toLowerCase()}${i + 1}`;
-  const status = STATUSES[i % STATUSES.length];
-  const dep = rand(200, 15000);
-  const inc = rand(100, 8000);
-  const wit = rand(50, 5000);
+function itemToBasicWallet(item: AdminWalletItem): DrawerWallet {
+  const lastTxDate = item.user.transactions[0]?.createdAt
+    ? new Date(item.user.transactions[0].createdAt)
+    : new Date(item.updatedAt);
   return {
-    id: `w-${i}`,
-    memberId: uid(),
-    username, firstName, lastName,
-    country: COUNTRIES[i % COUNTRIES.length],
-    plan: PLANS[i % PLANS.length] as string | null,
-    status,
-    depositWallet: dep, incomeWallet: inc, withdrawalWallet: wit,
-    pendingTransfer: rand(0, 2000),
-    lastTx: new Date(Date.now() - rand(0, 72) * 3600000),
-    lifetimeCredits: rand(5000, 80000),
-    lifetimeDebits:  rand(2000, 40000),
-    transferQueue: makeQueue(i),
-    recentTx: makeTx(i),
-    alerts: makeAlerts(i, status),
-    auditLog: makeAudit(i),
-    adminNotes: i % 5 === 0 ? "Member contacted support on June 12 regarding delayed ROI. Issue resolved." : "",
+    id:               item.user.id,
+    memberId:         item.user.referralCode,
+    username:         item.user.username,
+    firstName:        item.user.firstName,
+    lastName:         item.user.lastName,
+    country:          "—",
+    plan:             mapPlanType(item.user.investments[0]?.planType),
+    status:           mapUserStatusToWalletStatus(item.user.status),
+    depositWallet:    parseFloat(item.depositWallet),
+    incomeWallet:     parseFloat(item.incomeWallet),
+    withdrawalWallet: parseFloat(item.withdrawalWallet),
+    pendingTransfer:  parseFloat(item.lockedWithdrawalBalance),
+    lastTx:           lastTxDate,
+    lifetimeCredits:  0,
+    lifetimeDebits:   0,
+    transferQueue:    [],
+    recentTx:         [],
+    alerts:           [],
+    auditLog:         [],
+    adminNotes:       "",
   };
 }
 
-const INITIAL_WALLETS: DrawerWallet[] = Array.from({ length: 60 }, (_, i) => makeMember(i));
+function mergeDetail(basic: DrawerWallet, detail: AdminWalletDetail): DrawerWallet {
+  return {
+    ...basic,
+    depositWallet:    parseFloat(detail.wallet.depositWallet),
+    incomeWallet:     parseFloat(detail.wallet.incomeWallet),
+    withdrawalWallet: parseFloat(detail.wallet.withdrawalWallet),
+    pendingTransfer:  parseFloat(detail.wallet.lockedWithdrawalBalance),
+    status:           mapUserStatusToWalletStatus(detail.wallet.user.status),
+    lastTx:           new Date(detail.lastTx),
+    lifetimeCredits:  parseFloat(detail.lifetimeCredits),
+    lifetimeDebits:   parseFloat(detail.lifetimeDebits),
+    transferQueue:    mapTransferQueue(detail.transactions),
+    recentTx:         mapTransactions(detail.transactions),
+    alerts:           buildAlerts(detail),
+    auditLog:         mapAuditLog(detail.adminLogs),
+    adminNotes:       detail.adminNotes,
+  };
+}
 
 // ─── Status badge ──────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: WalletStatus }) {
@@ -262,142 +302,182 @@ const SEL_STYLE: React.CSSProperties = {
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function WalletsPage() {
   const { toasts, toast, dismiss } = useToast();
-  const [wallets, setWallets] = useState<DrawerWallet[]>(() => INITIAL_WALLETS);
-  const [search,   setSearch]   = useState("");
-  const [fStatus,  setFStatus]  = useState("");
-  const [fCountry, setFCountry] = useState("");
-  const [fPlan,    setFPlan]    = useState("");
-  const [page,     setPage]     = useState(1);
-  const PAGE_SIZE = 20;
 
-  const [drawer,   setDrawer]   = useState<DrawerWallet | null>(null);
+  // ── Server data state ────────────────────────────────────────────────────────
+  const [wallets,       setWallets]       = useState<DrawerWallet[]>([]);
+  const [meta,          setMeta]          = useState({ total: 0, page: 1, limit: 25, totalPages: 1 });
+  const [stats,         setStats]         = useState<AdminWalletStats | null>(null);
+  const [loading,       setLoading]       = useState(true);
+  const [statsLoading,  setStatsLoading]  = useState(true);
+
+  // ── Filters ──────────────────────────────────────────────────────────────────
+  const [search,        setSearch]        = useState("");
+  const [debouncedQ,    setDebouncedQ]    = useState("");
+  const [fStatus,       setFStatus]       = useState("");
+  const [fCountry,      setFCountry]      = useState("");
+  const [fPlan,         setFPlan]         = useState("");
+  const [page,          setPage]          = useState(1);
+  const PAGE_SIZE = 25;
+
+  // ── Drawer / modals ──────────────────────────────────────────────────────────
+  const [drawer,    setDrawer]    = useState<DrawerWallet | null>(null);
   const [adjTarget, setAdjTarget] = useState<DrawerWallet | null>(null);
   const [trfTarget, setTrfTarget] = useState<DrawerWallet | null>(null);
-  const [hovered,  setHovered]  = useState<string | null>(null);
+  const [hovered,   setHovered]   = useState<string | null>(null);
 
-  // Update wallet by id helper
-  const updateWallet = useCallback((id: string, patch: Partial<DrawerWallet>) => {
-    setWallets(ws => ws.map(w => w.id === id ? { ...w, ...patch } : w));
-    setDrawer(d => d?.id === id ? { ...d, ...patch } : d);
+  // Debounce search
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedQ(search); setPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // ── Fetch helpers ────────────────────────────────────────────────────────────
+  const fetchAbort = useRef<AbortController | null>(null);
+
+  const fetchWallets = useCallback(async (pg = page) => {
+    fetchAbort.current?.abort();
+    fetchAbort.current = new AbortController();
+    setLoading(true);
+    try {
+      const resp = await getAdminWallets({
+        page:      pg,
+        limit:     PAGE_SIZE,
+        search:    debouncedQ || undefined,
+        status:    (fStatus as "ACTIVE" | "LOCKED" | "FROZEN" | "FLAGGED") || undefined,
+        sortBy:    "updatedAt",
+        sortOrder: "desc",
+      });
+      setWallets(resp.wallets.map(itemToBasicWallet));
+      setMeta(resp.meta);
+    } catch (err: unknown) {
+      if ((err as { name?: string }).name !== "AbortError") {
+        const msg = err instanceof Error ? err.message : "Failed to load wallets";
+        toast(msg, "error");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [page, debouncedQ, fStatus, toast]);
+
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const s = await getAdminWalletStats();
+      setStats(s);
+    } catch {
+      // non-critical — KPI cards show "—" if unavailable
+    } finally {
+      setStatsLoading(false);
+    }
   }, []);
 
-  // ── Handlers ────────────────────────────────────────────────────────────────
-  const handleAdjust = useCallback((w: DrawerWallet, walletType: "DEPOSIT" | "INCOME" | "WITHDRAWAL", adjType: "CREDIT" | "DEBIT", amount: number, reason: string, notes: string) => {
-    const field: Record<string, keyof DrawerWallet> = { DEPOSIT: "depositWallet", INCOME: "incomeWallet", WITHDRAWAL: "withdrawalWallet" };
-    const key = field[walletType] as "depositWallet" | "incomeWallet" | "withdrawalWallet";
-    const oldVal = w[key] as number;
-    const newVal = adjType === "CREDIT" ? oldVal + amount : oldVal - amount;
+  // Initial load + re-fetch on filter/page change
+  useEffect(() => { fetchWallets(page); }, [page, debouncedQ, fStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchStats(); }, []);                                  // eslint-disable-line react-hooks/exhaustive-deps
 
-    const newTx: WalletTransaction = {
-      id: `TX-ADJ-${Date.now()}`, type: adjType === "CREDIT" ? "ADJUSTMENT_CREDIT" : "ADJUSTMENT_DEBIT",
-      amount, wallet: walletType, timestamp: new Date(), note: reason,
-    };
-    const newAudit: AuditEntry = {
-      id: `AUD-${Date.now()}`, timestamp: new Date(), admin: "superadmin@primewave.io",
-      action: `Balance Adjusted (${adjType})`, oldValue: `$${oldVal.toFixed(2)}`, newValue: `$${newVal.toFixed(2)}`, reason,
-    };
+  // ── Drawer detail loader ─────────────────────────────────────────────────────
+  const loadDrawerDetail = useCallback(async (userId: string) => {
+    try {
+      const detail: AdminWalletDetail = await getAdminWalletById(userId);
+      setDrawer(d => d?.id === userId ? mergeDetail(d, detail) : d);
+      setAdjTarget(a => a?.id === userId ? mergeDetail(a, detail) : a);
+    } catch {
+      // drawer shows basic data on failure
+    }
+  }, []);
 
-    updateWallet(w.id, {
-      [key]: newVal,
-      adminNotes: notes || w.adminNotes,
-      recentTx: [newTx, ...w.recentTx.slice(0, 9)],
-      auditLog: [newAudit, ...w.auditLog],
-    });
-    toast(`Balance ${adjType === "CREDIT" ? "credited" : "debited"} $${amount.toFixed(2)} on @${w.username}'s ${walletType.toLowerCase()} wallet.`, "success");
-  }, [updateWallet, toast]);
+  const openDrawer = useCallback((w: DrawerWallet) => {
+    setDrawer(w);
+    loadDrawerDetail(w.id);
+  }, [loadDrawerDetail]);
 
-  const handleTransfer = useCallback((w: DrawerWallet, from: "DEPOSIT" | "INCOME" | "WITHDRAWAL", to: "DEPOSIT" | "INCOME" | "WITHDRAWAL", amount: number, reason: string) => {
-    const field: Record<string, keyof DrawerWallet> = { DEPOSIT: "depositWallet", INCOME: "incomeWallet", WITHDRAWAL: "withdrawalWallet" };
-    const fKey = field[from] as "depositWallet" | "incomeWallet" | "withdrawalWallet";
-    const tKey = field[to]   as "depositWallet" | "incomeWallet" | "withdrawalWallet";
-    const newFromVal = (w[fKey] as number) - amount;
-    const newToVal   = (w[tKey] as number) + amount;
+  // ── Handlers ─────────────────────────────────────────────────────────────────
+  const handleAdjust = useCallback(async (
+    w: DrawerWallet,
+    walletType: "DEPOSIT" | "INCOME" | "WITHDRAWAL",
+    adjType:    "CREDIT" | "DEBIT",
+    amount:     number,
+    reason:     string,
+    notes:      string,
+  ) => {
+    const signedAmount = adjType === "CREDIT" ? amount : -amount;
+    const fullReason   = notes ? `${reason} — ${notes}` : reason;
+    try {
+      await adminWalletAdjustment(w.id, walletType, signedAmount, fullReason);
+      toast(`Balance ${adjType === "CREDIT" ? "credited" : "debited"} $${amount.toFixed(2)} on @${w.username}'s ${walletType.toLowerCase()} wallet.`, "success");
+      await loadDrawerDetail(w.id);
+      await fetchWallets(page);
+      await fetchStats();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Adjustment failed", "error");
+    }
+  }, [page, fetchWallets, fetchStats, loadDrawerDetail, toast]);
 
-    const newTx: WalletTransaction = {
-      id: `TX-TRF-${Date.now()}`, type: "WALLET_TRANSFER",
-      amount, wallet: from, timestamp: new Date(), note: `${from} → ${to}: ${reason}`,
-    };
-    const newQItem: TransferQueueItem = {
-      id: `TQ-${Date.now()}`, total: amount, released: 0,
-      hoursElapsed: 0, totalHours: 72, status: "PROCESSING",
-    };
-    const newAudit: AuditEntry = {
-      id: `AUD-TRF-${Date.now()}`, timestamp: new Date(), admin: "superadmin@primewave.io",
-      action: `Transfer Executed (${from} → ${to})`,
-      oldValue: `${from}: $${(w[fKey] as number).toFixed(2)}`,
-      newValue:  `${from}: $${newFromVal.toFixed(2)} | ${to}: $${newToVal.toFixed(2)}`,
-      reason,
-    };
+  const handleTransfer = useCallback((_w: DrawerWallet, _from: string, _to: string, _amount: number, _reason: string) => {
+    toast("Platform transfers are processed automatically by the 72-hour release engine. Manual transfers are not permitted.", "info");
+  }, [toast]);
 
-    updateWallet(w.id, {
-      [fKey]: newFromVal, [tKey]: newToVal,
-      transferQueue: [newQItem, ...w.transferQueue],
-      recentTx: [newTx, ...w.recentTx.slice(0, 9)],
-      auditLog: [newAudit, ...w.auditLog],
-    });
-    toast(`Transferred $${amount.toFixed(2)} from ${from} → ${to} on @${w.username}.`, "success");
-  }, [updateWallet, toast]);
+  const handleFreeze = useCallback(async (w: DrawerWallet) => {
+    try {
+      await adminBlockUser(w.id);
+      toast(`@${w.username}'s wallet has been frozen.`, "info");
+      setWallets(ws => ws.map(x => x.id === w.id ? { ...x, status: "FROZEN" } : x));
+      setDrawer(d => d?.id === w.id ? { ...d, status: "FROZEN" } : d);
+      await fetchStats();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to freeze wallet", "error");
+    }
+  }, [fetchStats, toast]);
 
-  const handleFreeze = useCallback((w: DrawerWallet) => {
-    const newAudit: AuditEntry = { id: `AUD-FRZ-${Date.now()}`, timestamp: new Date(), admin: "superadmin@primewave.io", action: "Wallet Frozen", oldValue: w.status, newValue: "FROZEN", reason: "Admin action" };
-    const newAlert: WalletAlert = { id: `AL-FRZ-${Date.now()}`, type: "FROZEN", message: "Wallet frozen by admin.", severity: "error", timestamp: new Date() };
-    const newTx: WalletTransaction = { id: `TX-FRZ-${Date.now()}`, type: "FREEZE", amount: 0, wallet: "DEPOSIT", timestamp: new Date(), note: "Admin froze wallet" };
-    updateWallet(w.id, { status: "FROZEN", auditLog: [newAudit, ...w.auditLog], alerts: [newAlert, ...w.alerts], recentTx: [newTx, ...w.recentTx.slice(0, 9)] });
-    toast(`@${w.username}'s wallet has been frozen.`, "info");
-  }, [updateWallet, toast]);
+  const handleUnfreeze = useCallback(async (w: DrawerWallet) => {
+    try {
+      await adminActivateUser(w.id);
+      toast(`@${w.username}'s wallet has been unfrozen and set to Active.`, "success");
+      setWallets(ws => ws.map(x => x.id === w.id ? { ...x, status: "ACTIVE" } : x));
+      setDrawer(d => d?.id === w.id ? { ...d, status: "ACTIVE" } : d);
+      await fetchStats();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to unfreeze wallet", "error");
+    }
+  }, [fetchStats, toast]);
 
-  const handleUnfreeze = useCallback((w: DrawerWallet) => {
-    const newAudit: AuditEntry = { id: `AUD-UFZ-${Date.now()}`, timestamp: new Date(), admin: "superadmin@primewave.io", action: "Wallet Unfrozen", oldValue: "FROZEN", newValue: "ACTIVE", reason: "Admin action" };
-    const newTx: WalletTransaction = { id: `TX-UFZ-${Date.now()}`, type: "UNFREEZE", amount: 0, wallet: "DEPOSIT", timestamp: new Date(), note: "Admin unfroze wallet" };
-    updateWallet(w.id, { status: "ACTIVE", alerts: w.alerts.filter(a => a.type !== "FROZEN"), auditLog: [newAudit, ...w.auditLog], recentTx: [newTx, ...w.recentTx.slice(0, 9)] });
-    toast(`@${w.username}'s wallet has been unfrozen and set to Active.`, "success");
-  }, [updateWallet, toast]);
+  const handleSaveNotes = useCallback(async (id: string, notes: string) => {
+    try {
+      await adminSaveWalletNotes(id, notes);
+      setDrawer(d => d?.id === id ? { ...d, adminNotes: notes } : d);
+      toast("Admin notes saved.", "success");
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to save notes", "error");
+    }
+  }, [toast]);
 
-  const handleSaveNotes = useCallback((id: string, notes: string) => {
-    updateWallet(id, { adminNotes: notes });
-    toast("Admin notes saved.", "success");
-  }, [updateWallet, toast]);
-
-  // ── Derived data ─────────────────────────────────────────────────────────────
+  // ── Client-side sub-filter (plan only — no country in DB) ────────────────────
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    if (!fPlan) return wallets;
     return wallets.filter(w => {
-      if (q && !w.username.includes(q) && !w.memberId.toLowerCase().includes(q) && !(w.firstName + " " + w.lastName).toLowerCase().includes(q)) return false;
-      if (fStatus  && w.status  !== fStatus)  return false;
-      if (fCountry && w.country !== fCountry) return false;
-      if (fPlan) {
-        if (fPlan === "none" && w.plan !== null) return false;
-        if (fPlan !== "none" && w.plan !== fPlan) return false;
-      }
-      return true;
+      if (fPlan === "none") return w.plan === null;
+      return w.plan === fPlan;
     });
-  }, [wallets, search, fStatus, fCountry, fPlan]);
+  }, [wallets, fPlan]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageRows = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
+  const plans    = useMemo(() => [...new Set(wallets.map(w => w.plan).filter(Boolean))].sort() as string[], [wallets]);
+  const pageRows = filtered;
 
-  // KPI aggregates (from live state)
-  const kpis = useMemo(() => {
-    const depTotal = wallets.reduce((s, w) => s + w.depositWallet, 0);
-    const incTotal = wallets.reduce((s, w) => s + w.incomeWallet, 0);
-    const witTotal = wallets.reduce((s, w) => s + w.withdrawalWallet, 0);
-    const pending  = wallets.reduce((s, w) => s + w.pendingTransfer, 0);
-    const platform = depTotal + incTotal + witTotal;
-    const avg      = platform / wallets.length;
-    const flagged  = wallets.filter(w => w.status === "FLAGGED").length;
-    const completedToday = wallets.filter(w => w.transferQueue.some(q => q.status === "COMPLETED")).length;
-    return { depTotal, incTotal, witTotal, pending, completedToday, platform, avg, flagged };
-  }, [wallets]);
+  // ── KPI values (from stats, fall back to zeros while loading) ───────────────
+  const kpis = {
+    depTotal:      stats ? parseFloat(stats.totalDepositWallet)    : 0,
+    incTotal:      stats ? parseFloat(stats.totalIncomeWallet)     : 0,
+    witTotal:      stats ? parseFloat(stats.totalWithdrawalWallet) : 0,
+    pending:       stats ? parseFloat(stats.totalLockedBalance)    : 0,
+    completedToday:stats?.completedTransfersToday                  ?? 0,
+    platform:      stats ? parseFloat(stats.totalPlatformValue)    : 0,
+    avg:           stats ? parseFloat(stats.avgWalletBalance)      : 0,
+    flagged:       stats?.flaggedCount                             ?? 0,
+  };
 
-  const countries = useMemo(() => [...new Set(wallets.map(w => w.country))].sort(), [wallets]);
-  const plans     = useMemo(() => [...new Set(wallets.map(w => w.plan).filter(Boolean))].sort() as string[], [wallets]);
-
-  // Lookup live wallet for drawer
-  const liveDrawer = drawer ? wallets.find(w => w.id === drawer.id) ?? drawer : null;
-
-  // Adjust target (live lookup)
-  const liveAdj = adjTarget ? wallets.find(w => w.id === adjTarget.id) ?? adjTarget : null;
-  const liveTrf = trfTarget ? wallets.find(w => w.id === trfTarget.id) ?? trfTarget : null;
+  const liveDrawer = drawer;
+  const liveAdj    = adjTarget;
+  const liveTrf    = trfTarget;
 
   const TH: React.CSSProperties = { padding: "10px 14px", fontSize: 10, fontWeight: 700, color: MUTED, textAlign: "left", letterSpacing: "0.07em", position: "sticky", top: 0, background: "hsl(222 62% 8%)", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" };
 
@@ -413,12 +493,12 @@ export default function WalletsPage() {
           </div>
           <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
             {[
-              { icon: RefreshCw,        label: "Refresh",        onClick: undefined },
-              { icon: Download,         label: "Export",         onClick: undefined },
-              { icon: SlidersHorizontal,label: "Adjust Wallet",  onClick: undefined, gold: false },
-              { icon: ArrowRightLeft,   label: "Transfer Funds", onClick: undefined, gold: true  },
+              { icon: RefreshCw,         label: "Refresh",        onClick: () => { fetchWallets(page); fetchStats(); } },
+              { icon: Download,          label: "Export",         onClick: undefined },
+              { icon: SlidersHorizontal, label: "Adjust Wallet",  onClick: undefined, gold: false },
+              { icon: ArrowRightLeft,    label: "Transfer Funds", onClick: undefined, gold: true  },
             ].map(b => (
-              <button key={b.label} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: b.gold ? "rgba(212,175,55,0.1)" : "rgba(255,255,255,0.05)", border: `1px solid ${b.gold ? "rgba(212,175,55,0.25)" : BORDER}`, borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: b.gold ? GOLD_L : "rgba(255,255,255,0.7)" }}>
+              <button key={b.label} onClick={b.onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: b.gold ? "rgba(212,175,55,0.1)" : "rgba(255,255,255,0.05)", border: `1px solid ${b.gold ? "rgba(212,175,55,0.25)" : BORDER}`, borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: b.gold ? GOLD_L : "rgba(255,255,255,0.7)" }}>
                 <b.icon size={13} />{b.label}
               </button>
             ))}
@@ -427,16 +507,16 @@ export default function WalletsPage() {
 
         {/* KPI Cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 22 }}>
-          <KpiCard icon={TrendingUp}   label="TOTAL DEPOSIT WALLET"    value={$(kpis.depTotal)}     sub={`${wallets.length} wallets`}    color="#34d399" />
-          <KpiCard icon={Wallet}       label="TOTAL INCOME WALLET"     value={$(kpis.incTotal)}     sub="Platform-wide"                   color={GOLD}    />
-          <KpiCard icon={TrendingDown} label="TOTAL WITHDRAWAL WALLET" value={$(kpis.witTotal)}     sub="Awaiting release"                color="#60a5fa" />
-          <KpiCard icon={Clock}        label="PENDING TRANSFERS"       value={$(kpis.pending)}      sub="In 72-hr queue"                  color="#fbbf24" />
+          <KpiCard icon={TrendingUp}   label="TOTAL DEPOSIT WALLET"    value={statsLoading ? "—" : $(kpis.depTotal)}     sub={stats ? `${stats.totalWallets} wallets` : "…"} color="#34d399" />
+          <KpiCard icon={Wallet}       label="TOTAL INCOME WALLET"     value={statsLoading ? "—" : $(kpis.incTotal)}     sub="Platform-wide"                                 color={GOLD}    />
+          <KpiCard icon={TrendingDown} label="TOTAL WITHDRAWAL WALLET" value={statsLoading ? "—" : $(kpis.witTotal)}     sub="Ready to withdraw"                             color="#60a5fa" />
+          <KpiCard icon={Clock}        label="PENDING TRANSFERS"       value={statsLoading ? "—" : $(kpis.pending)}      sub="Locked withdrawal balance"                     color="#fbbf24" />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 26 }}>
-          <KpiCard icon={CheckCircle}  label="COMPLETED TODAY"         value={String(kpis.completedToday)} sub="Transfers released"      color="#34d399" />
-          <KpiCard icon={BarChart2}    label="TOTAL PLATFORM VALUE"    value={$(kpis.platform)}     sub="All wallets combined"            color="#a78bfa" />
-          <KpiCard icon={Users}        label="AVG WALLET BALANCE"      value={$(kpis.avg)}          sub="Per member"                      color="#60a5fa" />
-          <KpiCard icon={Flag}         label="FLAGGED WALLETS"         value={String(kpis.flagged)} sub="Requires review"                 color="#f87171" />
+          <KpiCard icon={CheckCircle}  label="COMPLETED TODAY"         value={statsLoading ? "—" : String(kpis.completedToday)} sub="Transfers released"            color="#34d399" />
+          <KpiCard icon={BarChart2}    label="TOTAL PLATFORM VALUE"    value={statsLoading ? "—" : $(kpis.platform)}    sub="All wallets combined"                          color="#a78bfa" />
+          <KpiCard icon={Users}        label="AVG WALLET BALANCE"      value={statsLoading ? "—" : $(kpis.avg)}         sub="Per member"                                    color="#60a5fa" />
+          <KpiCard icon={Flag}         label="FLAGGED WALLETS"         value={statsLoading ? "—" : String(kpis.flagged)} sub="Requires review"                              color="#f87171" />
         </div>
 
         {/* Search + Filters */}
@@ -467,7 +547,6 @@ export default function WalletsPage() {
           <div style={{ position: "relative" }}>
             <select value={fCountry} onChange={e => { setFCountry(e.target.value); setPage(1); }} style={SEL_STYLE}>
               <option value="">All Countries</option>
-              {countries.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             <ChevronDown size={11} style={{ position: "absolute", right: 9, top: "50%", transform: "translateY(-50%)", color: MUTED, pointerEvents: "none" }} />
           </div>
@@ -483,7 +562,7 @@ export default function WalletsPage() {
           </div>
 
           <div style={{ marginLeft: "auto", fontSize: 11, color: MUTED }}>
-            {filtered.length} wallet{filtered.length !== 1 ? "s" : ""}
+            {loading ? "Loading…" : `${meta.total} wallet${meta.total !== 1 ? "s" : ""}`}
           </div>
         </div>
 
@@ -499,44 +578,47 @@ export default function WalletsPage() {
                 </tr>
               </thead>
               <tbody>
-                {pageRows.map(w => (
-                  <WalletRow
-                    key={w.id} w={w}
-                    onView={setDrawer}
-                    onAdjust={setAdjTarget}
-                    onTransfer={setTrfTarget}
-                    onFreeze={handleFreeze}
-                    onUnfreeze={handleUnfreeze}
-                    hovered={hovered === w.id}
-                    onHover={setHovered}
-                  />
-                ))}
-                {pageRows.length === 0 && (
+                {loading && wallets.length === 0 ? (
+                  <tr><td colSpan={9} style={{ textAlign: "center", padding: "48px 0", color: MUTED, fontSize: 13 }}>Loading wallets…</td></tr>
+                ) : pageRows.length === 0 ? (
                   <tr><td colSpan={9} style={{ textAlign: "center", padding: "48px 0", color: MUTED, fontSize: 13 }}>No wallets match your filters.</td></tr>
+                ) : (
+                  pageRows.map(w => (
+                    <WalletRow
+                      key={w.id} w={w}
+                      onView={openDrawer}
+                      onAdjust={setAdjTarget}
+                      onTransfer={setTrfTarget}
+                      onFreeze={handleFreeze}
+                      onUnfreeze={handleUnfreeze}
+                      hovered={hovered === w.id}
+                      onHover={setHovered}
+                    />
+                  ))
                 )}
               </tbody>
             </table>
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
+          {meta.totalPages > 1 && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderTop: `1px solid ${BORDER}` }}>
               <span style={{ fontSize: 11, color: MUTED }}>
-                Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+                Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, meta.total)} of {meta.total}
               </span>
               <div style={{ display: "flex", gap: 6 }}>
                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: "5px 10px", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: page === 1 ? "not-allowed" : "pointer", color: page === 1 ? MUTED : "rgba(255,255,255,0.7)", display: "flex", alignItems: "center" }}>
                   <ChevronLeft size={13} />
                 </button>
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  const pg = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
+                {Array.from({ length: Math.min(5, meta.totalPages) }, (_, i) => {
+                  const pg = Math.max(1, Math.min(meta.totalPages - 4, page - 2)) + i;
                   return (
                     <button key={pg} onClick={() => setPage(pg)} style={{ padding: "5px 10px", minWidth: 32, background: pg === page ? "rgba(212,175,55,0.12)" : "rgba(255,255,255,0.04)", border: `1px solid ${pg === page ? "rgba(212,175,55,0.3)" : BORDER}`, borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: pg === page ? 700 : 400, color: pg === page ? GOLD_L : "rgba(255,255,255,0.65)" }}>
                       {pg}
                     </button>
                   );
                 })}
-                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ padding: "5px 10px", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: page === totalPages ? "not-allowed" : "pointer", color: page === totalPages ? MUTED : "rgba(255,255,255,0.7)", display: "flex", alignItems: "center" }}>
+                <button onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))} disabled={page === meta.totalPages} style={{ padding: "5px 10px", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: page === meta.totalPages ? "not-allowed" : "pointer", color: page === meta.totalPages ? MUTED : "rgba(255,255,255,0.7)", display: "flex", alignItems: "center" }}>
                   <ChevronRight size={13} />
                 </button>
               </div>
