@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, TrendingUp, ArrowDownLeft, Wallet,
   GitBranch, Zap, Package, BarChart2, FileText, Headphones,
   Settings, LogOut, Bell, Search, Activity, Menu, X, Shield,
-  ArrowRight, ArrowDownToLine,
+  ArrowRight, ArrowDownToLine, FlaskConical,
 } from "lucide-react";
 import { adminSearchUsers, type AdminUserListItem } from "@/lib/api";
 import { SkeletonStyle, Skeleton } from "@/components/admin/Skeleton";
@@ -45,10 +45,16 @@ const NAV_GROUPS = [
   {
     label: "PLATFORM",
     items: [
-      { icon: BarChart2,  label: "Reports",  path: "/admin/reports" },
-      { icon: FileText,   label: "CMS",      path: "/admin/cms" },
-      { icon: Headphones, label: "Support",  path: "/admin/support" },
-      { icon: Settings,   label: "Settings", path: "/admin/settings" },
+      { icon: BarChart2,     label: "Reports",   path: "/admin/reports"  },
+      { icon: FileText,      label: "CMS",       path: "/admin/cms"      },
+      { icon: Headphones,    label: "Support",   path: "/admin/support"  },
+      { icon: Settings,      label: "Settings",  path: "/admin/settings" },
+    ],
+  },
+  {
+    label: "DEVELOPER",
+    items: [
+      { icon: FlaskConical, label: "Dev Tools", path: "/dev-tools" },
     ],
   },
 ];
