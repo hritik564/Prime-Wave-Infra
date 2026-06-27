@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import AdminLayout from "./AdminLayout";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
+import { Skeleton, SkeletonRows } from "@/components/admin/Skeleton";
 import {
   Package, Zap, BarChart2, TrendingUp, DollarSign, Award,
   Wallet, Shield, Globe, Edit2, Check,
@@ -317,7 +318,9 @@ function InvestmentPlansSection({ plans, loading, onView }: { plans: Plan[]; loa
       </div>
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
         {loading ? (
-          <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading plans…</div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <tbody><SkeletonRows rows={4} cols={7} /></tbody>
+          </table>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr>
@@ -364,7 +367,9 @@ function ConfigSection({ title, subtitle, fields, loading, onEdit }: { title: st
         <div style={{ fontSize: 11, color: MUTED }}>{subtitle}</div>
       </div>
       {loading ? (
-        <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading configuration…</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} height={72} borderRadius={10} />)}
+        </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {fields.map(f => <ConfigCard key={f.key} field={f} onEdit={onEdit} />)}
@@ -449,7 +454,9 @@ function LevelIncomeSection({ rows, loading, onChange, onRequestConfirm, onToast
       </div>
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
         {loading ? (
-          <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading level config…</div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <tbody><SkeletonRows rows={6} cols={4} /></tbody>
+          </table>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr>{["LEVEL","COMMISSION %","QUALIFICATION RULE","STATUS"].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
@@ -593,7 +600,9 @@ function SalaryIncomeSection({ ranks, loading, onChange, onRequestConfirm, onToa
       </div>
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
         {loading ? (
-          <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading salary config…</div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <tbody><SkeletonRows rows={6} cols={6} /></tbody>
+          </table>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr>
@@ -672,7 +681,9 @@ function RanksSection({ ranks, loading }: { ranks: SalaryRankItem[]; loading: bo
         <div style={{ fontSize: 11, color: MUTED }}>Visual overview of all ranks. Salary values are read from Salary Income configuration.</div>
       </div>
       {loading ? (
-        <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading ranks…</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} height={120} borderRadius={14} />)}
+        </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
           {ranks.map(r => {
@@ -757,7 +768,9 @@ function WalletRulesSection({ fields, loading, onEdit }: { fields: ConfigField[]
       </div>
       <div style={{ fontSize: 12, fontWeight: 700, color: MUTED, marginBottom: 12 }}>RELEASE CONFIGURATION</div>
       {loading ? (
-        <div style={{ padding: 30, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading configuration…</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} height={72} borderRadius={10} />)}
+        </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
           {fields.map(f => <ConfigCard key={f.key} field={f} onEdit={onEdit} />)}
@@ -776,7 +789,9 @@ function GlobalConfigSection({ fields, loading, onEdit }: { fields: ConfigField[
         <div style={{ fontSize: 11, color: MUTED }}>Platform-wide feature flags. Changes take effect immediately.</div>
       </div>
       {loading ? (
-        <div style={{ padding: 40, textAlign: "center", color: MUTED, fontSize: 12 }}>Loading global config…</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} height={52} borderRadius={12} />)}
+        </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {fields.map(f => {
@@ -813,7 +828,9 @@ function VersionHistory({ versions, loading }: { versions: ConfigVersion[]; load
     <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "16px 18px" }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: "0.07em", marginBottom: 14 }}>VERSION HISTORY</div>
       {loading ? (
-        <div style={{ color: MUTED, fontSize: 11, textAlign: "center", padding: "16px 0" }}>Loading…</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "6px 0" }}>
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} height={48} borderRadius={8} />)}
+        </div>
       ) : versions.length === 0 ? (
         <div style={{ color: MUTED, fontSize: 11, textAlign: "center", padding: "16px 0" }}>No versions yet.</div>
       ) : versions.map((v, i) => (
@@ -842,7 +859,9 @@ function AuditLog({ entries, loading }: { entries: AuditEntry[]; loading: boolea
         <button style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 9px", background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer", fontSize: 10, color: MUTED }}><Download size={10} /> Export</button>
       </div>
       {loading ? (
-        <div style={{ color: MUTED, fontSize: 11, textAlign: "center", padding: "16px 0" }}>Loading…</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "6px 0" }}>
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} height={44} borderRadius={8} />)}
+        </div>
       ) : entries.length === 0 ? (
         <div style={{ color: MUTED, fontSize: 11, textAlign: "center", padding: "16px 0" }}>No changes recorded yet.</div>
       ) : entries.slice(0, 8).map((e, i) => (

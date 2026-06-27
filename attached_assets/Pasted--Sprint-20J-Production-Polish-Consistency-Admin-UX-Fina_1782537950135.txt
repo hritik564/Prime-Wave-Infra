@@ -1,0 +1,421 @@
+# Sprint 20J — Production Polish, Consistency & Admin UX Finalization
+
+This is the final Admin Panel sprint.
+
+DO NOT add new platform features.
+
+DO NOT change business logic.
+
+DO NOT modify API contracts.
+
+DO NOT change database schema.
+
+The goal is to make the entire admin panel production-ready, visually consistent, and enterprise-grade.
+
+--------------------------------------------------------
+1. Standardize every page
+--------------------------------------------------------
+
+Ensure every admin page follows the exact same layout.
+
+Each page must contain:
+
+• Title
+• Subtitle
+• Consistent spacing
+• Top action buttons
+• Loading state
+• Empty state
+• Error state
+• Success toast positioning
+• Responsive behavior
+
+No page should feel different from another.
+
+--------------------------------------------------------
+2. Standardize all tables
+--------------------------------------------------------
+
+Every table in the admin panel should use the same component.
+
+Include:
+
+• Sticky header
+• Zebra hover
+• Consistent spacing
+• Pagination
+• Page size selector
+• Sorting
+• Search
+• Filter support
+• Mobile responsive layout
+
+Pages include:
+
+Members
+
+Investments
+
+Withdrawals
+
+Wallets
+
+Reports
+
+Support
+
+Plans
+
+Everything should feel identical.
+
+--------------------------------------------------------
+3. Standardize all status badges
+--------------------------------------------------------
+
+Use one Badge component.
+
+Statuses should always use identical colors.
+
+ACTIVE
+
+SUCCESS
+
+APPROVED
+
+Green
+
+PENDING
+
+Yellow
+
+REJECTED
+
+FAILED
+
+Red
+
+DISABLED
+
+ARCHIVED
+
+Gray
+
+Never use different colors for the same status.
+
+--------------------------------------------------------
+4. Standardize action menus
+--------------------------------------------------------
+
+Every ...
+
+menu should use the same dropdown component.
+
+Same spacing.
+
+Same animation.
+
+Same icon alignment.
+
+Same destructive action style.
+
+--------------------------------------------------------
+5. Standardize confirmation dialogs
+--------------------------------------------------------
+
+Delete
+
+Reject
+
+Suspend
+
+Disable
+
+Rollback
+
+Publish
+
+Restore Defaults
+
+Approve
+
+All must use the exact same confirmation modal.
+
+Same animation.
+
+Same button placement.
+
+Same keyboard shortcuts.
+
+Same warning style.
+
+--------------------------------------------------------
+6. Skeleton loading
+--------------------------------------------------------
+
+Replace every spinner with skeleton loaders.
+
+Dashboard
+
+Tables
+
+Cards
+
+Drawer
+
+Member Profile
+
+Charts
+
+Configuration
+
+Everything should have professional loading placeholders.
+
+--------------------------------------------------------
+7. Global search
+--------------------------------------------------------
+
+Improve the existing search.
+
+Allow searching across:
+
+Members
+
+Username
+
+Email
+
+Wallet ID
+
+Transaction ID
+
+Withdrawal ID
+
+Investment ID
+
+Support Ticket
+
+Search should debounce automatically.
+
+Display grouped results.
+
+--------------------------------------------------------
+8. Keyboard shortcuts
+--------------------------------------------------------
+
+Support:
+
+Ctrl/Cmd + K
+
+Open global search
+
+Esc
+
+Close drawer
+
+Close modal
+
+Close search
+
+Arrow navigation inside dropdowns.
+
+Enter confirms focused action.
+
+--------------------------------------------------------
+9. Better notifications
+--------------------------------------------------------
+
+Use one Toast component everywhere.
+
+Support:
+
+Success
+
+Error
+
+Warning
+
+Info
+
+Auto dismiss
+
+Manual dismiss
+
+Action button
+
+No browser alerts.
+
+--------------------------------------------------------
+10. Unsaved changes protection
+--------------------------------------------------------
+
+If admin edits configuration without publishing:
+
+Show
+
+"You have unpublished changes."
+
+If attempting to leave page:
+
+Display confirmation dialog.
+
+Prevent accidental navigation.
+
+--------------------------------------------------------
+11. Better version history
+--------------------------------------------------------
+
+Version history should display:
+
+Version
+
+Admin
+
+Timestamp
+
+Summary
+
+Number of changes
+
+Publish reason
+
+Allow:
+
+Compare
+
+Rollback
+
+View Details
+
+Everything should already use existing APIs.
+
+Improve presentation only.
+
+--------------------------------------------------------
+12. Audit log improvements
+--------------------------------------------------------
+
+Display:
+
+Who
+
+What
+
+When
+
+Previous value
+
+New value
+
+Affected module
+
+Action type
+
+Support filtering by:
+
+Admin
+
+Date
+
+Module
+
+Action
+
+--------------------------------------------------------
+13. Accessibility
+--------------------------------------------------------
+
+Add:
+
+ARIA labels
+
+Keyboard navigation
+
+Focus rings
+
+Proper tab order
+
+High contrast support
+
+--------------------------------------------------------
+14. Performance cleanup
+--------------------------------------------------------
+
+Memoize expensive components.
+
+Prevent unnecessary re-renders.
+
+Lazy load heavy pages.
+
+Virtualize very large tables.
+
+Avoid duplicate API requests.
+
+Keep bundle optimized.
+
+--------------------------------------------------------
+15. Responsive admin
+--------------------------------------------------------
+
+Tablet support.
+
+Mobile support.
+
+Sidebar collapses correctly.
+
+Tables become stacked cards.
+
+Drawers become full-screen.
+
+Charts resize correctly.
+
+No horizontal overflow.
+
+Every admin page must be usable on mobile.
+
+--------------------------------------------------------
+16. Final consistency audit
+--------------------------------------------------------
+
+Verify:
+
+✓ Every button style matches
+
+✓ Every modal matches
+
+✓ Every table matches
+
+✓ Every drawer matches
+
+✓ Every page spacing matches
+
+✓ Every icon size matches
+
+✓ Every typography scale matches
+
+✓ Every animation duration matches
+
+✓ Every loading state matches
+
+✓ Every empty state matches
+
+✓ Every error state matches
+
+✓ Every success state matches
+
+✓ No mock data remains anywhere
+
+✓ No placeholder text remains
+
+✓ No console warnings
+
+✓ No TypeScript errors
+
+✓ No ESLint warnings
+
+✓ No broken routes
+
+✓ No dead code
+
+This sprint is purely production polish.
+
+The result should feel comparable to professional enterprise products such as Stripe Dashboard, Vercel Dashboard, or Linear—not in appearance, but in consistency, responsiveness, and usability.

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, memo, useCallback } from "react";
 import AdminLayout from "./AdminLayout";
+import { SkeletonRows } from "@/components/admin/Skeleton";
 import BinaryNetworkDrawer, {
   BinaryNode, NodeStatus, BinaryRank, Position,
   MatchEvent, BinaryEvent, NetworkWarning, AuditEntry,
@@ -483,11 +484,7 @@ export default function BinaryNetworkPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan={COLS.length} style={{ textAlign: "center", padding: "48px 0", color: MUTED, fontSize: 13 }}>
-                      Loading network…
-                    </td>
-                  </tr>
+                  <SkeletonRows rows={8} cols={COLS.length} />
                 ) : nodes.length === 0 ? (
                   <tr>
                     <td colSpan={COLS.length} style={{ textAlign: "center", padding: "48px 0", color: MUTED, fontSize: 13 }}>

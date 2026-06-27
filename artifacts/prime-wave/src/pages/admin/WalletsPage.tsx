@@ -1,5 +1,6 @@
 import { useState, useMemo, memo, useCallback, useEffect, useRef } from "react";
 import AdminLayout from "./AdminLayout";
+import { SkeletonRows } from "@/components/admin/Skeleton";
 import WalletDrawer, {
   DrawerWallet, WalletStatus, WalletTransaction, TransferQueueItem, WalletAlert, AuditEntry,
 } from "./WalletDrawer";
@@ -579,7 +580,7 @@ export default function WalletsPage() {
               </thead>
               <tbody>
                 {loading && wallets.length === 0 ? (
-                  <tr><td colSpan={9} style={{ textAlign: "center", padding: "48px 0", color: MUTED, fontSize: 13 }}>Loading wallets…</td></tr>
+                  <SkeletonRows rows={8} cols={9} />
                 ) : pageRows.length === 0 ? (
                   <tr><td colSpan={9} style={{ textAlign: "center", padding: "48px 0", color: MUTED, fontSize: 13 }}>No wallets match your filters.</td></tr>
                 ) : (

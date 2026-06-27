@@ -5,7 +5,10 @@ import {
   LayoutDashboard, Users, TrendingUp, ArrowDownLeft, Wallet,
   GitBranch, Zap, Package, BarChart2, FileText, Headphones,
   Settings, LogOut, Bell, Search, Activity, Menu, X, Shield,
+  ArrowRight,
 } from "lucide-react";
+import { adminSearchUsers, type AdminUserListItem } from "@/lib/api";
+import { SkeletonStyle, Skeleton } from "@/components/admin/Skeleton";
 
 const GOLD   = "#D4AF37";
 const GOLD_L = "#F3D37A";
@@ -77,6 +80,10 @@ export const SidebarItem = memo(function SidebarItem({
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       title={collapsed ? label : undefined}
+      role="menuitem"
+      tabIndex={0}
+      aria-current={active ? "page" : undefined}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") setLocation(path); }}
       style={{
         display: "flex", alignItems: "center",
         gap: collapsed ? 0 : 9,
@@ -87,9 +94,10 @@ export const SidebarItem = memo(function SidebarItem({
         borderLeft: active ? `2px solid ${GOLD}` : "2px solid transparent",
         color: active ? GOLD_L : MUTED,
         transition: "background 0.15s,color 0.15s",
+        outline: "none",
       }}
     >
-      <Icon size={14} style={{ flexShrink: 0 }} />
+      <Icon size={14} style={{ flexShrink: 0 }} aria-hidden="true" />
       {!collapsed && (
         <span style={{ fontSize: 12.5, fontWeight: active ? 600 : 400, letterSpacing: "0.01em" }}>
           {label}
@@ -99,7 +107,208 @@ export const SidebarItem = memo(function SidebarItem({
   );
 });
 
-function TopNavbar({ sidebarOpen, onToggle }: { sidebarOpen: boolean; onToggle: () => void }) {
+/* ── Global search overlay ──────────────────────────────────────────────────── */
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
+const GlobalSearch = memo(function GlobalSearch({
+  open, onClose,
+}: { open: boolean; onClose: () => void }) {
+  const [, setLocation] = useLocation();
+  const [query,    setQuery]    = useState("");
+  const [results,  setResults]  = useState<AdminUserListItem[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [focused,  setFocused]  = useState(-1);
+  const inputRef   = useRef<HTMLInputElement>(null);
+  const listRef    = useRef<HTMLDivElement>(null);
+  const debounced  = useDebounce(query, 250);
+
+  useEffect(() => {
+    if (!open) return;
+    setQuery("");
+    setResults([]);
+    setFocused(-1);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [open]);
+
+  useEffect(() => {
+    if (!debounced.trim()) { setResults([]); return; }
+    setSearching(true);
+    const params = debounced.includes("@")
+      ? { email: debounced }
+      : /^\+?\d{6,}/.test(debounced)
+        ? { phone: debounced }
+        : { username: debounced };
+    adminSearchUsers(params)
+      .then(r => setResults(r.data.slice(0, 8)))
+      .catch(() => {})
+      .finally(() => setSearching(false));
+  }, [debounced]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "ArrowDown") { e.preventDefault(); setFocused(f => Math.min(f + 1, results.length - 1)); }
+      if (e.key === "ArrowUp")   { e.preventDefault(); setFocused(f => Math.max(f - 1, -1)); }
+      if (e.key === "Enter" && focused >= 0 && results[focused]) {
+        setLocation("/admin/members");
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, focused, results, onClose, setLocation]);
+
+  if (!open) return null;
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+        aria-hidden="true"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Global search"
+        style={{
+          position: "fixed", top: "14%", left: "50%", transform: "translateX(-50%)",
+          zIndex: 501, width: 580, maxWidth: "calc(100vw - 32px)",
+          background: "hsl(222 62% 10%)", border: `1px solid ${BORDER}`,
+          borderRadius: 16, boxShadow: "0 32px 80px rgba(0,0,0,0.7)",
+          overflow: "hidden",
+        }}
+      >
+        {/* Search input */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 18px", borderBottom: `1px solid ${BORDER}` }}>
+          <Search size={16} style={{ color: MUTED, flexShrink: 0 }} aria-hidden="true" />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={e => { setQuery(e.target.value); setFocused(-1); }}
+            placeholder="Search members by username, email, phone…"
+            aria-label="Search"
+            style={{
+              flex: 1, background: "none", border: "none", outline: "none",
+              fontSize: 14, color: "rgba(255,255,255,0.9)",
+            }}
+          />
+          {searching && (
+            <Activity size={13} style={{ color: MUTED, animation: "spin 1s linear infinite", flexShrink: 0 }} />
+          )}
+          <kbd style={{ fontSize: 10, color: MUTED, background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 5, padding: "2px 6px", flexShrink: 0 }}>Esc</kbd>
+        </div>
+
+        {/* Results */}
+        <div ref={listRef} style={{ maxHeight: 360, overflowY: "auto" }}>
+          {!query.trim() && (
+            <div style={{ padding: "24px 18px", textAlign: "center" }}>
+              <div style={{ fontSize: 12, color: MUTED, marginBottom: 16 }}>Search across members, transactions, and more</div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                {["username", "email", "phone"].map(hint => (
+                  <span key={hint} style={{ fontSize: 11, color: MUTED, background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "4px 10px" }}>
+                    {hint}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {query.trim() && searching && results.length === 0 && (
+            <div style={{ padding: "12px 0" }}>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} style={{ display: "flex", gap: 12, padding: "12px 18px", alignItems: "center" }}>
+                  <Skeleton width={32} height={32} borderRadius={8} />
+                  <div style={{ flex: 1 }}>
+                    <Skeleton width="40%" height={12} style={{ marginBottom: 6 }} />
+                    <Skeleton width="60%" height={10} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {query.trim() && !searching && results.length === 0 && (
+            <div style={{ padding: "32px 18px", textAlign: "center", fontSize: 13, color: MUTED }}>
+              No results for "{query}"
+            </div>
+          )}
+
+          {results.length > 0 && (
+            <div>
+              <div style={{ padding: "10px 18px 4px", fontSize: 9, fontWeight: 700, color: MUTED, letterSpacing: "0.1em" }}>
+                MEMBERS ({results.length})
+              </div>
+              {results.map((u, i) => (
+                <div
+                  key={u.id}
+                  onClick={() => { setLocation("/admin/members"); onClose(); }}
+                  onMouseEnter={() => setFocused(i)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "10px 18px", cursor: "pointer",
+                    background: focused === i ? "rgba(255,255,255,0.05)" : "transparent",
+                    transition: "background 0.1s",
+                  }}
+                >
+                  <div style={{
+                    width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+                    background: "rgba(212,175,55,0.1)", border: "1.5px solid rgba(212,175,55,0.2)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 12, fontWeight: 700, color: GOLD_L,
+                  }}>
+                    {(u.firstName?.[0] ?? u.username[0]).toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.9)", marginBottom: 2 }}>
+                      @{u.username}
+                      {u.firstName && <span style={{ fontWeight: 400, color: MUTED }}> — {u.firstName} {u.lastName ?? ""}</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: MUTED, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700,
+                      color: u.status === "ACTIVE" ? "#34d399" : u.status === "SUSPENDED" ? "#f87171" : MUTED,
+                      background: u.status === "ACTIVE" ? "rgba(52,211,153,0.12)" : u.status === "SUSPENDED" ? "rgba(248,113,113,0.12)" : "rgba(170,179,197,0.08)",
+                      padding: "2px 7px", borderRadius: 4,
+                    }}>{u.status}</span>
+                    <ArrowRight size={12} style={{ color: MUTED }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "10px 18px", borderTop: `1px solid ${BORDER}`, display: "flex", gap: 16 }}>
+          {[["↑↓", "navigate"], ["↵", "open"], ["esc", "close"]].map(([key, label]) => (
+            <div key={key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <kbd style={{ fontSize: 10, color: MUTED, background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "1px 5px" }}>{key}</kbd>
+              <span style={{ fontSize: 10, color: MUTED }}>{label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+});
+
+/* ── Top navbar ─────────────────────────────────────────────────────────────── */
+
+function TopNavbar({
+  sidebarOpen, onToggle, onSearchOpen,
+}: { sidebarOpen: boolean; onToggle: () => void; onSearchOpen: () => void }) {
   const [time, setTime] = useState(() => new Date());
   const [health] = useState<"ok" | "warn">("ok");
 
@@ -108,7 +317,7 @@ function TopNavbar({ sidebarOpen, onToggle }: { sidebarOpen: boolean; onToggle: 
     return () => clearInterval(t);
   }, []);
 
-  const fmt = time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const fmt     = time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const fmtDate = time.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
   return (
@@ -122,6 +331,7 @@ function TopNavbar({ sidebarOpen, onToggle }: { sidebarOpen: boolean; onToggle: 
     }}>
       <button
         onClick={onToggle}
+        aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
         style={{
           background: "none", border: "none", cursor: "pointer",
           color: MUTED, padding: 4, borderRadius: 6, display: "flex",
@@ -131,22 +341,21 @@ function TopNavbar({ sidebarOpen, onToggle }: { sidebarOpen: boolean; onToggle: 
         {sidebarOpen ? <X size={16} /> : <Menu size={16} />}
       </button>
 
-      {/* Search */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`,
-        borderRadius: 7, padding: "5px 10px", flex: 1, maxWidth: 320,
-      }}>
-        <Search size={13} style={{ color: MUTED, flexShrink: 0 }} />
-        <input
-          placeholder="Search members, transactions..."
-          style={{
-            background: "none", border: "none", outline: "none",
-            fontSize: 12, color: "rgba(255,255,255,0.7)", width: "100%",
-          }}
-        />
-        <span style={{ fontSize: 10, color: MUTED, flexShrink: 0, fontFamily: "monospace" }}>⌘K</span>
-      </div>
+      {/* Search trigger */}
+      <button
+        onClick={onSearchOpen}
+        aria-label="Open global search (⌘K)"
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`,
+          borderRadius: 7, padding: "5px 10px", flex: 1, maxWidth: 320,
+          cursor: "text", textAlign: "left",
+        }}
+      >
+        <Search size={13} style={{ color: MUTED, flexShrink: 0 }} aria-hidden="true" />
+        <span style={{ fontSize: 12, color: MUTED, flex: 1 }}>Search members, transactions…</span>
+        <kbd style={{ fontSize: 10, color: MUTED, flexShrink: 0, fontFamily: "monospace", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 4, padding: "1px 5px" }}>⌘K</kbd>
+      </button>
 
       <div style={{ flex: 1 }} />
 
@@ -161,7 +370,7 @@ function TopNavbar({ sidebarOpen, onToggle }: { sidebarOpen: boolean; onToggle: 
           width: 6, height: 6, borderRadius: "50%",
           background: health === "ok" ? "#34d399" : "#fbbf24",
           boxShadow: health === "ok" ? "0 0 6px #34d39970" : "0 0 6px #fbbf2470",
-        }} />
+        }} aria-hidden="true" />
         <span style={{ fontSize: 11, color: health === "ok" ? "#34d399" : "#fbbf24", fontWeight: 600 }}>
           {health === "ok" ? "All Systems" : "Degraded"}
         </span>
@@ -174,7 +383,7 @@ function TopNavbar({ sidebarOpen, onToggle }: { sidebarOpen: boolean; onToggle: 
       </div>
 
       {/* Notification bell */}
-      <div style={{ position: "relative", cursor: "pointer" }}>
+      <div style={{ position: "relative", cursor: "pointer" }} role="button" aria-label="Notifications">
         <Bell size={16} style={{ color: MUTED }} />
         <div style={{
           position: "absolute", top: -4, right: -4,
@@ -191,113 +400,142 @@ function TopNavbar({ sidebarOpen, onToggle }: { sidebarOpen: boolean; onToggle: 
         border: `1.5px solid rgba(212,175,55,0.3)`,
         display: "flex", alignItems: "center", justifyContent: "center",
         cursor: "pointer",
-      }}>
+      }} aria-label="Admin menu" role="button">
         <Shield size={14} style={{ color: GOLD }} />
       </div>
     </div>
   );
 }
 
+/* ── Layout ─────────────────────────────────────────────────────────────────── */
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
+  const [location]    = useLocation();
+  const [collapsed,   setCollapsed]   = useState(false);
+  const [searchOpen,  setSearchOpen]  = useState(false);
   const { authLogout } = useAuth();
 
   const toggle = useCallback(() => setCollapsed(c => !c), []);
   const sidebarW = collapsed ? 52 : 210;
 
+  // ⌘K / Ctrl+K global shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   return (
-    <div style={{ display: "flex", height: "100vh", background: "hsl(222 62% 7%)", overflow: "hidden" }}>
-      {/* Sidebar */}
-      <aside style={{
-        width: sidebarW, flexShrink: 0,
-        background: BG_SIDEBAR,
-        borderRight: `1px solid ${BORDER}`,
-        display: "flex", flexDirection: "column",
-        transition: "width 0.2s ease",
-        overflowY: "auto", overflowX: "hidden",
-      }}>
-        {/* Brand */}
-        <div style={{
-          height: 52, display: "flex", alignItems: "center",
-          padding: collapsed ? "0" : "0 16px",
-          justifyContent: collapsed ? "center" : "flex-start",
-          borderBottom: `1px solid ${BORDER}`, flexShrink: 0,
-          gap: 8,
-        }}>
+    <>
+      <SkeletonStyle />
+      <div style={{ display: "flex", height: "100vh", background: "hsl(222 62% 7%)", overflow: "hidden" }}>
+        {/* Sidebar */}
+        <aside
+          role="navigation"
+          aria-label="Admin navigation"
+          style={{
+            width: sidebarW, flexShrink: 0,
+            background: BG_SIDEBAR,
+            borderRight: `1px solid ${BORDER}`,
+            display: "flex", flexDirection: "column",
+            transition: "width 0.2s ease",
+            overflowY: "auto", overflowX: "hidden",
+          }}
+        >
+          {/* Brand */}
           <div style={{
-            width: 26, height: 26, borderRadius: 7, flexShrink: 0,
-            background: "rgba(212,175,55,0.15)",
-            border: `1px solid rgba(212,175,55,0.3)`,
-            display: "flex", alignItems: "center", justifyContent: "center",
+            height: 52, display: "flex", alignItems: "center",
+            padding: collapsed ? "0" : "0 16px",
+            justifyContent: collapsed ? "center" : "flex-start",
+            borderBottom: `1px solid ${BORDER}`, flexShrink: 0,
+            gap: 8,
           }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: GOLD }}>PW</span>
-          </div>
-          {!collapsed && (
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: GOLD_L, lineHeight: 1.2 }}>Prime Wave</div>
-              <div style={{ fontSize: 9, color: MUTED, letterSpacing: "0.08em" }}>CONTROL CENTER</div>
+            <div style={{
+              width: 26, height: 26, borderRadius: 7, flexShrink: 0,
+              background: "rgba(212,175,55,0.15)",
+              border: `1px solid rgba(212,175,55,0.3)`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: GOLD }}>PW</span>
             </div>
-          )}
-        </div>
-
-        {/* Nav groups */}
-        <div style={{ flex: 1, padding: collapsed ? "8px 4px" : "8px 8px", overflowY: "auto" }}>
-          {NAV_GROUPS.map(group => (
-            <div key={group.label} style={{ marginBottom: 8 }}>
-              {!collapsed && (
-                <div style={{
-                  fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
-                  color: "rgba(170,179,197,0.28)", padding: "6px 12px 4px",
-                }}>{group.label}</div>
-              )}
-              {group.items.map(item => (
-                <SidebarItem
-                  key={item.path}
-                  icon={item.icon}
-                  label={item.label}
-                  path={item.path}
-                  active={location === item.path}
-                  collapsed={collapsed}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
-
-        {/* Logout */}
-        <div style={{ padding: collapsed ? "8px 4px" : "8px 8px", borderTop: `1px solid ${BORDER}`, flexShrink: 0 }}>
-          <div
-            style={{
-              display: "flex", alignItems: "center", gap: 9,
-              padding: collapsed ? "9px 0" : "9px 12px",
-              justifyContent: collapsed ? "center" : "flex-start",
-              borderRadius: 7, cursor: "pointer", color: MUTED,
-              transition: "all 0.15s",
-            }}
-            onClick={authLogout}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLDivElement).style.color = "#f87171";
-              (e.currentTarget as HTMLDivElement).style.background = "rgba(248,113,113,0.06)";
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLDivElement).style.color = MUTED;
-              (e.currentTarget as HTMLDivElement).style.background = "transparent";
-            }}
-          >
-            <LogOut size={14} style={{ flexShrink: 0 }} />
-            {!collapsed && <span style={{ fontSize: 12.5, fontWeight: 400 }}>Logout</span>}
+            {!collapsed && (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: GOLD_L, lineHeight: 1.2 }}>Prime Wave</div>
+                <div style={{ fontSize: 9, color: MUTED, letterSpacing: "0.08em" }}>CONTROL CENTER</div>
+              </div>
+            )}
           </div>
-        </div>
-      </aside>
 
-      {/* Main area */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
-        <TopNavbar sidebarOpen={!collapsed} onToggle={toggle} />
-        <main style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
-          {children}
-        </main>
+          {/* Nav groups */}
+          <div style={{ flex: 1, padding: collapsed ? "8px 4px" : "8px 8px", overflowY: "auto" }}>
+            {NAV_GROUPS.map(group => (
+              <div key={group.label} style={{ marginBottom: 8 }} role="group" aria-label={group.label}>
+                {!collapsed && (
+                  <div style={{
+                    fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
+                    color: "rgba(170,179,197,0.28)", padding: "6px 12px 4px",
+                  }}>{group.label}</div>
+                )}
+                {group.items.map(item => (
+                  <SidebarItem
+                    key={item.path}
+                    icon={item.icon}
+                    label={item.label}
+                    path={item.path}
+                    active={location === item.path}
+                    collapsed={collapsed}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Logout */}
+          <div style={{ padding: collapsed ? "8px 4px" : "8px 8px", borderTop: `1px solid ${BORDER}`, flexShrink: 0 }}>
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="Logout"
+              style={{
+                display: "flex", alignItems: "center", gap: 9,
+                padding: collapsed ? "9px 0" : "9px 12px",
+                justifyContent: collapsed ? "center" : "flex-start",
+                borderRadius: 7, cursor: "pointer", color: MUTED,
+                transition: "all 0.15s", outline: "none",
+              }}
+              onClick={authLogout}
+              onKeyDown={e => { if (e.key === "Enter") authLogout(); }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLDivElement).style.color = "#f87171";
+                (e.currentTarget as HTMLDivElement).style.background = "rgba(248,113,113,0.06)";
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLDivElement).style.color = MUTED;
+                (e.currentTarget as HTMLDivElement).style.background = "transparent";
+              }}
+            >
+              <LogOut size={14} style={{ flexShrink: 0 }} aria-hidden="true" />
+              {!collapsed && <span style={{ fontSize: 12.5, fontWeight: 400 }}>Logout</span>}
+            </div>
+          </div>
+        </aside>
+
+        {/* Main area */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+          <TopNavbar sidebarOpen={!collapsed} onToggle={toggle} onSearchOpen={() => setSearchOpen(true)} />
+          <main style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }} id="main-content">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+
+      {/* Global search overlay */}
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+    </>
   );
 }

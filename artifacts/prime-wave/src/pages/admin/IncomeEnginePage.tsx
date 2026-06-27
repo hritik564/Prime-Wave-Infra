@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, memo } from "react";
 import AdminLayout from "./AdminLayout";
+import { Skeleton, SkeletonRows } from "@/components/admin/Skeleton";
 import EngineDrawer, {
   EngineRecord, EngineStatus, EngineRun, RecentPayout, EngineWarning, EngineAuditEntry,
 } from "./EngineDrawer";
@@ -229,7 +230,11 @@ function ReleaseMonitor({ items, loading }: { items: ReleaseQueueItem[]; loading
       </div>
       <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, marginBottom: 10, letterSpacing: "0.07em" }}>RELEASE QUEUE</div>
       {loading ? (
-        <div style={{ fontSize: 12, color: MUTED, textAlign: "center", padding: "16px 0" }}>Loading…</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "6px 0" }}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} height={44} borderRadius={8} />
+          ))}
+        </div>
       ) : items.length === 0 ? (
         <div style={{ fontSize: 12, color: "#34d399", textAlign: "center", padding: "16px 0" }}>
           <CheckCircle size={16} style={{ display: "block", margin: "0 auto 6px" }} />
@@ -575,16 +580,18 @@ export default function IncomeEnginePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {engines.map(eng => (
-                    <EngineRow key={eng.id} eng={eng}
-                      onView={setDrawer}
-                      onRun={handleRun}
-                      onPause={handlePause}
-                      onResume={handleResume}
-                      hovered={hovered === eng.id}
-                      onHover={setHovered}
-                    />
-                  ))}
+                  {loading && engines.length === 0
+                    ? <SkeletonRows rows={6} cols={8} />
+                    : engines.map(eng => (
+                        <EngineRow key={eng.id} eng={eng}
+                          onView={setDrawer}
+                          onRun={handleRun}
+                          onPause={handlePause}
+                          onResume={handleResume}
+                          hovered={hovered === eng.id}
+                          onHover={setHovered}
+                        />
+                      ))}
                 </tbody>
               </table>
             </div>
