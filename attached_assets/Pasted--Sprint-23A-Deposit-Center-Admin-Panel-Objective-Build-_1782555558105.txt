@@ -1,0 +1,363 @@
+# Sprint 23A — Deposit Center (Admin Panel)
+
+Objective
+
+Build a dedicated Deposit Center for the Prime Wave Admin Panel.
+
+This module will become the operational center for all user deposits.
+
+IMPORTANT
+
+Do NOT redesign the Admin Panel.
+
+Follow the same design language used by:
+
+• Withdrawal Center
+
+• Investment Center
+
+• Wallet Control Center
+
+The Deposit Center should feel like a native part of the existing Admin Panel.
+
+--------------------------------------------------------
+Business Rules (LOCKED)
+--------------------------------------------------------
+
+A user deposit follows this lifecycle:
+
+Deposit Created
+
+↓
+
+Pending
+
+↓
+
+Finance Review
+
+↓
+
+Approved
+
+↓
+
+Deposit Wallet Credited
+
+↓
+
+Ledger Entry Created
+
+↓
+
+Audit Log Created
+
+↓
+
+User Notification
+
+The Deposit Center must support BOTH:
+
+• Manual approval (current)
+
+• Automatic approval via payment gateway/webhook (future)
+
+The UI should already support both workflows.
+
+--------------------------------------------------------
+Dashboard
+--------------------------------------------------------
+
+Create dashboard KPI cards.
+
+Display:
+
+• Pending Deposits
+
+• Approved Today
+
+• Rejected Today
+
+• Total Deposit Volume
+
+• Average Deposit
+
+• Largest Deposit
+
+• Pending Deposit Value
+
+--------------------------------------------------------
+Deposit Queue
+--------------------------------------------------------
+
+Create a responsive table.
+
+Columns:
+
+• Deposit ID
+
+• Username
+
+• Network
+
+• Amount
+
+• Wallet Address
+
+• Transaction Hash (TXID)
+
+• Created Time
+
+• Current Status
+
+Support:
+
+• Search
+
+• Pagination
+
+• Sorting
+
+• Filtering
+
+--------------------------------------------------------
+Supported Networks
+--------------------------------------------------------
+
+Prepare the system for:
+
+• USDT (BEP20)
+
+• USDT (TRC20)
+
+• USDT (ERC20)
+
+• USDT (SOL)
+
+--------------------------------------------------------
+Status Flow
+--------------------------------------------------------
+
+Support:
+
+Pending
+
+Confirming
+
+Approved
+
+Rejected
+
+Expired
+
+Future payment gateway integrations should automatically move records through these states.
+
+--------------------------------------------------------
+Deposit Drawer
+--------------------------------------------------------
+
+Display:
+
+Deposit Summary
+
+Member Information
+
+Amount
+
+Network
+
+Wallet Address
+
+Transaction Hash
+
+Blockchain Confirmation Status
+
+Deposit Timeline
+
+Audit Log
+
+Admin Notes
+
+Deposit Source
+
+--------------------------------------------------------
+Deposit Source
+--------------------------------------------------------
+
+Display:
+
+Manual
+
+Automatic
+
+Future automatic payment gateway integrations should populate this automatically.
+
+--------------------------------------------------------
+Admin Actions
+--------------------------------------------------------
+
+Support:
+
+Approve Deposit
+
+Reject Deposit
+
+Mark as Confirming
+
+View Blockchain Transaction
+
+Approve:
+
+Credits Deposit Wallet automatically.
+
+Reject:
+
+Requires rejection reason.
+
+Mark as Confirming:
+
+Updates status only.
+
+--------------------------------------------------------
+Approval Behaviour
+--------------------------------------------------------
+
+When a deposit is approved:
+
+Automatically:
+
+• Credit Deposit Wallet
+
+• Create Wallet Ledger Entry
+
+• Create Audit Log
+
+• Create Notification
+
+• Update Deposit Status
+
+No manual wallet credit should be required.
+
+--------------------------------------------------------
+Manual Wallet Credits
+--------------------------------------------------------
+
+Do NOT remove the existing Manual Wallet Credit tool.
+
+However:
+
+Normal deposits should flow ONLY through the Deposit Center.
+
+Manual Wallet Credit remains an emergency administrative tool.
+
+--------------------------------------------------------
+Audit
+--------------------------------------------------------
+
+Record:
+
+Deposit Created
+
+Status Changes
+
+Approver
+
+Approval Time
+
+Wallet Credit
+
+Network
+
+Transaction Hash
+
+Amount
+
+Source
+
+--------------------------------------------------------
+Search
+--------------------------------------------------------
+
+Support searching by:
+
+Username
+
+Deposit ID
+
+Transaction Hash
+
+Wallet Address
+
+--------------------------------------------------------
+Performance
+--------------------------------------------------------
+
+Lazy load drawer.
+
+Avoid duplicate API requests.
+
+Refresh only affected rows.
+
+--------------------------------------------------------
+Validation
+--------------------------------------------------------
+
+Verify:
+
+✓ Deposit Center appears in Admin Sidebar.
+
+✓ Dashboard loads correctly.
+
+✓ Deposit queue works.
+
+✓ Search works.
+
+✓ Filters work.
+
+✓ Deposit drawer loads.
+
+✓ Approve credits Deposit Wallet.
+
+✓ Reject requires reason.
+
+✓ Confirming updates correctly.
+
+✓ Audit log updates.
+
+✓ Notification created.
+
+✓ Existing Admin Panel remains unchanged.
+
+--------------------------------------------------------
+Future Compatibility
+--------------------------------------------------------
+
+The architecture must support future crypto payment gateway integration.
+
+When automatic deposits are implemented:
+
+Payment Gateway
+
+↓
+
+Blockchain Confirmation
+
+↓
+
+Webhook
+
+↓
+
+Deposit automatically Approved
+
+↓
+
+Deposit Wallet Credited
+
+without requiring UI redesign.
+
+--------------------------------------------------------
+Goal
+--------------------------------------------------------
+
+Create a production-ready Deposit Center that completes Prime Wave's financial lifecycle by providing a dedicated operational module for reviewing, approving, tracking and auditing user deposits while remaining fully compatible with future automated crypto payment processing.

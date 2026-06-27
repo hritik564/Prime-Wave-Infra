@@ -21,6 +21,7 @@ import { lazy, Suspense } from "react";
 const AdminDashboardPage     = lazy(() => import("@/pages/admin/AdminDashboardPage"));
 const AdminMembersPage       = lazy(() => import("@/pages/admin/MembersPage"));
 const AdminInvestmentsPage   = lazy(() => import("@/pages/admin/InvestmentsPage"));
+const AdminDepositsPage      = lazy(() => import("@/pages/admin/DepositsPage"));
 const AdminWithdrawalsPage   = lazy(() => import("@/pages/admin/WithdrawalsPage"));
 const AdminWalletsPage       = lazy(() => import("@/pages/admin/WalletsPage"));
 const AdminBinaryNetworkPage = lazy(() => import("@/pages/admin/BinaryNetworkPage"));
@@ -181,6 +182,9 @@ function AppRoutes() {
       </Route>
       <Route path="/admin/investments">
         <RequireAdmin><Suspense fallback={null}><AdminInvestmentsPage /></Suspense></RequireAdmin>
+      </Route>
+      <Route path="/admin/deposits">
+        <RequireAdmin><Suspense fallback={null}><AdminDepositsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/withdrawals">
         <RequireAdmin><Suspense fallback={null}><AdminWithdrawalsPage /></Suspense></RequireAdmin>

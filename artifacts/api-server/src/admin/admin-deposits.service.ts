@@ -5,87 +5,189 @@ import { HTTP_STATUS } from "../shared/constants";
 import type { AdminDepositListQuery, RejectDepositInput } from "../deposits/deposits.schema";
 import { notificationService } from "../notifications/notifications.service";
 
-// ── Pending deposits list ─────────────────────────────────────────────────────
+// ── Shared select ─────────────────────────────────────────────────────────────
 
-const pendingSelect = {
-  id:            true,
-  amount:        true,
-  network:       true,
-  txHash:        true,
-  screenshotUrl: true,
-  companyWallet: true,
-  status:        true,
-  createdAt:     true,
+const depositListSelect = {
+  id:             true,
+  amount:         true,
+  network:        true,
+  txHash:         true,
+  screenshotUrl:  true,
+  companyWallet:  true,
+  status:         true,
+  approvedAt:     true,
+  rejectedReason: true,
+  createdAt:      true,
   user: {
     select: { id: true, username: true, email: true, firstName: true, lastName: true },
   },
+  approver: {
+    select: { id: true, email: true, firstName: true, lastName: true },
+  },
 } as const;
 
-export async function getPendingDeposits(query: AdminDepositListQuery) {
-  const { page, limit, network } = query;
+// ── Full deposit list (all statuses) ─────────────────────────────────────────
+
+export async function getAdminDeposits(query: AdminDepositListQuery) {
+  const { page, limit, status, network, search, sortBy, sortOrder } = query;
   const skip = (page - 1) * limit;
 
   const where: Prisma.DepositRequestWhereInput = {
-    status: "PENDING",
+    ...(status  && { status }),
     ...(network && { network }),
+    ...(search  && {
+      OR: [
+        { user: { username: { contains: search, mode: "insensitive" } } },
+        { id:          { contains: search, mode: "insensitive" } },
+        { txHash:      { contains: search, mode: "insensitive" } },
+        { companyWallet: { contains: search, mode: "insensitive" } },
+      ],
+    }),
   };
 
+  const orderBy: Prisma.DepositRequestOrderByWithRelationInput =
+    sortBy === "amount"
+      ? { amount: sortOrder }
+      : { createdAt: sortOrder };
+
   const [records, total] = await prisma.$transaction([
-    prisma.depositRequest.findMany({
-      where,
-      orderBy: { createdAt: "asc" },   // oldest first — FIFO review queue
-      skip,
-      take:    limit,
-      select:  pendingSelect,
-    }),
+    prisma.depositRequest.findMany({ where, orderBy, skip, take: limit, select: depositListSelect }),
     prisma.depositRequest.count({ where }),
   ]);
 
   const totalPages = Math.ceil(total / limit);
-
   return {
     data: records,
     meta: { total, page, limit, totalPages, hasNextPage: page < totalPages, hasPrevPage: page > 1 },
   };
 }
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
+// ── Single deposit detail ─────────────────────────────────────────────────────
+
+export async function getDepositById(depositId: string) {
+  const deposit = await prisma.depositRequest.findUnique({
+    where:  { id: depositId },
+    select: {
+      ...depositListSelect,
+      user: {
+        select: {
+          id:           true,
+          username:     true,
+          email:        true,
+          firstName:    true,
+          lastName:     true,
+          status:       true,
+          referralCode: true,
+          wallet: {
+            select: {
+              depositWallet:    true,
+              incomeWallet:     true,
+              withdrawalWallet: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!deposit) {
+    throw new AppError("Deposit not found", HTTP_STATUS.NOT_FOUND, "DEPOSIT_NOT_FOUND");
+  }
+
+  return deposit;
+}
+
+// ── Pending deposits (legacy queue view) ──────────────────────────────────────
+
+export async function getPendingDeposits(query: AdminDepositListQuery) {
+  return getAdminDeposits({ ...query, status: "PENDING" });
+}
+
+// ── Enhanced stats ────────────────────────────────────────────────────────────
 
 export async function getDepositStats() {
-  const [pending, approved, rejected, approvedAgg] = await prisma.$transaction([
+  const now          = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfToday   = new Date(startOfToday.getTime() + 86_400_000);
+
+  const [
+    pendingCount,
+    confirmingCount,
+    approvedToday,
+    rejectedToday,
+    totalAgg,
+    avgAgg,
+    largestAgg,
+    pendingValueAgg,
+  ] = await prisma.$transaction([
     prisma.depositRequest.count({ where: { status: "PENDING" } }),
-    prisma.depositRequest.count({ where: { status: "APPROVED" } }),
-    prisma.depositRequest.count({ where: { status: "REJECTED" } }),
-    prisma.depositRequest.aggregate({
-      where: { status: "APPROVED" },
-      _sum:  { amount: true },
-    }),
+    prisma.depositRequest.count({ where: { status: "CONFIRMING" } }),
+    prisma.depositRequest.count({ where: { status: "APPROVED", approvedAt: { gte: startOfToday, lt: endOfToday } } }),
+    prisma.depositRequest.count({ where: { status: "REJECTED", createdAt:  { gte: startOfToday, lt: endOfToday } } }),
+    prisma.depositRequest.aggregate({ where: { status: "APPROVED" }, _sum: { amount: true } }),
+    prisma.depositRequest.aggregate({ where: { status: "APPROVED" }, _avg: { amount: true } }),
+    prisma.depositRequest.aggregate({ where: { status: "APPROVED" }, _max: { amount: true } }),
+    prisma.depositRequest.aggregate({ where: { status: { in: ["PENDING", "CONFIRMING"] } }, _sum: { amount: true } }),
   ]);
 
   return {
-    counts: {
-      pending,
-      approved,
-      rejected,
-      total: pending + approved + rejected,
-    },
-    totalApprovedAmount: approvedAgg._sum.amount ?? new Prisma.Decimal(0),
+    pendingCount,
+    confirmingCount,
+    approvedToday,
+    rejectedToday,
+    totalApprovedAmount: (totalAgg._sum.amount   ?? new Prisma.Decimal(0)).toString(),
+    avgDepositAmount:    (avgAgg._avg.amount      ?? new Prisma.Decimal(0)).toString(),
+    largestDeposit:      (largestAgg._max.amount  ?? new Prisma.Decimal(0)).toString(),
+    pendingDepositValue: (pendingValueAgg._sum.amount ?? new Prisma.Decimal(0)).toString(),
   };
+}
+
+// ── Mark Confirming ───────────────────────────────────────────────────────────
+
+export async function markDepositConfirming(adminId: string, depositId: string) {
+  const deposit = await prisma.depositRequest.findUnique({
+    where:  { id: depositId },
+    select: { id: true, userId: true, status: true, amount: true, network: true, txHash: true },
+  });
+
+  if (!deposit) {
+    throw new AppError("Deposit not found", HTTP_STATUS.NOT_FOUND, "DEPOSIT_NOT_FOUND");
+  }
+  if (deposit.status !== "PENDING") {
+    throw new AppError(
+      "Only PENDING deposits can be marked as confirming",
+      HTTP_STATUS.CONFLICT,
+      "DEPOSIT_NOT_PENDING",
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.depositRequest.update({
+      where: { id: depositId },
+      data:  { status: "CONFIRMING" },
+    });
+
+    await tx.adminLog.create({
+      data: {
+        adminId,
+        action:       "DEPOSIT_CONFIRMING",
+        targetUserId: deposit.userId,
+        details: {
+          depositId,
+          amount:  deposit.amount.toString(),
+          network: deposit.network,
+          txHash:  deposit.txHash,
+        },
+      },
+    });
+  });
+
+  return { depositId, status: "CONFIRMING" };
 }
 
 // ── Approve ───────────────────────────────────────────────────────────────────
 
-/**
- * Approves a PENDING deposit request.
- *
- * Atomically:
- *   1. Marks deposit APPROVED.
- *   2. Credits user's depositWallet.
- *   3. Creates WalletTransaction (type DEPOSIT).
- *   4. Creates AdminLog.
- */
 export async function approveDeposit(adminId: string, depositId: string) {
-  // Load deposit outside transaction — fail fast if wrong state
   const deposit = await prisma.depositRequest.findUnique({
     where:  { id: depositId },
     select: { id: true, userId: true, amount: true, status: true, txHash: true, network: true },
@@ -94,35 +196,28 @@ export async function approveDeposit(adminId: string, depositId: string) {
   if (!deposit) {
     throw new AppError("Deposit not found", HTTP_STATUS.NOT_FOUND, "DEPOSIT_NOT_FOUND");
   }
-  if (deposit.status !== "PENDING") {
+  if (deposit.status !== "PENDING" && deposit.status !== "CONFIRMING") {
     throw new AppError(
       `Deposit is already ${deposit.status.toLowerCase()}`,
       HTTP_STATUS.CONFLICT,
-      "DEPOSIT_NOT_PENDING",
+      "DEPOSIT_NOT_APPROVABLE",
     );
   }
 
   const approvedAt = new Date();
 
   await prisma.$transaction(async (tx) => {
-    // 1. Mark approved
     await tx.depositRequest.update({
       where: { id: depositId },
-      data: {
-        status:            "APPROVED",
-        approvedByAdminId: adminId,
-        approvedAt,
-      },
+      data:  { status: "APPROVED", approvedByAdminId: adminId, approvedAt },
     });
 
-    // 2. Credit deposit wallet
     const wallet = await tx.wallet.update({
-      where: { userId: deposit.userId },
-      data:  { depositWallet: { increment: deposit.amount } },
+      where:  { userId: deposit.userId },
+      data:   { depositWallet: { increment: deposit.amount } },
       select: { id: true },
     });
 
-    // 3. WalletTransaction record
     await tx.walletTransaction.create({
       data: {
         walletId:    wallet.id,
@@ -135,7 +230,6 @@ export async function approveDeposit(adminId: string, depositId: string) {
       },
     });
 
-    // 4. AdminLog
     await tx.adminLog.create({
       data: {
         adminId,
@@ -152,10 +246,10 @@ export async function approveDeposit(adminId: string, depositId: string) {
   });
 
   void notificationService.create({
-    userId:  deposit.userId,
-    type:    "DEPOSIT_APPROVED",
-    title:   "Deposit Approved",
-    message: `Your deposit of $${deposit.amount.toFixed(2)} (${deposit.network}) has been approved and credited to your account.`,
+    userId:   deposit.userId,
+    type:     "DEPOSIT_APPROVED",
+    title:    "Deposit Approved",
+    message:  `Your deposit of $${deposit.amount.toFixed(2)} (${deposit.network}) has been approved and credited to your account.`,
     metadata: { depositId, amount: deposit.amount.toString(), network: deposit.network },
   });
 
@@ -164,10 +258,6 @@ export async function approveDeposit(adminId: string, depositId: string) {
 
 // ── Reject ────────────────────────────────────────────────────────────────────
 
-/**
- * Rejects a PENDING deposit request with a mandatory reason.
- * No wallet changes — only status update + AdminLog.
- */
 export async function rejectDeposit(
   adminId:   string,
   depositId: string,
@@ -181,21 +271,18 @@ export async function rejectDeposit(
   if (!deposit) {
     throw new AppError("Deposit not found", HTTP_STATUS.NOT_FOUND, "DEPOSIT_NOT_FOUND");
   }
-  if (deposit.status !== "PENDING") {
+  if (deposit.status !== "PENDING" && deposit.status !== "CONFIRMING") {
     throw new AppError(
       `Deposit is already ${deposit.status.toLowerCase()}`,
       HTTP_STATUS.CONFLICT,
-      "DEPOSIT_NOT_PENDING",
+      "DEPOSIT_NOT_REJECTABLE",
     );
   }
 
   await prisma.$transaction(async (tx) => {
     await tx.depositRequest.update({
       where: { id: depositId },
-      data: {
-        status:         "REJECTED",
-        rejectedReason: input.rejectedReason,
-      },
+      data:  { status: "REJECTED", rejectedReason: input.rejectedReason },
     });
 
     await tx.adminLog.create({
@@ -215,10 +302,10 @@ export async function rejectDeposit(
   });
 
   void notificationService.create({
-    userId:  deposit.userId,
-    type:    "DEPOSIT_REJECTED",
-    title:   "Deposit Rejected",
-    message: `Your deposit of $${deposit.amount.toFixed(2)} (${deposit.network}) was rejected. Reason: ${input.rejectedReason}`,
+    userId:   deposit.userId,
+    type:     "DEPOSIT_REJECTED",
+    title:    "Deposit Rejected",
+    message:  `Your deposit of $${deposit.amount.toFixed(2)} (${deposit.network}) was rejected. Reason: ${input.rejectedReason}`,
     metadata: { depositId, amount: deposit.amount.toString(), network: deposit.network, reason: input.rejectedReason },
   });
 

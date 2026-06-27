@@ -1,14 +1,27 @@
 import type { Request, Response, NextFunction } from "express";
 import {
+  getAdminDeposits,
   getPendingDeposits,
+  getDepositById,
   getDepositStats,
   approveDeposit,
   rejectDeposit,
+  markDepositConfirming,
 } from "./admin-deposits.service";
 import { sendSuccess } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
 import type { AuthenticatedRequest } from "../shared/types";
 import type { AdminDepositListQuery, RejectDepositInput } from "../deposits/deposits.schema";
+
+export async function getAdminDepositsHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const query  = getParsed<AdminDepositListQuery>(res, "query");
+    const result = await getAdminDeposits(query);
+    sendSuccess(res, result, "Deposits fetched successfully");
+  } catch (err) { next(err); }
+}
 
 export async function getPendingDepositsHandler(
   req: Request, res: Response, next: NextFunction,
@@ -17,6 +30,16 @@ export async function getPendingDepositsHandler(
     const query  = getParsed<AdminDepositListQuery>(res, "query");
     const result = await getPendingDeposits(query);
     sendSuccess(res, result, "Pending deposits fetched successfully");
+  } catch (err) { next(err); }
+}
+
+export async function getDepositByIdHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const depositId = String(req.params["id"] ?? "");
+    const result    = await getDepositById(depositId);
+    sendSuccess(res, result, "Deposit fetched successfully");
   } catch (err) { next(err); }
 }
 
@@ -49,5 +72,16 @@ export async function rejectDepositHandler(
     const input     = req.body as RejectDepositInput;
     const result    = await rejectDeposit(user.sub, depositId, input);
     sendSuccess(res, result, "Deposit rejected successfully");
+  } catch (err) { next(err); }
+}
+
+export async function markDepositConfirmingHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const depositId = String(req.params["id"] ?? "");
+    const result    = await markDepositConfirming(user.sub, depositId);
+    sendSuccess(res, result, "Deposit marked as confirming");
   } catch (err) { next(err); }
 }

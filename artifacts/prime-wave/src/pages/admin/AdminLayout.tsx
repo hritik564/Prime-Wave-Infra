@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, TrendingUp, ArrowDownLeft, Wallet,
   GitBranch, Zap, Package, BarChart2, FileText, Headphones,
   Settings, LogOut, Bell, Search, Activity, Menu, X, Shield,
-  ArrowRight,
+  ArrowRight, ArrowDownToLine,
 } from "lucide-react";
 import { adminSearchUsers, type AdminUserListItem } from "@/lib/api";
 import { SkeletonStyle, Skeleton } from "@/components/admin/Skeleton";
@@ -27,10 +27,11 @@ const NAV_GROUPS = [
   {
     label: "MANAGEMENT",
     items: [
-      { icon: Users,         label: "Members",        path: "/admin/members" },
-      { icon: TrendingUp,    label: "Investments",    path: "/admin/investments" },
-      { icon: ArrowDownLeft, label: "Withdrawals",    path: "/admin/withdrawals" },
-      { icon: Wallet,        label: "Wallets",        path: "/admin/wallets" },
+      { icon: Users,           label: "Members",        path: "/admin/members" },
+      { icon: TrendingUp,      label: "Investments",    path: "/admin/investments" },
+      { icon: ArrowDownToLine, label: "Deposits",       path: "/admin/deposits" },
+      { icon: ArrowDownLeft,   label: "Withdrawals",    path: "/admin/withdrawals" },
+      { icon: Wallet,          label: "Wallets",        path: "/admin/wallets" },
     ],
   },
   {

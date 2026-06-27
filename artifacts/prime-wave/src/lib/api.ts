@@ -1415,6 +1415,108 @@ export function adminWalletAdjustment(
   );
 }
 
+/* ── Admin — Deposit Center ───────────────────────────────────────── */
+
+export type AdminDepositStatus = "PENDING" | "CONFIRMING" | "APPROVED" | "REJECTED";
+
+export interface AdminDepositItem {
+  id:             string;
+  amount:         string;
+  network:        "BEP20" | "ERC20" | "TRC20" | "SOL";
+  txHash:         string;
+  screenshotUrl:  string | null;
+  companyWallet:  string;
+  status:         AdminDepositStatus;
+  approvedAt:     string | null;
+  rejectedReason: string | null;
+  createdAt:      string;
+  user: {
+    id:        string;
+    username:  string;
+    email:     string;
+    firstName: string;
+    lastName:  string;
+  };
+  approver: {
+    id:        string;
+    email:     string;
+    firstName: string;
+    lastName:  string;
+  } | null;
+}
+
+export interface AdminDepositDetail extends AdminDepositItem {
+  user: AdminDepositItem["user"] & {
+    status:       string;
+    referralCode: string;
+    wallet: {
+      depositWallet:    string;
+      incomeWallet:     string;
+      withdrawalWallet: string;
+    } | null;
+  };
+}
+
+export interface AdminDepositStats {
+  pendingCount:        number;
+  confirmingCount:     number;
+  approvedToday:       number;
+  rejectedToday:       number;
+  totalApprovedAmount: string;
+  avgDepositAmount:    string;
+  largestDeposit:      string;
+  pendingDepositValue: string;
+}
+
+export function adminGetDeposits(params?: {
+  page?:      number;
+  limit?:     number;
+  status?:    AdminDepositStatus;
+  network?:   string;
+  search?:    string;
+  sortBy?:    "createdAt" | "amount";
+  sortOrder?: "asc" | "desc";
+}) {
+  const q = new URLSearchParams();
+  if (params?.page)      q.set("page",      String(params.page));
+  if (params?.limit)     q.set("limit",     String(params.limit));
+  if (params?.status)    q.set("status",    params.status);
+  if (params?.network)   q.set("network",   params.network);
+  if (params?.search)    q.set("search",    params.search);
+  if (params?.sortBy)    q.set("sortBy",    params.sortBy);
+  if (params?.sortOrder) q.set("sortOrder", params.sortOrder);
+  return request<{ data: AdminDepositItem[]; meta: ListMeta }>(`/api/admin/deposits?${q}`);
+}
+
+export function adminGetDepositStats() {
+  return request<AdminDepositStats>("/api/admin/deposits/stats");
+}
+
+export function adminGetDepositById(id: string) {
+  return request<AdminDepositDetail>(`/api/admin/deposits/${id}`);
+}
+
+export function adminApproveDeposit(id: string) {
+  return request<{ depositId: string; status: string; approvedAt: string }>(
+    `/api/admin/deposits/${id}/approve`,
+    { method: "POST" },
+  );
+}
+
+export function adminRejectDeposit(id: string, rejectedReason: string) {
+  return request<{ depositId: string; status: string }>(
+    `/api/admin/deposits/${id}/reject`,
+    { method: "POST", body: JSON.stringify({ rejectedReason }) },
+  );
+}
+
+export function adminMarkDepositConfirming(id: string) {
+  return request<{ depositId: string; status: string }>(
+    `/api/admin/deposits/${id}/mark-confirming`,
+    { method: "POST" },
+  );
+}
+
 /* ── Admin — Binary Network Control Center ────────────────────────── */
 
 export type AdminBinaryStatus   = "ACTIVE" | "INACTIVE" | "SUSPENDED";

@@ -8,10 +8,13 @@ import {
   updateSetting,
 } from "./admin.controller";
 import {
+  getAdminDepositsHandler,
   getPendingDepositsHandler,
+  getDepositByIdHandler,
   getDepositStatsHandler,
   approveDepositHandler,
   rejectDepositHandler,
+  markDepositConfirmingHandler,
 } from "./admin-deposits.controller";
 import {
   getAdminWithdrawalsHandler,
@@ -151,6 +154,21 @@ router.patch("/settings/:key", adminLimiter, requireAdminAuth, updateSetting);
 const financeAdminGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN");
 
 router.get(
+  "/deposits",
+  adminLimiter,
+  financeAdminGuard,
+  validate(adminDepositListQuerySchema, "query"),
+  getAdminDepositsHandler,
+);
+
+router.get(
+  "/deposits/stats",
+  adminLimiter,
+  financeAdminGuard,
+  getDepositStatsHandler,
+);
+
+router.get(
   "/deposits/pending",
   adminLimiter,
   financeAdminGuard,
@@ -159,10 +177,10 @@ router.get(
 );
 
 router.get(
-  "/deposits/stats",
+  "/deposits/:id",
   adminLimiter,
   financeAdminGuard,
-  getDepositStatsHandler,
+  getDepositByIdHandler,
 );
 
 router.post(
@@ -178,6 +196,13 @@ router.post(
   financeAdminGuard,
   validate(rejectDepositSchema, "body"),
   rejectDepositHandler,
+);
+
+router.post(
+  "/deposits/:id/mark-confirming",
+  adminLimiter,
+  financeAdminGuard,
+  markDepositConfirmingHandler,
 );
 
 // ── Dashboard — SUPER_ADMIN only ──────────────────────────────────────────────
