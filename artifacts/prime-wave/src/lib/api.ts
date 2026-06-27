@@ -1360,3 +1360,133 @@ export function adminWalletAdjustment(
     { method: "POST", body: JSON.stringify({ userId, walletType, amount, reason }) },
   );
 }
+
+/* ── Admin — Binary Network Control Center ────────────────────────── */
+
+export type AdminBinaryStatus   = "ACTIVE" | "INACTIVE" | "SUSPENDED";
+export type AdminBinaryRank     = "UNRANKED" | "STARTER" | "GROWTH" | "PRO" | "ELITE" | "PLATINUM" | "DIAMOND";
+export type AdminBinaryPosition = "LEFT" | "RIGHT";
+
+export interface AdminBinaryMatchEvent {
+  id:          string;
+  timestamp:   string;
+  leftBV:      number;
+  rightBV:     number;
+  matched:     number;
+  reward:      number;
+  carryForward:number;
+}
+
+export interface AdminBinaryEvent {
+  id:          string;
+  type:        "JOIN" | "MATCH" | "RANK_UP" | "CARRY_RESET" | "BV_CREDIT" | "PLACEMENT";
+  description: string;
+  timestamp:   string;
+  value?:      number;
+}
+
+export interface AdminBinaryWarning {
+  id:       string;
+  type:     "WEAK_LEFT" | "WEAK_RIGHT" | "INACTIVE_SPONSOR" | "NO_REFERRALS" | "HIGH_CARRY" | "LARGE_IMBALANCE";
+  message:  string;
+  severity: "warn" | "error";
+}
+
+export interface AdminBinaryAuditEntry {
+  id:        string;
+  timestamp: string;
+  admin:     string;
+  action:    string;
+  detail:    string;
+}
+
+export interface AdminBinaryNode {
+  id:                 string;
+  memberId:           string;
+  username:           string;
+  firstName:          string;
+  lastName:           string;
+  sponsor:            string;
+  sponsorUsername:    string;
+  position:           AdminBinaryPosition;
+  leftBV:             number;
+  rightBV:            number;
+  carryForward:       number;
+  rank:               AdminBinaryRank;
+  todayMatch:         number;
+  weeklyMatch:        number;
+  monthlyMatch:       number;
+  lifetimeMatch:      number;
+  status:             AdminBinaryStatus;
+  plan:               string | null;
+  directReferrals:    number;
+  parentUsername:     string | null;
+  leftChildUsername:  string | null;
+  rightChildUsername: string | null;
+  matchingHistory:    AdminBinaryMatchEvent[];
+  recentEvents:       AdminBinaryEvent[];
+  warnings:           AdminBinaryWarning[];
+  auditLog:           AdminBinaryAuditEntry[];
+  nextRank:           AdminBinaryRank | null;
+  rankProgress:       number;
+  rankRequirements:   { label: string; current: number; required: number }[];
+  adminNotes?:        string;
+}
+
+export interface AdminBinaryListResponse {
+  data: AdminBinaryNode[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+}
+
+export interface AdminBinaryStats {
+  totalMembers:   number;
+  activeMembers:  number;
+  totalLeftBV:    number;
+  totalRightBV:   number;
+  todayMatchedBV: number;
+  todayRewards:   number;
+  carryForwardBV: number;
+  networkHealth:  number;
+}
+
+export function getAdminBinaryNetwork(params: {
+  page?:      number;
+  limit?:     number;
+  search?:    string;
+  status?:    AdminBinaryStatus;
+  position?:  AdminBinaryPosition;
+  rank?:      string;
+  sortBy?:    "leftBV" | "rightBV" | "createdAt" | "directReferralCount";
+  sortOrder?: "asc" | "desc";
+}) {
+  const q = new URLSearchParams({ page: String(params.page ?? 1), limit: String(params.limit ?? 20) });
+  if (params.search)    q.set("search",    params.search);
+  if (params.status)    q.set("status",    params.status);
+  if (params.position)  q.set("position",  params.position);
+  if (params.rank)      q.set("rank",      params.rank);
+  if (params.sortBy)    q.set("sortBy",    params.sortBy);
+  if (params.sortOrder) q.set("sortOrder", params.sortOrder);
+  return request<AdminBinaryListResponse>(`/api/admin/binary/network?${q}`);
+}
+
+export function getAdminBinaryStats() {
+  return request<AdminBinaryStats>("/api/admin/binary/stats");
+}
+
+export function getAdminBinaryDetail(userId: string) {
+  return request<AdminBinaryNode>(`/api/admin/binary/${userId}`);
+}
+
+export function saveAdminBinaryNotes(userId: string, notes: string) {
+  return request<{ userId: string; username: string; notes: string }>(
+    `/api/admin/binary/${userId}/notes`,
+    { method: "PATCH", body: JSON.stringify({ notes }) },
+  );
+}
+
+export function adminTriggerMatching() {
+  return request<{ triggered: boolean }>(
+    "/api/admin/trigger/matching",
+    { method: "POST" },
+  );
+}

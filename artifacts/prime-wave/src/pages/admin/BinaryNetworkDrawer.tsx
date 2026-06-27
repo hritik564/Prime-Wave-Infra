@@ -1,4 +1,4 @@
-import { useState, memo } from "react";
+import { useState, memo, useCallback } from "react";
 import {
   X, GitBranch, TrendingUp, ShieldAlert, FileText, Clock,
   Activity, BarChart2, Star, AlertTriangle, ChevronRight,
@@ -52,6 +52,7 @@ export interface BinaryNode {
   nextRank: BinaryRank | null;
   rankProgress: number;
   rankRequirements: { label: string; current: number; required: number }[];
+  adminNotes?: string;
 }
 
 const $ = (n: number) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -384,13 +385,47 @@ function WarningsTab({ node }: { node: BinaryNode }) {
 }
 
 // ─── Audit Log tab ─────────────────────────────────────────────────────────────
-function AuditTab({ node }: { node: BinaryNode }) {
-  const [q, setQ] = useState("");
+function AuditTab({ node, onSaveNotes }: {
+  node: BinaryNode;
+  onSaveNotes?: (userId: string, notes: string) => Promise<void>;
+}) {
+  const [q, setQ]           = useState("");
+  const [notes, setNotes]   = useState(node.adminNotes ?? "");
+  const [saving, setSaving] = useState(false);
+
   const entries = node.auditLog.filter(e =>
     !q || e.action.toLowerCase().includes(q.toLowerCase()) || e.admin.toLowerCase().includes(q.toLowerCase())
   );
+
+  const handleSave = useCallback(async () => {
+    if (!onSaveNotes) return;
+    setSaving(true);
+    try { await onSaveNotes(node.id, notes); } finally { setSaving(false); }
+  }, [onSaveNotes, node.id, notes]);
+
   return (
     <div>
+      {/* Admin Notes section */}
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 14px", marginBottom: 14 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, marginBottom: 8, letterSpacing: "0.07em" }}>ADMIN NOTES</div>
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder="Add internal notes about this member's binary account…"
+          rows={3}
+          style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 10px", fontSize: 12, color: "rgba(255,255,255,0.8)", outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }}
+        />
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+          <button
+            onClick={handleSave}
+            disabled={saving || !onSaveNotes}
+            style={{ padding: "6px 14px", background: saving ? "rgba(212,175,55,0.06)" : "rgba(212,175,55,0.1)", border: `1px solid rgba(212,175,55,0.25)`, borderRadius: 7, cursor: saving ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 600, color: saving ? MUTED : "#F3D37A" }}>
+            {saving ? "Saving…" : "Save Notes"}
+          </button>
+        </div>
+      </div>
+
+      {/* Audit entries */}
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         <div style={{ flex: 1, position: "relative" }}>
           <Search size={12} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: MUTED }} />
@@ -410,17 +445,19 @@ function AuditTab({ node }: { node: BinaryNode }) {
           <div style={{ fontSize: 11, color: MUTED }}>{e.detail}</div>
         </div>
       ))}
-      {entries.length === 0 && <div style={{ textAlign: "center", padding: "32px 0", color: MUTED, fontSize: 12 }}>No entries found.</div>}
+      {entries.length === 0 && <div style={{ textAlign: "center", padding: "32px 0", color: MUTED, fontSize: 12 }}>No audit entries found.</div>}
     </div>
   );
 }
 
 // ─── Main Drawer ───────────────────────────────────────────────────────────────
-const BinaryNetworkDrawer = memo(function BinaryNetworkDrawer({ node, onClose, onRecalculate, onResetCarry }: {
+const BinaryNetworkDrawer = memo(function BinaryNetworkDrawer({ node, detailLoading, onClose, onRecalculate, onResetCarry, onSaveNotes }: {
   node: BinaryNode | null;
-  onClose:       () => void;
-  onRecalculate: (n: BinaryNode) => void;
-  onResetCarry:  (n: BinaryNode) => void;
+  detailLoading?: boolean;
+  onClose:        () => void;
+  onRecalculate:  (n: BinaryNode) => void;
+  onResetCarry:   (n: BinaryNode) => void;
+  onSaveNotes?:   (userId: string, notes: string) => Promise<void>;
 }) {
   const [tab, setTab] = useState("summary");
 
@@ -481,6 +518,13 @@ const BinaryNetworkDrawer = memo(function BinaryNetworkDrawer({ node, onClose, o
           ))}
         </div>
 
+        {/* Loading indicator for lazy detail enrichment */}
+        {detailLoading && (
+          <div style={{ padding: "6px 20px", background: "rgba(212,175,55,0.06)", borderBottom: `1px solid rgba(212,175,55,0.15)`, fontSize: 10, color: "#D4AF37", textAlign: "center", letterSpacing: "0.05em", flexShrink: 0 }}>
+            Loading full detail…
+          </div>
+        )}
+
         {/* Content */}
         <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
           {tab === "summary"  && <SummaryTab  node={node} />}
@@ -490,7 +534,7 @@ const BinaryNetworkDrawer = memo(function BinaryNetworkDrawer({ node, onClose, o
           {tab === "history"  && <HistoryTab  node={node} />}
           {tab === "events"   && <EventsTab   node={node} />}
           {tab === "warnings" && <WarningsTab node={node} />}
-          {tab === "audit"    && <AuditTab    node={node} />}
+          {tab === "audit"    && <AuditTab    node={node} onSaveNotes={onSaveNotes} />}
         </div>
       </div>
     </>

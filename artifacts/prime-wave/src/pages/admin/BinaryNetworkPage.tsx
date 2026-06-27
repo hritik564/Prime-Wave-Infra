@@ -1,4 +1,4 @@
-import { useState, useMemo, memo, useCallback } from "react";
+import { useState, useEffect, useRef, memo, useCallback } from "react";
 import AdminLayout from "./AdminLayout";
 import BinaryNetworkDrawer, {
   BinaryNode, NodeStatus, BinaryRank, Position,
@@ -11,6 +11,15 @@ import {
   GitBranch, Users, TrendingUp, Activity, Shield, BarChart2,
   Clock, Star,
 } from "lucide-react";
+import {
+  getAdminBinaryNetwork,
+  getAdminBinaryStats,
+  getAdminBinaryDetail,
+  saveAdminBinaryNotes,
+  adminTriggerMatching,
+  type AdminBinaryNode,
+  type AdminBinaryStats,
+} from "@/lib/api";
 
 const GOLD   = "#D4AF37";
 const GOLD_L = "#F3D37A";
@@ -38,139 +47,63 @@ const RANK_CFG: Record<BinaryRank, { color: string }> = {
   DIAMOND:  { color: "#67e8f9" },
 };
 
-// ─── Mock data factory ─────────────────────────────────────────────────────────
-let _nid = 0;
-const uid  = () => `PW${String(++_nid).padStart(7, "0")}`;
-const rand = (a: number, b: number) => Math.round((Math.random() * (b - a) + a));
-const randf = (a: number, b: number) => Math.round((Math.random() * (b - a) + a) * 100) / 100;
-
-const NAMES = [
-  ["Alex","Chen"],["Ben","Osei"],["Carlos","Vega"],["Diana","Patel"],["Edward","Kim"],
-  ["Fatima","Hassan"],["Grace","Liu"],["Hassan","Malik"],["Iris","Santos"],["James","Nwosu"],
-  ["Kwame","Asante"],["Leila","Ahmad"],["Marco","Ferrari"],["Nadia","Petrov"],["Omar","Sheikh"],
-  ["Priya","Sharma"],["Quinn","Moore"],["Ravi","Gupta"],["Sara","Williams"],["Tunde","Adeyemi"],
-  ["Uma","Patel"],["Victor","Okonkwo"],["Wendy","Zhang"],["Xavier","Martin"],["Yemi","Balogun"],
-  ["Zara","Khan"],["Aisha","Diallo"],["Bruno","Costa"],["Clara","Anderson"],["David","Chukwu"],
-  ["Elena","Ivanova"],["Femi","Taiwo"],["George","Papadopoulos"],["Hannah","Müller"],["Ibrahim","Al-Rashid"],
-  ["Julia","Nakamura"],["Kevin","O'Brien"],["Lina","Bergström"],["Mohammed","Al-Farsi"],["Nina","Johansson"],
-  ["Oscar","Fernández"],["Paula","Rodrigues"],["Raj","Mehta"],["Sophie","Dupont"],["Tariq","Al-Amin"],
-  ["Uche","Eze"],["Valentina","Romano"],["William","Thompson"],["Xin","Li"],["Yara","Khalid"],
-];
 const RANKS: BinaryRank[] = ["UNRANKED","STARTER","GROWTH","PRO","ELITE","PLATINUM","DIAMOND"];
-const NEXT_RANKS: Record<BinaryRank, BinaryRank | null> = {
-  UNRANKED: "STARTER", STARTER: "GROWTH", GROWTH: "PRO", PRO: "ELITE", ELITE: "PLATINUM", PLATINUM: "DIAMOND", DIAMOND: null,
-};
-const PLANS = ["Starter","Growth","Pro","Elite","Platinum",null,null];
-const STATUSES: NodeStatus[] = ["ACTIVE","ACTIVE","ACTIVE","ACTIVE","ACTIVE","INACTIVE","SUSPENDED"];
-const POSITIONS: Position[] = ["LEFT","RIGHT"];
 
-function makeMatchHistory(i: number): MatchEvent[] {
-  return Array.from({ length: 10 }, (_, j) => {
-    const lBV = rand(200, 5000), rBV = rand(200, 5000);
-    const matched = Math.min(lBV, rBV);
-    return {
-      id: `MH-${i}-${j}`,
-      timestamp: new Date(Date.now() - (j * 24 + i) * 3600000),
-      leftBV: lBV, rightBV: rBV,
-      matched: matched * 2,
-      reward: randf(matched * 0.005, matched * 0.01),
-      carryForward: Math.abs(lBV - rBV),
-    };
-  });
-}
-
-function makeEvents(i: number): BinaryEvent[] {
-  const types: BinaryEvent["type"][] = ["MATCH","BV_CREDIT","RANK_UP","JOIN","CARRY_RESET","PLACEMENT"];
-  const descs: Record<BinaryEvent["type"], string> = {
-    MATCH:       "Binary match cycle executed",
-    BV_CREDIT:   "BV credited from downline investment",
-    RANK_UP:     "Rank upgraded by income engine",
-    JOIN:        "Member joined the binary network",
-    CARRY_RESET: "Carry forward reset by admin",
-    PLACEMENT:   "Placement adjusted in binary tree",
-  };
-  return Array.from({ length: 10 }, (_, j) => ({
-    id: `EV-${i}-${j}`,
-    type: types[(i + j) % types.length],
-    description: descs[types[(i + j) % types.length]],
-    timestamp: new Date(Date.now() - (j * 12 + i) * 3600000),
-    value: j % 3 === 0 ? randf(50, 500) : undefined,
-  }));
-}
-
-function makeWarnings(i: number, leftBV: number, rightBV: number, status: NodeStatus): NetworkWarning[] {
-  const w: NetworkWarning[] = [];
-  const ratio = leftBV > 0 && rightBV > 0 ? Math.max(leftBV, rightBV) / Math.min(leftBV, rightBV) : 1;
-  if (ratio > 3)      w.push({ id: `W-${i}-0`, type: "LARGE_IMBALANCE", message: `Leg ratio is ${ratio.toFixed(1)}x. Significant imbalance between left and right legs detected.`, severity: "error" });
-  if (leftBV < 500)   w.push({ id: `W-${i}-1`, type: "WEAK_LEFT", message: `Left leg BV is below 500. Consider placing new members on the left side.`, severity: "warn" });
-  if (rightBV < 500)  w.push({ id: `W-${i}-2`, type: "WEAK_RIGHT", message: `Right leg BV is below 500. Consider placing new members on the right side.`, severity: "warn" });
-  if (status === "INACTIVE") w.push({ id: `W-${i}-3`, type: "INACTIVE_SPONSOR", message: "Member is inactive. Downlines may be orphaned if no action is taken.", severity: "error" });
-  if (i % 7 === 0)    w.push({ id: `W-${i}-4`, type: "NO_REFERRALS", message: "No new referrals in the last 30 days. Network growth may stall.", severity: "warn" });
-  if (i % 5 === 0)    w.push({ id: `W-${i}-5`, type: "HIGH_CARRY", message: "Carry forward BV is unusually high. This may indicate long-term leg imbalance.", severity: "warn" });
-  return w;
-}
-
-function makeAudit(i: number): AuditEntry[] {
-  const admins = ["superadmin@primewave.io","rewards@primewave.io","finance@primewave.io"];
-  return [
-    { id: `NAUD-${i}-0`, timestamp: new Date(Date.now() - 48 * 3600000 * (i + 1)), admin: admins[i % 3], action: "Binary Recalculated",    detail: "Manual recalculation triggered by admin." },
-    { id: `NAUD-${i}-1`, timestamp: new Date(Date.now() - 96 * 3600000 * (i + 1)), admin: admins[(i+1) % 3], action: "Carry Forward Reset", detail: "Carry forward reset to 0 BV." },
-    { id: `NAUD-${i}-2`, timestamp: new Date(Date.now() - 144 * 3600000 * (i+1)), admin: admins[(i+2) % 3], action: "Status Changed",       detail: "Status updated from INACTIVE to ACTIVE." },
-  ];
-}
-
-function makeNode(i: number): BinaryNode {
-  const [firstName, lastName] = NAMES[i % NAMES.length];
-  const username = `${firstName.toLowerCase()}${i + 1}`;
-  const rank = RANKS[Math.min(i % RANKS.length, RANKS.length - 1)];
-  const nextRank = NEXT_RANKS[rank];
-  const status = STATUSES[i % STATUSES.length];
-  const leftBV = rand(100, 12000);
-  const rightBV = rand(100, 12000);
-  const carryForward = Math.abs(leftBV - rightBV);
-  const matchedBV = Math.min(leftBV, rightBV);
-  const sponsorIdx = Math.max(0, i - rand(1, 5));
-  const [sFirst] = NAMES[sponsorIdx % NAMES.length];
-  const sponsorUsername = `${sFirst.toLowerCase()}${sponsorIdx + 1}`;
-  const parentIdx = Math.max(0, i - 1);
-  const [pFirst] = NAMES[parentIdx % NAMES.length];
-  const parentUsername = i === 0 ? null : `${pFirst.toLowerCase()}${parentIdx + 1}`;
-  const leftChildIdx  = i * 2 + 1;
-  const rightChildIdx = i * 2 + 2;
-  const [lcFirst] = NAMES[leftChildIdx  % NAMES.length];
-  const [rcFirst] = NAMES[rightChildIdx % NAMES.length];
-
-  const rankProgress = rand(10, 95);
-  const requirements = [
-    { label: "Left Leg BV",     current: leftBV,         required: (RANKS.indexOf(rank) + 2) * 5000 },
-    { label: "Right Leg BV",    current: rightBV,         required: (RANKS.indexOf(rank) + 2) * 5000 },
-    { label: "Direct Referrals",current: rand(1, 20),    required: (RANKS.indexOf(rank) + 1) * 3     },
-    { label: "Active Downlines",current: rand(5, 80),    required: (RANKS.indexOf(rank) + 1) * 10    },
-  ];
-
+// ─── Map API node → BinaryNode for the drawer ─────────────────────────────────
+function mapApiNode(n: AdminBinaryNode): BinaryNode {
   return {
-    id: `n-${i}`, memberId: uid(), username, firstName, lastName,
-    sponsor: sponsorUsername, sponsorUsername,
-    position: POSITIONS[i % 2],
-    leftBV, rightBV, carryForward, rank, status,
-    plan: PLANS[i % PLANS.length] as string | null,
-    directReferrals: rand(0, 25),
-    todayMatch: randf(0, matchedBV * 0.01),
-    weeklyMatch: randf(matchedBV * 0.01, matchedBV * 0.05),
-    monthlyMatch: randf(matchedBV * 0.05, matchedBV * 0.15),
-    lifetimeMatch: randf(matchedBV * 0.15, matchedBV * 0.6),
-    parentUsername,
-    leftChildUsername:  leftChildIdx  < 50 ? `${lcFirst.toLowerCase()}${leftChildIdx  + 1}` : null,
-    rightChildUsername: rightChildIdx < 50 ? `${rcFirst.toLowerCase()}${rightChildIdx + 1}` : null,
-    nextRank, rankProgress, rankRequirements: requirements,
-    matchingHistory: makeMatchHistory(i),
-    recentEvents: makeEvents(i),
-    warnings: makeWarnings(i, leftBV, rightBV, status),
-    auditLog: makeAudit(i),
+    id:                 n.id,
+    memberId:           n.memberId,
+    username:           n.username,
+    firstName:          n.firstName,
+    lastName:           n.lastName,
+    sponsor:            n.sponsor,
+    sponsorUsername:    n.sponsorUsername,
+    position:           n.position as Position,
+    leftBV:             n.leftBV,
+    rightBV:            n.rightBV,
+    carryForward:       n.carryForward,
+    rank:               n.rank as BinaryRank,
+    todayMatch:         n.todayMatch,
+    weeklyMatch:        n.weeklyMatch,
+    monthlyMatch:       n.monthlyMatch,
+    lifetimeMatch:      n.lifetimeMatch,
+    status:             n.status as NodeStatus,
+    plan:               n.plan,
+    directReferrals:    n.directReferrals,
+    parentUsername:     n.parentUsername,
+    leftChildUsername:  n.leftChildUsername,
+    rightChildUsername: n.rightChildUsername,
+    matchingHistory:    n.matchingHistory.map(m => ({
+      id:          m.id,
+      timestamp:   new Date(m.timestamp),
+      leftBV:      m.leftBV,
+      rightBV:     m.rightBV,
+      matched:     m.matched,
+      reward:      m.reward,
+      carryForward:m.carryForward,
+    })) as MatchEvent[],
+    recentEvents: n.recentEvents.map(e => ({
+      id:          e.id,
+      type:        e.type,
+      description: e.description,
+      timestamp:   new Date(e.timestamp),
+      value:       e.value,
+    })) as BinaryEvent[],
+    warnings:  n.warnings as NetworkWarning[],
+    auditLog:  n.auditLog.map(a => ({
+      id:        a.id,
+      timestamp: new Date(a.timestamp),
+      admin:     a.admin,
+      action:    a.action,
+      detail:    a.detail,
+    })) as AuditEntry[],
+    nextRank:           n.nextRank as BinaryRank | null,
+    rankProgress:       n.rankProgress,
+    rankRequirements:   n.rankRequirements,
+    adminNotes:         n.adminNotes ?? "",
   };
 }
-
-const INITIAL_NODES: BinaryNode[] = Array.from({ length: 50 }, (_, i) => makeNode(i));
 
 // ─── KPI Card ──────────────────────────────────────────────────────────────────
 function KpiCard({ icon: Icon, label, value, sub, color }: {
@@ -282,91 +215,181 @@ const SEL: React.CSSProperties = {
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function BinaryNetworkPage() {
   const { toasts, toast, dismiss } = useToast();
-  const [nodes,    setNodes]   = useState<BinaryNode[]>(() => INITIAL_NODES);
-  const [search,   setSearch]  = useState("");
-  const [fStatus,  setFStatus] = useState("");
-  const [fRank,    setFRank]   = useState("");
-  const [fPos,     setFPos]    = useState("");
-  const [page,     setPage]    = useState(1);
+
+  // ── Server-side data ─────────────────────────────────────────────────────────
+  const [nodes,      setNodes]      = useState<BinaryNode[]>([]);
+  const [total,      setTotal]      = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [stats,      setStats]      = useState<AdminBinaryStats | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  // ── Filters / search / pagination ────────────────────────────────────────────
+  const [search,  setSearch]  = useState("");
+  const [fStatus, setFStatus] = useState("");
+  const [fRank,   setFRank]   = useState("");
+  const [fPos,    setFPos]    = useState("");
+  const [page,    setPage]    = useState(1);
   const PAGE_SIZE = 20;
 
-  const [drawer,   setDrawer]  = useState<BinaryNode | null>(null);
-  const [hovered,  setHovered] = useState<string | null>(null);
-  const [cycling,  setCycling] = useState(false);
+  // Debounce search
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 350);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [search]);
 
-  // ── State helpers ────────────────────────────────────────────────────────────
-  const updateNode = useCallback((id: string, patch: Partial<BinaryNode>) => {
-    setNodes(ns => ns.map(n => n.id === id ? { ...n, ...patch } : n));
-    setDrawer(d => d?.id === id ? { ...d, ...patch } : d);
+  // ── Drawer state ─────────────────────────────────────────────────────────────
+  const [drawer,       setDrawer]       = useState<BinaryNode | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [hovered,      setHovered]      = useState<string | null>(null);
+  const [cycling,      setCycling]      = useState(false);
+
+  // ── Fetch list ────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    getAdminBinaryNetwork({
+      page,
+      limit:     PAGE_SIZE,
+      search:    debouncedSearch || undefined,
+      status:    (fStatus as "ACTIVE" | "INACTIVE" | "SUSPENDED") || undefined,
+      position:  (fPos    as "LEFT" | "RIGHT")                     || undefined,
+      rank:      fRank || undefined,
+    })
+      .then(res => {
+        if (!cancelled) {
+          setNodes(res.data.map(mapApiNode));
+          setTotal(res.meta.total);
+          setTotalPages(Math.max(1, res.meta.totalPages));
+          setLoading(false);
+        }
+      })
+      .catch((err: Error) => {
+        if (!cancelled) {
+          setError(err.message ?? "Failed to load binary network");
+          setLoading(false);
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [page, debouncedSearch, fStatus, fRank, fPos]);
+
+  // ── Fetch KPI stats (once, refresh on Run Cycle) ──────────────────────────────
+  const fetchStats = useCallback(() => {
+    setStatsLoading(true);
+    getAdminBinaryStats()
+      .then(s => { setStats(s); setStatsLoading(false); })
+      .catch(() => setStatsLoading(false));
   }, []);
 
-  const handleRecalculate = useCallback((node: BinaryNode) => {
-    const newAudit: AuditEntry = {
-      id: `NAUD-RC-${Date.now()}`, timestamp: new Date(),
-      admin: "superadmin@primewave.io", action: "Binary Recalculated",
-      detail: "Manual recalculation triggered by admin. BV totals verified.",
-    };
-    const newEvent: BinaryEvent = {
-      id: `EV-RC-${Date.now()}`, type: "MATCH",
-      description: "Manual recalculation executed by admin",
-      timestamp: new Date(), value: randf(10, 200),
-    };
-    updateNode(node.id, { auditLog: [newAudit, ...node.auditLog], recentEvents: [newEvent, ...node.recentEvents.slice(0, 9)] });
-    toast(`Binary recalculated for @${node.username}.`, "success");
-  }, [updateNode, toast]);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
 
-  const handleResetCarry = useCallback((node: BinaryNode) => {
-    const newAudit: AuditEntry = {
-      id: `NAUD-CF-${Date.now()}`, timestamp: new Date(),
-      admin: "superadmin@primewave.io", action: "Carry Forward Reset",
-      detail: `Carry forward reset from ${K(node.carryForward)} BV to 0.`,
-    };
-    const newEvent: BinaryEvent = {
-      id: `EV-CF-${Date.now()}`, type: "CARRY_RESET",
-      description: `Carry forward of ${K(node.carryForward)} BV reset to 0 by admin`,
-      timestamp: new Date(),
-    };
-    const filteredWarnings = node.warnings.filter(w => w.type !== "HIGH_CARRY");
-    updateNode(node.id, { carryForward: 0, auditLog: [newAudit, ...node.auditLog], recentEvents: [newEvent, ...node.recentEvents.slice(0, 9)], warnings: filteredWarnings });
-    toast(`Carry forward reset to 0 for @${node.username}.`, "info");
-  }, [updateNode, toast]);
+  // ── Lazy-load drawer detail ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!drawer) return;
+    const userId = drawer.id;
+    let cancelled = false;
+    setDetailLoading(true);
 
-  const handleRunCycle = useCallback(() => {
-    setCycling(true);
-    setTimeout(() => {
-      setCycling(false);
-      toast("Binary cycle executed successfully. All matching rewards distributed.", "success");
-    }, 1800);
+    getAdminBinaryDetail(userId)
+      .then(detail => {
+        if (!cancelled) {
+          const enriched = mapApiNode(detail);
+          setNodes(ns => ns.map(n => n.id === enriched.id ? enriched : n));
+          setDetailLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [drawer?.id]);
+
+  // ── Actions ───────────────────────────────────────────────────────────────────
+
+  const handleRecalculate = useCallback((_node: BinaryNode) => {
+    toast("Binary values are system-generated and cannot be manually modified.", "info");
   }, [toast]);
 
-  // ── Derived ──────────────────────────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return nodes.filter(n => {
-      if (q && !n.username.includes(q) && !n.memberId.toLowerCase().includes(q) && !n.sponsorUsername.includes(q) && !(n.firstName + " " + n.lastName).toLowerCase().includes(q)) return false;
-      if (fStatus && n.status   !== fStatus) return false;
-      if (fRank   && n.rank     !== fRank)   return false;
-      if (fPos    && n.position !== fPos)    return false;
-      return true;
-    });
-  }, [nodes, search, fStatus, fRank, fPos]);
+  const handleResetCarry = useCallback((_node: BinaryNode) => {
+    toast("Binary values are system-generated and cannot be manually modified.", "info");
+  }, [toast]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageRows   = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
+  const handleRunCycle = useCallback(async () => {
+    setCycling(true);
+    try {
+      await adminTriggerMatching();
+      toast("Binary cycle executed successfully. All matching rewards distributed.", "success");
+      fetchStats();
+    } catch (err: unknown) {
+      toast((err instanceof Error ? err.message : null) ?? "Failed to trigger binary cycle", "error");
+    } finally {
+      setCycling(false);
+    }
+  }, [toast, fetchStats]);
 
-  const kpis = useMemo(() => {
-    const total      = nodes.length;
-    const active     = nodes.filter(n => n.status === "ACTIVE").length;
-    const totalLeft  = nodes.reduce((s, n) => s + n.leftBV, 0);
-    const totalRight = nodes.reduce((s, n) => s + n.rightBV, 0);
-    const todayMatch = nodes.reduce((s, n) => s + n.todayMatch, 0);
-    const carryFwd   = nodes.reduce((s, n) => s + n.carryForward, 0);
-    const todayRewards = todayMatch * 0.007;
-    const healthScore  = Math.round((active / total) * 100 * 0.6 + (nodes.filter(n => n.warnings.length === 0).length / total) * 100 * 0.4);
-    return { total, active, totalLeft, totalRight, todayMatch, carryFwd, todayRewards, healthScore };
-  }, [nodes]);
+  const handleRefresh = useCallback(() => {
+    setPage(p => p); // trigger re-fetch via deps
+    fetchStats();
+    // Force list refetch by bumping a counter
+    setNodes([]);
+    setLoading(true);
+    getAdminBinaryNetwork({
+      page,
+      limit:    PAGE_SIZE,
+      search:   debouncedSearch || undefined,
+      status:   (fStatus as "ACTIVE" | "INACTIVE" | "SUSPENDED") || undefined,
+      position: (fPos    as "LEFT" | "RIGHT")                     || undefined,
+      rank:     fRank || undefined,
+    })
+      .then(res => {
+        setNodes(res.data.map(mapApiNode));
+        setTotal(res.meta.total);
+        setTotalPages(Math.max(1, res.meta.totalPages));
+        setLoading(false);
+      })
+      .catch((err: Error) => {
+        setError(err.message ?? "Failed to refresh");
+        setLoading(false);
+      });
+  }, [page, debouncedSearch, fStatus, fRank, fPos, fetchStats]);
 
-  const liveDrawer = drawer ? nodes.find(n => n.id === drawer.id) ?? drawer : null;
+  const handleSaveNotes = useCallback(async (userId: string, notes: string) => {
+    const node = nodes.find(n => n.id === userId);
+    await saveAdminBinaryNotes(userId, notes);
+    toast(`Notes saved for @${node?.username ?? userId}`, "success");
+  }, [nodes, toast]);
+
+  const handleOpenDrawer = useCallback((node: BinaryNode) => {
+    setDrawer(node);
+  }, []);
+
+  // ── Derived state ─────────────────────────────────────────────────────────────
+  const liveDrawer = drawer ? (nodes.find(n => n.id === drawer.id) ?? drawer) : null;
+
+  const kpis = stats ? {
+    total:       stats.totalMembers,
+    active:      stats.activeMembers,
+    totalLeft:   stats.totalLeftBV,
+    totalRight:  stats.totalRightBV,
+    todayMatch:  stats.todayMatchedBV,
+    carryFwd:    stats.carryForwardBV,
+    todayRewards:stats.todayRewards,
+    healthScore: stats.networkHealth,
+  } : {
+    total: 0, active: 0, totalLeft: 0, totalRight: 0,
+    todayMatch: 0, carryFwd: 0, todayRewards: 0, healthScore: 0,
+  };
 
   const TH: React.CSSProperties = { padding: "10px 14px", fontSize: 10, fontWeight: 700, color: MUTED, textAlign: "left", letterSpacing: "0.07em", position: "sticky", top: 0, background: "hsl(222 62% 8%)", borderBottom: `1px solid ${BORDER}`, whiteSpace: "nowrap" };
   const COLS = ["USERNAME","MEMBER ID","SPONSOR","POSITION","LEFT BV","RIGHT BV","CARRY FWD","RANK","TODAY MATCH","STATUS",""];
@@ -383,11 +406,11 @@ export default function BinaryNetworkPage() {
           </div>
           <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
             {[
-              { icon: RefreshCw, label: "Refresh",         onClick: undefined,     gold: false },
-              { icon: Download,  label: "Export",          onClick: undefined,     gold: false },
-              { icon: Settings,  label: "Network Settings",onClick: undefined,     gold: false },
+              { icon: RefreshCw, label: "Refresh",          onClick: handleRefresh, gold: false },
+              { icon: Download,  label: "Export",           onClick: undefined,     gold: false },
+              { icon: Settings,  label: "Network Settings", onClick: undefined,     gold: false },
             ].map(b => (
-              <button key={b.label} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
+              <button key={b.label} onClick={b.onClick} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.7)" }}>
                 <b.icon size={13} />{b.label}
               </button>
             ))}
@@ -403,33 +426,33 @@ export default function BinaryNetworkPage() {
 
         {/* KPI Cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 14 }}>
-          <KpiCard icon={Users}     label="TOTAL MEMBERS"        value={String(kpis.total)}       sub="In binary network"        color="#818cf8" />
-          <KpiCard icon={Activity}  label="ACTIVE NODES"         value={String(kpis.active)}      sub={`${Math.round((kpis.active/kpis.total)*100)}% active`} color="#34d399" />
-          <KpiCard icon={TrendingUp}label="TOTAL BV LEFT"        value={K(kpis.totalLeft)}        sub="Platform-wide left leg"   color="#34d399" />
-          <KpiCard icon={GitBranch} label="TOTAL BV RIGHT"       value={K(kpis.totalRight)}       sub="Platform-wide right leg"  color="#60a5fa" />
+          <KpiCard icon={Users}     label="TOTAL MEMBERS"        value={statsLoading ? "—" : String(kpis.total)}      sub="In binary network"        color="#818cf8" />
+          <KpiCard icon={Activity}  label="ACTIVE NODES"         value={statsLoading ? "—" : String(kpis.active)}     sub={statsLoading || kpis.total === 0 ? "—" : `${Math.round((kpis.active/kpis.total)*100)}% active`} color="#34d399" />
+          <KpiCard icon={TrendingUp}label="TOTAL BV LEFT"        value={statsLoading ? "—" : K(kpis.totalLeft)}       sub="Platform-wide left leg"   color="#34d399" />
+          <KpiCard icon={GitBranch} label="TOTAL BV RIGHT"       value={statsLoading ? "—" : K(kpis.totalRight)}      sub="Platform-wide right leg"  color="#60a5fa" />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 26 }}>
-          <KpiCard icon={Zap}       label="TODAY'S MATCHING VOL" value={K(kpis.todayMatch)}       sub="Matched BV today"         color={GOLD}    />
-          <KpiCard icon={Clock}     label="CARRY FORWARD BV"     value={K(kpis.carryFwd)}         sub="Unmatched carry"          color="#fbbf24" />
-          <KpiCard icon={BarChart2} label="TODAY'S BINARY REWARDS"value={$(kpis.todayRewards)}    sub="Distributed today"        color="#a78bfa" />
-          <KpiCard icon={Shield}    label="NETWORK HEALTH SCORE" value={`${kpis.healthScore}%`}   sub={kpis.healthScore >= 80 ? "Healthy" : kpis.healthScore >= 60 ? "Moderate" : "Needs Attention"} color={kpis.healthScore >= 80 ? "#34d399" : kpis.healthScore >= 60 ? "#fbbf24" : "#f87171"} />
+          <KpiCard icon={Zap}       label="TODAY'S MATCHING VOL" value={statsLoading ? "—" : K(kpis.todayMatch)}      sub="Matched BV today"         color={GOLD}    />
+          <KpiCard icon={Clock}     label="CARRY FORWARD BV"     value={statsLoading ? "—" : K(kpis.carryFwd)}        sub="Unmatched carry"          color="#fbbf24" />
+          <KpiCard icon={BarChart2} label="TODAY'S BINARY REWARDS"value={statsLoading ? "—" : $(kpis.todayRewards)}   sub="Distributed today"        color="#a78bfa" />
+          <KpiCard icon={Shield}    label="NETWORK HEALTH SCORE" value={statsLoading ? "—" : `${kpis.healthScore}%`}  sub={statsLoading ? "—" : kpis.healthScore >= 80 ? "Healthy" : kpis.healthScore >= 60 ? "Moderate" : "Needs Attention"} color={statsLoading ? MUTED : kpis.healthScore >= 80 ? "#34d399" : kpis.healthScore >= 60 ? "#fbbf24" : "#f87171"} />
         </div>
 
         {/* Search + Filters */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
           <div style={{ position: "relative", flex: "1 1 280px", maxWidth: 400 }}>
             <Search size={13} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: MUTED }} />
-            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search username, member ID, sponsor…"
+            <input value={search} onChange={e => { setSearch(e.target.value); }} placeholder="Search username, member ID, sponsor…"
               style={{ width: "100%", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 9, padding: "9px 12px 9px 32px", fontSize: 12, color: "rgba(255,255,255,0.8)", outline: "none", boxSizing: "border-box" }} />
           </div>
 
           {[
-            { value: fStatus, set: setFStatus, label: "All Statuses", options: [["ACTIVE","Active"],["INACTIVE","Inactive"],["SUSPENDED","Suspended"]] },
-            { value: fRank,   set: setFRank,   label: "All Ranks",    options: RANKS.map(r => [r, r]) },
-            { value: fPos,    set: setFPos,    label: "All Positions",options: [["LEFT","Left"],["RIGHT","Right"]] },
+            { value: fStatus, set: (v: string) => { setFStatus(v); setPage(1); }, label: "All Statuses", options: [["ACTIVE","Active"],["INACTIVE","Inactive"],["SUSPENDED","Suspended"]] as [string,string][] },
+            { value: fRank,   set: (v: string) => { setFRank(v);   setPage(1); }, label: "All Ranks",    options: RANKS.map(r => [r, r]) as [string,string][] },
+            { value: fPos,    set: (v: string) => { setFPos(v);    setPage(1); }, label: "All Positions",options: [["LEFT","Left"],["RIGHT","Right"]] as [string,string][] },
           ].map(f => (
             <div key={f.label} style={{ position: "relative" }}>
-              <select value={f.value} onChange={e => { f.set(e.target.value); setPage(1); }} style={SEL}>
+              <select value={f.value} onChange={e => f.set(e.target.value)} style={SEL}>
                 <option value="">{f.label}</option>
                 {f.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
@@ -437,8 +460,15 @@ export default function BinaryNetworkPage() {
             </div>
           ))}
 
-          <div style={{ marginLeft: "auto", fontSize: 11, color: MUTED }}>{filtered.length} node{filtered.length !== 1 ? "s" : ""}</div>
+          <div style={{ marginLeft: "auto", fontSize: 11, color: MUTED }}>{loading ? "Loading…" : `${total} node${total !== 1 ? "s" : ""}`}</div>
         </div>
+
+        {/* Error banner */}
+        {error && (
+          <div style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: 13, color: "#f87171" }}>
+            {error}
+          </div>
+        )}
 
         {/* Table */}
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
@@ -452,17 +482,28 @@ export default function BinaryNetworkPage() {
                 </tr>
               </thead>
               <tbody>
-                {pageRows.map(n => (
-                  <NetworkRow key={n.id} node={n}
-                    onView={setDrawer}
-                    onRecalculate={handleRecalculate}
-                    onResetCarry={handleResetCarry}
-                    hovered={hovered === n.id}
-                    onHover={setHovered}
-                  />
-                ))}
-                {pageRows.length === 0 && (
-                  <tr><td colSpan={COLS.length} style={{ textAlign: "center", padding: "48px 0", color: MUTED, fontSize: 13 }}>No nodes match your filters.</td></tr>
+                {loading ? (
+                  <tr>
+                    <td colSpan={COLS.length} style={{ textAlign: "center", padding: "48px 0", color: MUTED, fontSize: 13 }}>
+                      Loading network…
+                    </td>
+                  </tr>
+                ) : nodes.length === 0 ? (
+                  <tr>
+                    <td colSpan={COLS.length} style={{ textAlign: "center", padding: "48px 0", color: MUTED, fontSize: 13 }}>
+                      {error ? "Failed to load data." : "No nodes match your filters."}
+                    </td>
+                  </tr>
+                ) : (
+                  nodes.map(n => (
+                    <NetworkRow key={n.id} node={n}
+                      onView={handleOpenDrawer}
+                      onRecalculate={handleRecalculate}
+                      onResetCarry={handleResetCarry}
+                      hovered={hovered === n.id}
+                      onHover={setHovered}
+                    />
+                  ))
                 )}
               </tbody>
             </table>
@@ -471,7 +512,7 @@ export default function BinaryNetworkPage() {
           {/* Pagination */}
           {totalPages > 1 && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderTop: `1px solid ${BORDER}` }}>
-              <span style={{ fontSize: 11, color: MUTED }}>Showing {(page-1)*PAGE_SIZE+1}–{Math.min(page*PAGE_SIZE, filtered.length)} of {filtered.length}</span>
+              <span style={{ fontSize: 11, color: MUTED }}>Showing {(page-1)*PAGE_SIZE+1}–{Math.min(page*PAGE_SIZE, total)} of {total}</span>
               <div style={{ display: "flex", gap: 6 }}>
                 <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page===1} style={{ padding: "5px 10px", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, cursor: page===1?"not-allowed":"pointer", color: page===1?MUTED:"rgba(255,255,255,0.7)", display: "flex", alignItems: "center" }}>
                   <ChevronLeft size={13} />
@@ -497,10 +538,15 @@ export default function BinaryNetworkPage() {
 
       <BinaryNetworkDrawer
         node={liveDrawer}
+        detailLoading={detailLoading}
         onClose={() => setDrawer(null)}
         onRecalculate={handleRecalculate}
         onResetCarry={handleResetCarry}
+        onSaveNotes={handleSaveNotes}
       />
+
+      {/* Star import used for rank display — suppress unused warning */}
+      {false && <Star size={0} />}
     </AdminLayout>
   );
 }

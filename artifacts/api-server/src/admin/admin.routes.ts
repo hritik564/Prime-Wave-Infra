@@ -48,6 +48,13 @@ import {
 } from "./admin-investments.controller";
 import { adminInvestmentListQuerySchema } from "./admin-investments.schema";
 import {
+  getAdminBinaryNetworkHandler,
+  getAdminBinaryStatsHandler,
+  getAdminBinaryDetailHandler,
+  saveAdminBinaryNotesHandler,
+} from "./admin-binary.controller";
+import { adminBinaryListQuerySchema, saveBinaryNotesSchema } from "./admin-binary.schema";
+import {
   revenueReportHandler,
   dailyBusinessReportHandler,
   topEarnersHandler,
@@ -276,6 +283,33 @@ router.post(
   financeAdminGuard,
   validate(walletAdjustmentSchema),
   walletAdjustmentHandler,
+);
+
+// ── Binary Network Control Center — SUPER_ADMIN only ─────────────────────────
+router.get(
+  "/binary/stats",
+  adminLimiter, superAdminGuard,
+  getAdminBinaryStatsHandler,
+);
+
+router.get(
+  "/binary/network",
+  adminLimiter, superAdminGuard,
+  validate(adminBinaryListQuerySchema, "query"),
+  getAdminBinaryNetworkHandler,
+);
+
+router.get(
+  "/binary/:userId",
+  adminLimiter, superAdminGuard,
+  getAdminBinaryDetailHandler,
+);
+
+router.patch(
+  "/binary/:userId/notes",
+  adminLimiter, superAdminGuard,
+  validate(saveBinaryNotesSchema),
+  saveAdminBinaryNotesHandler,
 );
 
 // ── Investment monitoring — SUPER_ADMIN only ──────────────────────────────────

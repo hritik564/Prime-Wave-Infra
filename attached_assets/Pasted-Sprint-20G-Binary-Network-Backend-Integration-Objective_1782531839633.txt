@@ -1,0 +1,305 @@
+Sprint 20G — Binary Network Backend Integration
+
+Objective
+
+Replace all mock binary network data and local interactions with live backend integration while preserving the existing UI exactly as it is.
+
+IMPORTANT
+
+Do NOT redesign the Binary Network Control Center.
+
+Do NOT modify layouts, styling, routing or components.
+
+Only replace mock data and local interactions with backend operations.
+
+---
+
+Business Rules (LOCKED)
+
+1. Binary BV is generated ONLY when a user successfully purchases an investment plan.
+
+2. Binary Income is generated only from matched Left BV and Right BV.
+
+3. Binary Income is credited directly to the Withdrawal Wallet.
+
+4. After every successful match:
+
+• Matched BV is rewarded.
+
+• Matched BV is flushed immediately.
+
+• Carry Forward contains ONLY unmatched BV.
+
+5. Administrators cannot manually edit:
+
+• Left BV
+
+• Right BV
+
+• Matched BV
+
+• Carry Forward
+
+• Historical Binary Income
+
+• Binary Match History
+
+The Binary Network Control Center is a monitoring, auditing and troubleshooting module.
+
+It is NOT a Binary Editor.
+
+---
+
+Network Table
+
+Replace mock network data with backend records.
+
+Support:
+
+• Server-side pagination
+
+• Search
+
+• Sorting
+
+• Filtering
+
+• Loading state
+
+• Empty state
+
+• Error state
+
+---
+
+Summary Cards
+
+Replace mock KPI values with backend values.
+
+Examples:
+
+• Total Members
+
+• Active Members
+
+• Total Left BV
+
+• Total Right BV
+
+• Today's Matches
+
+• Today's Binary Income
+
+• Carry Forward
+
+• Network Health
+
+---
+
+Search
+
+Connect backend.
+
+Support:
+
+• Username
+
+• Member ID
+
+• Sponsor
+
+• Referral Code
+
+---
+
+Filters
+
+Connect backend filters.
+
+Rank
+
+Status
+
+Placement
+
+Weak Leg
+
+Strong Leg
+
+Date Joined
+
+---
+
+Binary Drawer
+
+Load complete binary information on demand.
+
+Display:
+
+• Member Summary
+
+• Binary Position
+
+• Sponsor
+
+• Left BV
+
+• Right BV
+
+• Today's Match
+
+• Carry Forward
+
+• Binary Income History
+
+• Matching History
+
+• Mini Network Tree
+
+• Audit Log
+
+• Admin Notes
+
+---
+
+Mini Binary Tree
+
+Replace mock data with backend network data.
+
+Keep current UI.
+
+Load only the selected member's immediate hierarchy.
+
+Do not preload the full tree.
+
+---
+
+Matching History
+
+Replace mock history with backend records.
+
+Display:
+
+Match Time
+
+Matched Left BV
+
+Matched Right BV
+
+Binary Income Generated
+
+Remaining Carry Forward
+
+---
+
+Binary Income History
+
+Replace mock history with backend records.
+
+Display:
+
+Income Amount
+
+Match Volume
+
+Wallet Credited
+
+Timestamp
+
+---
+
+Carry Forward
+
+Display live backend values.
+
+Carry Forward must only contain unmatched BV.
+
+Do NOT calculate on the frontend.
+
+---
+
+Audit Log
+
+Replace mock audit with backend records.
+
+---
+
+Admin Notes
+
+Load and save through backend.
+
+---
+
+Admin Actions
+
+Keep existing actions.
+
+Actions that modify binary values must remain disabled unless supported by backend.
+
+If unsupported, display:
+
+"Binary values are system-generated and cannot be manually modified."
+
+---
+
+Performance
+
+Load drawer lazily.
+
+Avoid duplicate API requests.
+
+Refresh only affected records.
+
+Memoize tree rendering where appropriate.
+
+---
+
+Error Handling
+
+Handle:
+
+Validation failures
+
+Network failures
+
+Unauthorized
+
+Not found
+
+Gracefully display user-friendly messages.
+
+---
+
+Validation
+
+Verify:
+
+✓ Network table loads.
+
+✓ Search works.
+
+✓ Filters work.
+
+✓ Summary cards display live values.
+
+✓ Binary drawer loads correctly.
+
+✓ Mini binary tree loads correctly.
+
+✓ Matching history loads.
+
+✓ Binary income history loads.
+
+✓ Carry Forward displays correctly.
+
+✓ Audit Log loads.
+
+✓ Admin Notes work.
+
+✓ Existing UI remains unchanged.
+
+---
+
+Goal
+
+Transform the Binary Network Control Center into a production-ready monitoring and auditing module that accurately reflects the live binary engine while preserving Prime Wave's immutable binary business rules and financial integrity.
