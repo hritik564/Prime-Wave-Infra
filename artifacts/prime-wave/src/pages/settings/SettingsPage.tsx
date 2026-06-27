@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, User, Lock, Wallet, Check, Moon, Sun } from "lucide-react";
+import { Loader2, User, Lock, Wallet, Check, Moon, Sun, Link2, Hash, Copy, CheckCheck, ChevronLeft, ChevronRight, Share2 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
@@ -98,6 +98,23 @@ export default function SettingsPage() {
   const [pwSaving, setPwSaving]               = useState(false);
   const [pwSaved, setPwSaved]                 = useState(false);
   const [pwError, setPwError]                 = useState<string>();
+
+  // Referral copy state
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const copyText = (value: string, key: string) => {
+    navigator.clipboard.writeText(value).catch(() => {});
+    setCopied(key);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const shareUrl = async (url: string) => {
+    if (navigator.share) {
+      try { await navigator.share({ url, title: "Join Prime Wave" }); } catch { /* dismissed */ }
+    } else {
+      copyText(url, `share-${url}`);
+    }
+  };
 
   // Theme
   const [darkMode, setDarkMode] = useState(() => {
@@ -206,13 +223,104 @@ export default function SettingsPage() {
                 <Field label="Phone">
                   <TextInput value={phone} onChange={setPhone} placeholder="+1 234 567 8900" />
                 </Field>
-                <Field label="Referral Code">
-                  <TextInput value={profile?.referralCode ?? ""} readOnly />
-                </Field>
               </div>
               {profileError && <p className="text-xs mt-1" style={{ color: "#ef4444" }}>{profileError}</p>}
               <SaveButton loading={profileSaving} saved={profileSaved} onClick={handleSaveProfile} />
             </Card>
+
+            {/* ── Referral Links ── */}
+            <div
+              className="rounded-2xl overflow-hidden mb-5"
+              style={{ background: "hsl(var(--card))", border: "1px solid rgba(212,175,55,0.2)", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}
+            >
+              {/* Header */}
+              <div className="px-5 py-4 flex items-center gap-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "rgba(212,175,55,0.1)" }}>
+                  <Link2 className="h-4 w-4" style={{ color: "#D4AF37" }} />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold font-heading text-foreground">Your Referral Links</h3>
+                  <p className="text-[11px] mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>
+                    Share the correct link to place new members on the Left or Right side of your binary tree.
+                  </p>
+                </div>
+              </div>
+
+              {/* Cards */}
+              <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {(["L", "R"] as const).map((leg) => {
+                  const isLeft   = leg === "L";
+                  const color    = isLeft ? "#60a5fa" : "#D4AF37";
+                  const bgCard   = isLeft ? "rgba(96,165,250,0.06)"  : "rgba(212,175,55,0.06)";
+                  const border   = isLeft ? "rgba(96,165,250,0.18)"  : "rgba(212,175,55,0.18)";
+                  const LegIcon  = isLeft ? ChevronLeft : ChevronRight;
+                  const label    = isLeft ? "Left Team" : "Right Team";
+                  const code     = profile ? `${profile.referralCode}-${leg}` : "—";
+                  const link     = profile
+                    ? `${window.location.origin}/register?ref=${profile.referralCode}&leg=${leg}`
+                    : "—";
+                  const codeKey  = `code-${leg}`;
+                  const linkKey  = `link-${leg}`;
+
+                  return (
+                    <div key={leg} className="rounded-xl p-4 space-y-3"
+                      style={{ background: bgCard, border: `1px solid ${border}` }}>
+                      {/* Leg label */}
+                      <div className="flex items-center gap-1.5">
+                        <LegIcon className="h-3.5 w-3.5" style={{ color }} />
+                        <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color }}>{label}</span>
+                      </div>
+
+                      {/* Code row */}
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 flex items-center gap-2 rounded-lg px-3 py-2.5 min-w-0"
+                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                          <Hash className="h-3 w-3 shrink-0" style={{ color: "hsl(var(--muted-foreground))" }} />
+                          <span className="text-sm font-bold truncate" style={{ color: "#F3D37A", letterSpacing: "0.1em" }}>{code}</span>
+                        </div>
+                        <button
+                          onClick={() => copyText(code, codeKey)}
+                          className="h-9 w-9 flex items-center justify-center rounded-lg shrink-0 transition-all"
+                          style={copied === codeKey
+                            ? { background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.3)" }
+                            : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+                        >
+                          {copied === codeKey
+                            ? <CheckCheck className="h-3.5 w-3.5" style={{ color: "#34d399" }} />
+                            : <Copy className="h-3.5 w-3.5" style={{ color: "hsl(var(--muted-foreground))" }} />}
+                        </button>
+                      </div>
+
+                      {/* Link row */}
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 rounded-lg px-3 py-2.5 min-w-0"
+                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                          <p className="text-[11px] truncate" style={{ color: "hsl(var(--muted-foreground))" }}>{link}</p>
+                        </div>
+                        <button
+                          onClick={() => copyText(link, linkKey)}
+                          className="h-9 w-9 flex items-center justify-center rounded-lg shrink-0 transition-all"
+                          style={copied === linkKey
+                            ? { background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.3)" }
+                            : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+                        >
+                          {copied === linkKey
+                            ? <CheckCheck className="h-3.5 w-3.5" style={{ color: "#34d399" }} />
+                            : <Copy className="h-3.5 w-3.5" style={{ color: "hsl(var(--muted-foreground))" }} />}
+                        </button>
+                        <button
+                          onClick={() => void shareUrl(link)}
+                          className="h-9 w-9 flex items-center justify-center rounded-lg shrink-0 transition-all"
+                          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+                        >
+                          <Share2 className="h-3.5 w-3.5" style={{ color: "hsl(var(--muted-foreground))" }} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* ── Wallet Address ── */}
             <Card title="Withdrawal Wallet Address" icon={Wallet}>
