@@ -1090,3 +1090,152 @@ export function getAdminInvestments(params: {
 export function getAdminInvestment(id: string) {
   return request<AdminInvestmentItem & { updatedAt: string }>(`/api/admin/investments/${id}`);
 }
+
+/* ── Admin Withdrawals ─────────────────────────────────────────────────────── */
+
+export type AdminWithdrawalStatus = "PENDING" | "APPROVED" | "COMPLETED" | "REJECTED" | "CANCELLED";
+
+export interface AdminWithdrawalUser {
+  id:        string;
+  username:  string;
+  email:     string;
+  firstName: string;
+  lastName:  string;
+  status:    string;
+  sponsor:   { username: string } | null;
+}
+
+export interface AdminWithdrawalAdmin {
+  id:        string;
+  email:     string;
+  firstName: string;
+  lastName:  string;
+}
+
+export interface AdminWithdrawalItem {
+  id:                    string;
+  amount:                string;
+  walletAddress:         string;
+  walletAddressSnapshot: string;
+  network:               string;
+  status:                AdminWithdrawalStatus;
+  adminNotes:            string | null;
+  txHash:                string | null;
+  rejectedReason:        string | null;
+  approvedAt:            string | null;
+  completedAt:           string | null;
+  cancelledAt:           string | null;
+  createdAt:             string;
+  updatedAt:             string;
+  user:                  AdminWithdrawalUser;
+  approver:              AdminWithdrawalAdmin | null;
+  completer:             AdminWithdrawalAdmin | null;
+}
+
+export interface AdminWithdrawalDetail extends AdminWithdrawalItem {
+  user: AdminWithdrawalUser & {
+    wallet: {
+      depositWallet:           string;
+      incomeWallet:            string;
+      withdrawalWallet:        string;
+      lockedWithdrawalBalance: string;
+    } | null;
+  };
+  adminLogs: Array<{
+    id:        string;
+    action:    string;
+    details:   Record<string, unknown>;
+    createdAt: string;
+    admin:     { email: string; firstName: string; lastName: string };
+  }>;
+}
+
+export interface AdminWithdrawalStats {
+  totalCount:          number;
+  pendingCount:        number;
+  pendingAmount:       string;
+  approvedCount:       number;
+  completedCount:      number;
+  completedAmount:     string;
+  rejectedCount:       number;
+  cancelledCount:      number;
+  approvedToday:       number;
+  approvedTodayAmount: string;
+  rejectedToday:       number;
+  successRate:         string;
+}
+
+export interface AdminWithdrawalListResponse {
+  withdrawals: AdminWithdrawalItem[];
+  meta:        { total: number; page: number; limit: number; totalPages: number };
+}
+
+export function getAdminWithdrawals(params: {
+  page?:      number;
+  limit?:     number;
+  status?:    AdminWithdrawalStatus;
+  search?:    string;
+  minAmount?: number;
+  maxAmount?: number;
+  dateFrom?:  string;
+  dateTo?:    string;
+  sortBy?:    "createdAt" | "amount" | "status";
+  sortOrder?: "asc" | "desc";
+}) {
+  const q = new URLSearchParams({
+    page:  String(params.page  ?? 1),
+    limit: String(params.limit ?? 25),
+  });
+  if (params.status)               q.set("status",    params.status);
+  if (params.search)               q.set("search",    params.search);
+  if (params.minAmount !== undefined) q.set("minAmount", String(params.minAmount));
+  if (params.maxAmount !== undefined) q.set("maxAmount", String(params.maxAmount));
+  if (params.dateFrom)             q.set("dateFrom",  params.dateFrom);
+  if (params.dateTo)               q.set("dateTo",    params.dateTo);
+  if (params.sortBy)               q.set("sortBy",    params.sortBy);
+  if (params.sortOrder)            q.set("sortOrder", params.sortOrder);
+  return request<AdminWithdrawalListResponse>(`/api/admin/withdrawals?${q}`);
+}
+
+export function getAdminWithdrawalStats() {
+  return request<AdminWithdrawalStats>("/api/admin/withdrawals/stats");
+}
+
+export function getAdminWithdrawalById(id: string) {
+  return request<AdminWithdrawalDetail>(`/api/admin/withdrawals/${id}`);
+}
+
+export function adminApproveWithdrawal(id: string, adminNotes?: string) {
+  return request<{ withdrawalId: string; status: string; approvedAt: string }>(
+    `/api/admin/withdrawals/${id}/approve`,
+    { method: "POST", body: JSON.stringify({ adminNotes }) },
+  );
+}
+
+export function adminCompleteWithdrawal(id: string, txHash: string, adminNotes?: string) {
+  return request<{ withdrawalId: string; status: string; completedAt: string; txHash: string }>(
+    `/api/admin/withdrawals/${id}/complete`,
+    { method: "POST", body: JSON.stringify({ txHash, adminNotes }) },
+  );
+}
+
+export function adminRejectWithdrawal(id: string, rejectedReason: string, adminNotes?: string) {
+  return request<{ withdrawalId: string; status: string }>(
+    `/api/admin/withdrawals/${id}/reject`,
+    { method: "POST", body: JSON.stringify({ rejectedReason, adminNotes }) },
+  );
+}
+
+export function adminHoldWithdrawal(id: string, reason: string, reviewDate?: string) {
+  return request<{ withdrawalId: string; status: string; holdNote: string }>(
+    `/api/admin/withdrawals/${id}/hold`,
+    { method: "POST", body: JSON.stringify({ reason, reviewDate }) },
+  );
+}
+
+export function adminUpdateWithdrawalNotes(id: string, adminNotes: string) {
+  return request<{ withdrawalId: string; adminNotes: string }>(
+    `/api/admin/withdrawals/${id}/notes`,
+    { method: "PATCH", body: JSON.stringify({ adminNotes }) },
+  );
+}

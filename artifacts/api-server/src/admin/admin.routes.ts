@@ -15,6 +15,10 @@ import {
 } from "./admin-deposits.controller";
 import {
   getAdminWithdrawalsHandler,
+  getAdminWithdrawalStatsHandler,
+  getAdminWithdrawalByIdHandler,
+  holdWithdrawalHandler,
+  updateWithdrawalNotesHandler,
   approveWithdrawalHandler,
   completeWithdrawalHandler,
   rejectWithdrawalHandler,
@@ -67,6 +71,8 @@ import {
   approveWithdrawalSchema,
   completeWithdrawalSchema,
   rejectWithdrawalSchema,
+  holdWithdrawalSchema,
+  updateWithdrawalNotesSchema,
 } from "../withdrawals/withdrawals.schema";
 import {
   userSearchQuerySchema,
@@ -252,11 +258,25 @@ router.get(
 const withdrawalAdminGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN");
 
 router.get(
-  "/withdrawals/pending",
+  "/withdrawals",
   adminLimiter,
   withdrawalAdminGuard,
   validate(adminWithdrawalListQuerySchema, "query"),
   getAdminWithdrawalsHandler,
+);
+
+router.get(
+  "/withdrawals/stats",
+  adminLimiter,
+  withdrawalAdminGuard,
+  getAdminWithdrawalStatsHandler,
+);
+
+router.get(
+  "/withdrawals/:id",
+  adminLimiter,
+  withdrawalAdminGuard,
+  getAdminWithdrawalByIdHandler,
 );
 
 router.post(
@@ -281,6 +301,22 @@ router.post(
   withdrawalAdminGuard,
   validate(rejectWithdrawalSchema),
   rejectWithdrawalHandler,
+);
+
+router.post(
+  "/withdrawals/:id/hold",
+  adminLimiter,
+  withdrawalAdminGuard,
+  validate(holdWithdrawalSchema),
+  holdWithdrawalHandler,
+);
+
+router.patch(
+  "/withdrawals/:id/notes",
+  adminLimiter,
+  withdrawalAdminGuard,
+  validate(updateWithdrawalNotesSchema),
+  updateWithdrawalNotesHandler,
 );
 
 export default router;

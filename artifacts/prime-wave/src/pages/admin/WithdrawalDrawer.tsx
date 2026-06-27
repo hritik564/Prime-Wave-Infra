@@ -25,6 +25,14 @@ export interface DrawerWithdrawal {
   depositWallet: number; incomeWallet: number; withdrawalWallet: number;
 }
 
+export interface DrawerAuditLog {
+  id:        string;
+  action:    string;
+  details:   Record<string, unknown>;
+  createdAt: string;
+  admin:     { email: string; firstName: string; lastName: string };
+}
+
 const $ = (n: number) => n === 0 ? "—" : `$${n.toLocaleString()}`;
 const dt  = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 const dtt = (d: Date) => d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -43,6 +51,7 @@ const STATUS_CFG: Record<string,{color:string;bg:string}> = {
   REJECTED:  {color:"#f87171",bg:"rgba(248,113,113,0.12)"},
   CANCELLED: {color:MUTED,   bg:"rgba(170,179,197,0.08)"},
   RELEASED:  {color:"#60a5fa",bg:"rgba(96,165,250,0.12)"},
+  COMPLETED: {color:"#60a5fa",bg:"rgba(96,165,250,0.12)"},
 };
 const PRI_CFG: Record<string,{color:string;bg:string}> = {
   NORMAL: {color:MUTED,     bg:"rgba(170,179,197,0.06)"},
@@ -93,7 +102,7 @@ function SummaryTab({w}:{w:DrawerWithdrawal}) {
         </div>
         <Row label="Withdrawal ID"    value={<span style={{fontFamily:"monospace",fontSize:11}}>{w.id}</span>} />
         <Row label="Requested Amount" value={$(w.amount)}         accent />
-        <Row label="Processing Fee"   value={<span style={{color:"#f87171"}}>{$(w.fee)}</span>} />
+        <Row label="Processing Fee"   value={<span style={{color:"#f87171"}}>{w.fee > 0 ? $(w.fee) : "—"}</span>} />
         <Row label="Net Amount"       value={<span style={{color:"#34d399",fontWeight:700}}>{$(net)}</span>} />
         <Row label="Wallet Type"      value={w.walletType} />
         <Row label="Network"          value={w.network} />
@@ -192,7 +201,7 @@ function WalletTab({w}:{w:DrawerWithdrawal}) {
 // ─────────────────────────────────────────────────────────────────────────────
 function PaymentTab({w}:{w:DrawerWithdrawal}) {
   const [copied,setCopied] = useState(false);
-  const copyAddr = () => { setCopied(true); setTimeout(()=>setCopied(false),1500); };
+  const copyAddr = () => { navigator.clipboard?.writeText(w.walletAddress).catch(()=>{}); setCopied(true); setTimeout(()=>setCopied(false),1500); };
   return (
     <div>
       <SecTitle title="PAYMENT DETAILS"/>
@@ -219,7 +228,7 @@ function PaymentTab({w}:{w:DrawerWithdrawal}) {
       )}
       <Row label="Destination"   value={w.paymentMethod==="BANK"?"Bank Account":"Crypto Wallet"}/>
       <Row label="Amount"        value={`$${w.amount.toLocaleString()}`} accent/>
-      <Row label="Fee"           value={<span style={{color:"#f87171"}}>${w.fee.toLocaleString()}</span>}/>
+      <Row label="Fee"           value={<span style={{color:"#f87171"}}>{w.fee > 0 ? `$${w.fee.toLocaleString()}` : "—"}</span>}/>
       <Row label="Net"           value={<span style={{color:"#34d399",fontWeight:700}}>${(w.amount-w.fee).toLocaleString()}</span>}/>
     </div>
   );
@@ -235,8 +244,8 @@ function buildTimeline(w:DrawerWithdrawal): TxEvent[] {
     {label:"Withdrawal Requested",time:w.requestedAt,                          admin:w.username,           color:"#60a5fa",icon:ArrowDownLeft, done:true},
     {label:"Queued for Review",   time:new Date(b+300000),                     admin:"system",             color:"#fbbf24",icon:Clock,         done:true},
     {label:"Assigned to Admin",   time:new Date(b+1800000),                    admin:w.assignedAdmin??"system",color:"#a78bfa",icon:Users,     done:!!w.assignedAdmin},
-    {label:"Approved",            time:w.processedAt??new Date(b+7200000),     admin:w.assignedAdmin??"—", color:"#34d399",icon:CheckCircle,   done:w.status==="APPROVED"||w.status==="RELEASED"},
-    {label:"Released to Network", time:new Date((w.processedAt?.getTime()??b+7200000)+3600000),admin:"system",color:"#34d399",icon:TrendingUp,done:w.status==="RELEASED"},
+    {label:"Approved",            time:w.processedAt??new Date(b+7200000),     admin:w.assignedAdmin??"—", color:"#34d399",icon:CheckCircle,   done:w.status==="APPROVED"||w.status==="RELEASED"||w.status==="COMPLETED"},
+    {label:"Released to Network", time:new Date((w.processedAt?.getTime()??b+7200000)+3600000),admin:"system",color:"#34d399",icon:TrendingUp,done:w.status==="RELEASED"||w.status==="COMPLETED"},
     {label:"Completed",           time:new Date((w.processedAt?.getTime()??b+7200000)+14400000),admin:"system",color:GOLD,    icon:CheckCircle,done:false},
   ];
   if (w.status==="REJECTED") {
@@ -273,24 +282,34 @@ function TimelineTab({w}:{w:DrawerWithdrawal}) {
 // TAB: Notes
 // ─────────────────────────────────────────────────────────────────────────────
 interface Note{id:number;text:string;date:Date;admin:string;pinned:boolean}
-function NotesTab({w}:{w:DrawerWithdrawal}) {
-  const [notes,setNotes] = useState<Note[]>([
-    {id:1,text:"Large withdrawal flagged for manual review. Awaiting compliance sign-off.",date:new Date(w.requestedAt.getTime()+1800000),admin:"compliance@primewave.io",pinned:true},
-  ]);
+function NotesTab({w, onSaveNote}: {w:DrawerWithdrawal; onSaveNote?: (text: string) => Promise<void>}) {
+  const initialNote: Note[] = w.memberStatus
+    ? (w as DrawerWithdrawal & { _adminNotes?: string })._adminNotes
+      ? [{ id: 1, text: (w as DrawerWithdrawal & { _adminNotes?: string })._adminNotes!, date: new Date(w.requestedAt.getTime() + 1000), admin: "admin", pinned: false }]
+      : []
+    : [];
+  const [notes,setNotes] = useState<Note[]>(initialNote);
   const [draft,setDraft] = useState("");
-  const add = useCallback(()=>{
+  const [saving,setSaving] = useState(false);
+  const add = useCallback(async ()=>{
     if(!draft.trim())return;
-    setNotes(p=>[{id:Date.now(),text:draft.trim(),date:new Date(),admin:"admin@primewave.io",pinned:false},...p]);
-    setDraft("");
-  },[draft]);
+    const text = draft.trim();
+    setSaving(true);
+    try {
+      if (onSaveNote) await onSaveNote(text);
+      setNotes(p=>[{id:Date.now(),text,date:new Date(),admin:"admin@primewave.io",pinned:false},...p]);
+      setDraft("");
+    } finally { setSaving(false); }
+  },[draft, onSaveNote]);
   const togglePin = useCallback((id:number)=>setNotes(p=>p.map(n=>n.id===id?{...n,pinned:!n.pinned}:n)),[]);
   const sorted = [...notes].sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)||b.date.getTime()-a.date.getTime());
   return (
     <div>
       <Card>
         <textarea value={draft} onChange={e=>setDraft(e.target.value)} placeholder="Add admin note…" style={{width:"100%",minHeight:64,background:"rgba(255,255,255,0.03)",border:`1px solid ${BORDER}`,borderRadius:7,padding:"8px 10px",fontSize:12,color:"rgba(255,255,255,0.78)",outline:"none",resize:"vertical",boxSizing:"border-box",marginBottom:8}}/>
-        <button onClick={add} disabled={!draft.trim()} style={{padding:"6px 14px",background:draft.trim()?"rgba(212,175,55,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${draft.trim()?"rgba(212,175,55,0.3)":BORDER}`,borderRadius:6,cursor:draft.trim()?"pointer":"not-allowed",fontSize:12,fontWeight:600,color:draft.trim()?GOLD_L:MUTED}}>Add Note</button>
+        <button onClick={add} disabled={!draft.trim()||saving} style={{padding:"6px 14px",background:draft.trim()&&!saving?"rgba(212,175,55,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${draft.trim()&&!saving?"rgba(212,175,55,0.3)":BORDER}`,borderRadius:6,cursor:draft.trim()&&!saving?"pointer":"not-allowed",fontSize:12,fontWeight:600,color:draft.trim()&&!saving?GOLD_L:MUTED}}>{saving?"Saving…":"Add Note"}</button>
       </Card>
+      {sorted.length === 0 && <div style={{fontSize:12,color:MUTED,textAlign:"center",padding:"24px 0"}}>No notes yet.</div>}
       {sorted.map(n=>(
         <div key={n.id} style={{background:n.pinned?"rgba(212,175,55,0.04)":"rgba(255,255,255,0.02)",border:`1px solid ${n.pinned?"rgba(212,175,55,0.15)":BORDER}`,borderRadius:9,padding:"11px 13px",marginBottom:9}}>
           <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:7}}>
@@ -310,15 +329,36 @@ function NotesTab({w}:{w:DrawerWithdrawal}) {
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB: Audit
 // ─────────────────────────────────────────────────────────────────────────────
-function AuditTab({w}:{w:DrawerWithdrawal}) {
+function AuditTab({w, adminLogs}: {w:DrawerWithdrawal; adminLogs?: DrawerAuditLog[]}) {
   const [q,setQ] = useState("");
-  const entries = useMemo(()=>[
-    {action:"Withdrawal Requested",admin:w.username,          ip:"203.0.113.1",device:"Mobile App",     date:w.requestedAt,                              color:"#60a5fa",status:"SUCCESS"},
-    {action:"Auto-queued",          admin:"system",            ip:"—",           device:"system",          date:new Date(w.requestedAt.getTime()+300000),   color:"#fbbf24",status:"INFO"},
-    {action:"Compliance Check",     admin:"compliance@pw.io",  ip:"10.0.0.4",    device:"Admin Portal",   date:new Date(w.requestedAt.getTime()+900000),   color:"#a78bfa",status:"INFO"},
-    {action:"Assigned to Review",   admin:w.assignedAdmin??"system",ip:"10.0.0.1",device:"Admin Portal", date:new Date(w.requestedAt.getTime()+1800000),  color:"#a78bfa",status:"INFO"},
-    ...(w.processedAt?[{action:w.status==="REJECTED"?"Rejected":"Approved",admin:w.assignedAdmin??"admin",ip:"10.0.0.2",device:"Admin Portal",date:w.processedAt,color:w.status==="REJECTED"?"#f87171":"#34d399",status:w.status==="REJECTED"?"WARN":"SUCCESS"}]:[]),
+
+  const backendEntries = useMemo(() => {
+    if (!adminLogs || adminLogs.length === 0) return null;
+    return adminLogs
+      .filter(l => !q || l.action.toLowerCase().includes(q.toLowerCase()) || l.admin.email.toLowerCase().includes(q.toLowerCase()))
+      .map(l => {
+        const color =
+          l.action.includes("REJECTED") ? "#f87171" :
+          l.action.includes("COMPLETED") ? "#34d399" :
+          l.action.includes("APPROVED") ? "#34d399" :
+          l.action.includes("HOLD") ? "#fbbf24" : "#60a5fa";
+        const status =
+          l.action.includes("REJECTED") ? "WARN" :
+          l.action.includes("HOLD") ? "WARN" : "SUCCESS";
+        const label = l.action.replace(/_/g, " ").replace(/WITHDRAWAL /i, "");
+        return { action: label, admin: l.admin.email, date: new Date(l.createdAt), color, status };
+      }).reverse();
+  }, [adminLogs, q]);
+
+  const fallbackEntries = useMemo(()=>[
+    {action:"Withdrawal Requested",admin:w.username,          ip:"—",date:w.requestedAt,                              color:"#60a5fa",status:"SUCCESS"},
+    {action:"Auto-queued",          admin:"system",            ip:"—",date:new Date(w.requestedAt.getTime()+300000),   color:"#fbbf24",status:"INFO"},
+    {action:"Compliance Check",     admin:"system",            ip:"—",date:new Date(w.requestedAt.getTime()+900000),   color:"#a78bfa",status:"INFO"},
+    {action:"Assigned to Review",   admin:w.assignedAdmin??"system",ip:"—",date:new Date(w.requestedAt.getTime()+1800000),  color:"#a78bfa",status:"INFO"},
+    ...(w.processedAt?[{action:w.status==="REJECTED"?"Rejected":"Approved",admin:w.assignedAdmin??"admin",ip:"—",date:w.processedAt,color:w.status==="REJECTED"?"#f87171":"#34d399",status:w.status==="REJECTED"?"WARN":"SUCCESS"}]:[]),
   ].filter(e=>!q||e.action.toLowerCase().includes(q.toLowerCase())||e.admin.toLowerCase().includes(q.toLowerCase())).reverse(),[w,q]);
+
+  const entries = backendEntries ?? fallbackEntries;
   const SC:{[k:string]:string}={SUCCESS:"#34d399",INFO:"#60a5fa",WARN:"#fbbf24"};
   return (
     <div>
@@ -328,6 +368,7 @@ function AuditTab({w}:{w:DrawerWithdrawal}) {
         </div>
         <button style={{display:"flex",alignItems:"center",gap:5,background:"rgba(255,255,255,0.04)",border:`1px solid ${BORDER}`,borderRadius:7,padding:"6px 10px",cursor:"pointer",fontSize:11,color:MUTED}}><Download size={11}/>Export</button>
       </div>
+      {entries.length === 0 && <div style={{fontSize:12,color:MUTED,textAlign:"center",padding:"24px 0"}}>No audit records found.</div>}
       {entries.map((e,i)=>(
         <div key={i} style={{display:"flex",alignItems:"flex-start",gap:9,padding:"9px 0",borderBottom:`1px solid rgba(255,255,255,0.04)`}}>
           <div style={{width:24,height:24,borderRadius:6,background:`${e.color}12`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>
@@ -339,7 +380,6 @@ function AuditTab({w}:{w:DrawerWithdrawal}) {
               <span style={{fontSize:9,fontWeight:700,color:SC[e.status]??"#60a5fa",background:`${SC[e.status]??"#60a5fa"}15`,padding:"1px 6px",borderRadius:3}}>{e.status}</span>
             </div>
             <div style={{fontSize:10,color:"#60a5fa",marginTop:2}}>{e.admin}</div>
-            <div style={{fontSize:9,color:MUTED,marginTop:1}}>IP:{e.ip} · {e.device}</div>
           </div>
           <div style={{fontSize:9,color:MUTED,whiteSpace:"nowrap",marginTop:2}}>{dtt(e.date)}</div>
         </div>
@@ -352,13 +392,15 @@ function AuditTab({w}:{w:DrawerWithdrawal}) {
 // WithdrawalDrawer
 // ─────────────────────────────────────────────────────────────────────────────
 export default function WithdrawalDrawer({
-  withdrawal, onClose, onApprove, onReject, onHold,
+  withdrawal, onClose, onApprove, onReject, onHold, adminLogs, onSaveNote,
 }: {
-  withdrawal: DrawerWithdrawal | null;
-  onClose:   () => void;
-  onApprove: (w: DrawerWithdrawal) => void;
-  onReject:  (w: DrawerWithdrawal) => void;
-  onHold:    (w: DrawerWithdrawal) => void;
+  withdrawal:  DrawerWithdrawal | null;
+  onClose:     () => void;
+  onApprove:   (w: DrawerWithdrawal) => void;
+  onReject:    (w: DrawerWithdrawal) => void;
+  onHold:      (w: DrawerWithdrawal) => void;
+  adminLogs?:  DrawerAuditLog[];
+  onSaveNote?: (text: string) => Promise<void>;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("Summary");
   const visible = !!withdrawal;
@@ -423,8 +465,8 @@ export default function WithdrawalDrawer({
               {activeTab==="Wallet"   && <WalletTab   w={withdrawal}/>}
               {activeTab==="Payment"  && <PaymentTab  w={withdrawal}/>}
               {activeTab==="Timeline" && <TimelineTab w={withdrawal}/>}
-              {activeTab==="Notes"    && <NotesTab    w={withdrawal}/>}
-              {activeTab==="Audit"    && <AuditTab    w={withdrawal}/>}
+              {activeTab==="Notes"    && <NotesTab    w={withdrawal} onSaveNote={onSaveNote}/>}
+              {activeTab==="Audit"    && <AuditTab    w={withdrawal} adminLogs={adminLogs}/>}
             </div>
           </>
         )}

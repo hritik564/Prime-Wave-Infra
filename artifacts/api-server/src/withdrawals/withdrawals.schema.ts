@@ -20,9 +20,16 @@ export const withdrawalHistoryQuerySchema = z.object({
 // ── Admin schemas ─────────────────────────────────────────────────────────────
 
 export const adminWithdrawalListQuerySchema = z.object({
-  status:  z.enum(WITHDRAWAL_STATUSES).optional(),
-  page:    z.coerce.number().int().min(1).default(1),
-  limit:   z.coerce.number().int().min(1).max(100).default(20),
+  status:    z.enum(WITHDRAWAL_STATUSES).optional(),
+  search:    z.string().trim().max(100).optional(),
+  minAmount: z.coerce.number().min(0).optional(),
+  maxAmount: z.coerce.number().min(0).optional(),
+  dateFrom:  z.string().optional(),
+  dateTo:    z.string().optional(),
+  sortBy:    z.enum(["createdAt", "amount", "status"]).default("createdAt"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
+  page:      z.coerce.number().int().min(1).default(1),
+  limit:     z.coerce.number().int().min(1).max(100).default(25),
 });
 
 export const approveWithdrawalSchema = z.object({
@@ -39,6 +46,15 @@ export const rejectWithdrawalSchema = z.object({
   adminNotes:     z.string().trim().max(1000).optional(),
 });
 
+export const holdWithdrawalSchema = z.object({
+  reason:     z.string().trim().min(1, "Hold reason is required").max(500),
+  reviewDate: z.string().optional(),
+});
+
+export const updateWithdrawalNotesSchema = z.object({
+  adminNotes: z.string().trim().max(2000),
+});
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type CreateWithdrawalInput       = z.infer<typeof createWithdrawalSchema>;
@@ -47,3 +63,5 @@ export type AdminWithdrawalListQuery    = z.infer<typeof adminWithdrawalListQuer
 export type ApproveWithdrawalInput      = z.infer<typeof approveWithdrawalSchema>;
 export type CompleteWithdrawalInput     = z.infer<typeof completeWithdrawalSchema>;
 export type RejectWithdrawalInput       = z.infer<typeof rejectWithdrawalSchema>;
+export type HoldWithdrawalInput         = z.infer<typeof holdWithdrawalSchema>;
+export type UpdateWithdrawalNotesInput  = z.infer<typeof updateWithdrawalNotesSchema>;

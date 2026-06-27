@@ -1,0 +1,263 @@
+Sprint 20E — Withdrawal Center Backend Integration
+
+Objective
+
+Replace all mock withdrawal data and local interactions with live backend integration while preserving the existing UI exactly as it is.
+
+IMPORTANT
+
+Do NOT redesign the Withdrawal Center.
+
+Do NOT modify layouts, styling, routing or components.
+
+Only replace mock data and local actions with backend operations.
+
+--------------------------------------------------
+
+Business Rules (Locked)
+
+Withdrawal requests always originate from the user's Withdrawal Wallet.
+
+Every withdrawal request requires manual approval by an authorized administrator.
+
+The 72-hour release engine DOES NOT apply to withdrawals.
+
+The 72-hour release engine is used ONLY for Income Wallet transfers and is handled automatically outside this module.
+
+--------------------------------------------------
+
+Withdrawal List
+
+Replace mock data with backend records.
+
+Support:
+
+• Server-side pagination
+
+• Search
+
+• Sorting
+
+• Filtering
+
+• Loading state
+
+• Empty state
+
+• Error state
+
+--------------------------------------------------
+
+Statistics Cards
+
+Replace mock KPI values with live backend values.
+
+Keep current UI.
+
+--------------------------------------------------
+
+Withdrawal Drawer
+
+Load complete withdrawal information on demand.
+
+Display:
+
+• Withdrawal Summary
+
+• Member Details
+
+• Wallet Details
+
+• Destination Wallet
+
+• Timeline
+
+• Audit Log
+
+• Admin Notes
+
+--------------------------------------------------
+
+Search
+
+Connect backend.
+
+Support:
+
+• Username
+
+• Member ID
+
+• Withdrawal ID
+
+• Transaction ID
+
+• Wallet Address
+
+--------------------------------------------------
+
+Filters
+
+Connect backend filters.
+
+Status
+
+Date
+
+Amount Range
+
+Country
+
+Wallet Type
+
+--------------------------------------------------
+
+Approve Withdrawal
+
+Connect backend approval endpoint.
+
+Require confirmation.
+
+Require optional admin notes.
+
+On success:
+
+• Update status
+
+• Refresh affected row
+
+• Refresh KPI cards
+
+• Update drawer
+
+• Append audit record
+
+• Show success toast
+
+--------------------------------------------------
+
+Reject Withdrawal
+
+Connect backend rejection endpoint.
+
+Require rejection reason.
+
+Update UI immediately.
+
+Append audit record.
+
+Show success toast.
+
+--------------------------------------------------
+
+Hold Withdrawal
+
+Connect backend.
+
+Require reason.
+
+Status becomes On Hold.
+
+Update UI.
+
+--------------------------------------------------
+
+Assign Reviewer
+
+Connect backend if available.
+
+Otherwise disable gracefully with "Coming Soon."
+
+--------------------------------------------------
+
+Timeline
+
+Replace mock events with backend events.
+
+Examples:
+
+Requested
+
+Reviewed
+
+Approved
+
+Rejected
+
+Completed
+
+--------------------------------------------------
+
+Audit Log
+
+Replace mock audit with backend audit history.
+
+--------------------------------------------------
+
+Admin Notes
+
+Load and save through backend.
+
+--------------------------------------------------
+
+Performance
+
+Load drawer lazily.
+
+Avoid duplicate API requests.
+
+Refresh only affected records.
+
+--------------------------------------------------
+
+Error Handling
+
+Handle:
+
+Validation failures
+
+Network failures
+
+Unauthorized
+
+Conflict responses
+
+Not found
+
+Gracefully display user-friendly messages.
+
+--------------------------------------------------
+
+Validation
+
+Verify:
+
+✓ Withdrawal list loads.
+
+✓ Search works.
+
+✓ Filters work.
+
+✓ Statistics load correctly.
+
+✓ Drawer loads correctly.
+
+✓ Approve works.
+
+✓ Reject works.
+
+✓ Hold works.
+
+✓ Timeline loads.
+
+✓ Audit Log loads.
+
+✓ Admin Notes work.
+
+✓ Existing UI remains unchanged.
+
+--------------------------------------------------
+
+Goal
+
+Transform the Withdrawal Center into a production-ready backend-powered operational module that allows Finance/Admin users to securely review, approve and audit withdrawal requests while preserving Prime Wave's financial integrity.
