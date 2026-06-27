@@ -1,0 +1,331 @@
+# Sprint 23D — Extend Development Seed to Level 6 (127 Total Accounts)
+
+Objective
+
+Extend the existing development seed dataset from a 63-account binary tree to a complete 127-account binary tree.
+
+IMPORTANT
+
+Do NOT delete or recreate the existing dataset.
+
+Do NOT reseed the current 63 accounts.
+
+Do NOT modify existing usernames.
+
+Do NOT recreate deposits.
+
+Do NOT recreate investments.
+
+Do NOT modify wallet balances.
+
+Do NOT modify existing sponsor relationships.
+
+Do NOT modify existing binary placements.
+
+Only append the new Level 6 members.
+
+--------------------------------------------------------
+Current Dataset
+--------------------------------------------------------
+
+Current binary tree:
+
+Level 0 : 1
+
+Level 1 : 2
+
+Level 2 : 4
+
+Level 3 : 8
+
+Level 4 : 16
+
+Level 5 : 32
+
+Total:
+
+63 Accounts
+
+--------------------------------------------------------
+Required Extension
+--------------------------------------------------------
+
+Append ONE additional binary level.
+
+Create:
+
+Level 6
+
+64 new members.
+
+After completion:
+
+Level 0 : 1
+
+Level 1 : 2
+
+Level 2 : 4
+
+Level 3 : 8
+
+Level 4 : 16
+
+Level 5 : 32
+
+Level 6 : 64
+
+Total:
+
+127 Accounts
+
+--------------------------------------------------------
+Placement
+--------------------------------------------------------
+
+Every existing Level 5 member currently has no children.
+
+Assign exactly:
+
+One LEFT child
+
+One RIGHT child
+
+to every existing Level 5 member.
+
+Do NOT alter any higher-level placements.
+
+The resulting tree must remain a perfect binary tree.
+
+--------------------------------------------------------
+Sponsor Rule
+--------------------------------------------------------
+
+Continue using the existing sponsor hierarchy.
+
+Each Level 5 member becomes sponsor of:
+
+Left child
+
+Right child
+
+Maintain complete consistency between:
+
+Sponsor hierarchy
+
+Binary hierarchy
+
+--------------------------------------------------------
+Username Convention
+--------------------------------------------------------
+
+Continue the existing deterministic naming pattern.
+
+Examples:
+
+Existing:
+
+RD2
+
+RD2L
+
+RD2R
+
+RD2LL
+
+...
+
+Continue naturally for Level 6.
+
+Do NOT rename any existing usernames.
+
+--------------------------------------------------------
+User Details
+--------------------------------------------------------
+
+Email
+
+<username>@primewave.live
+
+Password
+
+RDprimewave@321!
+
+Country
+
+India
+
+Phone
+
+Generate random Indian mobile numbers.
+
+--------------------------------------------------------
+Funding
+--------------------------------------------------------
+
+For EACH of the 64 newly created members:
+
+Create an approved Deposit
+
+$100
+
+using the normal deposit workflow.
+
+Then immediately execute:
+
+Investment
+
+$100
+
+Plan:
+
+360-Day
+
+Auto Compound:
+
+OFF
+
+Use the existing services.
+
+Do NOT insert records directly into tables.
+
+--------------------------------------------------------
+Qualification
+--------------------------------------------------------
+
+After extending the tree:
+
+Expected totals:
+
+Total Accounts:
+
+127
+
+ACTIVE Members:
+
+63
+
+INACTIVE Members:
+
+64
+
+Reason:
+
+Levels 0–5 have both direct referrals.
+
+Level 6 members are leaf nodes and therefore remain INACTIVE according to Prime Wave business rules.
+
+Do NOT bypass this rule.
+
+--------------------------------------------------------
+Verification
+--------------------------------------------------------
+
+Verify:
+
+✓ Total accounts = 127
+
+✓ Binary tree perfectly balanced
+
+✓ No duplicate usernames
+
+✓ Sponsor hierarchy correct
+
+✓ Binary hierarchy correct
+
+✓ Existing 63 accounts unchanged
+
+✓ 64 new deposits created
+
+✓ 64 new investments created
+
+✓ Every new investment uses the 360-Day plan
+
+✓ Auto Compound OFF
+
+✓ ACTIVE = 63
+
+✓ INACTIVE = 64
+
+--------------------------------------------------------
+Excel Export
+--------------------------------------------------------
+
+Generate a NEW Excel file.
+
+seed-users-127.xlsx
+
+Do NOT overwrite the previous file.
+
+Include ALL 127 accounts.
+
+Columns:
+
+• Username
+
+• Email
+
+• Password
+
+• Phone
+
+• Country
+
+• User ID
+
+• Sponsor Username
+
+• Binary Parent Username
+
+• Placement (LEFT / RIGHT)
+
+• Tree Level
+
+• Active / Inactive Status
+
+• Deposit Status
+
+• Investment Status
+
+• Investment Plan
+
+• Auto Compound
+
+--------------------------------------------------------
+Final Report
+--------------------------------------------------------
+
+Provide:
+
+Existing accounts preserved:
+
+63
+
+New accounts created:
+
+64
+
+Total accounts:
+
+127
+
+New deposits:
+
+64
+
+New investments:
+
+64
+
+ACTIVE members:
+
+63
+
+INACTIVE members:
+
+64
+
+Location of:
+
+seed-users-127.xlsx
+
+Confirm that the binary tree is now complete through Level 6 and ready for continued end-to-end testing.
