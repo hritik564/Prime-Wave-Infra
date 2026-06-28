@@ -3,8 +3,8 @@ import type { IBlockchainAdapter, TxVerificationResult, TxDetails } from "./bloc
 
 // ── Mock company wallet & token contract ─────────────────────────────────────
 
-const MOCK_COMPANY_WALLET  = "0xPRIMEWAVE_COMPANY_BEP20_WALLET";
-const MOCK_USDT_CONTRACT   = "0x55d398326f99059fF775485246999027B3197955"; // real BSC USDT
+const MOCK_COMPANY_WALLET    = "0xPRIMEWAVE_COMPANY_BEP20_WALLET";
+const MOCK_USDT_CONTRACT     = "0x55d398326f99059fF775485246999027B3197955"; // real BSC USDT
 const REQUIRED_CONFIRMATIONS = 12;
 
 // ── Hash prefix → scenario mapping ──────────────────────────────────────────
@@ -54,7 +54,8 @@ function buildValidDetails(txHash: string, overrides: Partial<TxDetails> = {}): 
 // ── MockBlockchainAdapter ─────────────────────────────────────────────────────
 
 export class MockBlockchainAdapter implements IBlockchainAdapter {
-  readonly network = "BEP20" as const;
+  readonly network               = "BEP20" as const;
+  readonly requiredConfirmations = REQUIRED_CONFIRMATIONS;
 
   async verifyTransaction(txHash: string, expectedRecipient?: string): Promise<TxVerificationResult> {
     const h = txHash.toLowerCase();
@@ -136,9 +137,7 @@ export class MockBlockchainAdapter implements IBlockchainAdapter {
     return diff.lte(new Prisma.Decimal("0.01"));
   }
 
-  /** Expose the mock company wallet so the service can write it to the record. */
-  static readonly COMPANY_WALLET = MOCK_COMPANY_WALLET;
-
-  /** Expose required confirmations so the engine can store it on the record. */
-  static readonly REQUIRED_CONFIRMATIONS = REQUIRED_CONFIRMATIONS;
+  /** Expose the mock company wallet so tests can reference it. */
+  static readonly COMPANY_WALLET          = MOCK_COMPANY_WALLET;
+  static readonly REQUIRED_CONFIRMATIONS  = REQUIRED_CONFIRMATIONS;
 }

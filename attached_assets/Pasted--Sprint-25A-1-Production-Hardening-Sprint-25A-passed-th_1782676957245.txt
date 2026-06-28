@@ -1,0 +1,232 @@
+# Sprint 25A.1 — Production Hardening
+
+Sprint 25A passed the architecture audit.
+
+Before we begin Sprint 25B (real BSC integration), I want to complete one final production hardening sprint.
+
+This sprint introduces **NO new features**.
+
+Its only purpose is to eliminate the architectural risks identified during the audit.
+
+Do not modify any financial business rules.
+
+Do not change Wallet, Investment, ROI, Binary, Salary, Orbit, Level Income or Withdrawal logic.
+
+Only address the items below.
+
+---
+
+# H1 — Optimistic Locking (Highest Priority)
+
+Current implementation allows two workers to process the same verification in a multi-instance deployment.
+
+Implement optimistic locking on state transitions.
+
+Example approach:
+
+UPDATE ... WHERE id = ? AND verificationStatus = expectedCurrentStatus
+
+If zero rows are updated:
+
+* another worker already processed the record
+* exit gracefully
+* do NOT mark the verification as FAILED
+
+The worker should silently abandon processing.
+
+This guarantees only one worker can own a verification at a time.
+
+---
+
+# M3 — Crash Recovery
+
+Current risk:
+
+CONFIRMED
+
+↓
+
+Server crashes
+
+↓
+
+creditVerifiedDeposit() never executes
+
+↓
+
+Verification remains permanently stuck in CONFIRMED.
+
+Implement automatic recovery.
+
+After server restart, the worker must also detect recoverable CONFIRMED records that have not yet completed the approval pipeline.
+
+The worker should safely resume processing.
+
+The recovery must remain idempotent.
+
+No duplicate wallet credits.
+
+No duplicate ledger entries.
+
+No duplicate notifications.
+
+---
+
+# M4 — RPC Concurrency Control
+
+Replace unrestricted Promise.allSettled(100...)
+
+with controlled concurrency.
+
+Introduce a configurable concurrency limit.
+
+Recommended default:
+
+10–20 concurrent verification requests.
+
+This limit must be configurable.
+
+The worker should never overwhelm a blockchain RPC provider.
+
+---
+
+# M2 — Remove Mock Adapter Coupling
+
+The Deposit Verification Service must not import static values from MockBlockchainAdapter.
+
+Move these values into configuration or expose them through the Blockchain Adapter interface.
+
+The service layer must remain completely blockchain-agnostic.
+
+The only dependency should be IBlockchainAdapter.
+
+---
+
+# L2 — Restrict Networks
+
+The frontend currently supports BEP20 only.
+
+Backend validation must enforce the same.
+
+Reject every network except:
+
+BEP20
+
+Future adapters (TRC20, ERC20, SOL) will extend this later.
+
+---
+
+# Additional Hardening
+
+## Transaction Hash Normalization
+
+Normalize every TX Hash before storing or comparing.
+
+Apply:
+
+* trim whitespace
+* lowercase
+
+The same transaction hash must always have one canonical representation.
+
+---
+
+## Transaction Hash Validation
+
+Reject malformed hashes immediately.
+
+Validate:
+
+* expected BSC transaction hash format
+* expected length
+* hexadecimal characters
+
+Do not allow obviously invalid hashes into the verification pipeline.
+
+---
+
+# Verification Timeout
+
+Introduce a configurable verification timeout.
+
+Example:
+
+30 minutes
+
+If confirmations are never reached:
+
+Transition to:
+
+EXPIRED
+
+Record the reason.
+
+---
+
+# Worker Metrics
+
+Record lightweight operational metrics.
+
+Examples:
+
+* average verification duration
+* longest verification
+* success rate
+* failed verifications
+* expired verifications
+
+These metrics should be available for future admin dashboards.
+
+Do not build the dashboard yet.
+
+Only collect the metrics.
+
+---
+
+# Regression Requirements
+
+Confirm that the following remain unchanged:
+
+* Deposit approval pipeline
+* Wallet credit logic
+* Wallet ledger
+* Notifications
+* Investment Engine
+* ROI Engine
+* Binary Engine
+* Salary Engine
+* Orbit Engine
+* Level Income Engine
+* Withdrawal Engine
+
+The only behavioural changes in this sprint should relate to:
+
+* worker safety
+* crash recovery
+* concurrency
+* validation
+* configuration
+
+---
+
+# Deliverables
+
+Provide:
+
+1. Exact files modified.
+
+2. Explanation of every architectural change.
+
+3. Demonstration that optimistic locking prevents duplicate processing.
+
+4. Demonstration that crash recovery resumes automatically.
+
+5. Demonstration that concurrency limits are enforced.
+
+6. Demonstration that malformed TX hashes are rejected.
+
+7. Demonstration that duplicate TX hashes remain impossible.
+
+8. Final regression report confirming that no existing financial engine behaviour changed.
+
+This sprint is complete only when the Deposit Verification Engine is fully production-hardened and ready for Sprint 25B (real BSC Blockchain Adapter).

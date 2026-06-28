@@ -1,6 +1,7 @@
 import { prisma } from "../config/prisma";
 import { logger } from "../lib/logger";
 import { processPendingVerifications } from "./deposit-verification.service";
+import { verificationMetrics } from "./deposit-verification.metrics";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -14,13 +15,20 @@ let workerStarted = false;
 /**
  * Starts the deposit verification polling worker.
  *
- * - DB-driven: queries verificationStatus IN (TX_SUBMITTED, VERIFYING,
- *   WAITING_CONFIRMATIONS) AND nextCheckAt <= NOW() on every tick.
- * - Restart-safe: no in-memory job state; picks up from DB on every boot.
- * - Interval is read from system_settings at startup; change the DB value
- *   to retune without a code deployment.
+ * Safety guarantees:
+ *   - H1: Optimistic locking in repo.transition() prevents concurrent workers
+ *     from double-processing the same verification row.
+ *   - M3: CONFIRMED and CREDITED rows are included in findPendingForWorker;
+ *     processOne resumes them after a crash without a re-verification round trip.
+ *   - M4: Concurrency limited to deposit_verification.concurrency_limit
+ *     (default 10) — safe for shared / rate-limited RPC providers.
  *
- * Call once from src/index.ts after server starts listening.
+ * Configuration keys (system_settings):
+ *   deposit_verification.poll_interval_ms   — tick interval, default 20000
+ *   deposit_verification.concurrency_limit  — max concurrent checks, default 10
+ *   deposit_verification.timeout_ms         — per-verification timeout, default 1800000 (30 min)
+ *
+ * Call once from src/index.ts after the server starts listening.
  */
 export async function startDepositVerificationWorker(): Promise<void> {
   if (workerStarted) return;
@@ -39,13 +47,28 @@ export async function startDepositVerificationWorker(): Promise<void> {
   setInterval(() => void tick(), pollMs);
 }
 
+/**
+ * Returns the current in-memory metrics snapshot.
+ * Resets on server restart. Suitable for admin dashboard polling.
+ */
+export function getVerificationMetricsSnapshot() {
+  return verificationMetrics.getSnapshot();
+}
+
 // ── Internal ──────────────────────────────────────────────────────────────────
 
 async function tick(): Promise<void> {
+  const startMs = Date.now();
   try {
-    const processed = await processPendingVerifications();
-    if (processed > 0) {
-      logger.info({ processed }, "DepositVerification worker: tick complete");
+    const stats = await processPendingVerifications();
+    const durationMs = Date.now() - startMs;
+
+    if (stats.total > 0) {
+      logger.info(
+        { ...stats, durationMs },
+        "DepositVerification worker: tick complete",
+      );
+      verificationMetrics.recordTick({ ...stats, durationMs });
     }
   } catch (err) {
     logger.error({ err }, "DepositVerification worker: unhandled tick error");

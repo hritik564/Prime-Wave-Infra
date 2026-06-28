@@ -37,6 +37,13 @@ export interface IBlockchainAdapter {
   readonly network: DepositNetwork;
 
   /**
+   * How many block confirmations this adapter considers sufficient.
+   * The service writes this value to the verification record at submit time,
+   * so each adapter owns its own confirmation threshold.
+   */
+  readonly requiredConfirmations: number;
+
+  /**
    * Fetch transaction details from the blockchain.
    * Returns `{ found: false }` if the hash is unknown / not yet indexed.
    *

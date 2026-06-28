@@ -12,6 +12,7 @@ import {
   getVerificationStatus,
   adminListVerifications,
   adminGetVerification,
+  adminGetMetrics,
 } from "./deposit-verification.controller";
 
 // ── User routes (/api/deposit-verifications) ──────────────────────────────────
@@ -41,6 +42,13 @@ adminRouter.get(
   requireAdminAuth,
   validate(adminListVerificationsSchema, "query"),
   adminListVerifications,
+);
+
+// /metrics must be declared BEFORE /:id so Express doesn't match "metrics" as an id param
+adminRouter.get(
+  "/metrics",
+  requireAdminAuth,
+  adminGetMetrics,
 );
 
 adminRouter.get(

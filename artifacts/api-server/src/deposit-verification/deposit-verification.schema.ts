@@ -1,15 +1,31 @@
 import { z } from "zod";
 
+// ── BSC transaction hash validation ──────────────────────────────────────────
+//
+// Production (Sprint 25B): must match strict BSC format: 0x + 64 hex chars.
+// Development (Sprint 25A): also allows mock-adapter patterns (0x + hex + underscores).
+// Normalization: trimmed and lowercased before the regex check.
+
+const txHashSchema = z
+  .string()
+  .min(10, "txHash must be at least 10 characters")
+  .max(128, "txHash must be at most 128 characters")
+  .transform((s) => s.trim().toLowerCase())
+  .refine(
+    (s) =>
+      /^0x[0-9a-f]{64}$/.test(s) ||          // strict BSC format (Sprint 25B+)
+      /^0x[0-9a-z_]{6,126}$/.test(s),        // Sprint 25A: mock hashes (lowercase alphanumeric + _)
+    { message: "txHash must start with 0x and contain only valid characters (hex or alphanumeric)" },
+  );
+
 // ── User endpoints ────────────────────────────────────────────────────────────
 
 export const submitVerificationSchema = z.object({
-  txHash: z
-    .string()
-    .min(10, "txHash must be at least 10 characters")
-    .max(128, "txHash must be at most 128 characters")
-    .regex(/^0x[0-9a-fA-F]{6,}$|^0x[a-zA-Z0-9_]+$/, "Invalid transaction hash format"),
-  network: z.enum(["BEP20", "ERC20", "TRC20", "SOL"], {
-    errorMap: () => ({ message: "network must be one of: BEP20, ERC20, TRC20, SOL" }),
+  txHash: txHashSchema,
+  // L2: BEP20 only. Extend to ["BEP20", "TRC20", "ERC20", "SOL"] when
+  // additional real blockchain adapters are registered in Sprint 25C+.
+  network: z.literal("BEP20", {
+    errorMap: () => ({ message: "Only BEP20 (BSC) deposits are accepted at this time" }),
   }),
 });
 

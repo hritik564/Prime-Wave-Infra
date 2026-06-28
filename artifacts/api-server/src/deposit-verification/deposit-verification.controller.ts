@@ -6,6 +6,7 @@ import { AppError } from "../middleware/error.middleware";
 import { getParsed } from "../middleware/validate.middleware";
 import * as service from "./deposit-verification.service";
 import * as repo from "./deposit-verification.repository";
+import { getVerificationMetricsSnapshot } from "./deposit-verification.worker";
 import type { z } from "zod";
 import type {
   verificationStatusSchema,
@@ -102,6 +103,29 @@ export async function adminListVerifications(
     const { page, limit, status, network, search } = getParsed<AdminListVerificationsQuery>(res, "query");
     const result = await repo.adminList({ page, limit, status, network, search });
     sendSuccess(res, result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/admin/deposit-verifications/metrics
+ * In-memory worker metrics snapshot (admin-only).
+ */
+export async function adminGetMetrics(
+  _req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const session = getVerificationMetricsSnapshot();
+    const allTimeRows = await repo.adminList({ page: 1, limit: 1 });
+    sendSuccess(res, {
+      session,
+      allTime: {
+        totalRecords: allTimeRows.meta.total,
+      },
+    });
   } catch (err) {
     next(err);
   }
