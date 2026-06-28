@@ -6,6 +6,7 @@ import { processAllAchievements } from "../salary/salary-achievement.service";
 import { runSalaryCycle } from "../salary/salary-cron.engine";
 import { processRoiCycle } from "../cron/roi.engine";
 import { seedBinaryTree } from "./admin-seed.service";
+import { repairSeedInvestments } from "./admin-repair.service";
 import { getAllSettings, setSetting } from "../config/settings";
 import { sendSuccess } from "../shared/response";
 import { AppError } from "../middleware/error.middleware";
@@ -146,6 +147,20 @@ export async function triggerSeedBinaryTree(
   try {
     const result = await seedBinaryTree();
     sendSuccess(res, result, result.alreadySeeded ? "Already seeded" : "Seed complete");
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── Seed repair trigger ───────────────────────────────────────────────────────
+export async function triggerRepairSeedInvestments(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const report = await repairSeedInvestments();
+    sendSuccess(res, report, "Seed investment repair complete");
   } catch (err) {
     next(err);
   }

@@ -9,6 +9,7 @@ import {
   triggerRoiCycle,
   triggerSalaryCycle,
   triggerFullCycle,
+  triggerRepairSeedInvestments,
   listSettings,
   updateSetting,
 } from "./admin.controller";
@@ -155,6 +156,7 @@ router.post("/trigger/salary-cycle",   adminLimiter, requireAdminRoles("SUPER_AD
 router.post("/trigger/full-cycle",     adminLimiter, requireAdminRoles("SUPER_ADMIN"), triggerFullCycle);
 router.post("/salary/evaluate-all",    adminLimiter, requireAdminAuth, triggerSalaryEvaluateAll);
 router.post("/dev/seed-binary-tree",   adminLimiter, requireAdminRoles("SUPER_ADMIN"), triggerSeedBinaryTree);
+router.post("/dev/repair-seed-investments", adminLimiter, requireAdminRoles("SUPER_ADMIN"), triggerRepairSeedInvestments);
 
 // System settings
 router.get("/settings",        adminLimiter, requireAdminAuth, listSettings);

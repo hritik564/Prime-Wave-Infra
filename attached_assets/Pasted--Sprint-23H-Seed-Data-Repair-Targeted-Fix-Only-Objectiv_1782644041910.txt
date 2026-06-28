@@ -1,0 +1,188 @@
+# Sprint 23H — Seed Data Repair (Targeted Fix Only)
+
+## Objective
+
+Repair the existing development seed dataset.
+
+This is **NOT** a reseed.
+
+This is **NOT** a rebuild.
+
+Do NOT delete users.
+
+Do NOT recreate users.
+
+Do NOT recreate the binary tree.
+
+Do NOT recreate sponsor relationships.
+
+Do NOT recreate wallets.
+
+Do NOT recreate deposits.
+
+Do NOT recreate investments.
+
+Only repair the incorrect seeded data.
+
+---
+
+# Issue 1 — Incorrect Investment Plan
+
+All seeded investments were unintentionally changed to the 90-Day plan.
+
+This is incorrect.
+
+Every seeded investment must be:
+
+* Investment Amount: **$100**
+* Plan: **360-Day**
+* Auto Compound: **OFF**
+
+Repair only the affected seeded investments.
+
+Do NOT create new investments.
+
+Do NOT delete existing investments.
+
+Update only the incorrect plan assignment.
+
+Verify every seeded investment now references the official 360-Day plan.
+
+---
+
+# Issue 2 — Missing Level Income
+
+After repairing the investment plans, the seed dataset still has missing Level Income.
+
+This is because the seed process bypassed or interrupted the normal Level Income generation.
+
+Prime Wave business rule:
+
+Each investment generates Level Income exactly ONE time.
+
+Never more than once.
+
+The repair must preserve this rule.
+
+---
+
+# Required Repair Logic
+
+For every seeded investment:
+
+1. Check whether the expected Level Income records already exist.
+
+2. If Level Income already exists:
+
+* Do nothing.
+
+Never generate duplicates.
+
+3. If Level Income is missing:
+
+Generate the missing Level Income using the existing Level Income service.
+
+Use the original investment.
+
+Do NOT create another investment.
+
+Do NOT bypass the Level Income engine.
+
+Do NOT insert Level Income rows manually.
+
+The repair must execute the same business logic that would have run when the investment was originally created.
+
+---
+
+# Duplicate Protection
+
+Before generating any Level Income:
+
+Verify:
+
+(investmentId, receiverUserId, level)
+
+does not already exist.
+
+No duplicate payouts.
+
+No duplicate ledger entries.
+
+No duplicate wallet credits.
+
+No duplicate notifications.
+
+---
+
+# Financial Integrity
+
+Do NOT modify:
+
+ROI history
+
+Binary history
+
+Orbit history
+
+Salary achievements
+
+Salary payments
+
+Wallet balances unrelated to missing Level Income
+
+Transfer queue
+
+72-hour release queue
+
+Sponsor hierarchy
+
+Binary hierarchy
+
+BV calculations
+
+ACTIVE/INACTIVE status
+
+Only repair missing Level Income.
+
+---
+
+# Verification
+
+Provide a report showing:
+
+• Total seeded investments examined
+
+• Investments using incorrect plan before repair
+
+• Investments repaired to the 360-Day plan
+
+• Investments already having Level Income
+
+• Investments missing Level Income
+
+• Missing Level Income records generated
+
+• Total Level Income credited
+
+• Duplicate records prevented
+
+• Confirmation that every seeded investment now uses:
+
+* 360-Day plan
+* Auto Compound OFF
+
+• Confirmation that every seeded investment has exactly one complete Level Income event.
+
+---
+
+# Safety
+
+This is a repair operation.
+
+The resulting dataset must be identical to the intended Sprint 23D seed, with the only differences being:
+
+✓ Every investment correctly assigned to the 360-Day plan.
+
+✓ Every investment having its proper one-time Level Income.
+
+Nothing else should change.
