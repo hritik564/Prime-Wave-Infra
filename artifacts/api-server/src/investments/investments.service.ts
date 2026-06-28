@@ -95,7 +95,7 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
     const levelTargets = await processLevelIncome(tx, userId, inv.id, decimalAmount);
 
     return { investment: inv, levelIncomeTargets: levelTargets };
-  });
+  }, { timeout: 30_000 });
 
   void notificationService.create({
     userId,
