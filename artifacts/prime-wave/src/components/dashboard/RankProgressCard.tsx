@@ -43,25 +43,42 @@ export default function RankProgressCard({
   salarySummary = null,
 }: RankProgressCardProps) {
   const qualifications = salaryQual?.qualifications ?? [];
-  const highestRank    = salaryQual?.highestRank ?? null;
-  const nextRank       = salaryQual?.nextRank    ?? null;
   const progressPct    = salaryQual?.progressPct ?? 0;
   const totalBusiness  = fmtFull(salaryQual?.totalBusinessUSD);
   const remaining      = fmtFull(salaryQual?.remaining);
-  const nextRequired   = salaryQual?.nextRequiredBusiness
-    ? fmtFull(salaryQual.nextRequiredBusiness)
-    : "—";
 
-  // Active awarded ranks (from salary engine, may differ from live BV qualification)
+  // Awarded ranks from the salary engine (monthly cycle). These persist even
+  // after leftBV/rightBV are flushed to 0 by the binary matching engine.
   const activeRanks    = new Set(salarySummary?.activeRanks ?? []);
   const activeSalary   = salarySummary?.activeMonthlySalary ?? "0";
 
-  const highestColor   = highestRank ? (RANK_META[highestRank]?.color ?? "#D4AF37") : "rgba(170,179,197,0.4)";
-  const nextColor      = nextRank    ? (RANK_META[nextRank]?.color    ?? "#D4AF37") : "#D4AF37";
+  // A rank is "unlocked" if it was AWARDED (active achievement) OR if the live
+  // BV currently qualifies for it. This prevents a flushed BV from wiping out
+  // the milestone display between binary cycles.
+  const unlockedNames = new Set(
+    qualifications
+      .filter((q) => q.qualifies || activeRanks.has(q.rankName))
+      .map((q) => q.rankName),
+  );
 
-  const headerTitle = highestRank
-    ? `${highestRank} → ${nextRank ?? "All Unlocked"}`
-    : `Unranked → ${nextRank ?? "Bronze"}`;
+  // Highest unlocked rank (by plan order — qualifications is already sorted asc)
+  let highestRankName: string | null = null;
+  for (const q of qualifications) {
+    if (unlockedNames.has(q.rankName)) highestRankName = q.rankName;
+  }
+
+  // Next rank after the highest unlocked
+  const highestIdx = qualifications.findIndex((q) => q.rankName === highestRankName);
+  const nextRankEntry = highestIdx >= 0 ? qualifications[highestIdx + 1] ?? null : qualifications[0] ?? null;
+  const nextRankName  = nextRankEntry?.rankName ?? null;
+  const nextRequired  = nextRankEntry ? fmtFull(nextRankEntry.requiredBusiness) : "—";
+
+  const highestColor = highestRankName ? (RANK_META[highestRankName]?.color ?? "#D4AF37") : "rgba(170,179,197,0.4)";
+  const nextColor    = nextRankName    ? (RANK_META[nextRankName]?.color    ?? "#D4AF37") : "#D4AF37";
+
+  const headerTitle = highestRankName
+    ? `${highestRankName} → ${nextRankName ?? "All Unlocked"}`
+    : `Unranked → ${nextRankName ?? "Bronze"}`;
 
   return (
     <div
@@ -99,7 +116,7 @@ export default function RankProgressCard({
             color: highestColor,
           }}
         >
-          {highestRank ? highestRank.slice(0, 2).toUpperCase() : "—"}
+          {highestRankName ? highestRankName.slice(0, 2).toUpperCase() : "—"}
         </div>
       </div>
 
@@ -137,13 +154,13 @@ export default function RankProgressCard({
       <div className="mb-5">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-semibold" style={{ color: highestColor }}>
-            {highestRank ?? "Start"}
+            {highestRankName ?? "Start"}
           </span>
           <span className="text-xl font-bold font-heading" style={{ color: "#D4AF37" }}>
             {progressPct}%
           </span>
           <span className="text-sm font-semibold" style={{ color: nextColor }}>
-            {nextRank ?? "✓ All"}
+            {nextRankName ?? "✓ All"}
           </span>
         </div>
 
@@ -173,9 +190,9 @@ export default function RankProgressCard({
           <span className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
             Current: {totalBusiness}
           </span>
-          {nextRank ? (
+          {nextRankName ? (
             <span className="text-xs font-semibold" style={{ color: "hsl(var(--muted-foreground))" }}>
-              <span style={{ color: "#D4AF37" }}>{remaining}</span> to {nextRank} ({nextRequired})
+              <span style={{ color: "#D4AF37" }}>{remaining}</span> to {nextRankName} ({nextRequired})
             </span>
           ) : (
             <span className="text-xs font-semibold" style={{ color: "#34d399" }}>
@@ -192,8 +209,8 @@ export default function RankProgressCard({
       >
         <div className="flex items-start gap-0 min-w-max">
           {qualifications.map((q, i) => {
-            const isUnlocked = q.qualifies;
-            const isNext     = !isUnlocked && qualifications.slice(0, i).every((x) => x.qualifies);
+            const isUnlocked = unlockedNames.has(q.rankName);
+            const isNext     = !isUnlocked && qualifications.slice(0, i).every((x) => unlockedNames.has(x.rankName));
             const color      = RANK_META[q.rankName]?.color ?? "#888";
             const isActive   = activeRanks.has(q.rankName);
 
@@ -205,7 +222,7 @@ export default function RankProgressCard({
                     className="absolute"
                     style={{
                       top: 10, left: -32, width: 32, height: 1,
-                      background: isUnlocked || qualifications[i - 1]?.qualifies
+                      background: isUnlocked || unlockedNames.has(qualifications[i - 1]?.rankName ?? "")
                         ? "rgba(212,175,55,0.3)"
                         : "rgba(255,255,255,0.07)",
                     }}

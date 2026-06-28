@@ -142,17 +142,45 @@ export default function DashboardPage() {
   const firstName = user?.firstName ?? profile?.firstName ?? "User";
 
   // ── Salary-derived display values ───────────────────────────────────────────
-  const currentRankDisplay = salaryQual?.highestRank ?? "—";
-  const progressLabel      = salaryQual?.nextRank
-    ? `Progress to ${salaryQual.nextRank}`
-    : salaryQual?.highestRank
+  // Awarded ranks (from salary engine monthly cycle) take precedence over live
+  // BV-based qualification. leftBV/rightBV reset to 0 after each binary flush,
+  // so BV-only qualification would always show 0 between cycles.
+  const activeRankSet   = new Set(salarySummary?.activeRanks ?? []);
+  const orderedRankNames = salaryQual?.qualifications.map((q) => q.rankName) ?? [];
+
+  // Highest awarded rank (ordered by compensation plan position)
+  let highestAwardedIdx = -1;
+  for (let i = orderedRankNames.length - 1; i >= 0; i--) {
+    if (activeRankSet.has(orderedRankNames[i])) { highestAwardedIdx = i; break; }
+  }
+
+  // Fall back to live BV qualification if nothing has been awarded yet
+  const currentRankDisplay = highestAwardedIdx >= 0
+    ? orderedRankNames[highestAwardedIdx]
+    : (salaryQual?.highestRank ?? "—");
+
+  // Next rank is above the highest AWARDED rank (not BV-derived next)
+  const nextRankName = highestAwardedIdx >= 0
+    ? (orderedRankNames[highestAwardedIdx + 1] ?? null)
+    : (salaryQual?.nextRank ?? null);
+
+  const progressLabel = nextRankName
+    ? `Progress to ${nextRankName}`
+    : currentRankDisplay !== "—"
     ? "All Milestones Unlocked"
     : "Progress to Bronze";
-  const nextSalaryTargetDisplay = salaryQual?.nextRequiredBusiness
+
+  // Next required business threshold (for display)
+  const nextRankEntry = salaryQual?.qualifications.find((q) => q.rankName === nextRankName);
+  const nextSalaryTargetDisplay = nextRankEntry
+    ? `$${parseFloat(nextRankEntry.requiredBusiness).toLocaleString("en-US", { maximumFractionDigits: 0 })}`
+    : salaryQual?.nextRequiredBusiness
     ? `$${parseFloat(salaryQual.nextRequiredBusiness).toLocaleString("en-US", { maximumFractionDigits: 0 })}`
-    : salaryQual?.highestRank
+    : currentRankDisplay !== "—"
     ? "All Unlocked"
     : "$2,000";
+
+  // Progress % is live BV progress; honest 0% between cycles is correct
   const salaryProgressPct = salaryQual?.progressPct ?? 0;
 
   const wallets = [
