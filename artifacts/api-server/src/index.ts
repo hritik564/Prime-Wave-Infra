@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./cron";
+import { startDepositVerificationWorker } from "./deposit-verification/deposit-verification.worker";
 import { prisma } from "./config/prisma";
 import { maybeResetForLaunch } from "./admin/scripts/resetForLaunch";
 import { runSeed23B }                                      from "./dev/seed23b.fn";
@@ -115,4 +116,9 @@ app.listen(port, (err) => {
 
   // Start 12-hour ROI cycle scheduler (fires at 00:00 and 12:00 UTC)
   startScheduler();
+
+  // Start deposit verification polling worker (DB-driven, restart-safe)
+  startDepositVerificationWorker().catch((e) =>
+    logger.error({ e }, "startDepositVerificationWorker failed"),
+  );
 });

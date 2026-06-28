@@ -35,6 +35,19 @@ enum DepositStatus {
   REJECTED
 }
 
+enum DepositVerificationStatus {
+  CREATED
+  TX_SUBMITTED
+  VERIFYING
+  WAITING_CONFIRMATIONS
+  CONFIRMED
+  CREDITED
+  COMPLETED
+  FAILED
+  REJECTED
+  EXPIRED
+}
+
 enum WithdrawalNetwork {
   BEP20
 }
@@ -161,8 +174,9 @@ model User {
   salaryBvInvested  SalaryBvLedger[] @relation("SalaryBvInvestor")
   bvHistoryInvested BvHistory[]      @relation("BvHistoryInvestor")
 
-  notifications     Notification[]
-  incomeTransfers   IncomeTransfer[]
+  notifications        Notification[]
+  incomeTransfers      IncomeTransfer[]
+  depositVerifications DepositVerification[]
 
   @@map("users")
 }
@@ -666,8 +680,9 @@ model DepositRequest {
   rejectedReason   String?
   createdAt        DateTime       @default(now())
 
-  user     User   @relation(fields: [userId],            references: [id], onDelete: Restrict)
-  approver Admin? @relation(fields: [approvedByAdminId], references: [id], onDelete: SetNull)
+  user         User                @relation(fields: [userId],            references: [id], onDelete: Restrict)
+  approver     Admin?              @relation(fields: [approvedByAdminId], references: [id], onDelete: SetNull)
+  verification DepositVerification?
 
   @@index([userId])
   @@index([status])
@@ -837,6 +852,57 @@ model IncomeTransfer {
   @@index([status])
   @@index([nextReleaseAt])
   @@map("income_transfers")
+}
+
+// ── Deposit Verification ──────────────────────────────────────────────────────
+//
+// Blockchain audit trail for automatically-verified USDT deposits.
+// One record per submitted transaction hash.
+//
+// State machine:
+//   CREATED → TX_SUBMITTED → VERIFYING → WAITING_CONFIRMATIONS
+//           → CONFIRMED → CREDITED → COMPLETED
+//   (Failure paths: FAILED | REJECTED | EXPIRED)
+//
+// The worker queries verificationStatus IN (VERIFYING, WAITING_CONFIRMATIONS)
+// AND nextCheckAt <= NOW() — restart-safe, no in-memory job state.
+//
+// depositId is NULL until blockchain confirms and a DepositRequest is created.
+// The wallet credit reuses approveDeposit() — identical pipeline to manual flow.
+
+model DepositVerification {
+  id                    String                    @id @default(cuid())
+  userId                String
+  depositId             String?                   @unique
+  txHash                String                    @unique
+  network               DepositNetwork
+  senderAddress         String?
+  recipientAddress      String
+  tokenContract         String?
+  blockchainAmount      Decimal?                  @db.Decimal(18, 8)
+  confirmations         Int                       @default(0)
+  requiredConfirmations Int                       @default(12)
+  verificationStatus    DepositVerificationStatus @default(CREATED)
+  verificationAttempts  Int                       @default(0)
+  lastCheckedAt         DateTime?
+  nextCheckAt           DateTime?
+  firstSeenAt           DateTime?
+  confirmedAt           DateTime?
+  creditedAt            DateTime?
+  completedAt           DateTime?
+  failureReason         String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+
+  user    User            @relation(fields: [userId],    references: [id], onDelete: Restrict)
+  deposit DepositRequest? @relation(fields: [depositId], references: [id], onDelete: SetNull)
+
+  @@index([verificationStatus])
+  @@index([userId])
+  @@index([txHash])
+  @@index([nextCheckAt])
+  @@index([createdAt])
+  @@map("deposit_verifications")
 }
 
 // One record per hourly release fired by the transfer cron engine.

@@ -1956,3 +1956,93 @@ export function adminUpdateSalaryRank(
     body:   JSON.stringify(data),
   });
 }
+
+// ── Deposit Verification ──────────────────────────────────────────────────────
+
+export type DepositVerificationStatus =
+  | "CREATED" | "TX_SUBMITTED" | "VERIFYING" | "WAITING_CONFIRMATIONS"
+  | "CONFIRMED" | "CREDITED" | "COMPLETED" | "FAILED" | "REJECTED" | "EXPIRED";
+
+export interface DepositVerificationSubmitResult {
+  verificationId: string;
+  status:         DepositVerificationStatus;
+  txHash:         string;
+  network:        string;
+  createdAt:      string;
+  message:        string;
+}
+
+export interface DepositVerificationStatusResult {
+  id:                    string;
+  txHash:                string;
+  network:               string;
+  verificationStatus:    DepositVerificationStatus;
+  confirmations:         number;
+  requiredConfirmations: number;
+  blockchainAmount:      string | null;
+  senderAddress:         string | null;
+  failureReason:         string | null;
+  firstSeenAt:           string | null;
+  confirmedAt:           string | null;
+  creditedAt:            string | null;
+  completedAt:           string | null;
+  createdAt:             string;
+  isTerminal:            boolean;
+  isActive:              boolean;
+}
+
+export function submitDepositVerification(txHash: string, network: string) {
+  return request<DepositVerificationSubmitResult>("/api/deposit-verifications/submit", {
+    method: "POST",
+    body:   JSON.stringify({ txHash, network }),
+  });
+}
+
+export function getDepositVerificationStatus(id: string) {
+  return request<DepositVerificationStatusResult>(`/api/deposit-verifications/${id}/status`);
+}
+
+// ── Admin Deposit Verifications ───────────────────────────────────────────────
+
+export interface AdminDepositVerificationItem {
+  id:                    string;
+  txHash:                string;
+  network:               string;
+  verificationStatus:    DepositVerificationStatus;
+  blockchainAmount:      string | null;
+  confirmations:         number;
+  requiredConfirmations: number;
+  verificationAttempts:  number;
+  failureReason:         string | null;
+  senderAddress:         string | null;
+  confirmedAt:           string | null;
+  creditedAt:            string | null;
+  createdAt:             string;
+  user: {
+    id:        string;
+    username:  string;
+    email:     string;
+    firstName: string | null;
+    lastName:  string | null;
+  };
+}
+
+export function adminListDepositVerifications(params?: {
+  page?:    number;
+  limit?:   number;
+  status?:  string;
+  network?: string;
+  search?:  string;
+}) {
+  const q = new URLSearchParams();
+  if (params?.page)    q.set("page",    String(params.page));
+  if (params?.limit)   q.set("limit",   String(params.limit));
+  if (params?.status)  q.set("status",  params.status);
+  if (params?.network) q.set("network", params.network);
+  if (params?.search)  q.set("search",  params.search);
+  return request<{ data: AdminDepositVerificationItem[]; meta: ListMeta }>(`/api/admin/deposit-verifications?${q}`);
+}
+
+export function adminGetDepositVerification(id: string) {
+  return request<AdminDepositVerificationItem>(`/api/admin/deposit-verifications/${id}`);
+}

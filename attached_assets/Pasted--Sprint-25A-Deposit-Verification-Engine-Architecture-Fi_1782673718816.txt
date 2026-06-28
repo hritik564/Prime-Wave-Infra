@@ -1,0 +1,530 @@
+# Sprint 25A — Deposit Verification Engine (Architecture First)
+
+## Objective
+
+Build a complete Deposit Verification Engine for Prime Wave that automates BEP20 USDT deposit verification without using any third-party payment processor.
+
+IMPORTANT:
+
+This sprint is NOT about integrating Binance Smart Chain yet.
+
+This sprint builds the platform, workflow, state machine, APIs, database, admin tools, background processing and UI.
+
+The actual blockchain integration will come in Sprint 25B.
+
+────────────────────────────────────────
+NON-NEGOTIABLE ARCHITECTURE
+────────────────────────────────────────
+
+The Deposit Verification Engine must NEVER contain blockchain-specific code.
+
+Instead implement this layered architecture:
+
+Deposit Page
+        │
+        ▼
+Deposit Verification Engine
+        │
+        ▼
+Blockchain Adapter Interface
+        │
+        ▼
+Mock Blockchain Adapter (Sprint 25A)
+
+Later we will simply replace:
+
+MockBlockchainAdapter
+
+with
+
+BSCBlockchainAdapter
+
+without modifying the Deposit Engine.
+
+The Deposit Engine must communicate ONLY through the Blockchain Adapter interface.
+
+────────────────────────────────────────
+BUSINESS FLOW
+────────────────────────────────────────
+
+User opens Deposit page.
+
+System displays:
+
+• Prime Wave BEP20 USDT wallet address
+• QR Code
+• Network = BEP20
+• Minimum Deposit
+
+User transfers USDT.
+
+User clicks:
+
+"I've Sent USDT"
+
+User pastes Transaction Hash.
+
+Deposit Verification Engine begins verification.
+
+Background verification starts.
+
+Status updates automatically.
+
+Once verification succeeds:
+
+• Deposit approved automatically
+• Deposit Wallet credited
+• Wallet ledger entry created
+• Notification sent
+
+No admin approval required.
+
+────────────────────────────────────────
+DEPOSIT STATE MACHINE
+────────────────────────────────────────
+
+Use ONLY these states:
+
+CREATED
+
+↓
+
+TX_SUBMITTED
+
+↓
+
+VERIFYING
+
+↓
+
+WAITING_CONFIRMATIONS
+
+↓
+
+CONFIRMED
+
+↓
+
+CREDITED
+
+↓
+
+COMPLETED
+
+Failure states:
+
+FAILED
+
+REJECTED
+
+EXPIRED
+
+No hidden states.
+
+Every state transition must be timestamped.
+
+────────────────────────────────────────
+NEW MODULE
+────────────────────────────────────────
+
+Create a dedicated module:
+
+deposit-verification/
+
+Containing:
+
+• service
+• controller
+• routes
+• repository
+• worker
+• adapter interface
+• mock adapter
+• DTOs
+• validators
+
+Do NOT overload the existing Deposit module.
+
+────────────────────────────────────────
+BLOCKCHAIN ADAPTER INTERFACE
+────────────────────────────────────────
+
+Create an interface exposing methods similar to:
+
+• verifyTransaction(txHash)
+• getTransaction(txHash)
+• getConfirmations(txHash)
+• validateRecipient(...)
+• validateToken(...)
+• validateAmount(...)
+
+The Deposit Engine must know nothing about BSC implementation.
+
+────────────────────────────────────────
+MOCK BLOCKCHAIN ADAPTER
+────────────────────────────────────────
+
+Create a deterministic mock adapter.
+
+It must simulate:
+
+✓ Valid transaction
+
+✓ Pending confirmations
+
+✓ Invalid hash
+
+✓ Wrong network
+
+✓ Wrong recipient
+
+✓ Wrong token contract
+
+✓ Duplicate transaction
+
+✓ Failed blockchain transaction
+
+This allows complete end-to-end testing before connecting to the real blockchain.
+
+────────────────────────────────────────
+DATABASE
+────────────────────────────────────────
+
+Create a dedicated DepositVerification entity/table.
+
+Suggested fields:
+
+• id
+• userId
+• depositId
+• txHash
+• network
+• senderAddress
+• recipientAddress
+• tokenContract
+• blockchainAmount
+• confirmations
+• requiredConfirmations
+• verificationStatus
+• verificationAttempts
+• firstSeenAt
+• confirmedAt
+• creditedAt
+• completedAt
+• failureReason
+• createdAt
+• updatedAt
+
+This is the blockchain audit trail.
+
+Do NOT overload the existing Deposit table.
+
+────────────────────────────────────────
+WALLET RULES
+────────────────────────────────────────
+
+The blockchain is the source of truth.
+
+Never trust:
+
+• user-entered amount
+• user-entered network
+• user-entered recipient
+
+Wallet credit must always use the blockchain adapter response.
+
+Reuse the existing deposit approval and wallet credit pipeline wherever possible.
+
+Do NOT create parallel wallet credit logic.
+
+────────────────────────────────────────
+IDEMPOTENCY
+────────────────────────────────────────
+
+Transaction Hash must be globally unique.
+
+The same blockchain transaction can NEVER credit twice.
+
+Protect against duplicates at:
+
+1. Database level
+2. Service level
+
+────────────────────────────────────────
+BACKGROUND WORKER
+────────────────────────────────────────
+
+Never keep HTTP requests open while waiting for confirmations.
+
+Flow:
+
+Submit TX
+
+↓
+
+Return
+
+"Verification Started"
+
+↓
+
+Worker polls adapter
+
+↓
+
+Updates status
+
+↓
+
+Credits wallet
+
+↓
+
+Stops
+
+Everything asynchronous.
+
+────────────────────────────────────────
+USER DEPOSIT PAGE
+────────────────────────────────────────
+
+Redesign only the Deposit workflow.
+
+Display:
+
+• BEP20 Network
+• Deposit Wallet Address
+• QR Code
+• Minimum Deposit
+• Copy Address button
+• Paste Transaction Hash
+• Verify Deposit button
+
+Below it show a timeline:
+
+Submitted
+
+↓
+
+Transaction Found
+
+↓
+
+Waiting Confirmations
+
+↓
+
+Confirmed
+
+↓
+
+Wallet Credited
+
+↓
+
+Completed
+
+Every status should update automatically.
+
+────────────────────────────────────────
+ADMIN PANEL
+────────────────────────────────────────
+
+Create a new section:
+
+Automatic Deposits
+
+Show:
+
+• User
+• TX Hash
+• Amount
+• Network
+• Confirmations
+• Current Status
+• Verification Attempts
+• Submitted Time
+• Credited Time
+• Failure Reason
+
+Filters:
+
+• Pending
+• Verifying
+• Waiting Confirmations
+• Confirmed
+• Credited
+• Failed
+• Expired
+
+Admins should normally only monitor deposits.
+
+No manual approval unless an exceptional case occurs.
+
+────────────────────────────────────────
+NOTIFICATIONS
+────────────────────────────────────────
+
+When deposit is credited automatically:
+
+Notify the member.
+
+Example:
+
+"Deposit Verified
+
+100 USDT has been credited to your Deposit Wallet."
+
+────────────────────────────────────────
+AUDIT TRAIL
+────────────────────────────────────────
+
+Every state transition must be logged.
+
+CREATED
+
+↓
+
+TX_SUBMITTED
+
+↓
+
+VERIFYING
+
+↓
+
+WAITING_CONFIRMATIONS
+
+↓
+
+CONFIRMED
+
+↓
+
+CREDITED
+
+↓
+
+COMPLETED
+
+Each with timestamp.
+
+────────────────────────────────────────
+PERFORMANCE
+────────────────────────────────────────
+
+Target API response time:
+
+<300ms
+
+Verification polling must never block HTTP requests.
+
+Background worker only.
+
+────────────────────────────────────────
+CRITICAL ARCHITECTURE RULE
+────────────────────────────────────────
+
+The Deposit Verification Engine is an orchestration layer only.
+
+It must NOT:
+
+• hardcode blockchain logic
+• hardcode BEP20 rules
+• directly call RPC nodes
+
+It must ONLY communicate through the Blockchain Adapter interface.
+
+If existing services already perform deposit approval, wallet crediting, ledger creation, notifications or audit logging, REUSE those services instead of duplicating logic.
+
+The Deposit Verification Engine should orchestrate the existing financial architecture rather than replacing it.
+
+────────────────────────────────────────
+DELIVERABLES
+────────────────────────────────────────
+
+When complete provide:
+
+1. Architecture diagram
+
+Deposit Page
+
+↓
+
+Deposit Verification Engine
+
+↓
+
+Blockchain Adapter
+
+↓
+
+Mock Adapter
+
+↓
+
+Wallet Service
+
+↓
+
+Notification Service
+
+↓
+
+Audit Trail
+
+2. State Machine diagram
+
+Including every transition.
+
+3. Database schema
+
+Explain every field.
+
+4. API documentation
+
+All new endpoints.
+
+5. UI screenshots
+
+• User Deposit page
+• Admin Automatic Deposits page
+
+6. Sequence diagram
+
+User → Verification → Wallet Credit
+
+7. Test Scenarios
+
+Demonstrate:
+
+• Valid deposit
+• Invalid TX hash
+• Duplicate TX hash
+• Wrong network
+• Wrong token
+• Pending confirmations
+• Successful automatic credit
+
+8. Regression Report
+
+Confirm that NO changes were made to:
+
+• Wallet Engine
+• Investment Engine
+• ROI Engine
+• Binary Engine
+• Salary Engine
+• Orbit Engine
+• Level Income Engine
+• Withdrawal Engine
+
+This sprint must remain completely isolated from existing financial logic.
+
+Before writing code, review the current Deposit module and Wallet architecture.
+
+Reuse and extend existing components wherever possible.
+
+Do not create duplicate implementations.
+
+The objective is to integrate cleanly into Prime Wave's current architecture while remaining fully ready for Sprint 25B (real BSC Blockchain Adapter).

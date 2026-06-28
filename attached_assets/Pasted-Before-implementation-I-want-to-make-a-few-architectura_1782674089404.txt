@@ -1,0 +1,145 @@
+Before implementation, I want to make a few architectural improvements to Sprint 25A. These are design amendments only—they are not a change of scope.
+
+## 1. Replace the in-memory `setInterval` worker
+
+Instead of an in-memory polling loop that tracks work internally, build the worker to be completely database-driven.
+
+The worker should periodically query:
+
+* verificationStatus IN (VERIFYING, WAITING_CONFIRMATIONS)
+
+and process those records.
+
+The worker must be restart-safe.
+
+If the server restarts during verification, it should simply resume processing from the database.
+
+No in-memory job state.
+
+No lost verification sessions.
+
+---
+
+## 2. Make the Blockchain Adapter completely stateless
+
+The adapter should never remember anything between calls.
+
+Do NOT implement logic like:
+
+* "confirm after 2 polls"
+
+Instead, persist state inside the DepositVerification record:
+
+* verificationAttempts
+* lastCheckedAt
+
+The adapter simply returns the current blockchain state.
+
+The Deposit Verification Engine owns the workflow.
+
+---
+
+## 3. Make polling configurable
+
+Do not hardcode polling intervals.
+
+Add a configurable system setting such as:
+
+Deposit Verification Poll Interval
+
+Example:
+
+Development = 5 seconds
+
+Production = 20–30 seconds
+
+Future changes should never require code modifications.
+
+---
+
+## 4. Keep the backend network-agnostic
+
+Although Sprint 25A supports only BEP20, the backend should not assume BEP20 forever.
+
+Store network as an enum/value.
+
+The UI should expose only BEP20 for now.
+
+This keeps the Deposit Verification Engine reusable when TRC20, ERC20 or other adapters are introduced later.
+
+---
+
+## 5. Publish a DepositVerified domain event
+
+After automatic verification succeeds and approveDeposit() completes successfully, emit a DepositVerified domain event.
+
+Nothing else needs to consume this event today except notifications.
+
+The purpose is future extensibility.
+
+Future modules such as:
+
+* promotions
+* cashback
+* analytics
+* affiliate campaigns
+* loyalty rewards
+
+should be able to subscribe without modifying the Deposit Verification Engine.
+
+---
+
+## 6. Regression guarantee
+
+I want one additional verification after implementation.
+
+Automatic deposits must reuse the exact same production-tested approval pipeline as manual deposits.
+
+The only difference between the two flows should be how approveDeposit() is triggered.
+
+After approveDeposit() executes, both flows must produce identical:
+
+* wallet credit
+* ledger entries
+* notifications
+* audit logs
+
+No duplicate financial logic.
+
+---
+
+## 7. Deliver Sprint 25A in phases
+
+Instead of implementing everything in one large change, complete the sprint in the following order:
+
+Phase 1
+
+* Database schema
+* DepositVerification model
+* Blockchain Adapter interface
+
+Run typecheck before continuing.
+
+Phase 2
+
+* Deposit Verification Engine
+* Worker
+* Mock Adapter
+
+Run regression tests before continuing.
+
+Phase 3
+
+* User APIs
+* Admin APIs
+
+Run regression tests.
+
+Phase 4
+
+* Frontend Deposit page
+* Admin Automatic Deposits page
+
+Final regression report.
+
+I want every phase verified before the next one starts.

@@ -15,6 +15,7 @@ import incomeRouter from "../income/income.router";
 import networkRouter from "../network/network.router";
 import devRouter from "../dev/dev.router";
 import seedRouter from "../seed/seed.router";
+import { depositVerificationRouter } from "../deposit-verification/deposit-verification.routes";
 
 const router: IRouter = Router();
 
@@ -31,8 +32,9 @@ router.use("/deposits",      depositsRouter);
 router.use("/withdrawals",   withdrawalsRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/income",        incomeRouter);
-router.use("/network",       networkRouter);
-router.use("/dev",           devRouter);
-router.use("/",              seedRouter);
+router.use("/network",               networkRouter);
+router.use("/deposit-verifications", depositVerificationRouter);
+router.use("/dev",                   devRouter);
+router.use("/",                      seedRouter);
 
 export default router;

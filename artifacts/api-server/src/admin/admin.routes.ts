@@ -140,6 +140,8 @@ import {
   topListSchema,
 } from "./reports/reports.schema";
 
+import { adminDepositVerificationRouter } from "../deposit-verification/deposit-verification.routes";
+
 const router = Router();
 
 // ── Public ────────────────────────────────────────────────────────────────────
@@ -519,5 +521,8 @@ router.patch(
   validate(saveEngineNotesBodySchema),
   saveEngineNotesHandler,
 );
+
+// ── Deposit Verification — SUPER_ADMIN and FINANCE_ADMIN ──────────────────────
+router.use("/deposit-verifications", adminLimiter, financeAdminGuard, adminDepositVerificationRouter);
 
 export default router;
