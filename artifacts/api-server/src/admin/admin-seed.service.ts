@@ -82,9 +82,29 @@ export async function seedBinaryTree(): Promise<SeedResult> {
 
   // Pre-populate idMap with any users that already exist so parent links work
   const idMap: Record<number, string> = {};
+  const existingNodeNums: number[] = [];
   for (const u of existingUsers) {
     const n = expectedUsernames.indexOf(u.username) + 1;
-    if (n > 0) idMap[n] = u.id;
+    if (n > 0) { idMap[n] = u.id; existingNodeNums.push(n); }
+  }
+
+  // Correct BV / direct counts on any pre-existing users
+  // (they may have been created before the full tree was in place)
+  for (const n of existingNodeNums) {
+    const level       = getLevel(n);
+    const bv          = BV_PER_LEVEL[level] ?? 0;
+    const directCount = DIRECT_PER_LEVEL[level] ?? 0;
+    await prisma.user.update({
+      where: { id: idMap[n] },
+      data:  {
+        leftBV:              bv,
+        rightBV:             bv,
+        directLeftCount:     directCount,
+        directRightCount:    directCount,
+        directReferralCount: directCount * 2,
+      },
+    });
+    logger.info({ n, username: expectedUsernames[n - 1], bv }, "Seed: corrected existing user BV");
   }
 
   logger.info(
