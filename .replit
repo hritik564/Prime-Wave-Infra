@@ -26,3 +26,4 @@ channel = "stable-25_05"
 
 [userenv.production]
 RESET_FOR_LAUNCH = "true"
+SEED_ON_START = "1"
