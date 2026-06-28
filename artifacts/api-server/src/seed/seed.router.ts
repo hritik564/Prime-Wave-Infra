@@ -1,5 +1,19 @@
+// Sprint 24: investment creation migrated to canonical createInvestment() service.
+// Direct prisma.investment.createMany() removed — all investment rows now flow
+// through the single business service (BV propagation, level income, salary
+// evaluation, notifications all execute per-investment identically to live traffic).
+//
+// COMPLETED investments are not reproduced: createInvestment() only creates ACTIVE
+// investments, and matured/closed positions carry no financial obligation forward.
+// Their absence does not affect wallet or BV integrity.
+//
+// Wallet depositWallet amounts in the snapshot already include investment principal
+// (they represent the net state after all operations), so no additional funding is
+// required before calling createInvestment().
+
 import { Router } from "express";
 import { prisma } from "../config/prisma";
+import { createInvestment } from "../investments/investments.service";
 import type { Prisma } from "@prisma/client";
 
 const SEED_TOKEN = "pw-seed-3f8a7b92c4d54e6fa1b29c0d1e2f3a4b";
@@ -157,6 +171,9 @@ seedRouter.post("/seed", async (req, res) => {
   }];
 
   // ── Wallets ────────────────────────────────────────────────────────────────
+  // Deposit wallet amounts represent the snapshot balance after all historical
+  // operations (deposits, income, etc.). createInvestment() will deduct the
+  // investment principal from depositWallet when each investment is created.
   const wallets = [
     { id: "cmqrh2dhe0001g5n5ef9xzj97", userId: "cmqrh2dhe0000g5n5ocrx0jq1", depositWallet: "850.00000000", incomeWallet: "290.75000000", withdrawalWallet: "550.00000000" },
     { id: "cmqrkdcip000411q42fzeqkva", userId: "cmqrkdcip000311q44oh1g6pb", depositWallet: "500.00000000", incomeWallet: "0.00000000",   withdrawalWallet: "540.00000000" },
@@ -179,37 +196,70 @@ seedRouter.post("/seed", async (req, res) => {
     { id: "cmqt4boj5000022p27cavzwi9",             email: "admin@admin1.com",     passwordHash: "$2b$12$oOKvV9mGDYWNRgNb/a6dxOHWoaZCP5EoQJDw0lS8XaDjB3/TVnX6C", firstName: "Super",   lastName: "Admin", role: "SUPER_ADMIN"   as const },
   ];
 
-  // ── Investments ────────────────────────────────────────────────────────────
-  const investments = [
-    { id: "cmqrjbl0j0004ldt7yzo42yfj", userId: "cmqrh2dhe0000g5n5ocrx0jq1", amount: "100.00000000", currentPrincipal: "100.00000000", planType: "PLAN_90"  as const, dailyROI: "0.5000", durationDays: 90,  autoCompound: false, claimableROI: "19.50000000", claimablePrincipal: "0.00000000", status: "ACTIVE"    as const, startedAt: new Date("2026-06-24T03:49:50.754Z"), maturesAt: new Date("2026-09-22T03:49:50.754Z") },
-    { id: "cmqrjbl5d000aldt7kujanaoz", userId: "cmqrh2dhe0000g5n5ocrx0jq1", amount: "200.00000000", currentPrincipal: "254.92097471", planType: "PLAN_180" as const, dailyROI: "0.6000", durationDays: 180, autoCompound: true,  claimableROI: "0.00000000",  claimablePrincipal: "0.00000000", status: "ACTIVE"    as const, startedAt: new Date("2026-06-24T03:49:50.929Z"), maturesAt: new Date("2026-12-21T03:49:50.929Z") },
-    { id: "test-matured-inv-001",        userId: "cmqrh2dhe0000g5n5ocrx0jq1", amount: "300.00000000", currentPrincipal: "300.00000000", planType: "PLAN_270" as const, dailyROI: "0.7000", durationDays: 270, autoCompound: false, claimableROI: "12.50000000", claimablePrincipal: "0.00000000", status: "COMPLETED" as const, startedAt: new Date("2025-09-27T03:50:03.896Z"), maturesAt: new Date("2026-06-23T03:50:03.896Z") },
-    { id: "cmqrmaszd00024z6f4nawebg3", userId: "cmqrkdcip000311q44oh1g6pb", amount: "500.00000000", currentPrincipal: "500.00000000", planType: "PLAN_90"  as const, dailyROI: "0.5000", durationDays: 90,  autoCompound: false, claimableROI: "97.50000000", claimablePrincipal: "0.00000000", status: "ACTIVE"    as const, startedAt: new Date("2026-06-24T05:13:13.273Z"), maturesAt: new Date("2026-09-22T05:13:13.273Z") },
-    { id: "cmqrmat2m000b4z6fidwzf7xd", userId: "cmqrlp28400036bnvsrxbaaxa", amount: "300.00000000", currentPrincipal: "300.00000000", planType: "PLAN_90"  as const, dailyROI: "0.5000", durationDays: 90,  autoCompound: false, claimableROI: "58.50000000", claimablePrincipal: "0.00000000", status: "ACTIVE"    as const, startedAt: new Date("2026-06-24T05:13:13.390Z"), maturesAt: new Date("2026-09-22T05:13:13.390Z") },
-    { id: "cmqrok7z00002bydqh9qvpe3i", userId: "cmqrlp28400036bnvsrxbaaxa", amount: "1000.00000000",currentPrincipal: "1000.00000000",planType: "PLAN_90"  as const, dailyROI: "0.5000", durationDays: 90,  autoCompound: false, claimableROI: "195.00000000",claimablePrincipal: "0.00000000", status: "ACTIVE"    as const, startedAt: new Date("2026-06-24T06:16:31.836Z"), maturesAt: new Date("2026-09-22T06:16:31.836Z") },
-    { id: "cmqrolq4l000jbydqetd4i1og", userId: "l5id",                      amount: "2000.00000000",currentPrincipal: "2000.00000000",planType: "PLAN_90"  as const, dailyROI: "0.5000", durationDays: 90,  autoCompound: false, claimableROI: "390.00000000",claimablePrincipal: "0.00000000", status: "ACTIVE"    as const, startedAt: new Date("2026-06-24T06:17:42.020Z"), maturesAt: new Date("2026-09-22T06:17:42.020Z") },
-    { id: "cmqt7ponm000288guq27ftrmq", userId: "cmqt6mum4000185pmjdh29iyy", amount: "500.00000000", currentPrincipal: "519.08170652", planType: "PLAN_90"  as const, dailyROI: "0.5000", durationDays: 90,  autoCompound: true,  claimableROI: "0.00000000",  claimablePrincipal: "0.00000000", status: "ACTIVE"    as const, startedAt: new Date("2026-06-25T08:00:25.618Z"), maturesAt: new Date("2026-09-23T08:00:25.618Z") },
-    { id: "cmqt8ysn8000988gu3hx6unnq", userId: "cmqt6mum4000185pmjdh29iyy", amount: "400.00000000", currentPrincipal: "400.00000000", planType: "PLAN_180" as const, dailyROI: "0.6000", durationDays: 180, autoCompound: true,  claimableROI: "0.00000000",  claimablePrincipal: "0.00000000", status: "COMPLETED" as const, startedAt: new Date("2026-06-25T08:35:30.307Z"), maturesAt: new Date("2026-06-25T08:46:56.296Z") },
-  ];
-
-  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  // ── Users, wallets, and admins in a single atomic transaction ─────────────
+  // Investment creation is intentionally outside this transaction: createInvestment()
+  // opens its own Prisma interactive transaction and cannot be nested.
+  const txResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.user.createMany({ data: batch1, skipDuplicates: true });
     await tx.user.createMany({ data: batch2, skipDuplicates: true });
     await tx.user.createMany({ data: batch3, skipDuplicates: true });
     await tx.user.createMany({ data: batch4, skipDuplicates: true });
     await tx.user.createMany({ data: batch5, skipDuplicates: true });
     await tx.user.createMany({ data: batch6, skipDuplicates: true });
-    const { count: walletCount }     = await tx.wallet.createMany({ data: wallets, skipDuplicates: true });
-    const { count: adminCount }      = await tx.admin.createMany({ data: admins, skipDuplicates: true });
-    const { count: investmentCount } = await tx.investment.createMany({ data: investments, skipDuplicates: true });
-    const userCount                  = await tx.user.count();
-    return { userCount, walletCount, adminCount, investmentCount };
+    const { count: walletCount } = await tx.wallet.createMany({ data: wallets, skipDuplicates: true });
+    const { count: adminCount }  = await tx.admin.createMany({ data: admins,  skipDuplicates: true });
+    const userCount              = await tx.user.count();
+    return { userCount, walletCount, adminCount };
   });
+
+  // ── Investments via canonical service ──────────────────────────────────────
+  // Each entry = one ACTIVE investment to create, ordered so multi-investment
+  // users satisfy the progressive minimum ($100, $200, $300 …) correctly.
+  //
+  // COMPLETED investments (PLAN_270/$300 for testuser, PLAN_180/$400 for john)
+  // are deliberately omitted: createInvestment() only creates ACTIVE positions,
+  // and historical closed investments carry no ongoing financial obligation.
+  //
+  // The seeded depositWallet amounts already include the investment principal,
+  // so createInvestment() deducts directly from the existing balance — no
+  // additional wallet credit is needed.
+  const investmentPlan: Array<{ userId: string; amount: number; planType: "PLAN_90" | "PLAN_180" | "PLAN_270" | "PLAN_360"; autoCompound: boolean }> = [
+    // testuser — two ACTIVE investments, smallest first (progressive minimum)
+    { userId: "cmqrh2dhe0000g5n5ocrx0jq1", amount: 100,  planType: "PLAN_90",  autoCompound: false },
+    { userId: "cmqrh2dhe0000g5n5ocrx0jq1", amount: 200,  planType: "PLAN_180", autoCompound: true  },
+    // refuser1
+    { userId: "cmqrkdcip000311q44oh1g6pb", amount: 500,  planType: "PLAN_90",  autoCompound: false },
+    // charlie — two investments, original order preserved
+    { userId: "cmqrlp28400036bnvsrxbaaxa", amount: 300,  planType: "PLAN_90",  autoCompound: false },
+    { userId: "cmqrlp28400036bnvsrxbaaxa", amount: 1000, planType: "PLAN_90",  autoCompound: false },
+    // l5user
+    { userId: "l5id",                      amount: 2000, planType: "PLAN_90",  autoCompound: false },
+    // john — one ACTIVE investment (PLAN_180/$400 was COMPLETED, omitted)
+    { userId: "cmqt6mum4000185pmjdh29iyy", amount: 500,  planType: "PLAN_90",  autoCompound: true  },
+  ];
+
+  let investmentCount = 0;
+  for (const inv of investmentPlan) {
+    const existing = await prisma.investment.count({
+      where: { userId: inv.userId, amount: inv.amount, planType: inv.planType },
+    });
+    if (existing > 0) continue;
+
+    await createInvestment(inv.userId, {
+      amount:       inv.amount,
+      planType:     inv.planType,
+      autoCompound: inv.autoCompound,
+    });
+    investmentCount++;
+  }
 
   res.json({
     success: true,
     message: "Production database seeded successfully",
-    seeded: result,
+    seeded: {
+      ...txResult,
+      investmentCount,
+    },
   });
 });
 

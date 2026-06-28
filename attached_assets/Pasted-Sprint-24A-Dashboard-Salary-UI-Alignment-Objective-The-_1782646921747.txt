@@ -1,0 +1,193 @@
+Sprint 24A — Dashboard Salary UI Alignment
+
+Objective
+
+The Salary Engine now follows the cumulative milestone model.
+
+The dashboard is still displaying data using the previous salary model.
+
+This sprint is UI/business-logic alignment only.
+
+Do NOT modify any financial engine.
+
+Do NOT modify salary calculations.
+
+Do NOT modify qualification logic.
+
+Only update how the dashboard reads and displays salary information.
+
+----------------------------------------
+
+Issue 1 — Current Rank
+
+The dashboard currently displays a single rank:
+
+Example:
+
+Current Rank: Silver
+
+This is misleading.
+
+Prime Wave uses cumulative salary milestones.
+
+Example:
+
+Master currently owns:
+
+Bronze
+Silver
+
+Gold is NOT yet unlocked.
+
+The dashboard must display cumulative achievements instead of implying only one active rank.
+
+Show either:
+
+• Unlocked Salary Ranks:
+Bronze
+Silver
+
+or
+
+• Highest Milestone:
+Silver
+
+PLUS
+
+• Active Salary Benefits:
+Bronze + Silver
+
+The UI must clearly indicate that previously unlocked milestones remain active.
+
+----------------------------------------
+
+Issue 2 — Rank Progress
+
+The current widget is using the old thresholds.
+
+It currently shows:
+
+Team Volume = $100
+
+Gold Target = $25,000
+
+Remaining = $24,900
+
+These values are incorrect.
+
+The widget must use the official cumulative salary table.
+
+Current Business must be calculated from the Salary Engine's qualifying business.
+
+For the current seed dataset:
+
+Master Business:
+
+$12,600
+
+Unlocked:
+
+Bronze
+Silver
+
+Next Milestone:
+
+Gold
+
+Required:
+
+$19,500 cumulative
+
+Remaining:
+
+$6,900
+
+----------------------------------------
+
+Progress Bar
+
+The progress bar should represent progress from the current unlocked milestone to the next milestone.
+
+Example:
+
+Current Business
+
+$12,600
+
+Current Milestone
+
+Silver
+
+Next Milestone
+
+Gold
+
+Target
+
+$19,500
+
+Remaining
+
+$6,900
+
+Progress %
+
+Calculated from:
+
+Current cumulative threshold → Next cumulative threshold
+
+Do NOT use legacy values.
+
+----------------------------------------
+
+Salary Milestone Timeline
+
+Update the milestone timeline to match the official Prime Wave compensation plan.
+
+Bronze      $2,000
+
+Silver      $7,000
+
+Gold        $19,500
+
+Platinum    $44,500
+
+Sapphire    $104,500
+
+Ruby        $204,500
+
+Emerald     $354,500
+
+Diamond     $654,500
+
+Ambassador  $1,154,500
+
+Sovereign Crown  $2,154,500
+
+These are cumulative business thresholds.
+
+Remove any legacy values.
+
+----------------------------------------
+
+Data Source
+
+The dashboard must read from the same Salary Engine used by the backend.
+
+Do NOT duplicate salary calculations in the frontend.
+
+The UI should consume the backend's salary data and only format it for display.
+
+----------------------------------------
+
+Regression Check
+
+Confirm:
+
+• No Salary Engine logic changed.
+• No qualification logic changed.
+• No financial calculations changed.
+• Only dashboard presentation was updated.
+• Dashboard now matches the official Prime Wave Salary Compensation Plan exactly.
+
+Provide before/after screenshots once complete.

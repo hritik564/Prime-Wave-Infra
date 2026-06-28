@@ -1,0 +1,305 @@
+# Sprint 24 — Canonical Investment Creation Architecture
+
+## Objective
+
+This is an architecture hardening sprint.
+
+There is NO business rule change.
+
+There is NO financial rule change.
+
+The purpose is to eliminate multiple investment creation paths and guarantee that every investment in Prime Wave is created through ONE canonical business service.
+
+This sprint must preserve 100% of the current financial behaviour.
+
+---
+
+# Current Architecture
+
+The audit identified two investment creation paths.
+
+## Path A (Correct)
+
+investments.service.ts
+
+createInvestment()
+
+This correctly performs:
+
+✓ Deposit wallet validation
+
+✓ Deposit wallet deduction
+
+✓ Wallet ledger entry
+
+✓ Investment creation
+
+✓ BV propagation
+
+✓ Level Income generation
+
+✓ Salary qualification evaluation
+
+✓ Notifications
+
+✓ Audit logging
+
+---
+
+## Path B (Incorrect)
+
+Direct Prisma calls:
+
+prisma.investment.create()
+
+prisma.investment.createMany()
+
+Used inside:
+
+• Seed scripts
+
+• Admin seed services
+
+This bypasses business logic and previously caused:
+
+• Missing Level Income
+
+• Missing BV propagation
+
+• Missing Salary evaluation
+
+• Missing wallet ledger entries
+
+This architectural risk must be eliminated.
+
+---
+
+# Target Architecture
+
+Every investment created anywhere in Prime Wave must eventually execute:
+
+createInvestment()
+
+No exceptions.
+
+Sources include:
+
+✓ User investments
+
+✓ Admin-created investments
+
+✓ Seed scripts
+
+✓ Network generators
+
+✓ Future migration tools
+
+✓ Future import tools
+
+✓ Future APIs
+
+All roads must lead to the canonical Investment Service.
+
+---
+
+# Refactor Requirement
+
+Refactor callers.
+
+Do NOT duplicate business logic.
+
+Do NOT copy business logic.
+
+Instead:
+
+Move all callers to the existing canonical service.
+
+Business logic must exist in ONE location only.
+
+---
+
+# Direct Prisma Protection
+
+Search the entire codebase.
+
+Locate every:
+
+prisma.investment.create()
+
+prisma.investment.createMany()
+
+For each occurrence:
+
+If it is creating a business investment,
+
+replace it with the canonical service.
+
+The only acceptable direct Prisma investment creation should be internal to the Investment Service itself (or another clearly documented persistence layer if one already exists).
+
+---
+
+# Seed Scripts
+
+Seed scripts must no longer insert investment rows directly.
+
+Instead:
+
+Create deposits (if required).
+
+Then invoke the canonical investment creation flow.
+
+The resulting seeded investment must be indistinguishable from a user-created investment.
+
+---
+
+# Admin Operations
+
+Admin-created investments must also use the same service.
+
+There must never be a separate financial implementation for admin actions.
+
+---
+
+# Future Safety
+
+After refactoring:
+
+There must be exactly ONE implementation of:
+
+Investment business rules.
+
+Every future feature automatically benefits because every investment uses the same pipeline.
+
+---
+
+# Behaviour Preservation
+
+This sprint must NOT change:
+
+ROI Engine
+
+Binary Engine
+
+Orbit Engine
+
+Level Income
+
+Salary Engine
+
+Transfer Engine
+
+Wallet calculations
+
+Notifications
+
+Audit logging
+
+Investment rules
+
+Business rules
+
+Only the architecture changes.
+
+The observable behaviour must remain identical.
+
+---
+
+# Regression Testing
+
+Demonstrate:
+
+User investment
+
+↓
+
+Canonical service
+
+↓
+
+Everything executes
+
+Admin investment
+
+↓
+
+Canonical service
+
+↓
+
+Everything executes
+
+Seed investment
+
+↓
+
+Canonical service
+
+↓
+
+Everything executes
+
+Verify:
+
+Wallet deduction
+
+Wallet ledger
+
+Investment
+
+BV propagation
+
+Level Income
+
+Salary evaluation
+
+Notifications
+
+Audit
+
+All execute identically regardless of entry point.
+
+---
+
+# Static Audit
+
+After the refactor:
+
+Search the entire repository.
+
+List every remaining occurrence of:
+
+prisma.investment.create()
+
+prisma.investment.createMany()
+
+For each remaining occurrence explain:
+
+• File
+
+• Why it still exists
+
+• Why it is safe
+
+If no remaining business callers exist, explicitly state:
+
+"All business investment creation now flows exclusively through the canonical Investment Service."
+
+---
+
+# Final Verification
+
+Provide:
+
+• Files modified
+
+• Callers migrated
+
+• Remaining direct Prisma calls (if any)
+
+• Regression test results
+
+• Confirmation that no business rules changed
+
+• Confirmation that the financial output is identical to before the refactor
+
+• Confirmation that Sprint 24 removes the architectural risk identified during the reconciliation audit.
