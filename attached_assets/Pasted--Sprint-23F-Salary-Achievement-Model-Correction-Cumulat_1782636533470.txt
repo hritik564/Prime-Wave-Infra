@@ -1,0 +1,283 @@
+# Sprint 23F — Salary Achievement Model Correction (Cumulative Milestone Model)
+
+## Objective
+
+Refactor ONLY the Salary Achievement model to match the official Prime Wave Salary Compensation Plan.
+
+This sprint is **NOT** a rewrite of Sprint 23E.
+
+Sprint 23E introduced many correct improvements that MUST remain unchanged.
+
+Only the Salary Achievement progression model changes.
+
+---
+
+## KEEP EVERYTHING FROM SPRINT 23E
+
+Do NOT modify:
+
+* Salary qualification using **Business in USD**
+* Event-driven qualification
+* Fire-and-forget evaluation after investment
+* Bronze / Silver / Gold qualification logic
+* Platinum+ 40% / 60% qualification logic
+* ACTIVE member verification
+* Monthly salary scheduler
+* Business snapshot
+* Qualification snapshot
+* Notification system
+* Salary durations
+* Audit history
+* Salary configuration table
+
+Everything above is correct and must remain exactly as implemented.
+
+---
+
+# Business Model Correction
+
+Sprint 23E currently follows:
+
+**Replacement Rank Model**
+
+Example:
+
+Bronze → OFF
+
+Silver → ON
+
+Gold → ON
+
+This is NOT the Prime Wave business rule.
+
+Replace it with:
+
+**Cumulative Milestone Model**
+
+Every salary milestone is earned independently.
+
+Once earned, that milestone continues paying for its own duration.
+
+Earlier milestones are NEVER deactivated simply because a higher milestone is achieved.
+
+---
+
+# Official Salary Structure
+
+| Rank            | Additional Business Required | Cumulative Business Required | Monthly Salary | Qualification   | Duration  |
+| --------------- | ---------------------------: | ---------------------------: | -------------: | --------------- | --------- |
+| Bronze          |                       $2,000 |                       $2,000 |            $40 | Single Leg      | 6 Months  |
+| Silver          |                       $5,000 |                       $7,000 |            $75 | Single Leg      | 6 Months  |
+| Gold            |                      $12,500 |                      $19,500 |           $125 | Single Leg      | 6 Months  |
+| Platinum        |                      $25,000 |                      $44,500 |           $250 | 40% / 60% Split | 8 Months  |
+| Sapphire        |                      $60,000 |                     $104,500 |           $500 | 40% / 60% Split | 8 Months  |
+| Ruby            |                     $100,000 |                     $204,500 |           $750 | 40% / 60% Split | 10 Months |
+| Emerald         |                     $150,000 |                     $354,500 |         $1,250 | 40% / 60% Split | 10 Months |
+| Diamond         |                     $300,000 |                     $654,500 |         $2,000 | 40% / 60% Split | 12 Months |
+| Ambassador      |                     $500,000 |                   $1,154,500 |         $5,000 | 40% / 60% Split | 12 Months |
+| Sovereign Crown |                   $1,000,000 |                   $2,154,500 |        $10,000 | 40% / 60% Split | 18 Months |
+
+IMPORTANT
+
+The "Additional Business Required" column is incremental.
+
+Qualification must use the "Cumulative Business Required" values.
+
+---
+
+# Salary Achievement Rules
+
+Each salary rank may only be earned ONCE.
+
+Never create duplicate achievements for the same rank.
+
+A member MAY have multiple active SalaryAchievements simultaneously.
+
+Example:
+
+Bronze
+
+Silver
+
+Gold
+
+is VALID.
+
+Example:
+
+Bronze
+
+Bronze
+
+is NOT valid.
+
+---
+
+# Promotion Behaviour
+
+Do NOT deactivate previously earned salary achievements.
+
+Example:
+
+Member qualifies for Bronze.
+
+Create Bronze achievement.
+
+Later qualifies for Silver.
+
+Keep Bronze ACTIVE.
+
+Create Silver achievement.
+
+Later qualifies for Gold.
+
+Keep Bronze ACTIVE.
+
+Keep Silver ACTIVE.
+
+Create Gold achievement.
+
+Each achievement pays independently until its own duration expires.
+
+---
+
+# Monthly Salary Scheduler
+
+Do NOT change scheduler timing.
+
+The scheduler should:
+
+Find every ACTIVE SalaryAchievement.
+
+For each achievement:
+
+Verify:
+
+* Achievement still active
+* Duration not completed
+* Member still satisfies ACTIVE member rule
+
+Then credit ONE monthly payment for THAT achievement.
+
+Example:
+
+Bronze = $40
+
+Silver = $75
+
+Monthly credit:
+
+$115
+
+NOT
+
+$75
+
+---
+
+# Payment Tracking
+
+Each SalaryAchievement should independently track:
+
+* Payments Made
+* Total Duration
+* Remaining Payments
+* Last Payment Date
+* Next Payment Date
+* Status
+
+Example:
+
+Bronze
+
+3 / 6 payments
+
+Silver
+
+1 / 6 payments
+
+Gold
+
+0 / 6 payments
+
+The scheduler should rely on payment progress as well as dates.
+
+---
+
+# Existing Seed Dataset
+
+Re-evaluate the current 127-account dataset using cumulative thresholds.
+
+Expected result:
+
+Master:
+
+Business = $12,600
+
+Qualified:
+
+Bronze
+
+Silver
+
+Monthly Salary:
+
+$115/month
+
+NOT Gold.
+
+rd2l
+
+Business = $6,200
+
+Qualified:
+
+Bronze
+
+Monthly Salary:
+
+$40/month
+
+rd2ll
+
+Business = $3,000
+
+Qualified:
+
+Bronze
+
+Monthly Salary:
+
+$40/month
+
+Generate the complete qualification report for every qualifying member.
+
+---
+
+# Data Migration
+
+Preserve existing SalaryAchievements wherever possible.
+
+If Sprint 23E created an incorrect higher-rank achievement because of the previous replacement model:
+
+Safely migrate it to the correct cumulative achievements.
+
+Do NOT create duplicate records.
+
+Do NOT lose historical audit data.
+
+Provide a migration summary showing exactly what changed.
+
+---
+
+# Verification
+
+Provide:
+
+* Files modified
+* Migration summary
+* Number of SalaryAchievements before and after
+* Qualified members
+* Monthly salary expected for every qualified member
+* Confirmation that all Sprint 23E functionality remains intact except for the Salary Achievement model
+* Confirmation that no other Prime Wave financial engine was modified

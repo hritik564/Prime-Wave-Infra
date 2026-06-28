@@ -567,18 +567,28 @@ model SalaryRankConfig {
 
 // ── Salary Achievement ────────────────────────────────────────────────────────
 //
-// Created once per user per rank when qualification is first met.
-// Never revoked — isActive turns false when expiresAt passes.
+// Cumulative Milestone Model (Sprint 23F):
+//   • One record per user per rank — created once when the rank is first earned.
+//   • A member may hold multiple ACTIVE achievements simultaneously
+//     (Bronze + Silver + Gold are all valid at the same time).
+//   • Earning a higher rank NEVER deactivates lower-rank achievements.
+//   • isActive → false when paymentsMade reaches durationMonths, or expiresAt passes.
+//
+// Payment tracking:
+//   paymentsMade  — incremented by the salary cron after each successful payment
+//   lastPaidAt    — timestamp of the most recent payment (set by the cron)
 
 model SalaryAchievement {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
   rankName      String
-  achievedAt    DateTime @default(now())
+  achievedAt    DateTime  @default(now())
   expiresAt     DateTime
-  monthlyAmount Decimal  @db.Decimal(18, 2)
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
+  monthlyAmount Decimal   @db.Decimal(18, 2)
+  isActive      Boolean   @default(true)
+  paymentsMade  Int       @default(0)
+  lastPaidAt    DateTime?
+  createdAt     DateTime  @default(now())
 
   user   User             @relation(fields: [userId],   references: [id], onDelete: Restrict)
   config SalaryRankConfig @relation(fields: [rankName], references: [rankName], onDelete: Restrict)

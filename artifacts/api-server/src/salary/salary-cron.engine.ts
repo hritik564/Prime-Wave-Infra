@@ -8,70 +8,87 @@ import { isMemberActive } from "../eligibility/eligibility.service";
 /**
  * Runs on the 1st of each month (Europe/London midnight).
  *
- * For every active SalaryAchievement:
- *   1. If expired → mark isActive = false, skip payout.
- *   2. Check idempotency key (userId, rankName, month, year) — skip if paid.
- *   3. Credit monthlyAmount to user's withdrawalWallet.
- *   4. Create WalletTransaction (type SALARY_INCOME).
- *   5. Create SalaryIncome record.
+ * Cumulative Milestone Model (Sprint 23F):
+ *   A member may hold multiple active SalaryAchievements simultaneously.
+ *   Each achievement is processed and paid independently.
  *
- * Salaries stack — all active achievements are paid in the same run.
- * All writes per achievement are wrapped in a Prisma transaction.
+ * For every active SalaryAchievement:
+ *   1. If paymentsMade ≥ durationMonths → mark isActive=false, skip.
+ *   2. If expiresAt ≤ cycleDate         → mark isActive=false, skip (safety net).
+ *   3. Check idempotency key (userId, rankName, month, year) — skip if already paid.
+ *   4. Verify member still satisfies the Global Active Member rule.
+ *   5. Credit monthlyAmount to user's withdrawalWallet.
+ *   6. Create WalletTransaction (type SALARY).
+ *   7. Create SalaryIncome record.
+ *   8. Increment paymentsMade; set lastPaidAt; if now complete → isActive=false.
+ *
+ * All writes per achievement are wrapped in a single Prisma transaction.
  */
 export async function runSalaryCycle(now?: Date): Promise<void> {
   const cycleDate = now ?? new Date();
 
-  // Derive month + year in Europe/London to stay consistent with the cron boundary
-  const fmt = new Intl.DateTimeFormat("en-GB", {
+  const fmt   = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
     year:     "numeric",
     month:    "numeric",
   });
-  const parts  = fmt.formatToParts(cycleDate);
-  const month  = Number(parts.find((p) => p.type === "month")?.value ?? cycleDate.getUTCMonth() + 1);
-  const year   = Number(parts.find((p) => p.type === "year")?.value  ?? cycleDate.getUTCFullYear());
+  const parts = fmt.formatToParts(cycleDate);
+  const month = Number(parts.find((p) => p.type === "month")?.value ?? cycleDate.getUTCMonth() + 1);
+  const year  = Number(parts.find((p) => p.type === "year")?.value  ?? cycleDate.getUTCFullYear());
 
   logger.info({ month, year }, "Salary cron: starting payout cycle");
 
-  // Load all active achievements (isActive = true)
   const achievements = await prisma.salaryAchievement.findMany({
-    where:  { isActive: true },
+    where:   { isActive: true },
     select: {
       id:            true,
       userId:        true,
       rankName:      true,
       monthlyAmount: true,
       expiresAt:     true,
+      paymentsMade:  true,
+      config:        { select: { durationMonths: true } },
     },
   });
 
   logger.info({ count: achievements.length }, "Salary cron: active achievements found");
 
-  let paid     = 0;
-  let expired  = 0;
-  let skipped  = 0;
+  let paid    = 0;
+  let expired = 0;
+  let skipped = 0;
 
   for (const ach of achievements) {
-    // ── 1. Expire if past expiresAt ─────────────────────────────────────────
+    const durationMonths = ach.config.durationMonths;
+
+    // ── 1. Payments completed ─────────────────────────────────────────────────
+    if (ach.paymentsMade >= durationMonths) {
+      await prisma.salaryAchievement.update({
+        where: { id: ach.id },
+        data:  { isActive: false },
+      });
+      expired++;
+      logger.info(
+        { userId: ach.userId, rankName: ach.rankName, paymentsMade: ach.paymentsMade, durationMonths },
+        "Salary cron: achievement completed all payments",
+      );
+      continue;
+    }
+
+    // ── 2. Expiry safety net ──────────────────────────────────────────────────
     if (ach.expiresAt <= cycleDate) {
       await prisma.salaryAchievement.update({
         where: { id: ach.id },
         data:  { isActive: false },
       });
       expired++;
-      logger.info({ userId: ach.userId, rankName: ach.rankName }, "Salary cron: achievement expired");
+      logger.info(
+        { userId: ach.userId, rankName: ach.rankName },
+        "Salary cron: achievement expired by date",
+      );
       continue;
     }
 
-    // ── 1b. Active member qualification ──────────────────────────────────────
-    const memberActive = await isMemberActive(ach.userId);
-    if (!memberActive) {
-      skipped++;
-      logger.info({ userId: ach.userId, rankName: ach.rankName }, "Salary cron: user is not an active member, skipping");
-      continue;
-    }
-
-    // ── 2. Idempotency: skip if already paid this month ──────────────────────
+    // ── 3. Idempotency ────────────────────────────────────────────────────────
     const already = await prisma.salaryIncome.findUnique({
       where: {
         userId_rankName_month_year: {
@@ -87,17 +104,29 @@ export async function runSalaryCycle(now?: Date): Promise<void> {
       continue;
     }
 
-    // ── 3–5. Credit wallet + create records atomically ───────────────────────
+    // ── 4. Active member check ────────────────────────────────────────────────
+    const memberActive = await isMemberActive(ach.userId);
+    if (!memberActive) {
+      skipped++;
+      logger.info(
+        { userId: ach.userId, rankName: ach.rankName },
+        "Salary cron: user is not an active member, skipping",
+      );
+      continue;
+    }
+
+    // ── 5-8. Credit wallet, create records, update payment tracking ───────────
     try {
+      const newPaymentsMade = ach.paymentsMade + 1;
+      const nowCompleted    = newPaymentsMade >= durationMonths;
+
       await prisma.$transaction(async (tx) => {
-        // Credit withdrawalWallet
         const wallet = await tx.wallet.update({
-          where: { userId: ach.userId },
-          data:  { withdrawalWallet: { increment: ach.monthlyAmount } },
+          where:  { userId: ach.userId },
+          data:   { withdrawalWallet: { increment: ach.monthlyAmount } },
           select: { id: true },
         });
 
-        // WalletTransaction audit trail
         await tx.walletTransaction.create({
           data: {
             walletId:    wallet.id,
@@ -105,12 +134,11 @@ export async function runSalaryCycle(now?: Date): Promise<void> {
             type:        "SALARY",
             status:      "SUCCESS",
             amount:      ach.monthlyAmount,
-            description: `${ach.rankName} leadership salary — ${monthName(month)} ${year}`,
-            metadata:    { rankName: ach.rankName, month, year },
+            description: `${ach.rankName} leadership salary — ${monthName(month)} ${year} (payment ${newPaymentsMade}/${durationMonths})`,
+            metadata:    { rankName: ach.rankName, month, year, paymentNumber: newPaymentsMade, durationMonths },
           },
         });
 
-        // SalaryIncome ledger record
         await tx.salaryIncome.create({
           data: {
             userId:   ach.userId,
@@ -120,19 +148,45 @@ export async function runSalaryCycle(now?: Date): Promise<void> {
             amount:   ach.monthlyAmount,
           },
         });
+
+        await tx.salaryAchievement.update({
+          where: { id: ach.id },
+          data: {
+            paymentsMade: newPaymentsMade,
+            lastPaidAt:   cycleDate,
+            isActive:     !nowCompleted,
+          },
+        });
       });
 
       void notificationService.create({
-        userId:  ach.userId,
-        type:    "SALARY_RECEIVED",
-        title:   "Leadership Salary Received",
-        message: `Your ${ach.rankName} leadership salary of $${ach.monthlyAmount.toFixed(2)} for ${monthName(month)} ${year} has been credited to your withdrawal wallet.`,
-        metadata: { rankName: ach.rankName, amount: ach.monthlyAmount.toString(), month, year },
+        userId:   ach.userId,
+        type:     "SALARY_RECEIVED",
+        title:    "Leadership Salary Received",
+        message:  `Your ${ach.rankName} leadership salary of $${ach.monthlyAmount.toFixed(2)} for ${monthName(month)} ${year} has been credited to your withdrawal wallet. (Payment ${newPaymentsMade}/${durationMonths})`,
+        metadata: {
+          rankName:      ach.rankName,
+          amount:        ach.monthlyAmount.toString(),
+          month,
+          year,
+          paymentsMade:  newPaymentsMade,
+          durationMonths,
+          completed:     nowCompleted,
+        },
       });
 
       paid++;
       logger.info(
-        { userId: ach.userId, rankName: ach.rankName, amount: ach.monthlyAmount.toString(), month, year },
+        {
+          userId:        ach.userId,
+          rankName:      ach.rankName,
+          amount:        ach.monthlyAmount.toString(),
+          month,
+          year,
+          paymentsMade:  newPaymentsMade,
+          durationMonths,
+          completed:     nowCompleted,
+        },
         "Salary cron: payout processed",
       );
     } catch (err) {
