@@ -1,0 +1,444 @@
+# Sprint 25B — Real BSC Blockchain Adapter (Production Integration)
+
+## Objective
+
+Sprint 25A and Sprint 25A.1 are now complete and production-hardened.
+
+Sprint 25B has ONLY ONE responsibility:
+
+Replace the Mock Blockchain Adapter with a production-ready Binance Smart Chain (BEP20) Blockchain Adapter.
+
+This is an infrastructure integration sprint.
+
+It is NOT a financial engine sprint.
+
+---
+
+# CRITICAL ARCHITECTURE RULE
+
+The Deposit Verification Engine is now considered complete.
+
+Do NOT modify:
+
+* Deposit Verification workflow
+* State machine
+* Business rules
+* Wallet logic
+* Deposit approval logic
+* Notifications
+* Ledger
+* Worker orchestration
+* Idempotency logic
+* Recovery logic
+
+Sprint 25B must only replace:
+
+MockBlockchainAdapter
+
+↓
+
+BSCBlockchainAdapter
+
+Everything else must remain untouched.
+
+---
+
+# Build a Production BSC Blockchain Adapter
+
+Create:
+
+BSCBlockchainAdapter
+
+which fully implements the existing:
+
+IBlockchainAdapter
+
+No changes to the interface.
+
+No Deposit Verification Engine changes.
+
+---
+
+# RPC Client
+
+Create a reusable RPC client layer.
+
+The adapter must never contain raw HTTP implementation.
+
+Architecture:
+
+Deposit Verification Engine
+
+↓
+
+IBlockchainAdapter
+
+↓
+
+BSCBlockchainAdapter
+
+↓
+
+RPC Client
+
+↓
+
+BSC JSON-RPC Endpoint
+
+---
+
+# Multiple RPC Endpoints
+
+Support multiple RPC providers.
+
+Configuration:
+
+BSC_RPC_PRIMARY=
+
+BSC_RPC_SECONDARY=
+
+BSC_RPC_TERTIARY=
+
+If one provider fails:
+
+Automatically retry the next provider.
+
+The Deposit Verification Engine must not know which provider is being used.
+
+---
+
+# Configuration
+
+Everything configurable through environment variables.
+
+Examples:
+
+BSC_RPC_PRIMARY
+
+BSC_RPC_SECONDARY
+
+USDT_CONTRACT_ADDRESS
+
+CHAIN_ID
+
+REQUIRED_CONFIRMATIONS
+
+RPC_TIMEOUT_MS
+
+RPC_MAX_RETRIES
+
+MAX_RPC_CONCURRENCY
+
+Never hardcode production values.
+
+---
+
+# Verification Result
+
+The adapter should expose one unified verification result object.
+
+Example:
+
+* found
+* successful
+* confirmations
+* requiredConfirmations
+* senderAddress
+* recipientAddress
+* tokenContract
+* tokenSymbol
+* amount
+* decimals
+* network
+* blockNumber
+* transactionHash
+* timestamp
+
+The Deposit Verification Engine consumes this object.
+
+The adapter never changes deposit states.
+
+The adapter never writes to the database.
+
+---
+
+# Verification Rules
+
+The adapter must verify:
+
+✓ Transaction exists
+
+✓ Transaction successful
+
+✓ Correct blockchain (BSC)
+
+✓ Correct Chain ID
+
+✓ Recipient matches Prime Wave wallet
+
+✓ Token contract matches official USDT BEP20 contract
+
+✓ Amount greater than zero
+
+✓ Confirmation count
+
+Return verification results only.
+
+Never approve deposits directly.
+
+---
+
+# RPC Resilience
+
+Implement:
+
+Primary RPC
+
+↓
+
+Retry
+
+↓
+
+Secondary RPC
+
+↓
+
+Retry
+
+↓
+
+Tertiary RPC
+
+↓
+
+Fail gracefully
+
+Do not expose RPC failures to the user.
+
+Return meaningful adapter errors.
+
+---
+
+# Security
+
+Reject:
+
+* Unknown transaction
+* Failed transaction
+* Wrong chain
+* Wrong recipient
+* Wrong token contract
+* Zero amount
+* Unsupported token
+* Unsupported network
+
+Never trust user input.
+
+All values must come directly from the blockchain.
+
+---
+
+# Logging
+
+Log:
+
+* RPC Provider used
+* Verification duration
+* Confirmation count
+* Retry count
+* Failover events
+
+Do NOT log private information.
+
+Do NOT log secrets.
+
+---
+
+# Performance
+
+Support configurable RPC concurrency.
+
+Reuse existing worker concurrency settings.
+
+Avoid duplicate blockchain requests wherever possible.
+
+---
+
+# Regression Requirements
+
+Confirm that Sprint 25B made NO behavioural changes to:
+
+* Deposit Verification Engine
+* Deposit Approval Pipeline
+* Wallet Engine
+* Investment Engine
+* ROI Engine
+* Binary Engine
+* Salary Engine
+* Orbit Engine
+* Level Income Engine
+* Withdrawal Engine
+
+The only new production code should be:
+
+* BSCBlockchainAdapter
+* RPC Client
+* Configuration
+* Adapter wiring
+
+Nothing else.
+
+---
+
+# Integration Tests
+
+Demonstrate successful handling of:
+
+1. Valid USDT BEP20 transaction
+
+Expected:
+
+Automatic verification
+
+↓
+
+Automatic approval
+
+↓
+
+Wallet credit
+
+↓
+
+Notification
+
+↓
+
+Completed
+
+---
+
+2. Duplicate TX Hash
+
+Rejected.
+
+---
+
+3. Wrong recipient wallet
+
+Rejected.
+
+---
+
+4. Wrong token contract
+
+Rejected.
+
+---
+
+5. Wrong network
+
+Rejected.
+
+---
+
+6. Pending confirmations
+
+WAITING_CONFIRMATIONS
+
+Automatically resumes later.
+
+---
+
+7. Confirmation threshold reached
+
+Automatically credits Deposit Wallet.
+
+---
+
+8. Failed blockchain transaction
+
+Rejected.
+
+---
+
+9. RPC timeout
+
+Automatic retry.
+
+---
+
+10. Primary RPC unavailable
+
+Automatic failover to secondary provider.
+
+---
+
+# Deliverables
+
+Provide:
+
+1. Files modified
+
+2. Architecture diagram
+
+3. RPC provider strategy
+
+4. Environment variables
+
+5. Verification object structure
+
+6. Sequence diagram
+
+User
+
+↓
+
+Blockchain
+
+↓
+
+BSC Adapter
+
+↓
+
+Deposit Verification Engine
+
+↓
+
+approveDeposit()
+
+↓
+
+Wallet
+
+↓
+
+Notification
+
+7. Performance analysis
+
+8. Security review
+
+9. Regression report
+
+10. Final production readiness assessment
+
+---
+
+# FINAL ACCEPTANCE CRITERIA
+
+Sprint 25B is complete only if:
+
+✓ The MockBlockchainAdapter has been fully replaced by a production-grade BSCBlockchainAdapter.
+
+✓ The Deposit Verification Engine required ZERO business-rule modifications.
+
+✓ Existing financial engines remain untouched.
+
+✓ Real BEP20 USDT deposits can be automatically verified and credited through the existing production-tested deposit approval pipeline.
+
+This sprint must improve infrastructure only.
+
+It must not change financial behaviour.
