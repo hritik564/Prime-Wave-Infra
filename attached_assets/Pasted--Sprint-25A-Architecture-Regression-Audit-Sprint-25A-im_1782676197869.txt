@@ -1,0 +1,237 @@
+# Sprint 25A — Architecture & Regression Audit
+
+Sprint 25A implementation is complete.
+
+Before we proceed to Sprint 25B (real BSC integration), I want a complete architecture audit.
+
+This is a **read-only verification**.
+
+Do **NOT** modify any code unless you discover a genuine defect.
+
+I want evidence that the Deposit Verification Engine is production-ready.
+
+---
+
+# 1. Financial Integrity Audit
+
+Verify that an **automatic deposit** ultimately executes **exactly the same production-tested approval pipeline** as a manual deposit.
+
+Confirm that after `approveDeposit()` begins, both flows are identical.
+
+Verify that both produce identical:
+
+* Deposit Wallet credit
+* Wallet ledger entries
+* Deposit status
+* Notifications
+* Audit logs
+
+There must not be any duplicate financial logic.
+
+---
+
+# 2. Idempotency Audit
+
+Attempt to verify the following scenarios:
+
+* Same TX Hash submitted twice
+* Same TX Hash submitted five times
+* Same TX Hash submitted simultaneously from two browser tabs
+* Same TX Hash submitted by two different user accounts
+
+Expected result:
+
+Exactly one successful verification.
+
+Every other attempt must be rejected.
+
+No duplicate wallet credits.
+
+No duplicate ledger entries.
+
+No duplicate notifications.
+
+---
+
+# 3. Crash Recovery Audit
+
+Simulate:
+
+Verification begins.
+
+Worker is interrupted.
+
+Server restarts.
+
+Confirm:
+
+* Worker resumes automatically
+* Verification continues
+* No deposit is lost
+* No duplicate processing occurs
+* No manual intervention required
+
+---
+
+# 4. Worker Safety Audit
+
+Verify:
+
+* Only one worker processes a verification at a time.
+* Two workers cannot process the same verification simultaneously.
+* No race conditions.
+* No duplicate credits.
+
+---
+
+# 5. State Machine Audit
+
+Verify every state transition.
+
+Ensure only the approved lifecycle exists.
+
+CREATED
+
+↓
+
+TX_SUBMITTED
+
+↓
+
+VERIFYING
+
+↓
+
+WAITING_CONFIRMATIONS
+
+↓
+
+CONFIRMED
+
+↓
+
+CREDITED
+
+↓
+
+COMPLETED
+
+Failure states:
+
+FAILED
+
+REJECTED
+
+EXPIRED
+
+Verify that invalid transitions are impossible.
+
+Example:
+
+CREATED → COMPLETED
+
+must never occur.
+
+---
+
+# 6. API Security Audit
+
+Verify:
+
+Users can access only their own verification requests.
+
+Admin endpoints require proper permissions.
+
+TX Hash cannot be modified after submission.
+
+Blockchain amount cannot be modified by users.
+
+Verification status cannot be manipulated by users.
+
+No privilege escalation paths.
+
+---
+
+# 7. Performance Audit
+
+Simulate workloads such as:
+
+100 pending verifications
+
+500 pending verifications
+
+1000 pending verifications
+
+Verify:
+
+* Worker stability
+* Processing behaviour
+* Query efficiency
+* No excessive polling
+* No memory leaks
+* No blocking HTTP requests
+
+Highlight any potential bottlenecks.
+
+---
+
+# 8. Regression Audit
+
+Confirm that Sprint 25A made **NO behavioural changes** to:
+
+* Wallet Engine
+* Deposit Approval Engine
+* Investment Engine
+* ROI Engine
+* Binary Engine
+* Salary Engine
+* Orbit Engine
+* Level Income Engine
+* Withdrawal Engine
+
+List every file touched.
+
+Explain why each modification cannot affect the existing financial engines.
+
+---
+
+# 9. Architecture Review
+
+Evaluate whether the Deposit Verification Engine follows clean architecture.
+
+Specifically verify:
+
+* Deposit Verification Engine is orchestration only
+* Blockchain Adapter is fully isolated
+* No blockchain-specific logic leaked into business services
+* Existing deposit approval pipeline is reused
+* No duplicated wallet logic
+* No duplicated notification logic
+* No duplicated ledger logic
+
+---
+
+# 10. Production Readiness Verdict
+
+Provide a final report with:
+
+PASS / FAIL
+
+Risk Level:
+
+Critical
+
+High
+
+Medium
+
+Low
+
+For every issue found include:
+
+* Root cause
+* Impact
+* Recommendation
+* Whether it must be fixed before Sprint 25B
+
+If the architecture passes, explicitly confirm that Sprint 25B can safely focus only on implementing the real BSC Blockchain Adapter without requiring architectural changes to the Deposit Verification Engine.
