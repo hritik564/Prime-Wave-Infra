@@ -73,18 +73,37 @@ async function maybeSeedOnStart(port: number) {
       logger.warn({ status: delResp.status, body: delBody }, "SEED_ON_START: DELETE returned non-OK (continuing)");
     }
 
-    // Step 2: Run the full 23B seed
-    logger.info("SEED_ON_START: triggering full 23B seed…");
-    const resp = await fetch(`http://localhost:${port}/api/dev/seed/23b`, {
-      method: "POST", headers,
-    });
+    // Step 2: Run the full 23B seed — retry up to 3 times on failure
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        logger.info({ attempt }, "SEED_ON_START: triggering full 23B seed…");
+        const resp = await fetch(`http://localhost:${port}/api/dev/seed/23b`, {
+          method: "POST", headers,
+        });
 
-    const body = await resp.json() as unknown;
-    if (resp.ok) {
-      logger.info({ status: resp.status, body }, "SEED_ON_START: seed completed successfully");
-    } else {
-      logger.error({ status: resp.status, body }, "SEED_ON_START: seed POST failed");
+        const body = await resp.json() as unknown;
+        if (resp.ok) {
+          logger.info({ status: resp.status, body }, "SEED_ON_START: seed completed successfully");
+          return;
+        }
+
+        logger.error({ attempt, status: resp.status, body }, "SEED_ON_START: seed POST returned non-OK");
+      } catch (err) {
+        logger.error({ attempt, err }, "SEED_ON_START: seed POST threw — DB may have restarted");
+      }
+
+      if (attempt < MAX_ATTEMPTS) {
+        logger.info({ attempt, waitMs: 15_000 }, "SEED_ON_START: waiting 15s before retry…");
+
+        // Re-wipe any partial data written before the failure, then retry
+        await new Promise<void>((resolve) => setTimeout(resolve, 15_000));
+        logger.info("SEED_ON_START: clearing partial data before retry…");
+        await fetch(`http://localhost:${port}/api/dev/seed/23b`, { method: "DELETE", headers }).catch(() => {});
+      }
     }
+
+    logger.error({ MAX_ATTEMPTS }, "SEED_ON_START: all attempts exhausted — seed incomplete");
   } catch (err) {
     logger.error({ err }, "SEED_ON_START: unexpected error");
   }
