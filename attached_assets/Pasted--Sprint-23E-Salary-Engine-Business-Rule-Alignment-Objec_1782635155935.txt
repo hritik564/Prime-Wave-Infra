@@ -1,0 +1,249 @@
+# Sprint 23E — Salary Engine Business Rule Alignment
+
+Objective
+
+Align the Salary Engine with the official Prime Wave compensation plan.
+
+This sprint updates ONLY the Salary Engine and Salary Qualification logic.
+
+Do NOT modify:
+
+• ROI Engine
+• Binary Engine
+• Orbit Engine
+• Level Income Engine
+• Wallet Architecture
+• Transfer Engine
+• Investment Engine
+• Binary Tree
+• Sponsor Tree
+• Database schema unless absolutely required
+
+--------------------------------------------------------
+1. Official Salary Structure
+--------------------------------------------------------
+
+Replace the existing salary configuration with:
+
+| Rank | Total Business Required | Monthly Salary | Qualification | Duration |
+| Bronze | $2,000 | $40/month | Single Leg (No 40/60 Split) | 6 Months |
+| Silver | $5,000 | $75/month | Single Leg (No 40/60 Split) | 6 Months |
+| Gold | $12,500 | $125/month | Single Leg (No 40/60 Split) | 6 Months |
+| Platinum | $25,000 | $250/month | 40% / 60% Leg Split | 8 Months |
+| Sapphire | $60,000 | $500/month | 40% / 60% Leg Split | 8 Months |
+| Ruby | $100,000 | $750/month | 40% / 60% Leg Split | 10 Months |
+| Emerald | $150,000 | $1,250/month | 40% / 60% Leg Split | 10 Months |
+| Diamond | $300,000 | $2,000/month | 40% / 60% Leg Split | 12 Months |
+| Ambassador | $500,000 | $5,000/month | 40% / 60% Leg Split | 12 Months |
+| Sovereign Crown | $1,000,000 | $10,000/month | 40% / 60% Leg Split | 18 Months |
+
+--------------------------------------------------------
+2. Qualification Uses BUSINESS ($)
+--------------------------------------------------------
+
+The first column represents TOTAL BUSINESS IN USD.
+
+It does NOT represent BV.
+
+Salary qualification must be calculated from total qualifying investment business in dollars.
+
+Any logic currently treating these values as BV must be corrected.
+
+--------------------------------------------------------
+3. Bronze / Silver / Gold
+--------------------------------------------------------
+
+Qualification:
+
+• Global ACTIVE member
+
+• Required Total Business
+
+No 40/60 leg split required.
+
+Business can come from either leg.
+
+--------------------------------------------------------
+4. Platinum and Above
+--------------------------------------------------------
+
+Qualification:
+
+• Global ACTIVE member
+
+• Required Total Business
+
+• 40% / 60% Power Leg / Weaker Leg split
+
+--------------------------------------------------------
+5. Immediate Qualification
+--------------------------------------------------------
+
+Salary qualification is EVENT DRIVEN.
+
+Whenever qualifying business increases (investment or qualifying business event):
+
+Immediately evaluate salary qualification.
+
+If the member qualifies for a higher rank:
+
+• Update Current Salary Rank immediately.
+
+• Create ONE new SalaryAchievement.
+
+• Store:
+
+  - Rank
+  - Qualified Date
+  - Monthly Salary
+  - Duration
+  - End Date
+  - Business Snapshot
+  - Qualification Snapshot
+
+• Send qualification notification.
+
+Do NOT wait for the monthly salary scheduler.
+
+--------------------------------------------------------
+6. Highest Rank Only
+--------------------------------------------------------
+
+A member can have ONLY ONE active Salary Rank.
+
+If multiple ranks are satisfied during the same evaluation:
+
+Example:
+
+Business = $12,700
+
+Bronze ✔
+
+Silver ✔
+
+Gold ✔
+
+Result:
+
+Award ONLY Gold.
+
+Do NOT create Bronze or Silver achievements.
+
+If a higher rank is achieved later:
+
+Deactivate the previous SalaryAchievement.
+
+Create the new higher SalaryAchievement.
+
+Never allow two active SalaryAchievements simultaneously.
+
+--------------------------------------------------------
+7. Monthly Salary Payments
+--------------------------------------------------------
+
+Monthly salary payments remain scheduler-driven.
+
+The scheduler should:
+
+Find active SalaryAchievements.
+
+Verify:
+
+• Achievement still active
+
+• Payment duration not completed
+
+• Member still satisfies the global ACTIVE member rule
+
+Then:
+
+Credit ONE monthly salary payment.
+
+Salary is NOT paid immediately upon qualification.
+
+Qualification is immediate.
+
+Monthly payment remains monthly.
+
+--------------------------------------------------------
+8. Achievement History
+--------------------------------------------------------
+
+Never delete historical SalaryAchievements.
+
+Maintain complete history including:
+
+• Rank
+
+• Qualification Date
+
+• Monthly Salary
+
+• Duration
+
+• Payment Count
+
+• End Date
+
+• Business Snapshot
+
+• Status
+
+--------------------------------------------------------
+9. Apply to Existing Seed Dataset
+--------------------------------------------------------
+
+Immediately evaluate the current 127-account dataset.
+
+Update every qualifying member's Salary Rank.
+
+Create SalaryAchievements for every newly qualified member.
+
+Generate notifications.
+
+Do NOT wait for the next monthly scheduler.
+
+The current dataset should reflect the correct salary ranks immediately after this sprint.
+
+Monthly salary payments will continue through the existing monthly scheduler.
+
+--------------------------------------------------------
+10. Verification
+--------------------------------------------------------
+
+Provide:
+
+• Current Salary Rank for every qualified member.
+
+• Current Total Business for each qualified member.
+
+• Qualification reason.
+
+• Number of SalaryAchievements created.
+
+• Number of members qualified.
+
+• Confirmation that monthly payment scheduling remains unchanged.
+
+--------------------------------------------------------
+11. Safety
+
+Confirm that:
+
+✓ ROI Engine unchanged
+
+✓ Binary Engine unchanged
+
+✓ Orbit Engine unchanged
+
+✓ Level Income unchanged
+
+✓ Wallet architecture unchanged
+
+✓ Transfer Engine unchanged
+
+✓ Investment Engine unchanged
+
+✓ Binary calculations unchanged
+
+✓ Only Salary configuration and Salary qualification logic were modified.

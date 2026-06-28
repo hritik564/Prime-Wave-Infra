@@ -4,6 +4,7 @@ import {
   adminGetProfile,
   triggerMatchingCycle,
   triggerOrbitCycle,
+  triggerSalaryEvaluateAll,
   listSettings,
   updateSetting,
 } from "./admin.controller";
@@ -143,8 +144,9 @@ router.post("/login", authLimiter, validate(adminLoginSchema), adminLogin);
 router.get("/profile", adminLimiter, requireAdminAuth, adminGetProfile);
 
 // Manual cycle triggers
-router.post("/trigger/matching", adminLimiter, requireAdminAuth, triggerMatchingCycle);
-router.post("/trigger/orbit",    adminLimiter, requireAdminAuth, triggerOrbitCycle);
+router.post("/trigger/matching",       adminLimiter, requireAdminAuth, triggerMatchingCycle);
+router.post("/trigger/orbit",          adminLimiter, requireAdminAuth, triggerOrbitCycle);
+router.post("/salary/evaluate-all",    adminLimiter, requireAdminAuth, triggerSalaryEvaluateAll);
 
 // System settings
 router.get("/settings",        adminLimiter, requireAdminAuth, listSettings);

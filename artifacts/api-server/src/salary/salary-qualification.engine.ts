@@ -1,41 +1,112 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
+import { isMemberActive } from "../eligibility/eligibility.service";
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+/**
+ * 1 BV unit = $100 USD.
+ * leftBV / rightBV on User are stored in BV units; multiply by this factor
+ * to obtain the actual qualifying business in dollars.
+ */
+const BV_TO_USD = new Prisma.Decimal("100");
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface RankQualification {
-  rankName:        string;
-  monthlySalary:   Prisma.Decimal;
-  durationMonths:  number;
-  qualifies:       boolean;
-  reason?:         string;
+  rankName:           string;
+  monthlySalary:      Prisma.Decimal;
+  durationMonths:     number;
+  qualifies:          boolean;
+  reason?:            string;
+  totalBusinessUSD?:  Prisma.Decimal;
+  leftBusinessUSD?:   Prisma.Decimal;
+  rightBusinessUSD?:  Prisma.Decimal;
 }
 
-// ── Qualification check ───────────────────────────────────────────────────────
+// ── Highest qualifying rank ───────────────────────────────────────────────────
 
 /**
- * Evaluates which active ranks a user currently qualifies for.
+ * Returns the SINGLE highest salary rank that a user currently qualifies for,
+ * or null if they qualify for none.
  *
- * Bronze / Silver / Gold  (allowSpill=false, requiresDualDirects=false)
- *   — Sum SalaryBvLedger entries where investorId is a direct referral
- *     (sponsorId = userId). Single-leg sufficient, no dual-direct gate.
+ * Qualification rules (Sprint 23E):
+ *   1. Global Active Member:
+ *        directLeftCount ≥ 1 AND directRightCount ≥ 1
+ *        AND at least one ACTIVE investment ≥ $100
+ *   2. Total business ≥ requiredBusiness (in USD)
+ *        totalBusinessUSD = (leftBV + rightBV) × $100
+ *   3. Bronze / Silver / Gold (powerLegRequired IS NULL):
+ *        Single-leg — no leg split required; business from either leg counts.
+ *   4. Platinum and above (powerLegRequired IS NOT NULL):
+ *        40% / 60% leg split — one leg ≥ powerLegRequired, other ≥ weakLegRequired.
  *
- * Platinum+  (allowSpill=true, requiresDualDirects=true)
- *   — Total BV = user.leftBV + user.rightBV (spill included).
- *   — Leg split: one leg ≥ powerLegRequired, other leg ≥ weakLegRequired.
- *   — Dual directs: ≥1 personally-sponsored member in LEFT, ≥1 in RIGHT.
+ * Ranks are evaluated highest-first; the first match is returned.
+ */
+export async function getHighestQualifyingRank(
+  userId: string,
+): Promise<RankQualification | null> {
+  const active = await isMemberActive(userId);
+  if (!active) return null;
+
+  const [user, ranks] = await prisma.$transaction([
+    prisma.user.findUniqueOrThrow({
+      where:  { id: userId },
+      select: { leftBV: true, rightBV: true },
+    }),
+    prisma.salaryRankConfig.findMany({
+      where:   { isActive: true },
+      orderBy: { requiredBusiness: "desc" },
+    }),
+  ]);
+
+  const leftUSD  = user.leftBV.times(BV_TO_USD);
+  const rightUSD = user.rightBV.times(BV_TO_USD);
+  const totalUSD = leftUSD.plus(rightUSD);
+
+  for (const rank of ranks) {
+    if (totalUSD.lt(rank.requiredBusiness)) continue;
+
+    if (rank.powerLegRequired !== null && rank.weakLegRequired !== null) {
+      const pReq = rank.powerLegRequired;
+      const wReq = rank.weakLegRequired;
+      const legSplitOk =
+        (leftUSD.gte(pReq) && rightUSD.gte(wReq)) ||
+        (rightUSD.gte(pReq) && leftUSD.gte(wReq));
+      if (!legSplitOk) continue;
+    }
+
+    return {
+      rankName:          rank.rankName,
+      monthlySalary:     rank.monthlySalary,
+      durationMonths:    rank.durationMonths,
+      qualifies:         true,
+      totalBusinessUSD:  totalUSD,
+      leftBusinessUSD:   leftUSD,
+      rightBusinessUSD:  rightUSD,
+    };
+  }
+
+  return null;
+}
+
+// ── Full evaluation report (all ranks) ───────────────────────────────────────
+
+/**
+ * Returns a qualification report for every active rank.
+ * Used by admin reporting and the salary qualification API endpoint.
+ *
+ * Does NOT determine which rank is awarded (use getHighestQualifyingRank for that).
  */
 export async function checkUserQualifications(
   userId: string,
 ): Promise<RankQualification[]> {
+  const active = await isMemberActive(userId);
+
   const [user, ranks] = await prisma.$transaction([
     prisma.user.findUniqueOrThrow({
       where:  { id: userId },
-      select: {
-        leftBV:             true,
-        rightBV:            true,
-        directReferralCount: true,
-      },
+      select: { leftBV: true, rightBV: true },
     }),
     prisma.salaryRankConfig.findMany({
       where:   { isActive: true },
@@ -43,111 +114,58 @@ export async function checkUserQualifications(
     }),
   ]);
 
-  const results: RankQualification[] = [];
-
-  for (const rank of ranks) {
-    const result = await evaluateRank(userId, user, rank);
-    results.push(result);
+  if (!active) {
+    return ranks.map((r) => ({
+      rankName:       r.rankName,
+      monthlySalary:  r.monthlySalary,
+      durationMonths: r.durationMonths,
+      qualifies:      false,
+      reason:
+        "Not a Global Active Member (requires: directLeft ≥ 1, directRight ≥ 1, ACTIVE investment ≥ $100)",
+    }));
   }
 
-  return results;
-}
+  const leftUSD  = user.leftBV.times(BV_TO_USD);
+  const rightUSD = user.rightBV.times(BV_TO_USD);
+  const totalUSD = leftUSD.plus(rightUSD);
 
-// ── Per-rank evaluator ────────────────────────────────────────────────────────
-
-async function evaluateRank(
-  userId: string,
-  user: { leftBV: Prisma.Decimal; rightBV: Prisma.Decimal; directReferralCount: number },
-  rank: {
-    rankName:            string;
-    requiredBusiness:    Prisma.Decimal;
-    monthlySalary:       Prisma.Decimal;
-    durationMonths:      number;
-    requiresDualDirects: boolean;
-    allowSpill:          boolean;
-    powerLegRequired:    Prisma.Decimal | null;
-    weakLegRequired:     Prisma.Decimal | null;
-  },
-): Promise<RankQualification> {
-  const base = {
-    rankName:       rank.rankName,
-    monthlySalary:  rank.monthlySalary,
-    durationMonths: rank.durationMonths,
-  };
-
-  // ── Bronze / Silver / Gold — direct business only, single leg OK ───────────
-  if (!rank.allowSpill) {
-    const agg = await prisma.salaryBvLedger.aggregate({
-      where: {
-        userId,
-        investor: { sponsorId: userId },
-      },
-      _sum: { bv: true },
-    });
-
-    const directBV = agg._sum.bv ?? new Prisma.Decimal(0);
-
-    if (directBV.lt(rank.requiredBusiness)) {
+  return ranks.map((rank): RankQualification => {
+    if (totalUSD.lt(rank.requiredBusiness)) {
       return {
-        ...base,
-        qualifies: false,
-        reason:    `Direct BV ${directBV.toFixed(2)} < required ${rank.requiredBusiness.toFixed(2)}`,
+        rankName:       rank.rankName,
+        monthlySalary:  rank.monthlySalary,
+        durationMonths: rank.durationMonths,
+        qualifies:      false,
+        reason: `Total business $${totalUSD.toFixed(2)} < required $${rank.requiredBusiness.toFixed(2)}`,
       };
     }
 
-    return { ...base, qualifies: true };
-  }
+    if (rank.powerLegRequired !== null && rank.weakLegRequired !== null) {
+      const pReq = rank.powerLegRequired;
+      const wReq = rank.weakLegRequired;
+      const legSplitOk =
+        (leftUSD.gte(pReq) && rightUSD.gte(wReq)) ||
+        (rightUSD.gte(pReq) && leftUSD.gte(wReq));
 
-  // ── Platinum+ — spill counts, dual directs + leg split required ────────────
-  const leftBV  = user.leftBV;
-  const rightBV = user.rightBV;
-  const totalBV = leftBV.plus(rightBV);
+      if (!legSplitOk) {
+        return {
+          rankName:       rank.rankName,
+          monthlySalary:  rank.monthlySalary,
+          durationMonths: rank.durationMonths,
+          qualifies:      false,
+          reason: `Leg split unmet — LEFT: $${leftUSD.toFixed(2)}, RIGHT: $${rightUSD.toFixed(2)}. Need $${pReq.toFixed(2)} / $${wReq.toFixed(2)} split (40%/60%)`,
+        };
+      }
+    }
 
-  if (totalBV.lt(rank.requiredBusiness)) {
     return {
-      ...base,
-      qualifies: false,
-      reason:    `Total BV ${totalBV.toFixed(2)} < required ${rank.requiredBusiness.toFixed(2)}`,
+      rankName:          rank.rankName,
+      monthlySalary:     rank.monthlySalary,
+      durationMonths:    rank.durationMonths,
+      qualifies:         true,
+      totalBusinessUSD:  totalUSD,
+      leftBusinessUSD:   leftUSD,
+      rightBusinessUSD:  rightUSD,
     };
-  }
-
-  // Leg split validation
-  if (rank.powerLegRequired && rank.weakLegRequired) {
-    const pReq = rank.powerLegRequired;
-    const wReq = rank.weakLegRequired;
-
-    const legSplitOk =
-      (leftBV.gte(pReq) && rightBV.gte(wReq)) ||
-      (leftBV.gte(wReq) && rightBV.gte(pReq));
-
-    if (!legSplitOk) {
-      return {
-        ...base,
-        qualifies: false,
-        reason:    `Leg split unmet — LEFT: ${leftBV.toFixed(2)}, RIGHT: ${rightBV.toFixed(2)}. Need ${pReq}/${wReq} split`,
-      };
-    }
-  }
-
-  // Dual directs: ≥1 personally-sponsored member placed LEFT, ≥1 placed RIGHT
-  if (rank.requiresDualDirects) {
-    const [leftCount, rightCount] = await prisma.$transaction([
-      prisma.user.count({
-        where: { sponsorId: userId, position: "LEFT" },
-      }),
-      prisma.user.count({
-        where: { sponsorId: userId, position: "RIGHT" },
-      }),
-    ]);
-
-    if (leftCount < 1 || rightCount < 1) {
-      return {
-        ...base,
-        qualifies: false,
-        reason:    `Dual directs unmet — LEFT sponsored: ${leftCount}, RIGHT sponsored: ${rightCount}`,
-      };
-    }
-  }
-
-  return { ...base, qualifies: true };
+  });
 }

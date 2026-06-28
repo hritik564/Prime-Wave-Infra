@@ -7,6 +7,8 @@ import type { CreateInvestmentInput, ListInvestmentsQuery } from "./investments.
 import { propagateBV } from "../binary/bv.service";
 import { processLevelIncome } from "../levelIncome";
 import { notificationService } from "../notifications/notifications.service";
+import { logger } from "../lib/logger";
+import { processUserAchievements } from "../salary/salary-achievement.service";
 
 // ── Create investment ─────────────────────────────────────────────────────────
 
@@ -112,6 +114,25 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
       metadata: { level: target.level, incomeAmount: target.incomeAmount.toString(), sourceUserId: userId },
     });
   }
+
+  // ── Event-driven salary qualification (Sprint 23E) ────────────────────────
+  // After BV propagates, re-evaluate salary rank for the investor AND every
+  // ancestor whose leg BV was updated by this investment.
+  void (async () => {
+    try {
+      const affected = await prisma.salaryBvLedger.findMany({
+        where:    { investmentId: investment.id },
+        select:   { userId: true },
+        distinct: ["userId"],
+      });
+      const userIds = [userId, ...affected.map((e) => e.userId)];
+      for (const uid of userIds) {
+        await processUserAchievements(uid);
+      }
+    } catch (err) {
+      logger.error({ err, userId }, "Salary: event-driven evaluation failed after investment");
+    }
+  })();
 
   return investment;
 }

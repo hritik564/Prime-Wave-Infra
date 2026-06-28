@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { loginAdmin, getAdminProfile } from "./admin.service";
 import { runMatchingCycle } from "../binary/matching.engine";
 import { runOrbitCycle } from "../binary/orbit.engine";
+import { processAllAchievements } from "../salary/salary-achievement.service";
 import { getAllSettings, setSetting } from "../config/settings";
 import { sendSuccess } from "../shared/response";
 import { AppError } from "../middleware/error.middleware";
@@ -67,6 +68,25 @@ export async function triggerOrbitCycle(
   try {
     await runOrbitCycle();
     sendSuccess(res, { triggered: true }, "Binary orbit cycle triggered successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/admin/salary/evaluate-all
+ * Immediately evaluates salary qualification for every ACTIVE user and
+ * grants / upgrades SalaryAchievements where applicable.
+ * Does NOT credit any wallets — that remains scheduler-driven.
+ */
+export async function triggerSalaryEvaluateAll(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const summary = await processAllAchievements();
+    sendSuccess(res, summary, "Salary evaluation complete");
   } catch (err) {
     next(err);
   }
