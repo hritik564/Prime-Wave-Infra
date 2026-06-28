@@ -66,21 +66,39 @@ function getMaturesAt(days: number): Date {
 }
 
 export async function seedBinaryTree(): Promise<SeedResult> {
-  // Idempotency: skip if master already exists
-  const existing = await prisma.user.findUnique({ where: { username: "master" } });
-  if (existing) {
-    logger.info("Seed: master already exists, skipping");
-    return { alreadySeeded: true, usersCreated: 0, message: "Already seeded — master user found" };
+  // Build the full set of expected usernames to check what already exists
+  const expectedUsernames = Array.from({ length: TREE_SIZE }, (_, i) => getUsername(i + 1));
+
+  const existingUsers = await prisma.user.findMany({
+    where:  { username: { in: expectedUsernames } },
+    select: { id: true, username: true },
+  });
+
+  // Fully seeded when all 127 are present
+  if (existingUsers.length >= TREE_SIZE) {
+    logger.info({ count: existingUsers.length }, "Seed: already fully seeded");
+    return { alreadySeeded: true, usersCreated: 0, message: `Already seeded — ${existingUsers.length} users found` };
   }
 
-  logger.info("Seed: generating 127-account binary tree…");
+  // Pre-populate idMap with any users that already exist so parent links work
+  const idMap: Record<number, string> = {};
+  for (const u of existingUsers) {
+    const n = expectedUsernames.indexOf(u.username) + 1;
+    if (n > 0) idMap[n] = u.id;
+  }
+
+  logger.info(
+    { existing: existingUsers.length, toCreate: TREE_SIZE - existingUsers.length },
+    "Seed: generating 127-account binary tree…",
+  );
 
   const passwordHash = await bcrypt.hash("Seed@123456!", 10);
-  const idMap: Record<number, string> = {};   // node number → DB userId
   let created = 0;
 
   // ── Pass 1: Create all users (no nested relations to avoid Prisma XOR) ──────
   for (let n = 1; n <= TREE_SIZE; n++) {
+    // Skip users that already exist
+    if (idMap[n]) continue;
     const level        = getLevel(n);
     const username     = getUsername(n);
     const parentNum    = n === 1 ? null : Math.floor(n / 2);
