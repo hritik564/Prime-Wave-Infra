@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import QRCode from "react-qr-code";
+import qrImage from "@assets/QR_PW_1782675415129.png";
 import {
   Copy, CheckCheck, ArrowDownToLine, CheckCircle2, Loader2,
   AlertTriangle, Clock, Wifi, RefreshCw, Send,
@@ -21,7 +21,7 @@ import {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const DEPOSIT_ADDRESS = "0xA1b2C3d4E5f6A7b8C9d0E1f2A3b4C5d6E7f8A9b0";
+const DEPOSIT_ADDRESS = "0x543780EF4cda835F3541A1BdB305f4119f658BDb";
 const POLL_INTERVAL_MS = 5_000;
 
 // ── Status config ─────────────────────────────────────────────────────────────
@@ -201,9 +201,9 @@ function VerificationTimeline({ status }: { status: DepositVerificationStatusRes
 }
 
 function SubmitTxForm({ onSubmitted }: { onSubmitted: (id: string) => void }) {
-  const [txHash,    setTxHash]    = useState("");
-  const [network,   setNetwork]   = useState("BEP20");
-  const [loading,   setLoading]   = useState(false);
+  const [txHash,   setTxHash]  = useState("");
+  const network = "BEP20";
+  const [loading,  setLoading]  = useState(false);
   const [error,     setError]     = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -234,23 +234,13 @@ function SubmitTxForm({ onSubmitted }: { onSubmitted: (id: string) => void }) {
         Sent your USDT? Submit the TX hash
       </p>
       <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-3">
-        {/* Network selector */}
-        <div className="flex gap-2">
-          {["BEP20", "TRC20"].map((net) => (
-            <button
-              key={net}
-              type="button"
-              onClick={() => setNetwork(net)}
-              className="flex-1 py-2 text-xs font-semibold rounded-xl transition-all"
-              style={{
-                background: network === net ? "rgba(212,175,55,0.15)" : "rgba(255,255,255,0.03)",
-                border: `1px solid ${network === net ? "rgba(212,175,55,0.4)" : "rgba(255,255,255,0.07)"}`,
-                color: network === net ? "#D4AF37" : "hsl(var(--muted-foreground))",
-              }}
-            >
-              {net}
-            </button>
-          ))}
+        {/* Network — BEP20 only */}
+        <div
+          className="flex items-center gap-2 rounded-xl px-3 py-2.5"
+          style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.2)" }}
+        >
+          <span className="text-xs font-semibold" style={{ color: "#D4AF37" }}>Network:</span>
+          <span className="text-xs font-bold" style={{ color: "#D4AF37" }}>BEP20 (BSC)</span>
         </div>
 
         {/* TX Hash input */}
@@ -386,11 +376,7 @@ export default function DepositWalletPage() {
           {/* QR Code */}
           <div className="flex justify-center mb-4">
             <div className="rounded-2xl p-3" style={{ background: "#ffffff" }}>
-              <QRCode
-                value={DEPOSIT_ADDRESS}
-                size={140}
-                style={{ display: "block" }}
-              />
+              <img src={qrImage} alt="USDT BEP20 deposit QR code" width={140} height={140} style={{ display: "block" }} />
             </div>
           </div>
 
@@ -406,24 +392,21 @@ export default function DepositWalletPage() {
             <CopyButton text={DEPOSIT_ADDRESS} size="md" />
           </div>
 
-          {/* Network badges */}
+          {/* Network badge */}
           <div className="flex gap-2 mb-3">
-            {["BEP20 (BSC)", "TRC20"].map((net) => (
-              <span
-                key={net}
-                className="text-xs font-semibold px-2.5 py-1 rounded-lg"
-                style={{ background: "rgba(212,175,55,0.08)", color: "#D4AF37", border: "1px solid rgba(212,175,55,0.2)" }}
-              >
-                {net}
-              </span>
-            ))}
+            <span
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg"
+              style={{ background: "rgba(212,175,55,0.08)", color: "#D4AF37", border: "1px solid rgba(212,175,55,0.2)" }}
+            >
+              BEP20 (BSC)
+            </span>
           </div>
 
           <div
             className="rounded-lg px-3 py-2 text-xs"
             style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.15)", color: "#fbbf24" }}
           >
-            ⚠ Send only USDT on BEP20 or TRC20. Other tokens will be lost permanently.
+            ⚠ Send only USDT on BEP20 (BSC). TRC20 is not accepted. Other tokens will be lost permanently.
           </div>
         </div>
 
