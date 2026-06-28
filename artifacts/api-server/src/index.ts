@@ -23,16 +23,17 @@ async function maybeResetAdminPassword() {
   }
 }
 
-// One-time startup seed — runs only when SEED_ON_START=1 is set and the DB
-// has no investments yet (idempotent guard).  Remove the env var after the
-// first successful deploy to keep startup fast.
+// One-time startup seed — runs only when SEED_ON_START=1 is set and the
+// binary tree is not yet fully built (< 127 users).  Always DELETE first to
+// clear any partial data, then POST the full 23B tree.
+// Remove the env var after the first successful deploy to keep startup fast.
 async function maybeSeedOnStart(port: number) {
   if (!process.env["SEED_ON_START"]) return;
 
   try {
-    const count = await prisma.investment.count();
-    if (count > 0) {
-      logger.info({ count }, "SEED_ON_START: skipped — investments already exist");
+    const userCount = await prisma.user.count();
+    if (userCount >= 127) {
+      logger.info({ userCount }, "SEED_ON_START: skipped — seed already complete");
       return;
     }
 
@@ -54,24 +55,35 @@ async function maybeSeedOnStart(port: number) {
     const token = jwt.sign(
       { sub: admin.id, email: admin.email, type: "admin", role: "SUPER_ADMIN" },
       jwtSecret,
-      { expiresIn: "10m" },
+      { expiresIn: "15m" },
     );
 
-    logger.info("SEED_ON_START: triggering 23B seed…");
+    const headers = {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type":  "application/json",
+    };
 
+    // Step 1: Wipe any partial rd2* data (idempotent — safe if DB is already clean)
+    logger.info({ userCount }, "SEED_ON_START: clearing partial seed data…");
+    const delResp = await fetch(`http://localhost:${port}/api/dev/seed/23b`, {
+      method: "DELETE", headers,
+    });
+    if (!delResp.ok) {
+      const delBody = await delResp.json() as unknown;
+      logger.warn({ status: delResp.status, body: delBody }, "SEED_ON_START: DELETE returned non-OK (continuing)");
+    }
+
+    // Step 2: Run the full 23B seed
+    logger.info("SEED_ON_START: triggering full 23B seed…");
     const resp = await fetch(`http://localhost:${port}/api/dev/seed/23b`, {
-      method:  "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type":  "application/json",
-      },
+      method: "POST", headers,
     });
 
     const body = await resp.json() as unknown;
     if (resp.ok) {
-      logger.info({ status: resp.status, body }, "SEED_ON_START: seed completed");
+      logger.info({ status: resp.status, body }, "SEED_ON_START: seed completed successfully");
     } else {
-      logger.error({ status: resp.status, body }, "SEED_ON_START: seed request failed");
+      logger.error({ status: resp.status, body }, "SEED_ON_START: seed POST failed");
     }
   } catch (err) {
     logger.error({ err }, "SEED_ON_START: unexpected error");

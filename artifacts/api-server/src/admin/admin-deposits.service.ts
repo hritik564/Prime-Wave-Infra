@@ -180,7 +180,7 @@ export async function markDepositConfirming(adminId: string, depositId: string) 
         },
       },
     });
-  });
+  }, { timeout: 30_000 });
 
   return { depositId, status: "CONFIRMING" };
 }
@@ -243,7 +243,7 @@ export async function approveDeposit(adminId: string, depositId: string) {
         },
       },
     });
-  });
+  }, { timeout: 30_000 });
 
   void notificationService.create({
     userId:   deposit.userId,

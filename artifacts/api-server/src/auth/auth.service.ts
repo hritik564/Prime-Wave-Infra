@@ -141,7 +141,7 @@ export async function registerUser(input: RegisterInput) {
     await placeUserTx(tx, sponsorId, newUser.id, position);
 
     return newUser;
-  });
+  }, { timeout: 30_000 });
 
   const token = signToken({ sub: user.id, email: user.email, type: "user" });
 
