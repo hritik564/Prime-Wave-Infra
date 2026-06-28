@@ -3,6 +3,8 @@ import { loginAdmin, getAdminProfile } from "./admin.service";
 import { runMatchingCycle } from "../binary/matching.engine";
 import { runOrbitCycle } from "../binary/orbit.engine";
 import { processAllAchievements } from "../salary/salary-achievement.service";
+import { runSalaryCycle } from "../salary/salary-cron.engine";
+import { processRoiCycle } from "../cron/roi.engine";
 import { seedBinaryTree } from "./admin-seed.service";
 import { getAllSettings, setSetting } from "../config/settings";
 import { sendSuccess } from "../shared/response";
@@ -144,6 +146,70 @@ export async function triggerSeedBinaryTree(
   try {
     const result = await seedBinaryTree();
     sendSuccess(res, result, result.alreadySeeded ? "Already seeded" : "Seed complete");
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── ROI cycle trigger ─────────────────────────────────────────────────────────
+// Accepts optional body { cycles: number } (1–30). Each cycle = one 12-hour ROI slice.
+export async function triggerRoiCycle(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const raw    = (req.body as { cycles?: unknown }).cycles;
+    const cycles = typeof raw === "number" && raw >= 1 && raw <= 30 ? Math.floor(raw) : 1;
+
+    for (let i = 0; i < cycles; i++) {
+      await processRoiCycle();
+    }
+
+    sendSuccess(res, { cycles }, `ROI cycle ran ${cycles} time(s)`);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── Salary payout cycle trigger ───────────────────────────────────────────────
+// Credits this month's salary to every active SalaryAchievement.
+export async function triggerSalaryCycle(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    await runSalaryCycle();
+    sendSuccess(res, {}, "Salary payout cycle complete");
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── Full income cycle trigger ─────────────────────────────────────────────────
+// Runs ROI (N cycles) → binary matching → orbit → salary payout in sequence.
+export async function triggerFullCycle(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const raw      = (req.body as { roiCycles?: unknown }).roiCycles;
+    const roiRuns  = typeof raw === "number" && raw >= 1 && raw <= 30 ? Math.floor(raw) : 1;
+
+    for (let i = 0; i < roiRuns; i++) {
+      await processRoiCycle();
+    }
+    const matchResult  = await runMatchingCycle();
+    const orbitResult  = await runOrbitCycle();
+    await runSalaryCycle();
+
+    sendSuccess(res, {
+      roiCyclesRun:    roiRuns,
+      matchingIncome:  matchResult?.totalIncome?.toString() ?? "0",
+      orbitIncome:     orbitResult?.totalIncome?.toString() ?? "0",
+    }, "Full income cycle complete");
   } catch (err) {
     next(err);
   }

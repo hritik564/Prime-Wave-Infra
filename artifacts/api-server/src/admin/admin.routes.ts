@@ -6,6 +6,9 @@ import {
   triggerOrbitCycle,
   triggerSalaryEvaluateAll,
   triggerSeedBinaryTree,
+  triggerRoiCycle,
+  triggerSalaryCycle,
+  triggerFullCycle,
   listSettings,
   updateSetting,
 } from "./admin.controller";
@@ -147,6 +150,9 @@ router.get("/profile", adminLimiter, requireAdminAuth, adminGetProfile);
 // Manual cycle triggers
 router.post("/trigger/matching",       adminLimiter, requireAdminAuth, triggerMatchingCycle);
 router.post("/trigger/orbit",          adminLimiter, requireAdminAuth, triggerOrbitCycle);
+router.post("/trigger/roi",            adminLimiter, requireAdminRoles("SUPER_ADMIN"), triggerRoiCycle);
+router.post("/trigger/salary-cycle",   adminLimiter, requireAdminRoles("SUPER_ADMIN"), triggerSalaryCycle);
+router.post("/trigger/full-cycle",     adminLimiter, requireAdminRoles("SUPER_ADMIN"), triggerFullCycle);
 router.post("/salary/evaluate-all",    adminLimiter, requireAdminAuth, triggerSalaryEvaluateAll);
 router.post("/dev/seed-binary-tree",   adminLimiter, requireAdminRoles("SUPER_ADMIN"), triggerSeedBinaryTree);
 
