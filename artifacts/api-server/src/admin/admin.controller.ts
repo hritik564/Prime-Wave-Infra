@@ -3,6 +3,7 @@ import { loginAdmin, getAdminProfile } from "./admin.service";
 import { runMatchingCycle } from "../binary/matching.engine";
 import { runOrbitCycle } from "../binary/orbit.engine";
 import { processAllAchievements } from "../salary/salary-achievement.service";
+import { seedBinaryTree } from "./admin-seed.service";
 import { getAllSettings, setSetting } from "../config/settings";
 import { sendSuccess } from "../shared/response";
 import { AppError } from "../middleware/error.middleware";
@@ -130,6 +131,19 @@ export async function updateSetting(
 
     await setSetting(key, String(value));
     sendSuccess(res, { key, value: String(value) }, "Setting updated successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function triggerSeedBinaryTree(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const result = await seedBinaryTree();
+    sendSuccess(res, result, result.alreadySeeded ? "Already seeded" : "Seed complete");
   } catch (err) {
     next(err);
   }

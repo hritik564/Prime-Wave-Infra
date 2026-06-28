@@ -5,6 +5,7 @@ import {
   triggerMatchingCycle,
   triggerOrbitCycle,
   triggerSalaryEvaluateAll,
+  triggerSeedBinaryTree,
   listSettings,
   updateSetting,
 } from "./admin.controller";
@@ -147,6 +148,7 @@ router.get("/profile", adminLimiter, requireAdminAuth, adminGetProfile);
 router.post("/trigger/matching",       adminLimiter, requireAdminAuth, triggerMatchingCycle);
 router.post("/trigger/orbit",          adminLimiter, requireAdminAuth, triggerOrbitCycle);
 router.post("/salary/evaluate-all",    adminLimiter, requireAdminAuth, triggerSalaryEvaluateAll);
+router.post("/dev/seed-binary-tree",   adminLimiter, requireAdminRoles("SUPER_ADMIN"), triggerSeedBinaryTree);
 
 // System settings
 router.get("/settings",        adminLimiter, requireAdminAuth, listSettings);
