@@ -126,42 +126,67 @@ export async function getSalaryAchievements(
 
 /**
  * Returns a compact salary qualification snapshot for the logged-in user's
- * dashboard. Reads leftBV / rightBV directly (same source as the qualification
- * engine) and computes:
- *   – totalBusinessUSD, per-leg USD
- *   – per-rank qualification list (BV threshold + leg-split check)
- *   – highestRank / nextRank names
- *   – progressPct and remaining USD to next milestone
+ * dashboard. Computes business volume from actual ACTIVE investment amounts
+ * in each binary leg (recursive CTE) rather than from leftBV / rightBV.
  *
- * Does NOT call checkUserQualifications (to avoid the extra isMemberActive
- * round-trip): the dashboard always shows BV progress regardless of whether the
- * user is currently a Global Active Member.
+ * Rationale: the binary matching engine resets leftBV / rightBV to 0 after
+ * each cycle flush. Investments are permanent and are the ground truth for
+ * how much business the user has built in total.
  */
 export async function getSalaryQualificationSummary(userId: string) {
   await assertUserExists(userId);
 
-  const BV_TO_USD = new Prisma.Decimal("100");
+  const ranks = await prisma.salaryRankConfig.findMany({
+    where:   { isActive: true },
+    orderBy: { requiredBusiness: "asc" },
+    select:  {
+      rankName:          true,
+      requiredBusiness:  true,
+      monthlySalary:     true,
+      powerLegRequired:  true,
+      weakLegRequired:   true,
+    },
+  });
 
-  const [user, ranks] = await prisma.$transaction([
-    prisma.user.findUniqueOrThrow({
-      where:  { id: userId },
-      select: { leftBV: true, rightBV: true },
-    }),
-    prisma.salaryRankConfig.findMany({
-      where:   { isActive: true },
-      orderBy: { requiredBusiness: "asc" },
-      select:  {
-        rankName:          true,
-        requiredBusiness:  true,
-        monthlySalary:     true,
-        powerLegRequired:  true,
-        weakLegRequired:   true,
-      },
-    }),
-  ]);
+  // Walk the binary tree from the user's perspective using a recursive CTE.
+  // For each leg we sum the ACTIVE investment amounts of every descendant in
+  // that subtree.  This is equivalent to the BV the salary engine would see
+  // at cycle time (before the binary flush resets leftBV / rightBV to 0).
+  type LegRow = { left_business: string | number; right_business: string | number };
+  const legRows = await prisma.$queryRaw<LegRow[]>`
+    WITH RECURSIVE
+      left_tree AS (
+        SELECT id FROM users
+        WHERE  "binaryParentId" = ${userId}
+          AND  position::text = 'LEFT'
+        UNION ALL
+        SELECT u.id FROM users u
+        INNER JOIN left_tree lt ON u."binaryParentId" = lt.id
+      ),
+      right_tree AS (
+        SELECT id FROM users
+        WHERE  "binaryParentId" = ${userId}
+          AND  position::text = 'RIGHT'
+        UNION ALL
+        SELECT u.id FROM users u
+        INNER JOIN right_tree rt ON u."binaryParentId" = rt.id
+      )
+    SELECT
+      COALESCE(
+        SUM(i.amount) FILTER (WHERE i."userId" IN (SELECT id FROM left_tree)),
+        0
+      ) AS left_business,
+      COALESCE(
+        SUM(i.amount) FILTER (WHERE i."userId" IN (SELECT id FROM right_tree)),
+        0
+      ) AS right_business
+    FROM investments i
+    WHERE i.status = 'ACTIVE'
+  `;
 
-  const leftBusinessUSD  = user.leftBV.times(BV_TO_USD);
-  const rightBusinessUSD = user.rightBV.times(BV_TO_USD);
+  const row = legRows[0] ?? { left_business: 0, right_business: 0 };
+  const leftBusinessUSD  = new Prisma.Decimal(row.left_business.toString());
+  const rightBusinessUSD = new Prisma.Decimal(row.right_business.toString());
   const totalBusinessUSD = leftBusinessUSD.plus(rightBusinessUSD);
 
   const qualifications = ranks.map((rank) => {
