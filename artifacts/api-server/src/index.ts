@@ -4,7 +4,8 @@ import { logger } from "./lib/logger";
 import { startScheduler } from "./cron";
 import { prisma } from "./config/prisma";
 import { maybeResetForLaunch } from "./admin/scripts/resetForLaunch";
-import { runSeed23B } from "./dev/seed23b.fn";
+import { runSeed23B }                                      from "./dev/seed23b.fn";
+import { runPhase1HealthCheck, runPhase4Reconciliation, logPhase5Report } from "./dev/reconcile23b";
 
 // One-time admin password reset — runs only when ADMIN_RESET_PASSWORD is set.
 // Remove the env var after the first successful deploy to disable this.
@@ -25,23 +26,59 @@ async function maybeResetAdminPassword() {
 
 // One-time startup seed — runs only when SEED_ON_START=1 is set and the
 // binary tree is not yet fully built (< 127 users).
-// Calls runSeed23B() directly in-process — no HTTP, no timeouts, per-user retry.
-// Remove the env var after seeding is confirmed complete.
+//
+// Phases:
+//   Phase 1 — Health check (DB, admin, salary config, etc.)  STOP if any fail.
+//   Phase 2 — In-process seed via runSeed23B()  (resumable, never deletes).
+//   Phase 3 — Per-user retry built into runSeed23B().
+//   Phase 4 — Automatic financial reconciliation.
+//   Phase 5 — Final production report logged.
+//
+// Remove SEED_ON_START env var after seeding is confirmed complete.
 async function maybeSeedOnStart() {
   if (!process.env["SEED_ON_START"]) return;
 
   try {
+    // ── Phase 1: Health check ───────────────────────────────────────────────
+    const health = await runPhase1HealthCheck();
+    if (!health.passed) {
+      logger.error({ summary: health.summary }, "SEED_ON_START: Phase 1 FAILED — aborting seed");
+      return;
+    }
+    logger.info({ summary: health.summary }, "SEED_ON_START: Phase 1 passed");
+
+    // ── Guard: already seeded? ──────────────────────────────────────────────
     const userCount = await prisma.user.count();
     if (userCount >= 127) {
-      logger.info({ userCount }, "SEED_ON_START: skipped — seed already complete");
+      logger.info({ userCount }, "SEED_ON_START: skipped — seed already complete; running reconciliation only");
+      const recon = await runPhase4Reconciliation();
+      logPhase5Report(health, recon);
       return;
     }
 
-    logger.info({ userCount }, "SEED_ON_START: starting in-process seed (no HTTP)…");
-    const summary = await runSeed23B();
-    logger.info({ summary }, "SEED_ON_START: seed completed successfully");
+    // ── Phase 2 + 3: Seed (resumable, per-user retry) ───────────────────────
+    logger.info({ userCount }, "SEED_ON_START: Phase 2 — starting in-process seed…");
+    const seedSummary = await runSeed23B();
+    logger.info({ seedSummary }, "SEED_ON_START: Phase 2 complete");
+
+    // ── Phase 4: Financial reconciliation ───────────────────────────────────
+    logger.info("SEED_ON_START: Phase 4 — running financial reconciliation…");
+    const recon = await runPhase4Reconciliation({
+      usersCreated: seedSummary.usersCreated,
+      usersSkipped: seedSummary.usersSkipped,
+    });
+
+    // ── Phase 5: Final production report ────────────────────────────────────
+    logPhase5Report(health, recon);
+
+    if (!recon.passed) {
+      logger.error(
+        { failingChecks: recon.failingChecks },
+        "SEED_ON_START: Phase 4 FAILED — reconciliation did not pass; manual inspection required"
+      );
+    }
   } catch (err) {
-    logger.error({ err }, "SEED_ON_START: seed failed");
+    logger.error({ err }, "SEED_ON_START: unhandled error in seed pipeline");
   }
 }
 
