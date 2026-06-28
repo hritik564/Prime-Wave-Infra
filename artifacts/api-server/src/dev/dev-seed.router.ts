@@ -20,6 +20,7 @@ import { sendSuccess } from "../shared/response";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import { logger } from "../lib/logger";
+import { runSeed23B } from "./seed23b.fn";
 
 const seedRouter = Router();
 
@@ -251,237 +252,16 @@ seedRouter.delete("/23b", async (_req, res, next) => {
 
 seedRouter.post("/23b", async (_req, res, next) => {
   try {
-    logger.info("Seed 23B POST: starting — master = Level 0, 62 new users at levels 1–5");
-
-    const nodes   = buildTree();
-    const adminId = await getAdminId();
-
-    // Load master — it is node 0 (virtual "RD2" prefix for naming, not created again)
-    const masterUser = await prisma.user.findFirst({
-      where:  { username: MASTER_USERNAME },
-      select: { id: true, referralCode: true, wallet: { select: { id: true } } },
-    });
-    if (!masterUser) throw new AppError("Master user not found", HTTP_STATUS.NOT_FOUND, "NO_MASTER");
-
-    // Track IDs and referral codes by tree index; node 0 = master
-    const idByIndex:   Record<number, string> = { 0: masterUser.id };
-    const codeByIndex: Record<number, string> = { 0: masterUser.referralCode };
-
-    const rows: SeedRow[] = [];
-
-    // ── Node 0: master — deposit + investment ──────────────────────────────────
-    {
-      const walletId = masterUser.wallet!.id;
-
-      const existingDep = await prisma.depositRequest.findFirst({
-        where:   { userId: masterUser.id, status: "APPROVED" },
-        select:  { id: true },
-        orderBy: { createdAt: "desc" },
-      });
-      let masterDepositId: string;
-      if (existingDep) {
-        masterDepositId = existingDep.id;
-      } else {
-        const dep = await createDepositRequest(masterUser.id, {
-          amount:        SEED_AMOUNT,
-          network:       SEED_NETWORK,
-          txHash:        fakeTxHash(0),
-          companyWallet: COMPANY_WALLET,
-        });
-        await approveDeposit(adminId, dep.id);
-        masterDepositId = dep.id;
-        logger.info("Seed 23B: master deposit created & approved");
-      }
-
-      const existingInv = await prisma.investment.findFirst({
-        where:   { userId: masterUser.id, status: { in: ["ACTIVE", "MATURED"] } },
-        select:  { id: true, planType: true },
-        orderBy: { createdAt: "desc" },
-      });
-      let masterInvId: string;
-      let masterPlanType: string;
-      if (existingInv) {
-        masterInvId    = existingInv.id;
-        masterPlanType = existingInv.planType;
-      } else {
-        const inv = await createInvestment(masterUser.id, {
-          amount:       SEED_AMOUNT,
-          planType:     SEED_PLAN,
-          autoCompound: false,
-        });
-        masterInvId    = inv.id;
-        masterPlanType = inv.planType;
-        logger.info("Seed 23B: master investment created");
-      }
-
-      rows.push({
-        index:               0,
-        level:               0,
-        username:            "MASTER",
-        email:               "master@primewave.live",
-        password:            "Master@PrimeWave2025!",
-        phone:               "",
-        country:             "India",
-        userId:              masterUser.id,
-        referralCode:        masterUser.referralCode,
-        sponsorUsername:     "—",
-        binaryParentUsername:"—",
-        placement:           "ROOT",
-        walletId,
-        depositId:           masterDepositId,
-        investmentId:        masterInvId,
-        planType:            masterPlanType,
-        status:              "ACTIVE",
-      });
-    }
-
-    // ── Nodes 1-62: new seed users ─────────────────────────────────────────────
-    for (let i = 1; i < nodes.length; i++) {
-      const node       = nodes[i];
-      const usernameLC = node.username.toLowerCase();
-      const email      = `${usernameLC}@primewave.live`;
-      const phone      = indianPhone(i);
-
-      // Sponsor = parent node's referral code;
-      // parentIndex 0 = master → use master's actual referralCode from DB
-      const sponsorCode = codeByIndex[node.parentIndex!];
-
-      // ── Register (or resume if already exists) ────────────────────────────
-      let userId: string;
-      let referralCode: string;
-      let walletId: string;
-
-      const existing = await prisma.user.findFirst({
-        where:  { username: usernameLC },
-        select: { id: true, referralCode: true, wallet: { select: { id: true } } },
-      });
-
-      if (existing) {
-        userId       = existing.id;
-        referralCode = existing.referralCode;
-        walletId     = existing.wallet!.id;
-        logger.info({ username: usernameLC }, "Seed 23B: user already exists — skipping");
-      } else {
-        const { user } = await registerUser({
-          email,
-          username:     node.username,
-          password:     SEED_PASSWORD,
-          firstName:    node.username,
-          lastName:     "Seed",
-          phone,
-          referralCode: sponsorCode,
-          leg:          node.leg!,
-        });
-
-        userId       = user.id;
-        referralCode = user.referralCode;
-
-        const w = await prisma.wallet.findUnique({
-          where:  { userId },
-          select: { id: true },
-        });
-        walletId = w!.id;
-
-        // Level 5 = leaf nodes (no downline) → INACTIVE per Prime Wave rules
-        if (node.level === 5) {
-          await prisma.user.update({ where: { id: userId }, data: { status: "INACTIVE" } });
-        }
-
-        logger.info({ username: usernameLC, userId, level: node.level }, "Seed 23B: user created");
-      }
-
-      idByIndex[i]   = userId;
-      codeByIndex[i] = referralCode;
-
-      // ── Deposit ───────────────────────────────────────────────────────────
-      const existingDep = await prisma.depositRequest.findFirst({
-        where:   { userId, status: "APPROVED" },
-        select:  { id: true },
-        orderBy: { createdAt: "desc" },
-      });
-      let depositId: string;
-      if (existingDep) {
-        depositId = existingDep.id;
-      } else {
-        const dep = await createDepositRequest(userId, {
-          amount:        SEED_AMOUNT,
-          network:       SEED_NETWORK,
-          txHash:        fakeTxHash(i),
-          companyWallet: COMPANY_WALLET,
-        });
-        await approveDeposit(adminId, dep.id);
-        depositId = dep.id;
-      }
-
-      // ── Investment ────────────────────────────────────────────────────────
-      const existingInv = await prisma.investment.findFirst({
-        where:   { userId, status: { in: ["ACTIVE", "MATURED"] } },
-        select:  { id: true, planType: true },
-        orderBy: { createdAt: "desc" },
-      });
-      let investmentId: string;
-      let planType: string;
-      if (existingInv) {
-        investmentId = existingInv.id;
-        planType     = existingInv.planType;
-      } else {
-        const inv = await createInvestment(userId, {
-          amount:       SEED_AMOUNT,
-          planType:     SEED_PLAN,
-          autoCompound: false,
-        });
-        investmentId = inv.id;
-        planType     = inv.planType;
-      }
-
-      // ── Build result row ──────────────────────────────────────────────────
-      // Sponsor display: parent index 0 = master (real user, not "RD2")
-      const sponsorUsername =
-        node.parentIndex === 0 ? "MASTER" : nodes[node.parentIndex!].username;
-      const binaryParentUsername = sponsorUsername;
-
-      rows.push({
-        index:               i,
-        level:               node.level,
-        username:            node.username,
-        email,
-        password:            SEED_PASSWORD,
-        phone,
-        country:             "India",
-        userId,
-        referralCode,
-        sponsorUsername,
-        binaryParentUsername,
-        placement:           node.position!,
-        walletId,
-        depositId,
-        investmentId,
-        planType,
-        status:              node.level === 5 ? "INACTIVE" : "ACTIVE",
-      });
-    }
-
-    const activeCount   = rows.filter(r => r.status === "ACTIVE").length;
-    const inactiveCount = rows.filter(r => r.status === "INACTIVE").length;
-
-    logger.info({ total: rows.length, activeCount, inactiveCount }, "Seed 23B POST: complete");
+    const summary = await runSeed23B();
 
     sendSuccess(res, {
       message:
         "Sprint 23B seed complete — perfect binary tree. " +
         "Master = Level 0 → RD2L (LEFT) + RD2R (RIGHT) at Level 1.",
       summary: {
-        totalAccounts:     rows.length,
-        totalDeposits:     rows.length,
-        totalInvestments:  rows.length,
-        totalDepositValue: `$${rows.length * SEED_AMOUNT}`,
-        totalInvestValue:  `$${rows.length * SEED_AMOUNT}`,
-        activeMembers:     activeCount,
-        inactiveMembers:   inactiveCount,
-        treeRoot:          "master → RD2L (LEFT), RD2R (RIGHT)",
-        exportUrl:         "/api/dev/seed/23b/export",
+        ...summary,
+        exportUrl: "/api/dev/seed/23b/export",
       },
-      rows,
     });
   } catch (err) {
     next(err);

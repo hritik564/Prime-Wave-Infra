@@ -1,10 +1,10 @@
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./cron";
 import { prisma } from "./config/prisma";
 import { maybeResetForLaunch } from "./admin/scripts/resetForLaunch";
+import { runSeed23B } from "./dev/seed23b.fn";
 
 // One-time admin password reset — runs only when ADMIN_RESET_PASSWORD is set.
 // Remove the env var after the first successful deploy to disable this.
@@ -24,10 +24,10 @@ async function maybeResetAdminPassword() {
 }
 
 // One-time startup seed — runs only when SEED_ON_START=1 is set and the
-// binary tree is not yet fully built (< 127 users).  Always DELETE first to
-// clear any partial data, then POST the full 23B tree.
-// Remove the env var after the first successful deploy to keep startup fast.
-async function maybeSeedOnStart(port: number) {
+// binary tree is not yet fully built (< 127 users).
+// Calls runSeed23B() directly in-process — no HTTP, no timeouts, per-user retry.
+// Remove the env var after seeding is confirmed complete.
+async function maybeSeedOnStart() {
   if (!process.env["SEED_ON_START"]) return;
 
   try {
@@ -37,75 +37,11 @@ async function maybeSeedOnStart(port: number) {
       return;
     }
 
-    const jwtSecret = process.env["JWT_SECRET"];
-    if (!jwtSecret) {
-      logger.error("SEED_ON_START: JWT_SECRET not set, cannot generate seed token");
-      return;
-    }
-
-    const admin = await prisma.admin.findFirst({
-      where:  { role: "SUPER_ADMIN" },
-      select: { id: true, email: true },
-    });
-    if (!admin) {
-      logger.error("SEED_ON_START: No SUPER_ADMIN found");
-      return;
-    }
-
-    const token = jwt.sign(
-      { sub: admin.id, email: admin.email, type: "admin", role: "SUPER_ADMIN" },
-      jwtSecret,
-      { expiresIn: "15m" },
-    );
-
-    const headers = {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type":  "application/json",
-    };
-
-    // Step 1: Wipe any partial rd2* data (idempotent — safe if DB is already clean)
-    logger.info({ userCount }, "SEED_ON_START: clearing partial seed data…");
-    const delResp = await fetch(`http://localhost:${port}/api/dev/seed/23b`, {
-      method: "DELETE", headers,
-    });
-    if (!delResp.ok) {
-      const delBody = await delResp.json() as unknown;
-      logger.warn({ status: delResp.status, body: delBody }, "SEED_ON_START: DELETE returned non-OK (continuing)");
-    }
-
-    // Step 2: Run the full 23B seed — retry up to 3 times on failure
-    const MAX_ATTEMPTS = 3;
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      try {
-        logger.info({ attempt }, "SEED_ON_START: triggering full 23B seed…");
-        const resp = await fetch(`http://localhost:${port}/api/dev/seed/23b`, {
-          method: "POST", headers,
-        });
-
-        const body = await resp.json() as unknown;
-        if (resp.ok) {
-          logger.info({ status: resp.status, body }, "SEED_ON_START: seed completed successfully");
-          return;
-        }
-
-        logger.error({ attempt, status: resp.status, body }, "SEED_ON_START: seed POST returned non-OK");
-      } catch (err) {
-        logger.error({ attempt, err }, "SEED_ON_START: seed POST threw — DB may have restarted");
-      }
-
-      if (attempt < MAX_ATTEMPTS) {
-        logger.info({ attempt, waitMs: 15_000 }, "SEED_ON_START: waiting 15s before retry…");
-
-        // Re-wipe any partial data written before the failure, then retry
-        await new Promise<void>((resolve) => setTimeout(resolve, 15_000));
-        logger.info("SEED_ON_START: clearing partial data before retry…");
-        await fetch(`http://localhost:${port}/api/dev/seed/23b`, { method: "DELETE", headers }).catch(() => {});
-      }
-    }
-
-    logger.error({ MAX_ATTEMPTS }, "SEED_ON_START: all attempts exhausted — seed incomplete");
+    logger.info({ userCount }, "SEED_ON_START: starting in-process seed (no HTTP)…");
+    const summary = await runSeed23B();
+    logger.info({ summary }, "SEED_ON_START: seed completed successfully");
   } catch (err) {
-    logger.error({ err }, "SEED_ON_START: unexpected error");
+    logger.error({ err }, "SEED_ON_START: seed failed");
   }
 }
 
@@ -138,7 +74,7 @@ app.listen(port, (err) => {
   maybeResetForLaunch().catch((e) => logger.error({ e }, "maybeResetForLaunch failed"));
 
   // One-time startup seed — runs only when SEED_ON_START=1; remove env var after seeding
-  maybeSeedOnStart(port).catch((e) => logger.error({ e }, "maybeSeedOnStart failed"));
+  maybeSeedOnStart().catch((e) => logger.error({ e }, "maybeSeedOnStart failed"));
 
   // Start 12-hour ROI cycle scheduler (fires at 00:00 and 12:00 UTC)
   startScheduler();
