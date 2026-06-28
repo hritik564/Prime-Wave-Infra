@@ -28,9 +28,9 @@ const SEED_AMOUNT_USD            = 100;
 const MAX_LEVEL_INCOME_LEVELS    = 5;    // hardcoded in level-income.service.ts
 
 /**
- * Expected level income entries for the 127-node tree.
+ * Expected level income entries for the 127-node tree seeded in BFS order.
  *
- * Each investment fires level income for min(depth, MAX_LEVEL_INCOME_LEVELS) ancestors.
+ * Naïve calculation (no qualification gate):
  *   depth 0 (master, 1 node)  : 0 × 1  =   0
  *   depth 1 (2 nodes)         : 1 × 2  =   2
  *   depth 2 (4 nodes)         : 2 × 4  =   8
@@ -39,9 +39,18 @@ const MAX_LEVEL_INCOME_LEVELS    = 5;    // hardcoded in level-income.service.ts
  *   depth 5 (32 nodes)        : 5 × 32 = 160
  *   depth 6 (64 nodes, capped): 5 × 64 = 320
  *   ─────────────────────────────────────────
- *   Total                              = 578
+ *   Naïve total                        = 578
+ *
+ * Qualification gate correction (isMemberActive requires ≥1 left AND ≥1 right
+ * direct referral + active investment):
+ *   BFS seeding processes LEFT children before RIGHT children. When the LEFT
+ *   child invests, the parent has directRightCount = 0 → INACTIVE → level-1
+ *   income is skipped for the parent (walk continues up, but level counter
+ *   consumed). Every one of the 63 inner nodes (levels 0–5) has a left child
+ *   that invests while the parent is not yet dual-legged → 63 skipped entries.
+ *   Corrected total = 578 − 63 = 515
  */
-const EXPECTED_LEVEL_INCOME_ROWS = 578;
+const EXPECTED_LEVEL_INCOME_ROWS = 515;
 
 // ── Phase 1 types ─────────────────────────────────────────────────────────────
 
