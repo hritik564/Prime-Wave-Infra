@@ -1,0 +1,205 @@
+# Sprint 23G — Salary Achievement Reactivation Safety
+
+## Objective
+
+Eliminate the future edge case identified in the Salary Engine audit (Finding F4).
+
+This is a resilience improvement.
+
+Do NOT modify any Salary business rules.
+
+Do NOT modify qualification logic.
+
+Do NOT modify cumulative thresholds.
+
+Do NOT modify scheduler behaviour.
+
+Do NOT modify monthly salary calculations.
+
+Do NOT modify ROI, Binary, Orbit, Level Income, Wallets, Transfers or Investments.
+
+The ONLY objective is to make SalaryAchievement handling future-proof.
+
+---
+
+## Current Issue
+
+The SalaryAchievement table correctly enforces:
+
+@@unique([userId, rankName])
+
+However, if a SalaryAchievement already exists for a user and rank but is currently inactive (for example due to an earlier compensation-plan migration), a future legitimate qualification attempts to create a new record and hits the unique constraint.
+
+Current behaviour:
+
+Create →
+
+P2002 →
+
+Skip
+
+This could permanently prevent a user from receiving a rank they later earn legitimately.
+
+---
+
+## Required Behaviour
+
+When a user qualifies for a salary rank:
+
+The achievement service must first search for an existing SalaryAchievement for:
+
+(userId, rankName)
+
+### Case 1
+
+No record exists
+
+→ Create a new SalaryAchievement.
+
+(Current behaviour.)
+
+---
+
+### Case 2
+
+Record exists
+
+AND
+
+isActive = true
+
+→ Do nothing.
+
+The user already owns this active achievement.
+
+Never create duplicates.
+
+---
+
+### Case 3 (IMPORTANT)
+
+Record exists
+
+AND
+
+isActive = false
+
+AND
+
+The user now legitimately qualifies again
+
+→ Reactivate the existing record.
+
+Do NOT create a new row.
+
+Instead update:
+
+* isActive = true
+* achievedAt = current qualification timestamp
+* expiresAt = achievedAt + configured duration
+* paymentsMade = 0
+* lastPaidAt = NULL
+* business snapshot
+* qualification snapshot
+* any derived scheduler fields
+
+This effectively starts a fresh payment cycle for the newly earned qualification while preserving the same database record.
+
+---
+
+## Preserve Audit History
+
+Do NOT lose historical information.
+
+If useful, append a reactivation audit entry or log event so administrators can see that the achievement was reactivated rather than newly created.
+
+---
+
+## Scheduler Compatibility
+
+The monthly salary scheduler should continue working exactly as before.
+
+It should not need to know whether an achievement was newly created or reactivated.
+
+The scheduler simply processes active achievements.
+
+---
+
+## Qualification Rules
+
+Do NOT bypass qualification.
+
+A previously inactive achievement may only be reactivated if the user currently satisfies every Prime Wave qualification rule for that rank.
+
+No manual SQL updates.
+
+No administrator intervention.
+
+No shortcuts.
+
+---
+
+## Existing Data
+
+Evaluate existing SalaryAchievements.
+
+If inactive achievements exist that now legitimately qualify under the current business rules, reactivate them automatically.
+
+Otherwise leave them unchanged.
+
+Do NOT activate users who do not currently qualify.
+
+---
+
+## Regression Requirements
+
+Confirm that the following remain unchanged:
+
+* Salary configuration
+* Cumulative thresholds
+* Event-driven qualification
+* Bronze/Silver/Gold qualification
+* Platinum+ 40/60 split
+* Monthly scheduler
+* ACTIVE member verification
+* Duration tracking
+* Multiple concurrent salary achievements
+* One achievement per rank
+* Unique constraint
+* Database schema (unless absolutely required)
+
+---
+
+## Testing
+
+Verify:
+
+✓ First qualification creates a new achievement.
+
+✓ Duplicate qualification does not create another record.
+
+✓ Inactive achievement that now qualifies is correctly reactivated.
+
+✓ User who still does not qualify remains inactive.
+
+✓ Scheduler pays reactivated achievements correctly.
+
+✓ No duplicate achievements.
+
+✓ No duplicate salary payments.
+
+✓ No regression in any other Prime Wave financial engine.
+
+---
+
+## Final Report
+
+Provide:
+
+* Files modified.
+* Exact logic changed.
+* Number of records created.
+* Number of records reactivated.
+* Confirmation that the unique constraint remains intact.
+* Confirmation that manual SQL is no longer required for this scenario.
+* Confirmation that SalaryAchievement handling is now fully resilient for future business-rule changes.
