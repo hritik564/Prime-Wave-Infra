@@ -1,24 +1,29 @@
 /**
  * runSeed23B — in-process seed, no HTTP round-trip.
  *
- * Builds the 63-account perfect binary tree (master + 62 rd2* users),
- * each with a $100 deposit + $100 PLAN_360 investment.
+ * Builds the 127-account perfect binary tree:
+ *   master  = Level 0 (ACTIVE)
+ *   Levels 1-5 = 62 inner nodes (ACTIVE)
+ *   Level 6  = 64 leaf nodes (INACTIVE)
  *
- * Fully idempotent: checks for existing user / deposit / investment
- * before creating, so repeated calls are safe.
+ * Each account gets a $100 approved deposit + $100 PLAN_360 investment
+ * with autoCompound = false.
  *
- * Each user's operations are wrapped in withRetry so a transient DB
- * restart only retries that one user rather than aborting the whole seed.
+ * Fully idempotent: checks existing user / deposit / investment before
+ * creating, so repeated calls are safe and resume exactly where they stopped.
+ *
+ * Each user's operations are wrapped in withRetry so an ADMIN_SHUTDOWN
+ * only retries that one user, never restarts the whole seed.
  */
 
-import { prisma }              from "../config/prisma";
-import { registerUser }        from "../auth/auth.service";
-import { createDepositRequest }from "../deposits/deposits.service";
-import { approveDeposit }      from "../admin/admin-deposits.service";
-import { createInvestment }    from "../investments/investments.service";
-import { AppError }            from "../middleware/error.middleware";
-import { HTTP_STATUS }         from "../shared/constants";
-import { logger }              from "../lib/logger";
+import { prisma }               from "../config/prisma";
+import { registerUser }         from "../auth/auth.service";
+import { createDepositRequest } from "../deposits/deposits.service";
+import { approveDeposit }       from "../admin/admin-deposits.service";
+import { createInvestment }     from "../investments/investments.service";
+import { AppError }             from "../middleware/error.middleware";
+import { HTTP_STATUS }          from "../shared/constants";
+import { logger }               from "../lib/logger";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -28,6 +33,7 @@ const SEED_AMOUNT     = 100;
 const SEED_NETWORK    = "BEP20" as const;
 const COMPANY_WALLET  = "0xSEED23BTestCompanyWallet";
 const MASTER_USERNAME = "master";
+const LEAF_LEVEL      = 6; // nodes at this depth → INACTIVE
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -40,14 +46,23 @@ interface TreeNode {
   leg:         "L" | "R" | null;
 }
 
+/**
+ * Builds a 127-node perfect binary tree (levels 0–6).
+ *   i = 0       → master placeholder  (level 0)
+ *   i = 1..126  → rd2* new accounts  (levels 1–6)
+ *
+ * Level 6 nodes (i = 63..126) are the 64 leaf accounts → INACTIVE.
+ */
 function buildTree(): TreeNode[] {
   const nodes: TreeNode[] = [];
-  for (let i = 0; i < 63; i++) {
+  for (let i = 0; i < 127; i++) {
     const level       = Math.floor(Math.log2(i + 1));
     const parentIndex = i === 0 ? null : Math.floor((i - 1) / 2);
     const position    = i === 0 ? null : (i % 2 === 1 ? "LEFT" : "RIGHT") as "LEFT" | "RIGHT";
     const leg         = position === null ? null : (position === "LEFT" ? "L" : "R");
-    const username    = i === 0 ? "RD2" : nodes[parentIndex!].username + (position === "LEFT" ? "L" : "R");
+    const username    = i === 0
+      ? "RD2"
+      : nodes[parentIndex!].username + (position === "LEFT" ? "L" : "R");
     nodes.push({ index: i, username, parentIndex, position, level, leg });
   }
   return nodes;
@@ -101,6 +116,8 @@ async function withRetry<T>(
 
 export interface SeedSummary {
   totalAccounts:     number;
+  usersCreated:      number;
+  usersSkipped:      number;
   totalDeposits:     number;
   totalInvestments:  number;
   totalDepositValue: string;
@@ -108,12 +125,18 @@ export interface SeedSummary {
   activeMembers:     number;
   inactiveMembers:   number;
   treeRoot:          string;
+  retryCount:        number;
+  resumeCount:       number;
+  executionMs:       number;
 }
 
 // ── Main seed function ────────────────────────────────────────────────────────
 
 export async function runSeed23B(): Promise<SeedSummary> {
-  logger.info("Seed 23B: starting in-process — master = Level 0, 62 new users at levels 1-5");
+  const startedAt = Date.now();
+  logger.info(
+    "Seed 23B: starting — master=Level0, 62 inner nodes Levels1-5 (ACTIVE), 64 leaf nodes Level6 (INACTIVE)"
+  );
 
   const nodes   = buildTree();
   const adminId = await getAdminId();
@@ -127,10 +150,14 @@ export async function runSeed23B(): Promise<SeedSummary> {
   const idByIndex:   Record<number, string> = { 0: masterUser.id };
   const codeByIndex: Record<number, string> = { 0: masterUser.referralCode };
 
+  let usersCreated  = 0;
+  let usersSkipped  = 0;
   let activeCount   = 0;
   let inactiveCount = 0;
+  let retryCount    = 0;
+  let resumeCount   = 0;
 
-  // ── Node 0: master — deposit + investment ────────────────────────────────────
+  // ── Node 0: master — deposit + investment ─────────────────────────────────
   await withRetry(async () => {
     const existingDep = await prisma.depositRequest.findFirst({
       where:   { userId: masterUser.id, status: "APPROVED" },
@@ -161,7 +188,7 @@ export async function runSeed23B(): Promise<SeedSummary> {
 
   activeCount++; // master is always ACTIVE
 
-  // ── Nodes 1–62: new seed users ───────────────────────────────────────────────
+  // ── Nodes 1–126: new seed users (levels 1–6) ──────────────────────────────
   for (let i = 1; i < nodes.length; i++) {
     const node        = nodes[i];
     const usernameLC  = node.username.toLowerCase();
@@ -169,9 +196,13 @@ export async function runSeed23B(): Promise<SeedSummary> {
     const phone       = indianPhone(i);
     const sponsorCode = codeByIndex[node.parentIndex!];
 
-    // Each user's full lifecycle is retried as a unit
+    let localRetries = 0;
+
     const result = await withRetry(async () => {
-      // 1. Register (or resume if already exists)
+      if (localRetries > 0) retryCount++;
+      localRetries++;
+
+      // ── 1. Register (or resume if already exists) ──────────────────────────
       const existing = await prisma.user.findFirst({
         where:  { username: usernameLC },
         select: { id: true, referralCode: true },
@@ -183,7 +214,8 @@ export async function runSeed23B(): Promise<SeedSummary> {
       if (existing) {
         uid  = existing.id;
         code = existing.referralCode;
-        logger.info({ username: usernameLC }, "Seed 23B: user already exists — skipping register");
+        logger.info({ username: usernameLC }, "Seed 23B: user already exists — skipping");
+        resumeCount++;
       } else {
         const { user } = await registerUser({
           email,
@@ -198,13 +230,18 @@ export async function runSeed23B(): Promise<SeedSummary> {
         uid  = user.id;
         code = user.referralCode;
 
-        if (node.level === 5) {
+        // Leaf nodes at level 6 are INACTIVE
+        if (node.level === LEAF_LEVEL) {
           await prisma.user.update({ where: { id: uid }, data: { status: "INACTIVE" } });
         }
-        logger.info({ username: usernameLC, userId: uid, level: node.level }, "Seed 23B: user created");
+        logger.info(
+          { username: usernameLC, userId: uid, level: node.level },
+          "Seed 23B: user created"
+        );
+        usersCreated++;
       }
 
-      // 2. Deposit
+      // ── 2. Deposit ─────────────────────────────────────────────────────────
       const existingDep = await prisma.depositRequest.findFirst({
         where:   { userId: uid, status: "APPROVED" },
         select:  { id: true },
@@ -218,7 +255,7 @@ export async function runSeed23B(): Promise<SeedSummary> {
         await approveDeposit(adminId, dep.id);
       }
 
-      // 3. Investment
+      // ── 3. Investment ──────────────────────────────────────────────────────
       const existingInv = await prisma.investment.findFirst({
         where:   { userId: uid, status: { in: ["ACTIVE", "MATURED"] } },
         select:  { id: true },
@@ -236,14 +273,24 @@ export async function runSeed23B(): Promise<SeedSummary> {
     idByIndex[i]   = result.uid;
     codeByIndex[i] = result.code;
 
-    if (node.level === 5) { inactiveCount++; } else { activeCount++; }
+    if (node.level === LEAF_LEVEL) { inactiveCount++; } else { activeCount++; }
   }
 
-  const totalAccounts = 1 + (nodes.length - 1); // master + 62
-  logger.info({ totalAccounts, activeCount, inactiveCount }, "Seed 23B: all done");
+  // Account for skipped (existing) users
+  usersSkipped = nodes.length - 1 - usersCreated; // all non-master nodes minus created
+
+  const totalAccounts = nodes.length; // 127
+  const executionMs   = Date.now() - startedAt;
+
+  logger.info(
+    { totalAccounts, usersCreated, usersSkipped, activeCount, inactiveCount, retryCount, executionMs },
+    "Seed 23B: completed"
+  );
 
   return {
     totalAccounts,
+    usersCreated,
+    usersSkipped,
     totalDeposits:     totalAccounts,
     totalInvestments:  totalAccounts,
     totalDepositValue: `$${totalAccounts * SEED_AMOUNT}`,
@@ -251,5 +298,8 @@ export async function runSeed23B(): Promise<SeedSummary> {
     activeMembers:     activeCount,
     inactiveMembers:   inactiveCount,
     treeRoot:          "master → RD2L (LEFT), RD2R (RIGHT)",
+    retryCount,
+    resumeCount,
+    executionMs,
   };
 }

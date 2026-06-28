@@ -1,0 +1,209 @@
+# Production Deployment — Final Seed & Financial Verification
+
+## Trigger
+
+Wait until I explicitly reply:
+
+**"Published!"**
+
+Do NOT start before that message.
+
+Once I say **Published!**, begin the following process.
+
+---
+
+# Phase 1 — Production Health Check
+
+Before touching any data, verify:
+
+* Production API is healthy.
+* Database connection is healthy.
+* All migrations are applied.
+* Salary configuration exists.
+* Investment plans exist.
+* Required cron configuration exists.
+* Canonical Investment Service is deployed.
+* Sprint 24 architecture is live.
+
+If any prerequisite fails:
+
+STOP.
+
+Report the issue.
+
+Do not seed.
+
+---
+
+# Phase 2 — Production Seed
+
+Use ONLY the canonical Investment Service.
+
+Never create investment rows directly through Prisma.
+
+Every investment must execute the complete business pipeline.
+
+Create:
+
+• 127 users
+
+• Perfect binary tree
+
+• 1 Master
+
+• 126 downline members
+
+Username structure:
+
+RD2...
+
+Email:
+
+<username>@primewave.live
+
+Country:
+
+India
+
+Common password:
+
+RDprimewave@321!
+
+Every account:
+
+• Approved Deposit
+
+$100
+
+↓
+
+• Investment
+
+$100
+
+↓
+
+• 360-Day Plan
+
+↓
+
+• Auto Compound OFF
+
+The seed must be resumable.
+
+Never delete data on retry.
+
+Skip existing records safely.
+
+Retry only the failed operation.
+
+---
+
+# Phase 3 — Automatic Retry
+
+If the production database restarts (ADMIN_SHUTDOWN) or any transient connection issue occurs:
+
+Retry only the current user.
+
+Never restart the entire seed.
+
+Never delete already-created users.
+
+Never delete investments.
+
+Never delete wallets.
+
+Continue exactly where the process stopped.
+
+---
+
+# Phase 4 — Automatic Financial Reconciliation
+
+Immediately after the seed completes successfully:
+
+Run the full Prime Wave Financial Reconciliation automatically.
+
+Do NOT require manual intervention.
+
+Verify:
+
+✓ 127 Users
+
+✓ 63 ACTIVE
+
+✓ 64 INACTIVE
+
+✓ 127 Approved Deposits
+
+✓ 127 Investments
+
+✓ 360-Day Plan
+
+✓ Auto Compound OFF
+
+✓ Perfect Binary Tree
+
+✓ Expected Level Income Records = Existing Records
+
+✓ No duplicate Level Income
+
+✓ Salary Achievements correct
+
+✓ Wallet balances reconcile
+
+✓ Scheduler readiness
+
+✓ Financial integrity
+
+---
+
+# Phase 5 — Final Production Report
+
+Provide:
+
+## Deployment
+
+* Published Version
+* Database Version
+* Migration Status
+
+## Seed Summary
+
+* Users Created
+* Users Skipped
+* Deposits Created
+* Investments Created
+* Retry Count
+* Resume Count
+* Total Execution Time
+
+## Financial Summary
+
+* Level Income Records
+* Salary Achievements
+* Binary Tree Status
+* ACTIVE Members
+* INACTIVE Members
+
+## Reconciliation
+
+PASS / FAIL
+
+If PASS:
+
+Explicitly confirm:
+
+"The production database is fully seeded, reconciled, internally consistent, and ready for production testing."
+
+If FAIL:
+
+Stop immediately.
+
+Provide:
+
+* Root cause
+* Exact failing step
+* Database impact
+* Recommended corrective action
+
+Do NOT attempt destructive recovery unless explicitly instructed.
