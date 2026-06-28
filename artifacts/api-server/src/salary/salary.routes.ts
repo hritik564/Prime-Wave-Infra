@@ -3,6 +3,7 @@ import {
   getSalaryHistoryHandler,
   getSalarySummaryHandler,
   getSalaryAchievementsHandler,
+  getSalaryQualificationsHandler,
 } from "./salary.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 import { validate } from "../middleware/validate.middleware";
@@ -35,6 +36,14 @@ router.get(
   "/achievements",
   validate(salaryAchievementsQuerySchema, "query"),
   getSalaryAchievementsHandler,
+);
+
+// GET /api/salary/qualifications[?userId=]
+// Returns the live BV-based qualification snapshot used by the dashboard.
+router.get(
+  "/qualifications",
+  validate(salarySummaryQuerySchema, "query"),
+  getSalaryQualificationsHandler,
 );
 
 export default router;

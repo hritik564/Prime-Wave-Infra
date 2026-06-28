@@ -1,19 +1,21 @@
 import { TrendingUp, Award, Target } from "lucide-react";
 
 interface HeroCardProps {
-  totalInvestment?: string;
-  todayEarnings?: string;
-  currentRank?: string;
+  totalInvestment?:  string;
+  todayEarnings?:    string;
+  currentRank?:      string;
   nextSalaryTarget?: string;
   nextSalaryProgress?: number;
+  progressLabel?:    string;
 }
 
 export default function HeroCard({
-  totalInvestment = "$15,000.00",
-  todayEarnings = "+$36.25",
-  currentRank = "Silver",
-  nextSalaryTarget = "$25,000",
-  nextSalaryProgress = 60,
+  totalInvestment    = "$0.00",
+  todayEarnings      = "+$0.00",
+  currentRank        = "—",
+  nextSalaryTarget   = "$2,000",
+  nextSalaryProgress = 0,
+  progressLabel      = "Progress to Bronze",
 }: HeroCardProps) {
   return (
     <div
@@ -43,7 +45,7 @@ export default function HeroCard({
       />
 
       <div className="relative p-5 lg:p-8">
-        {/* Mobile layout: stacked */}
+        {/* Mobile layout */}
         <div className="lg:hidden">
           <p className="text-xs font-medium uppercase tracking-widest mb-1" style={{ color: "rgba(212,175,55,0.7)" }}>
             Total Active Investment
@@ -69,13 +71,13 @@ export default function HeroCard({
             />
             <HeroStat
               icon={<Award className="h-3.5 w-3.5" />}
-              label="Rank"
+              label="Salary Rank"
               value={currentRank}
               valueColor="#D4AF37"
             />
             <HeroStat
               icon={<Target className="h-3.5 w-3.5" />}
-              label="Target"
+              label="Next Target"
               value={nextSalaryTarget}
               valueColor="rgba(255,255,255,0.9)"
             />
@@ -84,7 +86,7 @@ export default function HeroCard({
           <div className="mt-4">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[10px] font-medium uppercase tracking-wide" style={{ color: "rgba(170,179,197,0.6)" }}>
-                Progress to Gold
+                {progressLabel}
               </span>
               <span className="text-[10px] font-semibold" style={{ color: "#D4AF37" }}>
                 {nextSalaryProgress}%
@@ -102,7 +104,7 @@ export default function HeroCard({
           </div>
         </div>
 
-        {/* Desktop layout: side by side */}
+        {/* Desktop layout */}
         <div className="hidden lg:flex items-center gap-8">
           {/* Left: Main metric */}
           <div className="flex-1">
@@ -124,7 +126,7 @@ export default function HeroCard({
             <div className="mt-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium uppercase tracking-widest" style={{ color: "rgba(170,179,197,0.6)" }}>
-                  Progress to Gold Rank
+                  {progressLabel}
                 </span>
                 <span className="text-sm font-semibold" style={{ color: "#D4AF37" }}>
                   {nextSalaryProgress}%
@@ -154,7 +156,7 @@ export default function HeroCard({
             <div style={{ height: "1px", background: "rgba(212,175,55,0.1)" }} />
             <DesktopHeroStat
               icon={<Award className="h-4 w-4" />}
-              label="Current Rank"
+              label="Salary Rank"
               value={currentRank}
               valueColor="#D4AF37"
             />
@@ -192,7 +194,7 @@ function HeroStat({
         {icon}
         <span className="text-[10px] font-medium uppercase tracking-wide">{label}</span>
       </div>
-      <p className="text-sm font-bold font-heading" style={{ color: valueColor }}>
+      <p className="text-sm font-bold font-heading truncate" style={{ color: valueColor }}>
         {value}
       </p>
     </div>
@@ -216,7 +218,7 @@ function DesktopHeroStat({
         {icon}
         <span className="text-xs font-medium uppercase tracking-widest">{label}</span>
       </div>
-      <p className="text-2xl font-bold font-heading ml-6" style={{ color: valueColor }}>
+      <p className="text-2xl font-bold font-heading ml-6 truncate" style={{ color: valueColor }}>
         {value}
       </p>
     </div>

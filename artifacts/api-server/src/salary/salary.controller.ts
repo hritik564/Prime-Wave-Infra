@@ -3,6 +3,7 @@ import {
   getSalaryHistory,
   getSalarySummary,
   getSalaryAchievements,
+  getSalaryQualificationSummary,
 } from "./salary.service";
 import { sendSuccess } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
@@ -12,6 +13,17 @@ import type {
   SalarySummaryQuery,
   SalaryAchievementsQuery,
 } from "./salary.schema";
+
+export async function getSalaryQualificationsHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const query    = getParsed<SalarySummaryQuery>(res, "query");
+    const result   = await getSalaryQualificationSummary(query.userId ?? user.sub);
+    sendSuccess(res, result, "Salary qualifications fetched successfully");
+  } catch (err) { next(err); }
+}
 
 export async function getSalaryHistoryHandler(
   req: Request, res: Response, next: NextFunction,

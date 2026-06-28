@@ -15,7 +15,12 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/providers/AuthProvider";
-import { getProfile, listInvestments, getWalletHistory, getActiveStatus, type ProfileData, type ApiInvestment, type Transaction, type ActiveStatus } from "@/lib/api";
+import {
+  getProfile, listInvestments, getWalletHistory, getActiveStatus,
+  getSalaryQualifications, getSalarySummary,
+  type ProfileData, type ApiInvestment, type Transaction, type ActiveStatus,
+  type SalaryQualificationSummary, type SalarySummaryData,
+} from "@/lib/api";
 
 /* ── Inline toast ── */
 interface ToastItem { id: number; message: string }
@@ -83,21 +88,28 @@ export default function DashboardPage() {
   const [investments, setInvestments] = useState<ApiInvestment[]>([]);
   const [recentTxs, setRecentTxs] = useState<Transaction[]>([]);
   const [activeStatus, setActiveStatus] = useState<ActiveStatus | null>(null);
+  const [salaryQual, setSalaryQual] = useState<SalaryQualificationSummary | null>(null);
+  const [salarySummary, setSalarySummary] = useState<SalarySummaryData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [profileData, invResult, historyResult, statusResult] = await Promise.all([
-          getProfile(),
-          listInvestments({ limit: 100 }),
-          getWalletHistory({ limit: 5 }),
-          getActiveStatus(),
-        ]);
+        const [profileData, invResult, historyResult, statusResult, qualResult, summaryResult] =
+          await Promise.all([
+            getProfile(),
+            listInvestments({ limit: 100 }),
+            getWalletHistory({ limit: 5 }),
+            getActiveStatus(),
+            getSalaryQualifications(),
+            getSalarySummary(),
+          ]);
         setProfile(profileData);
         setInvestments(invResult.data);
         setRecentTxs(historyResult.data);
         setActiveStatus(statusResult);
+        setSalaryQual(qualResult);
+        setSalarySummary(summaryResult);
       } catch {
         // silently fail — show zeros
       } finally {
@@ -128,6 +140,20 @@ export default function DashboardPage() {
   const activePlans = investments.filter(i => i.status === "ACTIVE").length;
 
   const firstName = user?.firstName ?? profile?.firstName ?? "User";
+
+  // ── Salary-derived display values ───────────────────────────────────────────
+  const currentRankDisplay = salaryQual?.highestRank ?? "—";
+  const progressLabel      = salaryQual?.nextRank
+    ? `Progress to ${salaryQual.nextRank}`
+    : salaryQual?.highestRank
+    ? "All Milestones Unlocked"
+    : "Progress to Bronze";
+  const nextSalaryTargetDisplay = salaryQual?.nextRequiredBusiness
+    ? `$${parseFloat(salaryQual.nextRequiredBusiness).toLocaleString("en-US", { maximumFractionDigits: 0 })}`
+    : salaryQual?.highestRank
+    ? "All Unlocked"
+    : "$2,000";
+  const salaryProgressPct = salaryQual?.progressPct ?? 0;
 
   const wallets = [
     { label: "Deposit Wallet",    value: fmt(depositWallet),    subtext: `${activePlans} active plan${activePlans !== 1 ? "s" : ""}`, icon: PiggyBank,      color: "#D4AF37", bg: "rgba(212,175,55,0.1)" },
@@ -214,9 +240,10 @@ export default function DashboardPage() {
             <HeroCard
               totalInvestment={fmt(totalInvested)}
               todayEarnings={`+${fmt(dailyEarnings)}`}
-              currentRank="Silver"
-              nextSalaryTarget="$25,000"
-              nextSalaryProgress={Math.min(Math.round((totalInvested / 25000) * 100), 100)}
+              currentRank={currentRankDisplay}
+              nextSalaryTarget={nextSalaryTargetDisplay}
+              nextSalaryProgress={salaryProgressPct}
+              progressLabel={progressLabel}
             />
 
             {/* ── Referral Cards ── */}
@@ -224,11 +251,8 @@ export default function DashboardPage() {
 
             {/* ── Rank Progress ── */}
             <RankProgressCard
-              currentRank="Silver"
-              nextRank="Gold"
-              progress={Math.min(Math.round((totalInvested / 25000) * 100), 100)}
-              remaining={fmt(Math.max(0, 25000 - totalInvested))}
-              teamVolume={fmt(totalInvested)}
+              salaryQual={salaryQual}
+              salarySummary={salarySummary}
             />
 
             {/* ── Wallet Summary ── */}

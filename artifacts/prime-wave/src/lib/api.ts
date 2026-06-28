@@ -131,6 +131,46 @@ export function updateProfile(data: {
   });
 }
 
+/* ── Salary ──────────────────────────────────────────────────────── */
+
+export interface SalaryQualificationEntry {
+  rankName:         string;
+  requiredBusiness: string;
+  monthlySalary:    string;
+  qualifies:        boolean;
+}
+
+export interface SalaryQualificationSummary {
+  totalBusinessUSD:     string;
+  leftBusinessUSD:      string;
+  rightBusinessUSD:     string;
+  qualifications:       SalaryQualificationEntry[];
+  highestRank:          string | null;
+  nextRank:             string | null;
+  nextRequiredBusiness: string | null;
+  remaining:            string;
+  progressPct:          number;
+}
+
+export interface SalarySummaryData {
+  activeMonthlySalary:  string;
+  lifetimeSalaryIncome: string;
+  activeRanks:          string[];
+  activeAchievements: Array<{
+    rankName:      string;
+    monthlyAmount: string;
+    expiresAt:     string | null;
+  }>;
+}
+
+export function getSalaryQualifications() {
+  return request<SalaryQualificationSummary>("/api/salary/qualifications");
+}
+
+export function getSalarySummary() {
+  return request<SalarySummaryData>("/api/salary/summary");
+}
+
 /* ── Investments ──────────────────────────────────────────────────── */
 
 export interface ApiInvestment {
