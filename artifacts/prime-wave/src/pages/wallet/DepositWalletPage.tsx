@@ -406,7 +406,7 @@ export default function DepositWalletPage() {
             className="rounded-lg px-3 py-2 text-xs"
             style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.15)", color: "#fbbf24" }}
           >
-            ⚠ Send only USDT on BEP20 (BSC). TRC20 is not accepted. Other tokens will be lost permanently.
+            ⚠ Send only USDT on BEP20 (BSC). Other tokens will be lost permanently.
           </div>
         </div>
 
