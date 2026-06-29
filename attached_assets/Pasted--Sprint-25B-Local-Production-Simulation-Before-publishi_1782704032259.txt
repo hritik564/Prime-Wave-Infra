@@ -1,0 +1,201 @@
+# Sprint 25B — Local Production Simulation
+
+Before publishing, I want one complete end-to-end LOCAL simulation of the automatic deposit pipeline.
+
+Do NOT use the MockBlockchainAdapter.
+
+Instead, keep the real BSCBlockchainAdapter active and mock ONLY the JSON-RPC responses coming from the blockchain.
+
+The objective is to exercise the exact production code path while avoiding a real blockchain transaction.
+
+---
+
+## Requirements
+
+Run one complete deposit verification using:
+
+* Amount: 100 USDT
+* Network: BEP20
+* Status: Successful
+* Confirmations: 12
+* Valid recipient
+* Valid USDT contract
+
+Everything else must be real.
+
+The following components must execute exactly as they would in production:
+
+* Deposit Verification Engine
+* Worker
+* Repository
+* State Machine
+* Optimistic Locking
+* Crash Recovery
+* approveDeposit()
+* Wallet credit
+* Ledger creation
+* Notifications
+* Audit logging
+* Event publishing
+
+Do not bypass any business logic.
+
+Do not manually update database rows.
+
+Do not insert records with SQL.
+
+The only mocked component should be the outbound JSON-RPC responses.
+
+---
+
+## Verify
+
+Show evidence for:
+
+✓ CREATED
+
+↓
+
+✓ TX_SUBMITTED
+
+↓
+
+✓ VERIFYING
+
+↓
+
+✓ WAITING_CONFIRMATIONS
+
+↓
+
+✓ CONFIRMED
+
+↓
+
+✓ CREDITED
+
+↓
+
+✓ COMPLETED
+
+Include timestamps.
+
+---
+
+## Blockchain Data
+
+Return the mocked blockchain response that the adapter received.
+
+Include:
+
+* txHash
+* sender
+* recipient
+* amount
+* token contract
+* block number
+* confirmations
+
+Verify that the adapter parsed these values correctly.
+
+---
+
+## Financial Verification
+
+Verify:
+
+✓ DepositRequest created
+
+✓ Deposit approved
+
+✓ Deposit Wallet credited with 100 USDT
+
+✓ Ledger entry created
+
+✓ Notification created
+
+✓ Audit log created
+
+✓ DepositVerification completed
+
+---
+
+## Idempotency
+
+Immediately submit the same transaction hash again.
+
+Expected:
+
+✓ Duplicate rejected
+
+✓ No second DepositRequest
+
+✓ No second wallet credit
+
+✓ No second ledger entry
+
+✓ No second notification
+
+---
+
+## Investment Compatibility
+
+Without manually changing data,
+
+confirm that the credited 100 USDT can immediately be used to create a normal PLAN_360 investment through the existing production investment engine.
+
+Verify:
+
+✓ Investment created
+
+✓ Deposit Wallet debited
+
+✓ BV propagated
+
+✓ Salary evaluation triggered
+
+✓ Level income triggered (where applicable)
+
+Reuse the normal investment flow.
+
+---
+
+## Regression
+
+Confirm that no existing financial engine behaviour changed.
+
+Specifically verify:
+
+* Wallet Engine
+* Investment Engine
+* ROI Engine
+* Binary Engine
+* Salary Engine
+* Orbit Engine
+* Level Income Engine
+* Withdrawal Engine
+
+---
+
+## Final Certification
+
+Return one final verdict:
+
+PASS
+
+or
+
+FAIL
+
+If FAIL:
+
+Provide:
+
+* root cause
+* affected component
+* severity
+* required fix
+
+If PASS:
+
+Explicitly certify that the real production Deposit Verification Engine, using the real BSCBlockchainAdapter and production code path (with only the blockchain RPC responses mocked), is ready for production deployment.
