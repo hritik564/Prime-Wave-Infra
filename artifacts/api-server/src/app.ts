@@ -8,7 +8,6 @@ import { env } from "./config/env";
 import { globalLimiter } from "./middleware/rateLimiter.middleware";
 import { errorMiddleware } from "./middleware/error.middleware";
 import router from "./routes";
-import { HealthCheckResponse } from "@workspace/api-zod";
 
 const app: Express = express();
 
@@ -16,6 +15,25 @@ const app: Express = express();
 // Replit runs behind a reverse proxy that sets X-Forwarded-For.
 // This lets express-rate-limit and req.ip identify clients correctly.
 app.set("trust proxy", 1);
+
+// ── Health probe (MUST be first — no middleware dependencies) ─────────────────
+// Cloud Run fires the startup probe at GET /api immediately on container boot,
+// before port 8080 is fully initialised. Once the port binds this handler must
+// return 200 on the FIRST attempt — any middleware that could throw (helmet,
+// cors, pino, rate-limiter) must NOT run on this route.
+//
+// Rules:
+//   • Zero external imports — only built-in Node/Express APIs used here.
+//   • No Zod, no Prisma, no background-service dependencies.
+//   • Responds to both /api and /api/healthz (pid1 may probe either).
+//   • Deeper diagnostics go on GET /api/health/details (separate endpoint).
+app.get(["/api", "/api/healthz"], (_req, res) => {
+  res.json({
+    status: "ok",
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // ── Security headers ─────────────────────────────────────────────────────────
 app.use(helmet());
@@ -53,15 +71,6 @@ app.use(
 // ── Body parsing ──────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
-
-// ── Healthcheck (before rate limiter — startup probe must always pass) ────────
-// Cloud Run sends the startup probe immediately at container boot, before the
-// process is fully initialised. Registering this here ensures it bypasses the
-// in-memory rate limiter so the probe always gets an instant 200.
-app.get("/api/healthz", (_req, res) => {
-  const data = HealthCheckResponse.parse({ status: "ok" });
-  res.json(data);
-});
 
 // ── Global rate limit ─────────────────────────────────────────────────────────
 app.use(globalLimiter);
