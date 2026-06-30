@@ -1,0 +1,411 @@
+# Sprint 26 — Financial Transparency Center
+
+## Objective
+
+Prime Wave's financial engines are now considered stable.
+
+Sprint 26 is NOT a financial engine sprint.
+
+Its purpose is to make every financial process transparent to users.
+
+Every user should immediately understand:
+
+• What income they currently qualify for.
+• Why they qualify (or why they don't).
+• When each income will be credited.
+• How much income is currently expected.
+• What is pending.
+• What action (if any) they need to take.
+
+This sprint is READ ONLY.
+
+No financial calculations may be changed.
+
+No financial engine may be modified.
+
+----------------------------------------------------------------
+
+## CORE ARCHITECTURE RULE
+
+The Financial Transparency Center must NEVER implement business logic.
+
+It must NEVER calculate:
+
+• ROI
+• Binary Matching
+• Salary
+• Level Income
+• Orbit
+
+Instead it must consume existing engine outputs, scheduler metadata and database records.
+
+If any information is missing, expose it through lightweight READ ONLY APIs.
+
+Do not duplicate financial rules.
+
+Do not duplicate engine calculations.
+
+----------------------------------------------------------------
+
+## Build Financial Transparency API
+
+Create a dedicated read-only aggregation service.
+
+Example:
+
+GET /api/financial-transparency
+
+(or an equivalent endpoint)
+
+This endpoint should aggregate data from existing services only.
+
+It must never execute any financial engine.
+
+It must never modify database state.
+
+----------------------------------------------------------------
+
+## Page Header
+
+At the top of the page display:
+
+Financial Transparency Center
+
+Below the title display:
+
+Last Updated
+
+Example:
+
+Last Updated:
+30 Jun 2026
+14:35 UTC
+
+Add a Refresh button beside it.
+
+The Refresh button should reload all transparency data.
+
+No automatic aggressive polling.
+
+Backend refresh:
+
+• page load
+• manual refresh
+• every 60 seconds only
+
+Countdown timers should continue locally without requiring backend requests.
+
+----------------------------------------------------------------
+
+## Global Financial Status
+
+At the top display a Financial Status Summary.
+
+Example:
+
+ROI
+🟢 Active
+
+Binary Matching
+🟡 Waiting For Next Cycle
+
+Salary
+🟢 Qualified
+
+Level Income
+🟢 Active
+
+Orbit
+🟡 Waiting
+
+Deposits
+🟢 Working
+
+Withdrawals
+⚪ None Pending
+
+Users should understand platform status in one glance.
+
+----------------------------------------------------------------
+
+## ROI Section
+
+Display:
+
+Status
+
+Eligible / Active / Completed
+
+Current Plan
+
+Current ROI Day
+
+Expected Daily ROI
+
+Today's ROI
+
+Next Credit Time
+
+Countdown
+
+If inactive:
+
+Clearly explain why.
+
+Never show empty values.
+
+----------------------------------------------------------------
+
+## Binary Matching Section
+
+Display:
+
+Status
+
+Eligible / Not Eligible
+
+Current Left BV
+
+Current Right BV
+
+Expected Match
+
+Estimated Binary Income
+
+Carry Forward Left
+
+Carry Forward Right
+
+Next Matching Cycle
+
+Countdown
+
+If not eligible:
+
+Display the exact reason.
+
+Examples:
+
+No active investment
+
+Missing left business
+
+Missing right business
+
+Waiting for next matching cycle
+
+Never display unexplained zeroes.
+
+----------------------------------------------------------------
+
+## Salary Section
+
+Display:
+
+Current Rank
+
+Current Monthly Salary
+
+Next Rank
+
+Progress to Next Rank
+
+Business Achieved
+
+Business Required
+
+Business Remaining
+
+Next Salary Credit Date
+
+Countdown
+
+If not qualified:
+
+Explain exactly why.
+
+If qualified:
+
+Explain exactly when salary will be credited.
+
+----------------------------------------------------------------
+
+## Level Income Section
+
+Display:
+
+Latest Credit
+
+Today's Credits
+
+Total Credits
+
+Lifetime Level Income
+
+Explanation:
+
+"Level income is credited immediately whenever a qualifying downline investment occurs."
+
+No countdown.
+
+----------------------------------------------------------------
+
+## Orbit Section
+
+Display:
+
+Current Orbit Position
+
+Eligibility
+
+Estimated Orbit Reward
+
+Next Orbit Cycle
+
+Countdown
+
+Human-readable explanation.
+
+----------------------------------------------------------------
+
+## Deposit Verification Section
+
+Reuse Sprint 25C.
+
+Display:
+
+Latest Deposit
+
+Verification Status
+
+Pending Deposits
+
+Completed Deposits
+
+Rejected Deposits
+
+If verification is running:
+
+Reuse the existing Deposit Tracking Timeline.
+
+Do not redesign it.
+
+----------------------------------------------------------------
+
+## Withdrawal Section
+
+Display:
+
+Pending Withdrawals
+
+Approved Withdrawals
+
+Rejected Withdrawals
+
+Latest Withdrawal
+
+Current Status
+
+Next Action
+
+----------------------------------------------------------------
+
+## Human Explanations
+
+Never show:
+
+Income
+
+$0
+
+Instead explain WHY.
+
+Example:
+
+"No binary payout has been processed yet.
+
+The next matching cycle will execute in:
+
+3 hours 42 minutes.
+
+Estimated payout:
+
+$315."
+
+Every section must answer:
+
+Why?
+
+When?
+
+How much?
+
+What next?
+
+----------------------------------------------------------------
+
+## UI Design
+
+Professional.
+
+Financial.
+
+Minimal.
+
+Premium.
+
+Do not use unnecessary charts.
+
+Do not use flashy animations.
+
+Prioritize readability and user confidence.
+
+----------------------------------------------------------------
+
+## Backend Requirements
+
+Reuse existing APIs wherever possible.
+
+Only introduce lightweight read-only aggregation endpoints when necessary.
+
+Do NOT modify:
+
+Wallet Engine
+
+Investment Engine
+
+Binary Engine
+
+Salary Engine
+
+ROI Engine
+
+Orbit Engine
+
+Level Income Engine
+
+Deposit Verification Engine
+
+Withdrawal Engine
+
+No financial logic may change.
+
+----------------------------------------------------------------
+
+## Deliverables
+
+Provide:
+
+1. UI screenshots
+
+2. API response example
+
+3. Files created
+
+4. Files modified
+
+5. Confirmation that ZERO financial business logic was introduced.
+
+6. Regression report confirming every existing financial engine remains unchanged.
+
+7. Verification that countdown timers are driven by scheduler timestamps and local React timers rather than continuous backend polling.
