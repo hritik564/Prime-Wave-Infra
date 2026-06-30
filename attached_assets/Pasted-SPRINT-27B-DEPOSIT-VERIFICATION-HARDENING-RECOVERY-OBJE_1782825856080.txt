@@ -1,0 +1,428 @@
+SPRINT 27B — DEPOSIT VERIFICATION HARDENING & RECOVERY
+
+OBJECTIVE
+
+This sprint completes the Deposit Verification subsystem for production.
+
+The goal is:
+
+1. Eliminate the stale recipient snapshot issue permanently.
+2. Prevent invalid wallet configuration from ever reaching production again.
+3. Allow administrators to recover failed verifications safely.
+4. Preserve financial integrity.
+5. Preserve complete auditability.
+
+IMPORTANT
+
+Do NOT redesign the verification engine.
+
+Do NOT duplicate any wallet credit logic.
+
+Do NOT modify financial calculations.
+
+Reuse existing production code wherever possible.
+
+==========================================================
+PART 1 — KEEP SNAPSHOT ARCHITECTURE
+==========================================================
+
+The snapshot design is correct.
+
+DepositVerification.recipientAddress must remain an immutable snapshot of the expected wallet at the moment the user submitted the transaction.
+
+The worker MUST continue verifying against this snapshot.
+
+Do NOT change the worker to query company_wallets live during verification.
+
+Reason:
+
+Changing wallets after submission must NOT invalidate legitimate historical deposits.
+
+==========================================================
+PART 2 — ONE-TIME DATA REPAIR
+==========================================================
+
+Create a one-time repair for legacy verification records.
+
+Find every DepositVerification where:
+
+recipientAddress == placeholder wallet
+
+AND
+
+status is NOT
+
+COMPLETED
+
+CREDITED
+
+REJECTED
+
+Replace recipientAddress with the current active wallet for that network.
+
+This repair should ONLY affect records created with the placeholder.
+
+Do NOT modify completed historical deposits.
+
+Provide a report showing:
+
+records scanned
+
+records repaired
+
+records skipped
+
+==========================================================
+PART 3 — CONFIGURATION SAFETY
+==========================================================
+
+During submitVerification()
+
+before creating DepositVerification
+
+validate:
+
+• active company wallet exists
+• wallet is active
+• wallet format is valid
+• wallet is NOT a placeholder
+• only one active wallet exists for that network
+
+If validation fails
+
+reject submission
+
+Return HTTP 503
+
+Example
+
+"Deposit verification is temporarily unavailable due to server configuration."
+
+Never create an invalid verification record.
+
+==========================================================
+PART 4 — STARTUP HEALTH CHECK
+==========================================================
+
+During server startup
+
+validate every active company wallet.
+
+Check:
+
+BEP20
+
+ERC20
+
+TRC20
+
+SOL
+
+For every network verify:
+
+✓ wallet exists
+
+✓ exactly one active wallet
+
+✓ valid address format
+
+✓ not placeholder
+
+If any check fails
+
+FAIL SERVER STARTUP
+
+Log a detailed error.
+
+Never allow production to start with placeholder wallets.
+
+==========================================================
+PART 5 — FAILED VERIFICATION RECOVERY
+==========================================================
+
+Failed verifications must support recovery.
+
+Add
+
+Re-Validate
+
+button beside every failed verification.
+
+Behaviour
+
+Reset
+
+nextCheckAt = now
+
+verificationAttempts remain unchanged
+
+Return record to worker queue.
+
+Reuse the existing verification pipeline.
+
+Do NOT bypass verification.
+
+Do NOT reset timeline.
+
+Do NOT create duplicate verification records.
+
+Create audit log
+
+DEPOSIT_REVALIDATION_REQUESTED
+
+==========================================================
+PART 6 — MANUAL REVIEW
+==========================================================
+
+Every failed verification must also support manual review.
+
+Buttons
+
+Approve
+
+Reject
+
+Admin must first review:
+
+• BscScan
+
+• amount
+
+• sender
+
+• recipient
+
+• token
+
+• confirmations
+
+==========================================================
+PART 7 — MANUAL APPROVAL
+==========================================================
+
+Requirements
+
+Mandatory reason
+
+Minimum 15 characters
+
+Confirmation checkbox
+
+Text
+
+"I have independently verified this blockchain transaction and understand this operation credits real user funds."
+
+Require confirmation dialog.
+
+Reuse
+
+approveDeposit()
+
+Never create another wallet credit implementation.
+
+Prevent duplicate approval.
+
+Write audit log.
+
+Notify user.
+
+==========================================================
+PART 8 — MANUAL REJECTION
+==========================================================
+
+Admin may reject.
+
+Mandatory reason.
+
+Notify user.
+
+Audit log.
+
+Status becomes
+
+REJECTED
+
+Terminal.
+
+==========================================================
+PART 9 — RECOVERABLE FAILURES
+==========================================================
+
+Classify failures.
+
+Recoverable
+
+• RPC timeout
+
+• RPC unavailable
+
+• adapter timeout
+
+• node unavailable
+
+• temporary network issue
+
+These show
+
+Re-Validate
+
+Permanent
+
+• wrong recipient
+
+• wrong token
+
+• reverted transaction
+
+• invalid hash
+
+• unsupported network
+
+These should still allow
+
+Manual Review
+
+Approve
+
+Reject
+
+==========================================================
+PART 10 — ADMIN UI
+==========================================================
+
+Failed verification card should display
+
+Status
+
+Failure reason
+
+BscScan button
+
+Re-Validate
+
+Approve
+
+Reject
+
+Audit history
+
+Verification timeline
+
+Last checked
+
+Next scheduled check
+
+==========================================================
+PART 11 — USER HISTORY
+==========================================================
+
+Deposit History remains the single source of truth.
+
+User must see
+
+Submitted
+
+Verifying
+
+Waiting
+
+Delayed
+
+Completed
+
+Failed
+
+Rejected
+
+Manual Approval
+
+If a failed verification is revalidated
+
+the same history entry continues.
+
+Do NOT create another deposit history record.
+
+==========================================================
+PART 12 — AUDIT
+==========================================================
+
+Audit
+
+Re-Validate
+
+Manual Approve
+
+Manual Reject
+
+Include
+
+Admin
+
+Verification
+
+Previous status
+
+New status
+
+Reason
+
+IP
+
+Timestamp
+
+==========================================================
+PART 13 — REGRESSION
+==========================================================
+
+Verify unchanged
+
+✓ Blockchain Adapter
+
+✓ Verification Worker
+
+✓ Wallet Credits
+
+✓ approveDeposit()
+
+✓ Financial calculations
+
+✓ ROI
+
+✓ Binary
+
+✓ Orbit
+
+✓ Salary
+
+✓ Level
+
+✓ Investment
+
+✓ Notifications
+
+==========================================================
+FINAL REPORT
+
+Provide
+
+1. Files modified
+
+2. Data repair report
+
+3. Startup validation report
+
+4. Configuration validation report
+
+5. Re-Validation workflow
+
+6. Manual Approval workflow
+
+7. Manual Rejection workflow
+
+8. UI screenshots
+
+9. Audit log examples
+
+10. Regression report
+
+11. Confirmation that no financial business logic was modified.

@@ -54,10 +54,28 @@ export const adminRetryVerificationSchema = z.object({
   id: z.string().min(1, "Verification ID is required"),
 });
 
+export const adminRevalidateParamsSchema = z.object({
+  id: z.string().min(1, "Verification ID is required"),
+});
+
 export const adminManualApproveParamsSchema = z.object({
   id: z.string().min(1, "Verification ID is required"),
 });
 
 export const adminManualApproveBodySchema = z.object({
-  reason: z.string().min(10, "Reason must be at least 10 characters").max(500, "Reason must be at most 500 characters"),
+  reason: z
+    .string()
+    .min(15, "Reason must be at least 15 characters")
+    .max(500, "Reason must be at most 500 characters"),
+});
+
+export const adminRejectParamsSchema = z.object({
+  id: z.string().min(1, "Verification ID is required"),
+});
+
+export const adminRejectBodySchema = z.object({
+  reason: z
+    .string()
+    .min(10, "Rejection reason must be at least 10 characters")
+    .max(500, "Rejection reason must be at most 500 characters"),
 });

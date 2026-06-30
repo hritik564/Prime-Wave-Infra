@@ -2402,3 +2402,17 @@ export function adminManualApproveVerification(id: string, data: { reason: strin
     { method: "POST", body: JSON.stringify(data) },
   );
 }
+
+export function adminRevalidateDepositVerification(id: string) {
+  return request<{ verificationId: string; previousStatus: string; newStatus: string; nextCheckAt: string; message: string }>(
+    `/api/admin/deposit-verifications/${id}/re-validate`,
+    { method: "POST" },
+  );
+}
+
+export function adminRejectDepositVerification(id: string, data: { reason: string }) {
+  return request<{ verificationId: string; status: string; reason: string; message: string }>(
+    `/api/admin/deposit-verifications/${id}/reject`,
+    { method: "POST", body: JSON.stringify(data) },
+  );
+}

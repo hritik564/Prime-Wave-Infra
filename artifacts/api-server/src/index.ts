@@ -3,6 +3,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./cron";
 import { startDepositVerificationWorker } from "./deposit-verification/deposit-verification.worker";
+import { validateCompanyWallets } from "./company-wallet-validator";
 import { prisma } from "./config/prisma";
 import { maybeResetForLaunch } from "./admin/scripts/resetForLaunch";
 import { runSeed23B }                                      from "./dev/seed23b.fn";
@@ -116,6 +117,33 @@ app.listen(port, (err) => {
 
   // Start 12-hour ROI cycle scheduler (fires at 00:00 and 12:00 UTC)
   startScheduler();
+
+  // Startup: validate all active company wallets (Part 4 — Sprint 27B)
+  // Logs a detailed result for every network. In production, exits if any wallet
+  // is invalid so placeholder addresses never silently accept deposits.
+  validateCompanyWallets()
+    .then(({ passed, results }) => {
+      for (const r of results) {
+        if (r.passed) {
+          logger.info({ network: r.network, address: r.address }, "Startup: company wallet valid ✓");
+        } else {
+          logger.error({ network: r.network, issue: r.issue, address: r.address }, "Startup: company wallet INVALID ✗");
+        }
+      }
+      if (passed) {
+        logger.info("Startup: all company wallets valid — deposit submissions enabled");
+      } else {
+        logger.error(
+          { results },
+          "Startup: one or more company wallets are invalid/placeholder — deposit submissions will be rejected for affected networks",
+        );
+        if (process.env["NODE_ENV"] === "production") {
+          logger.error("FATAL: Invalid company wallet configuration detected in production — exiting to prevent accepting deposits with wrong address");
+          process.exit(1);
+        }
+      }
+    })
+    .catch((err) => logger.error({ err }, "Startup: company wallet validation threw unexpected error"));
 
   // Start deposit verification polling worker (DB-driven, restart-safe)
   startDepositVerificationWorker().catch((e) =>

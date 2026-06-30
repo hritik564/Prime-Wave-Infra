@@ -2,12 +2,15 @@ import { useState, useCallback, useEffect } from "react";
 import {
   Search, RefreshCw, Loader2, Copy, CheckCheck,
   Clock, Wifi, RotateCcw, ExternalLink, CheckCircle2, X,
+  ShieldAlert, ShieldX, AlertTriangle,
 } from "lucide-react";
 import AdminLayout from "./AdminLayout";
 import {
   adminListDepositVerifications,
   adminRetryDepositVerification,
   adminManualApproveVerification,
+  adminRevalidateDepositVerification,
+  adminRejectDepositVerification,
   type AdminDepositVerificationItem,
   type DepositVerificationStatus,
   type ListMeta,
@@ -46,8 +49,39 @@ const STATUS_TABS: { label: string; value: string }[] = [
   { label: "Confirming", value: "WAITING_CONFIRMATIONS" },
   { label: "Completed",  value: "COMPLETED"             },
   { label: "Failed",     value: "FAILED"                },
+  { label: "Rejected",   value: "REJECTED"              },
   { label: "Expired",    value: "EXPIRED"               },
 ];
+
+// ── Failure classification ────────────────────────────────────────────────────
+
+type FailureCategory = "recoverable" | "permanent" | "unknown";
+
+function classifyFailure(reason: string | null): FailureCategory {
+  if (!reason) return "unknown";
+  const r = reason.toLowerCase();
+  if (
+    r.includes("wrong recipient") ||
+    r.includes("wrong network")   ||
+    r.includes("wrong token")     ||
+    r.includes("unsupported network") ||
+    r.includes("reverted")        ||
+    r.includes("failed on-chain") ||
+    r.includes("invalid hash")    ||
+    r.includes("duplicate")
+  ) return "permanent";
+  if (
+    r.includes("timeout")         ||
+    r.includes("rpc")             ||
+    r.includes("unavailable")     ||
+    r.includes("network issue")   ||
+    r.includes("adapter")         ||
+    r.includes("node")            ||
+    r.includes("crash recovery")  ||
+    r.includes("credit pipeline")
+  ) return "recoverable";
+  return "unknown";
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -125,11 +159,36 @@ function ConfirmationBar({ current, required }: { current: number; required: num
   );
 }
 
+function FailureCategoryBadge({ category }: { category: FailureCategory }) {
+  if (category === "recoverable") {
+    return (
+      <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
+        style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}>
+        <ShieldAlert className="h-3 w-3" /> Recoverable
+      </span>
+    );
+  }
+  if (category === "permanent") {
+    return (
+      <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
+        style={{ background: "rgba(248,113,113,0.1)", color: "#f87171", border: "1px solid rgba(248,113,113,0.2)" }}>
+        <ShieldX className="h-3 w-3" /> Permanent
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
+      style={{ background: "rgba(255,255,255,0.05)", color: "rgba(170,179,197,0.6)", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <AlertTriangle className="h-3 w-3" /> Unknown
+    </span>
+  );
+}
+
 // ── Manual Approve Dialog ─────────────────────────────────────────────────────
 
 interface ManualApproveDialogProps {
-  target:   AdminDepositVerificationItem | null;
-  onClose:  () => void;
+  target:    AdminDepositVerificationItem | null;
+  onClose:   () => void;
   onSuccess: () => void;
 }
 
@@ -145,7 +204,7 @@ function ManualApproveDialog({ target, onClose, onSuccess }: ManualApproveDialog
 
   if (!target) return null;
 
-  const reasonOk = reason.trim().length >= 10;
+  const reasonOk  = reason.trim().length >= 15;
   const canSubmit = reasonOk && confirmed && !loading;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -158,8 +217,7 @@ function ManualApproveDialog({ target, onClose, onSuccess }: ManualApproveDialog
       onSuccess();
       onClose();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Approval failed. Please try again.";
-      setError(msg);
+      setError(err instanceof Error ? err.message : "Approval failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -177,28 +235,15 @@ function ManualApproveDialog({ target, onClose, onSuccess }: ManualApproveDialog
             <CheckCircle2 className="h-5 w-5" style={{ color: "#34d399" }} />
             <h2 className="font-bold text-base text-foreground">Manual Approve</h2>
           </div>
-          <button onClick={onClose} className="h-7 w-7 flex items-center justify-center rounded-lg opacity-50 hover:opacity-100 transition-opacity" style={{ color: "rgba(170,179,197,0.7)" }}>
-            <X className="h-4 w-4" />
+          <button onClick={onClose} className="h-7 w-7 flex items-center justify-center rounded-lg opacity-50 hover:opacity-100 transition-opacity">
+            <X className="h-4 w-4" style={{ color: "rgba(170,179,197,0.7)" }} />
           </button>
         </div>
 
-        {/* Summary */}
-        <div
-          className="rounded-xl p-3.5 mb-4 text-xs space-y-1.5"
-          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
-        >
-          <div className="flex justify-between">
-            <span style={{ color: "rgba(170,179,197,0.6)" }}>User</span>
-            <span className="font-semibold text-foreground">{target.user.username}</span>
-          </div>
-          <div className="flex justify-between">
-            <span style={{ color: "rgba(170,179,197,0.6)" }}>Amount</span>
-            <span className="font-semibold" style={{ color: "#34d399" }}>{fmt(target.blockchainAmount)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span style={{ color: "rgba(170,179,197,0.6)" }}>Network</span>
-            <span className="font-semibold text-foreground">{target.network}</span>
-          </div>
+        <div className="rounded-xl p-3.5 mb-4 text-xs space-y-1.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex justify-between"><span style={{ color: "rgba(170,179,197,0.6)" }}>User</span><span className="font-semibold text-foreground">{target.user.username}</span></div>
+          <div className="flex justify-between"><span style={{ color: "rgba(170,179,197,0.6)" }}>Amount</span><span className="font-semibold" style={{ color: "#34d399" }}>{fmt(target.blockchainAmount)}</span></div>
+          <div className="flex justify-between"><span style={{ color: "rgba(170,179,197,0.6)" }}>Network</span><span className="font-semibold text-foreground">{target.network}</span></div>
           <div className="flex justify-between items-center">
             <span style={{ color: "rgba(170,179,197,0.6)" }}>TX Hash</span>
             <div className="flex items-center gap-1">
@@ -208,22 +253,13 @@ function ManualApproveDialog({ target, onClose, onSuccess }: ManualApproveDialog
               </a>
             </div>
           </div>
-          <div className="flex justify-between">
-            <span style={{ color: "rgba(170,179,197,0.6)" }}>Status</span>
-            <StatusBadge status={target.verificationStatus} />
-          </div>
+          <div className="flex justify-between"><span style={{ color: "rgba(170,179,197,0.6)" }}>Status</span><StatusBadge status={target.verificationStatus} /></div>
         </div>
 
-        {/* Warning */}
         {!target.blockchainAmount && (
-          <div
-            className="rounded-xl p-3 mb-4 flex items-start gap-2 text-xs"
-            style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}
-          >
+          <div className="rounded-xl p-3 mb-4 flex items-start gap-2 text-xs" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
             <span className="text-red-400 mt-0.5">⚠</span>
-            <p style={{ color: "#f87171" }}>
-              This transaction has not been found on-chain yet — the amount is unknown. Manual approval requires blockchain amount to be confirmed.
-            </p>
+            <p style={{ color: "#f87171" }}>Transaction not yet found on-chain — amount unknown. Manual approval requires blockchain-confirmed amount.</p>
           </div>
         )}
 
@@ -235,7 +271,7 @@ function ManualApproveDialog({ target, onClose, onSuccess }: ManualApproveDialog
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Describe why this deposit is being manually approved (min 10 characters)…"
+            placeholder="Describe why this deposit is being manually approved (min 15 characters)…"
             className="w-full text-sm rounded-xl px-3 py-2.5 outline-none resize-none transition-all mb-1"
             style={{
               background: "rgba(255,255,255,0.04)",
@@ -243,19 +279,15 @@ function ManualApproveDialog({ target, onClose, onSuccess }: ManualApproveDialog
               color: "hsl(var(--foreground))",
             }}
           />
-          <p className="text-xs mb-4" style={{ color: reason.length < 10 ? "#f87171" : "rgba(170,179,197,0.4)" }}>
-            {reason.trim().length} / 10 min characters
+          <p className="text-xs mb-4" style={{ color: reason.trim().length < 15 ? "#f87171" : "rgba(170,179,197,0.4)" }}>
+            {reason.trim().length} / 15 min characters
           </p>
 
           <label className="flex items-start gap-2.5 mb-5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={confirmed}
-              onChange={(e) => setConfirmed(e.target.checked)}
-              className="mt-0.5 h-3.5 w-3.5 rounded accent-yellow-500 flex-shrink-0"
-            />
+            <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)}
+              className="mt-0.5 h-3.5 w-3.5 rounded accent-yellow-500 flex-shrink-0" />
             <span className="text-xs leading-relaxed" style={{ color: "rgba(170,179,197,0.7)" }}>
-              I confirm that I have verified this transaction on BscScan and that the funds were correctly sent to Prime Wave's deposit wallet. This action will credit the user's deposit wallet immediately.
+              I have independently verified this blockchain transaction and understand this operation credits real user funds.
             </span>
           </label>
 
@@ -266,21 +298,143 @@ function ManualApproveDialog({ target, onClose, onSuccess }: ManualApproveDialog
           )}
 
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
+            <button type="button" onClick={onClose}
               className="flex-1 py-2.5 text-sm rounded-xl transition-all"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(170,179,197,0.7)" }}
-            >
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(170,179,197,0.7)" }}>
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={!canSubmit || !target.blockchainAmount}
+            <button type="submit" disabled={!canSubmit || !target.blockchainAmount}
               className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all disabled:opacity-40"
-              style={{ background: canSubmit && target.blockchainAmount ? "rgba(52,211,153,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${canSubmit && target.blockchainAmount ? "rgba(52,211,153,0.35)" : "rgba(255,255,255,0.08)"}`, color: canSubmit && target.blockchainAmount ? "#34d399" : "rgba(170,179,197,0.5)" }}
-            >
+              style={{
+                background: canSubmit && target.blockchainAmount ? "rgba(52,211,153,0.15)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${canSubmit && target.blockchainAmount ? "rgba(52,211,153,0.35)" : "rgba(255,255,255,0.08)"}`,
+                color: canSubmit && target.blockchainAmount ? "#34d399" : "rgba(170,179,197,0.5)",
+              }}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Approve & Credit"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Manual Reject Dialog ──────────────────────────────────────────────────────
+
+interface ManualRejectDialogProps {
+  target:    AdminDepositVerificationItem | null;
+  onClose:   () => void;
+  onSuccess: () => void;
+}
+
+function ManualRejectDialog({ target, onClose, onSuccess }: ManualRejectDialogProps) {
+  const [reason,    setReason]    = useState("");
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!target) { setReason(""); setError(null); }
+  }, [target]);
+
+  if (!target) return null;
+
+  const reasonOk  = reason.trim().length >= 10;
+  const canSubmit = reasonOk && !loading;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await adminRejectDepositVerification(target.id, { reason: reason.trim() });
+      onSuccess();
+      onClose();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Rejection failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="relative w-full max-w-md rounded-2xl p-6 z-10"
+        style={{ background: "hsl(var(--card))", border: "1px solid rgba(255,255,255,0.10)", boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}
+      >
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <ShieldX className="h-5 w-5" style={{ color: "#f87171" }} />
+            <h2 className="font-bold text-base text-foreground">Reject Verification</h2>
+          </div>
+          <button onClick={onClose} className="h-7 w-7 flex items-center justify-center rounded-lg opacity-50 hover:opacity-100 transition-opacity">
+            <X className="h-4 w-4" style={{ color: "rgba(170,179,197,0.7)" }} />
+          </button>
+        </div>
+
+        <div className="rounded-xl p-3.5 mb-4 text-xs space-y-1.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex justify-between"><span style={{ color: "rgba(170,179,197,0.6)" }}>User</span><span className="font-semibold text-foreground">{target.user.username}</span></div>
+          <div className="flex justify-between items-center">
+            <span style={{ color: "rgba(170,179,197,0.6)" }}>TX Hash</span>
+            <div className="flex items-center gap-1">
+              <span className="font-mono text-foreground">{shorten(target.txHash)}</span>
+              <a href={bscScanUrl(target.txHash)} target="_blank" rel="noopener noreferrer" className="opacity-50 hover:opacity-100 transition-opacity" style={{ color: "#D4AF37" }}>
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+          </div>
+          <div className="flex justify-between"><span style={{ color: "rgba(170,179,197,0.6)" }}>Status</span><StatusBadge status={target.verificationStatus} /></div>
+        </div>
+
+        <div className="rounded-xl p-3 mb-4 flex items-start gap-2 text-xs" style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.15)" }}>
+          <span style={{ color: "#f87171" }}>⚠</span>
+          <p style={{ color: "#fca5a5" }}>
+            Rejection is <strong>permanent</strong> and cannot be undone. The user will be notified with the reason you provide. This verification will be closed and no funds will be credited.
+          </p>
+        </div>
+
+        <form onSubmit={(e) => { void handleSubmit(e); }}>
+          <label className="block text-xs font-semibold mb-2" style={{ color: "rgba(170,179,197,0.8)" }}>
+            Rejection reason <span style={{ color: "#f87171" }}>*</span>
+          </label>
+          <textarea
+            rows={3}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Explain why this verification is being rejected (min 10 characters)…"
+            className="w-full text-sm rounded-xl px-3 py-2.5 outline-none resize-none transition-all mb-1"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: `1px solid ${reasonOk ? "rgba(248,113,113,0.3)" : "rgba(255,255,255,0.08)"}`,
+              color: "hsl(var(--foreground))",
+            }}
+          />
+          <p className="text-xs mb-5" style={{ color: reason.trim().length < 10 ? "#f87171" : "rgba(170,179,197,0.4)" }}>
+            {reason.trim().length} / 10 min characters
+          </p>
+
+          {error && (
+            <div className="mb-4 rounded-xl px-3 py-2.5 text-xs" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "#f87171" }}>
+              {error}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose}
+              className="flex-1 py-2.5 text-sm rounded-xl transition-all"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(170,179,197,0.7)" }}>
+              Cancel
+            </button>
+            <button type="submit" disabled={!canSubmit}
+              className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all disabled:opacity-40"
+              style={{
+                background: canSubmit ? "rgba(248,113,113,0.12)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${canSubmit ? "rgba(248,113,113,0.35)" : "rgba(255,255,255,0.08)"}`,
+                color: canSubmit ? "#f87171" : "rgba(170,179,197,0.5)",
+              }}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Reject Verification"}
             </button>
           </div>
         </form>
@@ -294,15 +448,17 @@ function ManualApproveDialog({ target, onClose, onSuccess }: ManualApproveDialog
 const TERMINAL_STATUSES = ["COMPLETED", "FAILED", "REJECTED", "EXPIRED"];
 
 export default function AutoDepositsPage() {
-  const [records,       setRecords]       = useState<AdminDepositVerificationItem[]>([]);
-  const [meta,          setMeta]          = useState<ListMeta | null>(null);
-  const [loading,       setLoading]       = useState(true);
-  const [page,          setPage]          = useState(1);
-  const [status,        setStatus]        = useState("");
-  const [search,        setSearch]        = useState("");
-  const [searchInput,   setSearchInput]   = useState("");
-  const [retryingId,    setRetryingId]    = useState<string | null>(null);
-  const [approveTarget, setApproveTarget] = useState<AdminDepositVerificationItem | null>(null);
+  const [records,        setRecords]        = useState<AdminDepositVerificationItem[]>([]);
+  const [meta,           setMeta]           = useState<ListMeta | null>(null);
+  const [loading,        setLoading]        = useState(true);
+  const [page,           setPage]           = useState(1);
+  const [status,         setStatus]         = useState("");
+  const [search,         setSearch]         = useState("");
+  const [searchInput,    setSearchInput]    = useState("");
+  const [retryingId,     setRetryingId]     = useState<string | null>(null);
+  const [revalidatingId, setRevalidatingId] = useState<string | null>(null);
+  const [approveTarget,  setApproveTarget]  = useState<AdminDepositVerificationItem | null>(null);
+  const [rejectTarget,   setRejectTarget]   = useState<AdminDepositVerificationItem | null>(null);
 
   const load = useCallback(async (overrides?: { page?: number; status?: string; search?: string }) => {
     setLoading(true);
@@ -350,11 +506,26 @@ export default function AutoDepositsPage() {
     }
   };
 
+  const handleRevalidate = async (id: string) => {
+    setRevalidatingId(id);
+    try {
+      await adminRevalidateDepositVerification(id);
+      await load();
+    } catch { /* keep previous */ } finally {
+      setRevalidatingId(null);
+    }
+  };
+
   return (
     <AdminLayout>
       <ManualApproveDialog
         target={approveTarget}
         onClose={() => setApproveTarget(null)}
+        onSuccess={() => { void load(); }}
+      />
+      <ManualRejectDialog
+        target={rejectTarget}
+        onClose={() => setRejectTarget(null)}
         onSuccess={() => { void load(); }}
       />
 
@@ -405,27 +576,18 @@ export default function AutoDepositsPage() {
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search by TX hash, username, or email…"
               className="w-full pl-9 pr-4 py-2 text-sm rounded-xl outline-none transition-all"
-              style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                color: "hsl(var(--foreground))",
-              }}
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", color: "hsl(var(--foreground))" }}
             />
           </div>
-          <button
-            type="submit"
-            className="px-4 py-2 text-xs font-semibold rounded-xl transition-all"
-            style={{ background: "rgba(212,175,55,0.12)", border: "1px solid rgba(212,175,55,0.25)", color: "#D4AF37" }}
-          >
+          <button type="submit" className="px-4 py-2 text-xs font-semibold rounded-xl transition-all"
+            style={{ background: "rgba(212,175,55,0.12)", border: "1px solid rgba(212,175,55,0.25)", color: "#D4AF37" }}>
             Search
           </button>
         </form>
 
         {/* Table */}
-        <div
-          className="rounded-2xl overflow-hidden"
-          style={{ background: "hsl(var(--card))", border: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}
-        >
+        <div className="rounded-2xl overflow-hidden"
+          style={{ background: "hsl(var(--card))", border: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#D4AF37" }} />
@@ -442,7 +604,7 @@ export default function AutoDepositsPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                      {["User", "TX Hash", "Network", "Amount", "Confirmations", "Status", "Attempts", "Next Check", "Created", "Credited", "Actions"].map((h) => (
+                      {["User", "TX Hash", "Network", "Amount", "Confirmations", "Status", "Attempts", "Last Check / Next", "Created", "Actions"].map((h) => (
                         <th key={h} className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: "rgba(170,179,197,0.5)" }}>
                           {h}
                         </th>
@@ -452,14 +614,18 @@ export default function AutoDepositsPage() {
                   <tbody>
                     {records.map((r, i) => {
                       const isDelayed  = r.verificationStatus === "VERIFICATION_DELAYED";
+                      const isFailed   = r.verificationStatus === "FAILED";
                       const isTerminal = TERMINAL_STATUSES.includes(r.verificationStatus);
+                      const isActive   = !isTerminal;
+                      const failCat    = isFailed ? classifyFailure(r.failureReason) : "unknown";
+
                       return (
                         <tr
                           key={r.id}
                           className="transition-colors hover:bg-white/[0.02]"
                           style={{
                             borderBottom: i < records.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                            background: isDelayed ? "rgba(251,191,36,0.025)" : undefined,
+                            background: isDelayed ? "rgba(251,191,36,0.025)" : isFailed ? "rgba(248,113,113,0.015)" : undefined,
                           }}
                         >
                           <td className="px-4 py-3.5">
@@ -472,22 +638,18 @@ export default function AutoDepositsPage() {
                             <div className="flex items-center gap-1.5">
                               <span className="font-mono text-xs" style={{ color: "rgba(170,179,197,0.6)" }}>{shorten(r.txHash)}</span>
                               <CopyButton text={r.txHash} />
-                              <a
-                                href={bscScanUrl(r.txHash)}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <a href={bscScanUrl(r.txHash)} target="_blank" rel="noopener noreferrer"
                                 className="flex h-6 w-6 items-center justify-center rounded transition-all opacity-40 hover:opacity-100"
-                                style={{ color: "#D4AF37" }}
-                                title="View on BscScan"
-                              >
+                                style={{ color: "#D4AF37" }} title="View on BscScan">
                                 <ExternalLink className="h-3 w-3" />
                               </a>
                             </div>
                             {r.failureReason && (
-                              <p className="text-xs mt-1 max-w-[180px] truncate" style={{ color: "#f87171" }} title={r.failureReason}>
-                                {r.failureReason}
+                              <p className="text-xs mt-1 max-w-[200px]" style={{ color: "#f87171" }} title={r.failureReason}>
+                                {r.failureReason.length > 60 ? r.failureReason.slice(0, 60) + "…" : r.failureReason}
                               </p>
                             )}
+                            {isFailed && <div className="mt-1"><FailureCategoryBadge category={failCat} /></div>}
                           </td>
                           <td className="px-4 py-3.5"><NetworkBadge network={r.network} /></td>
                           <td className="px-4 py-3.5">
@@ -501,28 +663,24 @@ export default function AutoDepositsPage() {
                             <span className="text-sm font-mono" style={{ color: "rgba(170,179,197,0.6)" }}>{r.verificationAttempts}</span>
                           </td>
                           <td className="px-4 py-3.5">
-                            {r.nextCheckAt ? (
-                              <div>
-                                <p className="text-xs whitespace-nowrap" style={{ color: isDelayed ? "#fbbf24" : "rgba(170,179,197,0.5)" }}>
-                                  {fmtDate(r.nextCheckAt)}
-                                </p>
-                                {r.lastCheckedAt && (
-                                  <p className="text-xs whitespace-nowrap mt-0.5" style={{ color: "rgba(170,179,197,0.35)" }}>
-                                    Last: {fmtDate(r.lastCheckedAt)}
-                                  </p>
-                                )}
-                              </div>
-                            ) : (
-                              <span style={{ color: "rgba(170,179,197,0.3)" }}>—</span>
+                            {r.lastCheckedAt && (
+                              <p className="text-xs whitespace-nowrap" style={{ color: "rgba(170,179,197,0.35)" }}>
+                                Last: {fmtDate(r.lastCheckedAt)}
+                              </p>
+                            )}
+                            {r.nextCheckAt && isActive && (
+                              <p className="text-xs whitespace-nowrap" style={{ color: isDelayed ? "#fbbf24" : "rgba(170,179,197,0.5)" }}>
+                                Next: {fmtDate(r.nextCheckAt)}
+                              </p>
                             )}
                           </td>
-                          <td className="px-4 py-3.5 text-xs whitespace-nowrap" style={{ color: "rgba(170,179,197,0.5)" }}>{fmtDate(r.createdAt)}</td>
-                          <td className="px-4 py-3.5 text-xs whitespace-nowrap" style={{ color: r.creditedAt ? "#34d399" : "rgba(170,179,197,0.3)" }}>
-                            {r.creditedAt ? fmtDate(r.creditedAt) : "—"}
+                          <td className="px-4 py-3.5 text-xs whitespace-nowrap" style={{ color: "rgba(170,179,197,0.5)" }}>
+                            {fmtDate(r.createdAt)}
                           </td>
                           <td className="px-4 py-3.5">
-                            {!isTerminal && (
-                              <div className="flex flex-col gap-1.5">
+                            <div className="flex flex-col gap-1.5">
+                              {/* Active (non-terminal, non-failed): retry */}
+                              {isActive && !isFailed && (
                                 <button
                                   onClick={() => { void handleRetry(r.id); }}
                                   disabled={retryingId === r.id}
@@ -534,28 +692,61 @@ export default function AutoDepositsPage() {
                                   }}
                                   title="Schedule immediate re-check"
                                 >
-                                  {retryingId === r.id
-                                    ? <Loader2 className="h-3 w-3 animate-spin" />
-                                    : <RotateCcw className="h-3 w-3" />}
+                                  {retryingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
                                   Retry
                                 </button>
-                                {r.blockchainAmount && (
-                                  <button
-                                    onClick={() => setApproveTarget(r)}
-                                    className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap"
-                                    style={{
-                                      background: "rgba(52,211,153,0.08)",
-                                      border: "1px solid rgba(52,211,153,0.25)",
-                                      color: "#34d399",
-                                    }}
-                                    title="Manually approve and credit this deposit"
-                                  >
-                                    <CheckCircle2 className="h-3 w-3" />
-                                    Approve
-                                  </button>
-                                )}
-                              </div>
-                            )}
+                              )}
+
+                              {/* Active (non-terminal, non-failed): manual approve if amount known */}
+                              {isActive && !isFailed && r.blockchainAmount && (
+                                <button
+                                  onClick={() => setApproveTarget(r)}
+                                  className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap"
+                                  style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", color: "#34d399" }}
+                                  title="Manually approve and credit"
+                                >
+                                  <CheckCircle2 className="h-3 w-3" /> Approve
+                                </button>
+                              )}
+
+                              {/* FAILED: Re-Validate (recoverable or unknown failures only) */}
+                              {isFailed && (failCat === "recoverable" || failCat === "unknown") && (
+                                <button
+                                  onClick={() => { void handleRevalidate(r.id); }}
+                                  disabled={revalidatingId === r.id}
+                                  className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all disabled:opacity-50 whitespace-nowrap"
+                                  style={{ background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)", color: "#fbbf24" }}
+                                  title="Re-queue for blockchain re-check"
+                                >
+                                  {revalidatingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                                  Re-Validate
+                                </button>
+                              )}
+
+                              {/* FAILED: Manual Approve (if blockchainAmount known) */}
+                              {isFailed && r.blockchainAmount && (
+                                <button
+                                  onClick={() => setApproveTarget(r)}
+                                  className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap"
+                                  style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", color: "#34d399" }}
+                                  title="Manually approve and credit"
+                                >
+                                  <CheckCircle2 className="h-3 w-3" /> Approve
+                                </button>
+                              )}
+
+                              {/* FAILED: Reject */}
+                              {isFailed && (
+                                <button
+                                  onClick={() => setRejectTarget(r)}
+                                  className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap"
+                                  style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", color: "#f87171" }}
+                                  title="Permanently reject this verification"
+                                >
+                                  <ShieldX className="h-3 w-3" /> Reject
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -568,12 +759,16 @@ export default function AutoDepositsPage() {
               <div className="lg:hidden divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
                 {records.map((r) => {
                   const isDelayed  = r.verificationStatus === "VERIFICATION_DELAYED";
+                  const isFailed   = r.verificationStatus === "FAILED";
                   const isTerminal = TERMINAL_STATUSES.includes(r.verificationStatus);
+                  const isActive   = !isTerminal;
+                  const failCat    = isFailed ? classifyFailure(r.failureReason) : "unknown";
+
                   return (
                     <div
                       key={r.id}
                       className="p-4"
-                      style={{ background: isDelayed ? "rgba(251,191,36,0.025)" : undefined }}
+                      style={{ background: isDelayed ? "rgba(251,191,36,0.025)" : isFailed ? "rgba(248,113,113,0.015)" : undefined }}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div>
@@ -582,35 +777,41 @@ export default function AutoDepositsPage() {
                         </div>
                         <StatusBadge status={r.verificationStatus} />
                       </div>
+
                       <div className="flex items-center gap-2 mb-2">
                         <span className="font-mono text-xs" style={{ color: "rgba(170,179,197,0.5)" }}>{shorten(r.txHash)}</span>
                         <CopyButton text={r.txHash} />
-                        <a
-                          href={bscScanUrl(r.txHash)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <a href={bscScanUrl(r.txHash)} target="_blank" rel="noopener noreferrer"
                           className="flex h-6 w-6 items-center justify-center rounded opacity-50 hover:opacity-100 transition-opacity"
-                          style={{ color: "#D4AF37" }}
-                        >
+                          style={{ color: "#D4AF37" }}>
                           <ExternalLink className="h-3 w-3" />
                         </a>
                         <NetworkBadge network={r.network} />
                       </div>
-                      <div className="flex items-center justify-between text-xs" style={{ color: "rgba(170,179,197,0.5)" }}>
+
+                      <div className="flex items-center justify-between text-xs mb-2" style={{ color: "rgba(170,179,197,0.5)" }}>
                         <span style={{ color: "#34d399", fontWeight: 600 }}>{fmt(r.blockchainAmount)}</span>
                         <span>{fmtDate(r.createdAt)}</span>
                       </div>
+
                       {isDelayed && r.nextCheckAt && (
-                        <div className="mt-2 flex items-center gap-1.5" style={{ color: "#fbbf24" }}>
+                        <div className="mb-2 flex items-center gap-1.5" style={{ color: "#fbbf24" }}>
                           <Clock className="h-3 w-3" />
                           <span className="text-xs">Next check: {fmtDate(r.nextCheckAt)}</span>
                         </div>
                       )}
+
                       {r.failureReason && (
-                        <p className="text-xs mt-2" style={{ color: "#f87171" }}>{r.failureReason}</p>
+                        <p className="text-xs mt-1 mb-2" style={{ color: "#f87171" }}>{r.failureReason}</p>
                       )}
-                      {!isTerminal && (
-                        <div className="mt-3 flex gap-2">
+
+                      {isFailed && (
+                        <div className="mb-2"><FailureCategoryBadge category={failCat} /></div>
+                      )}
+
+                      {/* Actions */}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {isActive && !isFailed && (
                           <button
                             onClick={() => { void handleRetry(r.id); }}
                             disabled={retryingId === r.id}
@@ -621,27 +822,42 @@ export default function AutoDepositsPage() {
                               color: isDelayed ? "#fbbf24" : "rgba(170,179,197,0.6)",
                             }}
                           >
-                            {retryingId === r.id
-                              ? <Loader2 className="h-3 w-3 animate-spin" />
-                              : <RotateCcw className="h-3 w-3" />}
+                            {retryingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
                             Retry
                           </button>
-                          {r.blockchainAmount && (
-                            <button
-                              onClick={() => setApproveTarget(r)}
-                              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
-                              style={{
-                                background: "rgba(52,211,153,0.08)",
-                                border: "1px solid rgba(52,211,153,0.25)",
-                                color: "#34d399",
-                              }}
-                            >
-                              <CheckCircle2 className="h-3 w-3" />
-                              Approve
-                            </button>
-                          )}
-                        </div>
-                      )}
+                        )}
+                        {isActive && !isFailed && r.blockchainAmount && (
+                          <button onClick={() => setApproveTarget(r)}
+                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
+                            style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", color: "#34d399" }}>
+                            <CheckCircle2 className="h-3 w-3" /> Approve
+                          </button>
+                        )}
+                        {isFailed && (failCat === "recoverable" || failCat === "unknown") && (
+                          <button
+                            onClick={() => { void handleRevalidate(r.id); }}
+                            disabled={revalidatingId === r.id}
+                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
+                            style={{ background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)", color: "#fbbf24" }}>
+                            {revalidatingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                            Re-Validate
+                          </button>
+                        )}
+                        {isFailed && r.blockchainAmount && (
+                          <button onClick={() => setApproveTarget(r)}
+                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
+                            style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", color: "#34d399" }}>
+                            <CheckCircle2 className="h-3 w-3" /> Approve
+                          </button>
+                        )}
+                        {isFailed && (
+                          <button onClick={() => setRejectTarget(r)}
+                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
+                            style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", color: "#f87171" }}>
+                            <ShieldX className="h-3 w-3" /> Reject
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -657,20 +873,14 @@ export default function AutoDepositsPage() {
               {meta.total} total · page {meta.page} of {meta.totalPages}
             </p>
             <div className="flex gap-2">
-              <button
-                onClick={() => handlePageChange(page - 1)}
-                disabled={!meta.hasPrevPage}
+              <button onClick={() => handlePageChange(page - 1)} disabled={!meta.hasPrevPage}
                 className="text-xs px-3 py-1.5 rounded-lg disabled:opacity-30 transition-all"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(170,179,197,0.7)" }}
-              >
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(170,179,197,0.7)" }}>
                 Previous
               </button>
-              <button
-                onClick={() => handlePageChange(page + 1)}
-                disabled={!meta.hasNextPage}
+              <button onClick={() => handlePageChange(page + 1)} disabled={!meta.hasNextPage}
                 className="text-xs px-3 py-1.5 rounded-lg disabled:opacity-30 transition-all"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(170,179,197,0.7)" }}
-              >
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(170,179,197,0.7)" }}>
                 Next
               </button>
             </div>

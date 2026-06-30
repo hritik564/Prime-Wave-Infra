@@ -84,8 +84,31 @@ function activePollMs(status: string, pollMs: number, delayedPollMs: number): nu
 }
 
 /**
+ * Returns true when address matches the canonical format for the given network.
+ * Any string that does not match is treated as a placeholder / unconfigured value.
+ *
+ *   BEP20 / ERC20 : 0x + 40 hex chars (case-insensitive)
+ *   TRC20          : T  + 33 base58 chars
+ *   SOL            : 32-44 base58 chars
+ */
+function isValidWalletFormat(address: string, network: string): boolean {
+  switch (network) {
+    case "BEP20":
+    case "ERC20":
+      return /^0x[0-9a-fA-F]{40}$/.test(address);
+    case "TRC20":
+      return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address);
+    case "SOL":
+      return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+    default:
+      return false;
+  }
+}
+
+/**
  * Fetch the active company wallet for the given network from the database.
  * Throws if none is configured — a configuration error that must be surfaced.
+ * Used internally by creditVerifiedDeposit (non-validating path).
  */
 async function getCompanyWalletAddress(network: string): Promise<string> {
   const wallet = await prisma.companyWallet.findFirst({
@@ -101,6 +124,54 @@ async function getCompanyWalletAddress(network: string): Promise<string> {
     );
   }
   return wallet.walletAddress;
+}
+
+/**
+ * Validates and fetches the active company wallet before a new submission.
+ *
+ * Enforces:
+ *   • exactly one active wallet for the network
+ *   • address format is valid (not a placeholder)
+ *
+ * Throws HTTP 503 (not 500) so callers receive a user-visible error without
+ * leaking configuration details.
+ */
+async function getValidatedCompanyWalletAddress(network: string): Promise<string> {
+  const wallets = await prisma.companyWallet.findMany({
+    where:  { network: network as Prisma.CompanyWalletWhereInput["network"], isActive: true },
+    select: { walletAddress: true },
+  });
+
+  if (wallets.length === 0) {
+    logger.error({ network }, "submitVerification: no active company wallet configured");
+    throw new AppError(
+      "Deposit verification is temporarily unavailable due to server configuration.",
+      HTTP_STATUS.SERVICE_UNAVAILABLE,
+      "WALLET_CONFIG_ERROR",
+    );
+  }
+
+  if (wallets.length > 1) {
+    logger.error({ network, count: wallets.length }, "submitVerification: multiple active wallets for network");
+    throw new AppError(
+      "Deposit verification is temporarily unavailable due to server configuration.",
+      HTTP_STATUS.SERVICE_UNAVAILABLE,
+      "WALLET_CONFIG_ERROR",
+    );
+  }
+
+  const address = wallets[0].walletAddress;
+
+  if (!isValidWalletFormat(address, network)) {
+    logger.error({ network, address }, "submitVerification: wallet address is invalid or placeholder");
+    throw new AppError(
+      "Deposit verification is temporarily unavailable due to server configuration.",
+      HTTP_STATUS.SERVICE_UNAVAILABLE,
+      "WALLET_CONFIG_ERROR",
+    );
+  }
+
+  return address;
 }
 
 async function getSuperAdminId(): Promise<string> {
@@ -157,7 +228,7 @@ export async function submitVerification(
     );
   }
 
-  const recipientAddress = await getCompanyWalletAddress(network);
+  const recipientAddress = await getValidatedCompanyWalletAddress(network);
 
   const adapter               = getAdapter(network as DepositNetwork);
   const requiredConfirmations = adapter.requiredConfirmations;
@@ -322,6 +393,187 @@ export async function manualApproveVerification(
     depositRequestId: depositRequest.id,
     status:           "COMPLETED",
     amount:           v.blockchainAmount.toFixed(8),
+  };
+}
+
+// ── Re-validate (FAILED → VERIFYING) ─────────────────────────────────────────
+
+/**
+ * Re-queues a FAILED verification for blockchain re-check.
+ *
+ * Transitions FAILED → VERIFYING and sets nextCheckAt = now so the worker
+ * picks it up on the next tick. verificationAttempts and all blockchain data
+ * are preserved — the timeline is NOT reset. Only FAILED records can be
+ * re-validated; other statuses are rejected with HTTP 409.
+ *
+ * Creates an admin audit log (DEPOSIT_REVALIDATION_REQUESTED).
+ * Does NOT notify the user (re-validation is an admin action).
+ */
+export async function requestRevalidation(
+  adminId: string,
+  id:      string,
+  ip?:     string,
+) {
+  const v = await repo.findById(id);
+  if (!v) {
+    throw new AppError("Verification not found", HTTP_STATUS.NOT_FOUND, "VERIFICATION_NOT_FOUND");
+  }
+
+  if (v.verificationStatus !== "FAILED") {
+    throw new AppError(
+      `Re-validation is only available for FAILED verifications. Current status: ${v.verificationStatus}`,
+      HTTP_STATUS.CONFLICT,
+      "REVALIDATION_NOT_ALLOWED",
+    );
+  }
+
+  const now     = new Date();
+  const updated = await repo.transition(v.id, "VERIFYING", { nextCheckAt: now }, ["FAILED"]);
+
+  if (!updated) {
+    throw new AppError(
+      "Re-validation request failed — verification status changed concurrently. Please refresh and try again.",
+      HTTP_STATUS.CONFLICT,
+      "CONCURRENT_TRANSITION",
+    );
+  }
+
+  try {
+    await prisma.adminLog.create({
+      data: {
+        adminId,
+        action:       "DEPOSIT_REVALIDATION_REQUESTED",
+        targetUserId: v.userId,
+        details: {
+          verificationId:  v.id,
+          txHash:          v.txHash,
+          network:         v.network,
+          previousStatus:  "FAILED",
+          newStatus:       "VERIFYING",
+          failureReason:   v.failureReason,
+          ...(ip && { ipAddress: ip }),
+        } as Prisma.InputJsonValue,
+      },
+    });
+  } catch (auditErr) {
+    logger.warn({ auditErr, verificationId: id }, "DepositVerification: re-validate audit log failed (non-fatal)");
+  }
+
+  logger.info(
+    { verificationId: id, adminId, failureReason: v.failureReason },
+    "DepositVerification: REVALIDATION REQUESTED — FAILED→VERIFYING",
+  );
+
+  return {
+    verificationId:  v.id,
+    previousStatus:  "FAILED" as const,
+    newStatus:       "VERIFYING" as const,
+    nextCheckAt:     updated.nextCheckAt,
+    message:         "Verification re-queued. The worker will re-check the blockchain transaction on the next tick.",
+  };
+}
+
+// ── Manual rejection ──────────────────────────────────────────────────────────
+
+const REJECTABLE_STATUSES = [
+  "TX_SUBMITTED", "VERIFYING", "WAITING_CONFIRMATIONS",
+  "VERIFICATION_DELAYED", "CONFIRMED", "FAILED", "EXPIRED",
+] as const;
+
+/**
+ * Manually rejects a verification, transitioning it to the terminal REJECTED state.
+ *
+ * Allowed from any non-terminal status except COMPLETED and CREDITED.
+ * Requires a mandatory reason. Creates audit log + user notification.
+ *
+ * REJECTED is a terminal state — no further transitions are possible.
+ */
+export async function manualRejectVerification(
+  adminId: string,
+  id:      string,
+  reason:  string,
+  ip?:     string,
+) {
+  const v = await repo.findById(id);
+  if (!v) {
+    throw new AppError("Verification not found", HTTP_STATUS.NOT_FOUND, "VERIFICATION_NOT_FOUND");
+  }
+
+  if (v.verificationStatus === "COMPLETED" || v.verificationStatus === "CREDITED") {
+    throw new AppError(
+      `Cannot reject a ${v.verificationStatus} verification — funds have already been credited`,
+      HTTP_STATUS.CONFLICT,
+      "VERIFICATION_CREDITED",
+    );
+  }
+
+  if (v.verificationStatus === "REJECTED") {
+    throw new AppError(
+      "Verification has already been rejected",
+      HTTP_STATUS.CONFLICT,
+      "ALREADY_REJECTED",
+    );
+  }
+
+  const updated = await repo.transition(
+    v.id,
+    "REJECTED",
+    { failureReason: reason },
+    [...REJECTABLE_STATUSES],
+  );
+
+  if (!updated) {
+    throw new AppError(
+      "Rejection failed — verification status changed concurrently. Please refresh and try again.",
+      HTTP_STATUS.CONFLICT,
+      "CONCURRENT_TRANSITION",
+    );
+  }
+
+  try {
+    await prisma.adminLog.create({
+      data: {
+        adminId,
+        action:       "DEPOSIT_MANUALLY_REJECTED",
+        targetUserId: v.userId,
+        details: {
+          verificationId: v.id,
+          txHash:         v.txHash,
+          network:        v.network,
+          previousStatus: v.verificationStatus,
+          newStatus:      "REJECTED",
+          reason,
+          ...(ip && { ipAddress: ip }),
+        } as Prisma.InputJsonValue,
+      },
+    });
+  } catch (auditErr) {
+    logger.warn({ auditErr, verificationId: id }, "DepositVerification: reject audit log failed (non-fatal)");
+  }
+
+  void notificationService.create({
+    userId:  v.userId,
+    type:    "DEPOSIT_REJECTED",
+    title:   "Deposit Rejected",
+    message: `Your deposit submission (${v.txHash.slice(0, 12)}…) has been reviewed and rejected. Reason: ${reason}`,
+    metadata: {
+      verificationId: v.id,
+      txHash:         v.txHash,
+      network:        v.network,
+      reason,
+    } as Prisma.InputJsonValue,
+  });
+
+  logger.info(
+    { verificationId: id, adminId, previousStatus: v.verificationStatus },
+    "DepositVerification: MANUALLY REJECTED",
+  );
+
+  return {
+    verificationId:  v.id,
+    status:          "REJECTED" as const,
+    reason,
+    message:         "Verification rejected. The user has been notified.",
   };
 }
 

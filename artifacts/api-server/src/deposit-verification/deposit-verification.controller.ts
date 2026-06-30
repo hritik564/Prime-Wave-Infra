@@ -15,6 +15,9 @@ import type {
   adminGetVerificationSchema,
   adminManualApproveParamsSchema,
   adminManualApproveBodySchema,
+  adminRevalidateParamsSchema,
+  adminRejectParamsSchema,
+  adminRejectBodySchema,
   userHistorySchema,
 } from "./deposit-verification.schema";
 
@@ -23,6 +26,9 @@ type AdminListVerificationsQuery = z.infer<typeof adminListVerificationsSchema>;
 type AdminGetVerificationParams  = z.infer<typeof adminGetVerificationSchema>;
 type AdminManualApproveParams    = z.infer<typeof adminManualApproveParamsSchema>;
 type AdminManualApproveBody      = z.infer<typeof adminManualApproveBodySchema>;
+type AdminRevalidateParams       = z.infer<typeof adminRevalidateParamsSchema>;
+type AdminRejectParams           = z.infer<typeof adminRejectParamsSchema>;
+type AdminRejectBody             = z.infer<typeof adminRejectBodySchema>;
 type UserHistoryQuery            = z.infer<typeof userHistorySchema>;
 
 // ── Terminal / active status sets ─────────────────────────────────────────────
@@ -249,11 +255,35 @@ export async function adminRetryVerification(
 }
 
 /**
+ * POST /api/admin/deposit-verifications/:id/re-validate
+ *
+ * Re-queues a FAILED verification for blockchain re-check.
+ * Transitions FAILED → VERIFYING. verificationAttempts and blockchain data preserved.
+ * Creates DEPOSIT_REVALIDATION_REQUESTED audit log.
+ */
+export async function adminRevalidateVerification(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { id }  = getParsed<AdminRevalidateParams>(res, "params");
+    const adminId = req.user!.sub;
+    const ip      = req.ip;
+
+    const result = await service.requestRevalidation(adminId, id, ip);
+    sendSuccess(res, result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * POST /api/admin/deposit-verifications/:id/manual-approve
  *
  * Manually approves a non-terminal, blockchain-detected verification.
  * Reuses the existing approveDeposit() pipeline — no duplicate credit logic.
- * Requires a reason (min 10 chars). Creates audit log + user notification.
+ * Requires a reason (min 15 chars). Creates audit log + user notification.
  */
 export async function adminManualApproveVerification(
   req: AuthenticatedRequest,
@@ -272,6 +302,30 @@ export async function adminManualApproveVerification(
       ...result,
       message: "Deposit manually approved and credited to user's wallet",
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/admin/deposit-verifications/:id/reject
+ *
+ * Manually rejects a verification. Transitions to terminal REJECTED state.
+ * Requires a mandatory reason. Creates audit log + user notification.
+ */
+export async function adminRejectVerification(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { id }     = getParsed<AdminRejectParams>(res, "params");
+    const { reason } = req.body as AdminRejectBody;
+    const adminId    = req.user!.sub;
+    const ip         = req.ip;
+
+    const result = await service.manualRejectVerification(adminId, id, reason, ip);
+    sendSuccess(res, result);
   } catch (err) {
     next(err);
   }

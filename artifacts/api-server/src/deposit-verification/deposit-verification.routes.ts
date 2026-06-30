@@ -8,8 +8,11 @@ import {
   adminListVerificationsSchema,
   adminGetVerificationSchema,
   adminRetryVerificationSchema,
+  adminRevalidateParamsSchema,
   adminManualApproveParamsSchema,
   adminManualApproveBodySchema,
+  adminRejectParamsSchema,
+  adminRejectBodySchema,
 } from "./deposit-verification.schema";
 import {
   submitVerification,
@@ -19,7 +22,9 @@ import {
   adminGetVerification,
   adminGetMetrics,
   adminRetryVerification,
+  adminRevalidateVerification,
   adminManualApproveVerification,
+  adminRejectVerification,
 } from "./deposit-verification.controller";
 
 // ── User routes (/api/deposit-verifications) ──────────────────────────────────
@@ -74,11 +79,26 @@ adminRouter.post(
 );
 
 adminRouter.post(
+  "/:id/re-validate",
+  requireAdminAuth,
+  validate(adminRevalidateParamsSchema, "params"),
+  adminRevalidateVerification,
+);
+
+adminRouter.post(
   "/:id/manual-approve",
   requireAdminAuth,
   validate(adminManualApproveParamsSchema, "params"),
   validate(adminManualApproveBodySchema, "body"),
   adminManualApproveVerification,
+);
+
+adminRouter.post(
+  "/:id/reject",
+  requireAdminAuth,
+  validate(adminRejectParamsSchema, "params"),
+  validate(adminRejectBodySchema, "body"),
+  adminRejectVerification,
 );
 
 adminRouter.get(
