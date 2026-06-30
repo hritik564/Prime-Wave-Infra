@@ -1,0 +1,198 @@
+# Production Configuration Audit — Automatic BEP20 Deposits
+
+Do NOT modify any business logic.
+
+Do NOT change the Deposit Verification Engine.
+
+Do NOT change the state machine.
+
+Do NOT change the worker.
+
+This task is ONLY to verify and correct the production deployment configuration.
+
+--------------------------------------------------
+STEP 1 — Verify Active Blockchain Adapter
+--------------------------------------------------
+
+Inspect the production deployment startup logs.
+
+Confirm exactly which adapter is active.
+
+Expected production log:
+
+INFO: BSCBlockchainAdapter registered (production)
+
+If you see:
+
+WARN: MockBlockchainAdapter active
+
+or
+
+BSC_RPC_PRIMARY not set
+
+then explain why the deployment is still using the mock adapter.
+
+--------------------------------------------------
+STEP 2 — Verify Production Environment Variables
+--------------------------------------------------
+
+Audit every production environment variable used by the deposit engine.
+
+Verify:
+
+BSC_RPC_PRIMARY
+BSC_RPC_SECONDARY
+BSC_RPC_TERTIARY
+BSC_CHAIN_ID
+BSC_REQUIRED_CONFIRMATIONS
+BSC_USDT_CONTRACT
+
+Do NOT expose secret values.
+
+Simply report:
+
+✅ Configured
+
+or
+
+❌ Missing
+
+for each variable.
+
+--------------------------------------------------
+STEP 3 — Verify Company Wallet Configuration
+--------------------------------------------------
+
+Very important.
+
+Inspect BOTH:
+
+• frontend wallet display
+• backend verification configuration / database
+
+Verify that BOTH use the EXACT SAME BEP20 wallet address.
+
+Check:
+
+Frontend Deposit Wallet page
+
+Backend company_wallets table
+
+Backend system settings
+
+Any environment configuration
+
+There must only be ONE production wallet.
+
+Report:
+
+Frontend wallet
+
+Backend wallet
+
+Result:
+
+✅ Match
+
+or
+
+❌ Mismatch
+
+--------------------------------------------------
+STEP 4 — Verify Recipient Validation
+--------------------------------------------------
+
+Using the current production configuration:
+
+simulate recipient validation.
+
+Confirm the verification engine would accept deposits sent to the displayed wallet.
+
+If not,
+
+identify exactly why.
+
+--------------------------------------------------
+STEP 5 — Restart Verification
+--------------------------------------------------
+
+If configuration changes are required:
+
+1. Apply configuration only.
+2. Restart the deployment.
+3. Verify startup logs again.
+
+The startup log MUST confirm:
+
+BSCBlockchainAdapter registered (production)
+
+The deployment must no longer use MockBlockchainAdapter.
+
+--------------------------------------------------
+STEP 6 — End-to-End Smoke Test
+--------------------------------------------------
+
+Without changing business logic,
+
+perform one verification smoke test.
+
+Verify:
+
+✓ transaction detected
+
+✓ receipt retrieved
+
+✓ Transfer event decoded
+
+✓ recipient matched
+
+✓ token matched
+
+✓ confirmations increasing
+
+✓ WAITING_CONFIRMATIONS
+
+✓ CONFIRMED
+
+✓ CREDITED
+
+✓ COMPLETED
+
+--------------------------------------------------
+STEP 7 — Timeout Review
+--------------------------------------------------
+
+Inspect the current timeout configuration.
+
+Report:
+
+poll interval
+
+maximum attempts
+
+verification timeout
+
+Then answer:
+
+Is a 30-minute expiry appropriate for real blockchain deposits?
+
+Or should deposits enter a long-lived "Verification Delayed" state instead of EXPIRED?
+
+Do not implement this change yet.
+
+Only provide your architectural recommendation.
+
+--------------------------------------------------
+FINAL REPORT
+--------------------------------------------------
+
+Provide:
+
+1. Active adapter
+2. Environment variable audit
+3. Wallet address audit
+4. Recipient validation result
+5. Startup log confirmation
+6. Smoke test results
+7. Timeout recommendation
+8. Confirmation that NO business logic was modified
