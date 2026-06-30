@@ -4,15 +4,26 @@ import { z } from "zod";
 
 const txHashSchema = z
   .string()
-  .min(10, "txHash must be at least 10 characters")
-  .max(128, "txHash must be at most 128 characters")
   .transform((s) => s.trim().toLowerCase())
-  .refine(
-    (s) =>
-      /^0x[0-9a-f]{64}$/.test(s) ||
-      /^0x[0-9a-z_]{6,126}$/.test(s),
-    { message: "txHash must start with 0x and contain only valid characters (hex or alphanumeric)" },
-  );
+  .superRefine((s, ctx) => {
+    if (s.length === 42) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "This looks like a wallet address, not a transaction hash. " +
+          "A transaction hash is 66 characters long (0x followed by 64 hex digits). " +
+          "Find it on BscScan under the transaction details.",
+      });
+      return z.NEVER;
+    }
+    if (!/^0x[0-9a-f]{64}$/.test(s)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Transaction hash must be exactly 66 characters: 0x followed by 64 hex digits.",
+      });
+    }
+  });
 
 // ── User endpoints ────────────────────────────────────────────────────────────
 

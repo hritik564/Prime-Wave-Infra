@@ -145,6 +145,14 @@ import {
 } from "./reports/reports.schema";
 
 import { adminDepositVerificationRouter } from "../deposit-verification/deposit-verification.routes";
+import {
+  listCompanyWalletsHandler,
+  updateCompanyWalletHandler,
+} from "./admin-company-wallets.controller";
+import {
+  updateCompanyWalletParamSchema,
+  updateCompanyWalletBodySchema,
+} from "./admin-company-wallets.schema";
 
 const router = Router();
 
@@ -541,6 +549,23 @@ router.patch(
   validate(engineIdParamSchema, "params"),
   validate(saveEngineNotesBodySchema),
   saveEngineNotesHandler,
+);
+
+// ── Company Wallet Management — SUPER_ADMIN only ─────────────────────────────
+router.get(
+  "/company-wallets",
+  adminLimiter,
+  superAdminGuard,
+  listCompanyWalletsHandler,
+);
+
+router.patch(
+  "/company-wallets/:id",
+  adminLimiter,
+  superAdminGuard,
+  validate(updateCompanyWalletParamSchema, "params"),
+  validate(updateCompanyWalletBodySchema),
+  updateCompanyWalletHandler,
 );
 
 // ── Deposit Verification — SUPER_ADMIN and FINANCE_ADMIN ──────────────────────

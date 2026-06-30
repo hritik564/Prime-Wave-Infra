@@ -438,12 +438,17 @@ export async function manualApproveVerification(
 // ── Re-validate (FAILED → VERIFYING) ─────────────────────────────────────────
 
 /**
- * Re-queues a FAILED verification for blockchain re-check.
+ * Re-queues a FAILED / EXPIRED / VERIFICATION_DELAYED verification for a fresh
+ * blockchain verification cycle.
  *
- * Transitions FAILED → VERIFYING and sets nextCheckAt = now so the worker
- * picks it up on the next tick. verificationAttempts and all blockchain data
- * are preserved — the timeline is NOT reset. Only FAILED records can be
- * re-validated; other statuses are rejected with HTTP 409.
+ * Transitions to VERIFYING and resets verificationAttempts → 0, firstSeenAt →
+ * now, and nextCheckAt → now so the worker picks it up on the next tick as if
+ * it were brand-new. The age-based slow-poll and expiry clocks restart from
+ * zero, preventing an old verification from entering VERIFICATION_DELAYED
+ * immediately after re-validation.
+ *
+ * Preserved: verificationId, txHash, network, senderAddress, recipientAddress,
+ * tokenContract, blockchain data, audit history, and timeline entries.
  *
  * Creates an admin audit log (DEPOSIT_REVALIDATION_REQUESTED).
  * Does NOT notify the user (re-validation is an admin action).
@@ -469,7 +474,11 @@ export async function requestRevalidation(
   }
 
   const now     = new Date();
-  const updated = await repo.transition(v.id, "VERIFYING", { nextCheckAt: now }, [...REVALIDATABLE]);
+  const updated = await repo.transition(v.id, "VERIFYING", {
+    nextCheckAt:          now,
+    firstSeenAt:          now,
+    verificationAttempts: 0,
+  }, [...REVALIDATABLE]);
 
   if (!updated) {
     throw new AppError(
