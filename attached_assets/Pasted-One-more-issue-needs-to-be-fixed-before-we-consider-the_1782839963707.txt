@@ -1,0 +1,120 @@
+One more issue needs to be fixed before we consider the wallet system production-ready.
+
+Currently, Deposit transactions are appearing in the Withdrawal Wallet history.
+
+This is incorrect.
+
+==========================================================
+OBJECTIVE
+==========================================================
+
+Maintain strict separation between:
+
+• Deposit Wallet
+• Withdrawal Wallet
+
+Each wallet must display ONLY transactions that affect that wallet.
+
+==========================================================
+EXPECTED BEHAVIOUR
+==========================================================
+
+Deposit Wallet History
+
+Show ONLY:
+
+✓ Automatic crypto deposits
+✓ Manual admin deposits
+✓ Deposit adjustments (if introduced later)
+
+Do NOT show:
+
+Investment debits
+
+ROI
+
+Binary income
+
+Salary
+
+Level income
+
+Orbit income
+
+Withdrawals
+
+Transfers
+
+==========================================================
+
+Withdrawal Wallet History
+
+Show ONLY:
+
+✓ ROI
+✓ Binary income
+✓ Salary
+✓ Level income
+✓ Orbit income
+✓ Wallet transfers into Withdrawal Wallet
+✓ Withdrawal requests
+✓ Withdrawal reversals
+✓ Withdrawal adjustments
+
+Do NOT show:
+
+Crypto deposits
+
+Manual deposits
+
+Deposit verification records
+
+==========================================================
+AUDIT
+==========================================================
+
+Verify the wallet history queries.
+
+Ensure they filter by BOTH:
+
+wallet
+
+AND
+
+transaction type
+
+Do not rely on transaction type alone.
+
+==========================================================
+REGRESSION
+==========================================================
+
+Verify:
+
+✓ Deposit history unchanged
+
+✓ Withdrawal history unchanged except for removal of deposit entries
+
+✓ Wallet balances unchanged
+
+✓ Financial calculations unchanged
+
+✓ No migration required
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Provide:
+
+1. Root cause
+
+2. Files modified
+
+3. Query changes
+
+4. Before/after behaviour
+
+5. Regression report
+
+6. Confirmation that no financial calculations or wallet balances were modified.

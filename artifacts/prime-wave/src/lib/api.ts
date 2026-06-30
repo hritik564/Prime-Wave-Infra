@@ -350,12 +350,14 @@ export function getWalletHistory(params?: {
   limit?: number;
   type?: string;
   types?: string[];
+  wallet?: "DEPOSIT_WALLET" | "INCOME_WALLET" | "WITHDRAWAL_WALLET";
 }) {
   const q = new URLSearchParams();
-  if (params?.page)         q.set("page",  String(params.page));
-  if (params?.limit)        q.set("limit", String(params.limit));
-  if (params?.type)         q.set("type",  params.type);
-  if (params?.types?.length) q.set("types", params.types.join(","));
+  if (params?.page)          q.set("page",   String(params.page));
+  if (params?.limit)         q.set("limit",  String(params.limit));
+  if (params?.type)          q.set("type",   params.type);
+  if (params?.types?.length) q.set("types",  params.types.join(","));
+  if (params?.wallet)        q.set("wallet", params.wallet);
   const qs = q.toString() ? `?${q}` : "";
   return request<{ data: Transaction[]; meta: ListMeta }>(`/api/wallets/history${qs}`);
 }

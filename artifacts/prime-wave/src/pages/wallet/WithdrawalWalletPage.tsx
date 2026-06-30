@@ -36,7 +36,6 @@ const TYPE_CONFIG: Record<string, {
   INCOME_TRANSFER:   { label: "Income Transfer",  color: "#fb923c", bg: "rgba(251,146,60,0.1)",  Icon: ArrowLeftRight,  credit: true  },
   ROI_CLAIM:         { label: "ROI Claim",        color: "#34d399", bg: "rgba(52,211,153,0.1)",  Icon: TrendingUp,      credit: true  },
   PRINCIPAL_RELEASE: { label: "Principal",        color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  Icon: Layers,          credit: true  },
-  DEPOSIT:           { label: "Deposit",          color: "#34d399", bg: "rgba(52,211,153,0.1)",  Icon: ArrowDownToLine, credit: true  },
   WITHDRAWAL:        { label: "Withdrawal",       color: "#f87171", bg: "rgba(248,113,113,0.1)", Icon: ArrowUpFromLine, credit: false },
 };
 
@@ -226,7 +225,7 @@ export default function WithdrawalWalletPage() {
     try {
       const [walletData, txData, wrData, profileData] = await Promise.all([
         getWallets(),
-        getWalletHistory({ limit: 50 }),
+        getWalletHistory({ limit: 50, wallet: "WITHDRAWAL_WALLET" }),
         getWithdrawalHistory({ limit: 50 }),
         getProfile(),
       ]);

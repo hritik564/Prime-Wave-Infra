@@ -20,8 +20,6 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-const CLAIM_TYPES = ["ROI_CLAIM", "PRINCIPAL_RELEASE"];
-
 export default function IncomeWalletPage() {
   const [incomeBalance, setIncomeBalance]         = useState(0);
   const [withdrawalBalance, setWithdrawalBalance] = useState(0);
@@ -33,12 +31,12 @@ export default function IncomeWalletPage() {
     try {
       const [wallets, history, txfResult] = await Promise.all([
         getWallets(),
-        getWalletHistory({ limit: 20 }),
+        getWalletHistory({ limit: 20, wallet: "INCOME_WALLET" }),
         listTransfers({ limit: 20 }),
       ]);
       setIncomeBalance(parseFloat(wallets.incomeWallet));
       setWithdrawalBalance(parseFloat(wallets.withdrawalWallet));
-      setClaims(history.data.filter((tx) => CLAIM_TYPES.includes(tx.type)));
+      setClaims(history.data);
       setTransfers(txfResult.data);
     } catch {
       // silently fail

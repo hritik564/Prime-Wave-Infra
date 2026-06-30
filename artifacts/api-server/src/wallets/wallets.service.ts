@@ -2,7 +2,14 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
-import { TRANSACTION_TYPES, type TransferInput, type HistoryQueryInput } from "./wallets.schema";
+import {
+  TRANSACTION_TYPES,
+  DEPOSIT_WALLET_TYPES,
+  INCOME_WALLET_TYPES,
+  WITHDRAWAL_WALLET_TYPES,
+  type TransferInput,
+  type HistoryQueryInput,
+} from "./wallets.schema";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -93,25 +100,37 @@ export async function transferIncomeToWithdrawal(userId: string, input: Transfer
 // ── Paginated history ─────────────────────────────────────────────────────────
 
 export async function getWalletHistory(userId: string, query: HistoryQueryInput) {
-  const { page, limit, type, types, status } = query;
+  const { page, limit, type, types, status, wallet } = query;
   const skip = (page - 1) * limit;
 
-  // Build type filter — `types` (multi) takes precedence over singular `type`
+  // Wallet view takes strict priority — overrides any type/types param.
+  // This ensures each wallet tab only ever shows its own transaction types
+  // regardless of what the caller passes.
   let typeFilter: Prisma.WalletTransactionWhereInput["type"] | undefined;
-  if (types) {
-    const valid = types
-      .split(",")
-      .map(t => t.trim())
-      .filter((t): t is typeof TRANSACTION_TYPES[number] =>
-        (TRANSACTION_TYPES as readonly string[]).includes(t),
-      );
-    if (valid.length === 1) {
-      typeFilter = valid[0];
-    } else if (valid.length > 1) {
-      typeFilter = { in: valid };
+
+  if (wallet === "DEPOSIT_WALLET") {
+    typeFilter = { in: [...DEPOSIT_WALLET_TYPES] };
+  } else if (wallet === "INCOME_WALLET") {
+    typeFilter = { in: [...INCOME_WALLET_TYPES] };
+  } else if (wallet === "WITHDRAWAL_WALLET") {
+    typeFilter = { in: [...WITHDRAWAL_WALLET_TYPES] };
+  } else {
+    // No wallet view — fall back to the explicit type / types filter.
+    if (types) {
+      const valid = types
+        .split(",")
+        .map(t => t.trim())
+        .filter((t): t is typeof TRANSACTION_TYPES[number] =>
+          (TRANSACTION_TYPES as readonly string[]).includes(t),
+        );
+      if (valid.length === 1) {
+        typeFilter = valid[0];
+      } else if (valid.length > 1) {
+        typeFilter = { in: valid };
+      }
+    } else if (type) {
+      typeFilter = type;
     }
-  } else if (type) {
-    typeFilter = type;
   }
 
   const where: Prisma.WalletTransactionWhereInput = {
