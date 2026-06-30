@@ -4,16 +4,23 @@ export const DEPOSIT_NETWORKS         = ["BEP20", "ERC20", "TRC20", "SOL"] as co
 export const DEPOSIT_STATUSES         = ["PENDING", "APPROVED", "REJECTED"] as const;
 export const DEPOSIT_STATUSES_ADMIN   = ["PENDING", "CONFIRMING", "APPROVED", "REJECTED"] as const;
 
-export const createDepositSchema = z.object({
-  amount:        z.coerce.number()
-                   .positive("Amount must be positive")
-                   .multipleOf(100, "Amount must be a multiple of $100"),
-  network:       z.enum(DEPOSIT_NETWORKS),
-  txHash:        z.string().trim().min(1, "Transaction hash is required"),
-  screenshotUrl: z.string().url("Invalid screenshot URL").optional(),
-  companyWallet: z.string().trim().min(1, "Company wallet address is required"),
+// ── Manual Admin Deposit ──────────────────────────────────────────────────────
+// Used by POST /api/admin/deposits/manual (SUPER_ADMIN + FINANCE_ADMIN only).
+// The deposit wallet accepts any positive USDT amount — no amount restrictions.
+// All investment business rules remain exclusively inside the Investment Engine.
+export const manualAdminDepositSchema = z.object({
+  userId:  z.string().min(1, "Target user ID is required"),
+  amount:  z.number({
+             required_error:    "Amount is required",
+             invalid_type_error: "Amount must be a number",
+           })
+           .positive("Amount must be greater than zero"),
+  network: z.enum(DEPOSIT_NETWORKS, { required_error: "Network is required" }),
+  reason:  z.string().trim().min(1, "Reason is required").max(500, "Reason must be 500 characters or fewer"),
+  notes:   z.string().trim().max(1000, "Notes must be 1000 characters or fewer").optional(),
 });
 
+// ── Deposit history (user-facing) ─────────────────────────────────────────────
 export const depositHistoryQuerySchema = z.object({
   status:  z.enum(DEPOSIT_STATUSES).optional(),
   network: z.enum(DEPOSIT_NETWORKS).optional(),
@@ -21,6 +28,7 @@ export const depositHistoryQuerySchema = z.object({
   limit:   z.coerce.number().int().min(1).max(100).default(20),
 });
 
+// ── Admin deposit list ────────────────────────────────────────────────────────
 export const adminDepositListQuerySchema = z.object({
   status:    z.enum(DEPOSIT_STATUSES_ADMIN).optional(),
   network:   z.enum(DEPOSIT_NETWORKS).optional(),
@@ -31,11 +39,12 @@ export const adminDepositListQuerySchema = z.object({
   limit:     z.coerce.number().int().min(1).max(100).default(20),
 });
 
+// ── Reject deposit (admin) ────────────────────────────────────────────────────
 export const rejectDepositSchema = z.object({
   rejectedReason: z.string().trim().min(1, "Rejection reason is required").max(500),
 });
 
-export type CreateDepositInput    = z.infer<typeof createDepositSchema>;
-export type DepositHistoryQuery   = z.infer<typeof depositHistoryQuerySchema>;
-export type AdminDepositListQuery = z.infer<typeof adminDepositListQuerySchema>;
-export type RejectDepositInput    = z.infer<typeof rejectDepositSchema>;
+export type ManualAdminDepositInput = z.infer<typeof manualAdminDepositSchema>;
+export type DepositHistoryQuery     = z.infer<typeof depositHistoryQuerySchema>;
+export type AdminDepositListQuery   = z.infer<typeof adminDepositListQuerySchema>;
+export type RejectDepositInput      = z.infer<typeof rejectDepositSchema>;

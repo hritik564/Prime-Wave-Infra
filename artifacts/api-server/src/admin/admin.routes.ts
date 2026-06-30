@@ -21,6 +21,7 @@ import {
   approveDepositHandler,
   rejectDepositHandler,
   markDepositConfirmingHandler,
+  createManualAdminDepositHandler,
 } from "./admin-deposits.controller";
 import {
   getAdminWithdrawalsHandler,
@@ -121,6 +122,7 @@ import { adminLoginSchema } from "./admin.schema";
 import {
   adminDepositListQuerySchema,
   rejectDepositSchema,
+  manualAdminDepositSchema,
 } from "../deposits/deposits.schema";
 import {
   adminWithdrawalListQuerySchema,
@@ -195,6 +197,14 @@ router.get(
   adminLimiter,
   financeAdminGuard,
   getDepositByIdHandler,
+);
+
+router.post(
+  "/deposits/manual",
+  adminLimiter,
+  financeAdminGuard,
+  validate(manualAdminDepositSchema, "body"),
+  createManualAdminDepositHandler,
 );
 
 router.post(

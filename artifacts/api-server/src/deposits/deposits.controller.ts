@@ -1,14 +1,13 @@
 import type { Request, Response, NextFunction } from "express";
 import {
   getActiveCompanyWallets,
-  createDepositRequest,
   getDepositHistory,
   getDepositById,
 } from "./deposits.service";
-import { sendSuccess, sendCreated } from "../shared/response";
+import { sendSuccess } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
 import type { AuthenticatedRequest } from "../shared/types";
-import type { CreateDepositInput, DepositHistoryQuery } from "./deposits.schema";
+import type { DepositHistoryQuery } from "./deposits.schema";
 
 export async function getCompanyWalletsHandler(
   _req: Request, res: Response, next: NextFunction,
@@ -16,17 +15,6 @@ export async function getCompanyWalletsHandler(
   try {
     const wallets = await getActiveCompanyWallets();
     sendSuccess(res, wallets, "Company wallets fetched successfully");
-  } catch (err) { next(err); }
-}
-
-export async function createDepositHandler(
-  req: Request, res: Response, next: NextFunction,
-): Promise<void> {
-  try {
-    const { user } = req as AuthenticatedRequest;
-    const input    = req.body as CreateDepositInput;
-    const deposit  = await createDepositRequest(user.sub, input);
-    sendCreated(res, deposit, "Deposit request submitted successfully");
   } catch (err) { next(err); }
 }
 

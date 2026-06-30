@@ -1,0 +1,279 @@
+# Sprint 25D — Manual Admin Deposit Refactor
+
+## Objective
+
+Sprint 25B introduced automatic blockchain deposits.
+
+Going forward, there are **two completely separate deposit flows**:
+
+1. Automatic Blockchain Deposit (User)
+2. Manual Admin Deposit (Administrator)
+
+These flows must remain completely independent.
+
+This sprint is a **refactor and cleanup sprint**.
+
+No financial engine behaviour should change.
+
+---
+
+# Architecture
+
+Target architecture:
+
+Automatic Deposit (Blockchain)
+
+↓
+
+Deposit Wallet
+
+↑
+
+Manual Admin Deposit (Admin)
+
+↓
+
+Investment Engine
+
+↓
+
+BV / Level Income / Salary / Binary / ROI / Orbit
+
+The Deposit Wallet is a normal crypto wallet.
+
+It accepts **any positive USDT amount**.
+
+Investment business rules remain exclusively inside the Investment Engine.
+
+---
+
+# 1. Preserve Automatic Deposit Flow
+
+Do NOT modify:
+
+* Deposit Verification Engine
+* BSCBlockchainAdapter
+* Worker
+* Verification State Machine
+* Automatic Approval Pipeline
+* Blockchain Verification
+* Wallet Credit Logic
+* Notification Logic
+
+Sprint 25B behaviour must remain identical.
+
+---
+
+# 2. Convert Legacy Deposit Endpoint
+
+The existing legacy endpoint:
+
+POST /api/deposits
+
+must become an **Admin Manual Deposit** endpoint.
+
+It must no longer represent a user deposit workflow.
+
+Only administrators may access it.
+
+---
+
+# 3. Remove Legacy Deposit Restrictions
+
+Remove legacy validation inherited from the manual approval era.
+
+Specifically remove:
+
+* multipleOf(100)
+* progressive minimum
+* investment-related amount rules
+
+Manual deposits should only validate:
+
+Amount > 0
+
+Nothing else.
+
+Amounts such as:
+
+25
+
+37.50
+
+100
+
+275
+
+999.99
+
+must all be accepted.
+
+---
+
+# 4. Admin-Only Permissions
+
+Restrict manual deposits to authorized administrators only.
+
+Only users with appropriate administrative permissions should be able to create manual deposits.
+
+Normal users must never access this endpoint.
+
+---
+
+# 5. Mandatory Reason
+
+Every manual deposit must require:
+
+Reason (mandatory)
+
+Optional Notes
+
+Examples:
+
+Customer Compensation
+
+Manual Settlement
+
+Migration Credit
+
+Promotional Bonus
+
+Adjustment
+
+Recovery
+
+The reason must always be stored.
+
+Reject empty reasons.
+
+---
+
+# 6. Approval Mode
+
+Clearly distinguish manual deposits from blockchain deposits.
+
+Examples:
+
+approvalMode = MANUAL_ADMIN
+
+Automatic deposits continue using:
+
+approvalMode = AUTOMATIC
+
+This distinction must appear everywhere appropriate.
+
+---
+
+# 7. Wallet History
+
+Wallet history should clearly identify manual deposits.
+
+Example:
+
+Manual Deposit
+
+Credited by Administrator
+
+Avoid wording that could make users think the funds came from blockchain verification.
+
+---
+
+# 8. Audit Trail
+
+Record:
+
+Administrator ID
+
+Target User ID
+
+Amount
+
+Reason
+
+Notes
+
+Timestamp
+
+Request ID
+
+IP Address (if already available)
+
+This audit trail must remain immutable.
+
+---
+
+# 9. Notifications
+
+Notify the user when a manual deposit is credited.
+
+Example:
+
+Title:
+
+Manual Deposit Received
+
+Body:
+
+An administrator has credited your Deposit Wallet with 250 USDT.
+
+Reason:
+
+Customer Compensation
+
+Reuse the existing notification infrastructure.
+
+---
+
+# 10. Regression Requirements
+
+Confirm that NO behaviour changed in:
+
+* Automatic Deposit Verification
+* Wallet Engine
+* Investment Engine
+* Binary Engine
+* Salary Engine
+* ROI Engine
+* Orbit Engine
+* Level Income Engine
+* Withdrawal Engine
+
+This sprint must not alter any financial calculations.
+
+---
+
+# Deliverables
+
+Provide:
+
+1. Files modified
+
+2. Legacy validation removed
+
+3. New validation rules
+
+4. Admin authorization verification
+
+5. Audit log example
+
+6. Wallet history example
+
+7. Notification example
+
+8. Regression report
+
+9. Final confirmation that:
+
+* Automatic blockchain deposits continue to function exactly as before.
+* Manual admin deposits are now a completely separate administrative workflow.
+* The Deposit Wallet behaves as a standard crypto wallet that accepts any positive USDT amount.
+* Investment business rules remain exclusively inside the Investment Engine.
+
+```
+
+I like this approach because it reinforces one architectural principle that should guide Prime Wave going forward:
+
+> **A wallet stores money. An investment engine enforces business rules.**
+
+That separation keeps the system intuitive, reduces future bugs, and makes it much easier to evolve the platform without accidentally coupling unrelated concerns.
+```

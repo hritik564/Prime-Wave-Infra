@@ -1,13 +1,12 @@
 import { Router } from "express";
 import {
   getCompanyWalletsHandler,
-  createDepositHandler,
   getDepositHistoryHandler,
   getDepositByIdHandler,
 } from "./deposits.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 import { validate } from "../middleware/validate.middleware";
-import { createDepositSchema, depositHistoryQuerySchema } from "./deposits.schema";
+import { depositHistoryQuerySchema } from "./deposits.schema";
 
 const router = Router();
 
@@ -19,9 +18,6 @@ router.use(requireAuth);
 
 // GET  /api/deposits/history
 router.get("/history", validate(depositHistoryQuerySchema, "query"), getDepositHistoryHandler);
-
-// POST /api/deposits
-router.post("/", validate(createDepositSchema, "body"), createDepositHandler);
 
 // GET  /api/deposits/:id
 router.get("/:id", getDepositByIdHandler);

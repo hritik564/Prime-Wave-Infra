@@ -18,8 +18,7 @@
 
 import { prisma }               from "../config/prisma";
 import { registerUser }         from "../auth/auth.service";
-import { createDepositRequest } from "../deposits/deposits.service";
-import { approveDeposit }       from "../admin/admin-deposits.service";
+import { createManualAdminDeposit } from "../admin/admin-deposits.service";
 import { createInvestment }     from "../investments/investments.service";
 import { AppError }             from "../middleware/error.middleware";
 import { HTTP_STATUS }          from "../shared/constants";
@@ -165,11 +164,10 @@ export async function runSeed23B(): Promise<SeedSummary> {
       orderBy: { createdAt: "desc" },
     });
     if (!existingDep) {
-      const dep = await createDepositRequest(masterUser.id, {
-        amount: SEED_AMOUNT, network: SEED_NETWORK,
-        txHash: fakeTxHash(0), companyWallet: COMPANY_WALLET,
+      await createManualAdminDeposit(adminId, {
+        userId: masterUser.id, amount: SEED_AMOUNT,
+        network: SEED_NETWORK, reason: "Seed Data — Initial Capital",
       });
-      await approveDeposit(adminId, dep.id);
       logger.info("Seed 23B: master deposit created & approved");
     }
 
@@ -248,11 +246,10 @@ export async function runSeed23B(): Promise<SeedSummary> {
         orderBy: { createdAt: "desc" },
       });
       if (!existingDep) {
-        const dep = await createDepositRequest(uid, {
-          amount: SEED_AMOUNT, network: SEED_NETWORK,
-          txHash: fakeTxHash(i), companyWallet: COMPANY_WALLET,
+        await createManualAdminDeposit(adminId, {
+          userId: uid, amount: SEED_AMOUNT,
+          network: SEED_NETWORK, reason: "Seed Data — Initial Capital",
         });
-        await approveDeposit(adminId, dep.id);
       }
 
       // ── 3. Investment ──────────────────────────────────────────────────────

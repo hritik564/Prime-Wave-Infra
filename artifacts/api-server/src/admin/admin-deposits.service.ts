@@ -311,3 +311,136 @@ export async function rejectDeposit(
 
   return { depositId, status: "REJECTED" };
 }
+
+// ── Manual Admin Deposit ──────────────────────────────────────────────────────
+//
+// Directly credits a user's deposit wallet by an authorised administrator.
+// No blockchain transaction involved — funds are credited immediately.
+//
+// Design principles:
+//   • The deposit wallet accepts any positive USDT amount (amount > 0 only).
+//   • All investment business rules remain exclusively inside the Investment Engine.
+//   • approvalMode = MANUAL_ADMIN distinguishes this from blockchain deposits.
+//   • A synthetic txHash (MANUAL-<uuid>) satisfies the @unique DB constraint
+//     without requiring a schema migration.
+//   • Reason and Notes are stored immutably in AdminLog.details JSON.
+
+import { randomUUID } from "crypto";
+import type { ManualAdminDepositInput } from "../deposits/deposits.schema";
+
+export async function createManualAdminDeposit(
+  adminId: string,
+  input:   ManualAdminDepositInput,
+  ip?:     string,
+) {
+  const { userId, amount, network, reason, notes } = input;
+
+  // Verify target user exists
+  const user = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: { id: true, username: true },
+  });
+  if (!user) {
+    throw new AppError("Target user not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
+  }
+
+  // Synthetic txHash — satisfies @unique constraint; MANUAL- prefix makes
+  // the origin unambiguous in every query, log, and UI that shows txHash.
+  const syntheticTxHash = `MANUAL-${randomUUID().replace(/-/g, "")}`;
+  const decimalAmount   = new Prisma.Decimal(amount.toString());
+  const now             = new Date();
+
+  let depositId: string;
+
+  await prisma.$transaction(async (tx) => {
+    // Create DepositRequest — immediately APPROVED; no pending state for manual deposits
+    const deposit = await tx.depositRequest.create({
+      data: {
+        userId,
+        amount:           decimalAmount,
+        network,
+        txHash:           syntheticTxHash,
+        companyWallet:    "MANUAL_ADMIN",
+        status:           "APPROVED",
+        approvedByAdminId: adminId,
+        approvedAt:       now,
+      },
+      select: { id: true },
+    });
+    depositId = deposit.id;
+
+    // Credit deposit wallet
+    const wallet = await tx.wallet.update({
+      where:  { userId },
+      data:   { depositWallet: { increment: decimalAmount } },
+      select: { id: true },
+    });
+
+    // Wallet history — clearly labelled as manual; avoids any blockchain wording
+    await tx.walletTransaction.create({
+      data: {
+        walletId:    wallet.id,
+        userId,
+        type:        "DEPOSIT",
+        status:      "SUCCESS",
+        amount:      decimalAmount,
+        description: "Manual Deposit — Credited by Administrator",
+        metadata:    {
+          depositId:    deposit.id,
+          approvalMode: "MANUAL_ADMIN",
+          reason,
+          ...(notes !== undefined && { notes }),
+          network,
+          adminId,
+        },
+      },
+    });
+
+    // Immutable audit log
+    await tx.adminLog.create({
+      data: {
+        adminId,
+        action:       "MANUAL_DEPOSIT",
+        targetUserId: userId,
+        details: {
+          depositId:    deposit.id,
+          amount:       decimalAmount.toFixed(2),
+          network,
+          approvalMode: "MANUAL_ADMIN",
+          reason,
+          ...(notes !== undefined && { notes }),
+          syntheticTxHash,
+          ...(ip !== undefined && { ipAddress: ip }),
+          creditedAt:   now.toISOString(),
+        },
+      },
+    });
+  }, { timeout: 30_000 });
+
+  // Notify user — outside the transaction so a notification failure never
+  // rolls back the already-credited wallet
+  void notificationService.create({
+    userId,
+    type:    "DEPOSIT_APPROVED",
+    title:   "Manual Deposit Received",
+    message: `An administrator has credited your Deposit Wallet with ${decimalAmount.toFixed(2)} USDT. Reason: ${reason}`,
+    metadata: {
+      approvalMode: "MANUAL_ADMIN",
+      depositId:    depositId!,
+      amount:       decimalAmount.toFixed(2),
+      network,
+      reason,
+    },
+  });
+
+  return {
+    depositId:    depositId!,
+    userId,
+    username:     user.username,
+    amount:       decimalAmount.toFixed(2),
+    network,
+    reason,
+    approvalMode: "MANUAL_ADMIN" as const,
+    creditedAt:   now,
+  };
+}

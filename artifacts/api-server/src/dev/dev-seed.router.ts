@@ -13,8 +13,7 @@ import { Router } from "express";
 import * as XLSX from "xlsx";
 import { prisma } from "../config/prisma";
 import { registerUser } from "../auth/auth.service";
-import { createDepositRequest } from "../deposits/deposits.service";
-import { approveDeposit } from "../admin/admin-deposits.service";
+import { createManualAdminDeposit } from "../admin/admin-deposits.service";
 import { createInvestment } from "../investments/investments.service";
 import { sendSuccess } from "../shared/response";
 import { AppError } from "../middleware/error.middleware";
@@ -539,14 +538,11 @@ seedRouter.post("/23d", async (_req, res, next) => {
       if (existingDep) {
         depositId = existingDep.id;
       } else {
-        const dep = await createDepositRequest(userId, {
-          amount:        SEED_AMOUNT,
-          network:       SEED_NETWORK,
-          txHash:        fakeTxHash23d(i),
-          companyWallet: COMPANY_WALLET,
+        const manualDep = await createManualAdminDeposit(adminId, {
+          userId, amount: SEED_AMOUNT,
+          network: SEED_NETWORK, reason: "Seed Data — Initial Capital",
         });
-        await approveDeposit(adminId, dep.id);
-        depositId = dep.id;
+        depositId = manualDep.depositId;
       }
 
       // ── Investment (idempotent) ───────────────────────────────────────────
