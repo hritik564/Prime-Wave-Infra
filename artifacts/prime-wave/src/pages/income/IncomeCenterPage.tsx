@@ -1,150 +1,452 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  AreaChart, Area, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-} from "recharts";
-import {
   TrendingUp, GitMerge, RefreshCw, Users, DollarSign,
-  X, Target, BarChart2, Zap, Award, ArrowUpRight, ChevronRight,
-  Sparkles,
+  Clock, Award, ChevronRight, Sparkles, X, CheckCircle2,
+  XCircle, Zap, ArrowRight, Timer,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import {
-  getIncomeSummary, getIncomeTrend, getWalletHistory,
-  type IncomeSummary, type TrendPoint, type Transaction,
+  getIncomeDashboard, getWalletHistory,
+  type IncomeDashboard, type Transaction,
 } from "@/lib/api";
 
-/* ── Type config ─────────────────────────────────────────────────────────── */
+/* ── Constants ───────────────────────────────────────────────────────────── */
 
-const TYPE_CONFIG = {
-  ROI_CLAIM:    { label: "ROI Income",    color: "#D4AF37", bg: "rgba(212,175,55,0.12)",  icon: TrendingUp, short: "ROI"    },
-  BINARY_MATCH: { label: "Binary Match",  color: "#a78bfa", bg: "rgba(167,139,250,0.12)", icon: GitMerge,   short: "Binary" },
-  BINARY_ORBIT: { label: "Orbit Income",  color: "#60a5fa", bg: "rgba(96,165,250,0.12)",  icon: RefreshCw,  short: "Orbit"  },
-  LEVEL_INCOME: { label: "Level Income",  color: "#34d399", bg: "rgba(52,211,153,0.12)",  icon: Users,      short: "Level"  },
-  SALARY:       { label: "Salary",        color: "#fb923c", bg: "rgba(251,146,60,0.12)",  icon: DollarSign, short: "Salary" },
-} as const;
-
-type IncomeTypeKey = keyof typeof TYPE_CONFIG;
-const INCOME_TYPES = Object.keys(TYPE_CONFIG) as IncomeTypeKey[];
-
-type TrendPeriod = "7d" | "30d" | "90d" | "1y" | "all";
-type FilterKey   = "ALL" | IncomeTypeKey;
-
-/* ── Styling constants ───────────────────────────────────────────────────── */
-
-const CARD  = "hsl(221, 59%, 12%)";
 const GOLD  = "#D4AF37";
+const CARD  = "hsl(221, 59%, 12%)";
 const MUTED = "rgba(170,179,197,0.55)";
-const AXIS  = { fontSize: 11, fill: "rgba(170,179,197,0.45)", fontFamily: "Inter, sans-serif" };
+
+const TYPE_CONFIG: Record<string, {
+  label: string; color: string; bg: string;
+  icon: React.ElementType; short: string;
+}> = {
+  ROI_CLAIM:    { label: "ROI Income",   color: "#D4AF37", bg: "rgba(212,175,55,0.12)",  icon: TrendingUp, short: "ROI"    },
+  BINARY_MATCH: { label: "Binary Match", color: "#a78bfa", bg: "rgba(167,139,250,0.12)", icon: GitMerge,   short: "Binary" },
+  BINARY_ORBIT: { label: "Orbit Income", color: "#60a5fa", bg: "rgba(96,165,250,0.12)",  icon: RefreshCw,  short: "Orbit"  },
+  LEVEL_INCOME: { label: "Level Income", color: "#34d399", bg: "rgba(52,211,153,0.12)",  icon: Users,      short: "Level"  },
+  SALARY:       { label: "Salary",       color: "#fb923c", bg: "rgba(251,146,60,0.12)",  icon: DollarSign, short: "Salary" },
+};
+
+type FilterKey = "ALL" | "ROI_CLAIM" | "BINARY_MATCH" | "BINARY_ORBIT" | "LEVEL_INCOME" | "SALARY";
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
-function fmt(n: string | number = 0): string {
-  const v = typeof n === "string" ? parseFloat(n) : n;
-  if (!isFinite(v)) return "0.00";
-  return v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtChartDate(iso: string, period: TrendPeriod): string {
-  const d = new Date(iso);
-  if (period === "1y" || period === "all") {
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  }
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+function fmt(n: string | number | null | undefined): string {
+  const v = typeof n === "string" ? parseFloat(n) : (n ?? 0);
+  if (!isFinite(v as number)) return "0.00";
+  return (v as number).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtFull(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString("en-US", {
-    month: "long", day: "numeric", year: "numeric",
-  }) + " · " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  return (
+    d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) +
+    " · " +
+    d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+  );
 }
 
 function typeConfig(type: string) {
-  return TYPE_CONFIG[type as IncomeTypeKey] ?? {
-    label: type, color: GOLD, bg: "rgba(212,175,55,0.08)", icon: Sparkles, short: type,
-  };
+  return TYPE_CONFIG[type] ?? { label: type, color: GOLD, bg: "rgba(212,175,55,0.08)", icon: Sparkles, short: type };
 }
 
-/* ── AnimatedNumber ──────────────────────────────────────────────────────── */
+function dayLabel(isoString: string): string {
+  const d        = new Date(isoString);
+  const today    = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (d.toDateString() === today.toDateString())    return "TODAY";
+  if (d.toDateString() === tomorrow.toDateString()) return "TOMORROW";
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "long", day: "numeric" });
+}
 
-function AnimatedNumber({ value, className, style }: { value: number; className?: string; style?: React.CSSProperties }) {
-  const [disp, setDisp] = useState(0);
-  const fromRef = useRef(0);
-  const rafRef  = useRef<number | null>(null);
+function fmtTime(isoString: string): string {
+  return new Date(isoString).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+}
 
+/* ── Skeleton ─────────────────────────────────────────────────────────────── */
+
+function Sk({ className }: { className?: string }) {
+  return (
+    <div className={`rounded-lg animate-pulse ${className}`}
+      style={{ background: "rgba(255,255,255,0.06)" }} />
+  );
+}
+
+/* ── Countdown hook ──────────────────────────────────────────────────────── */
+
+function useCountdown(targetIso: string | undefined): string {
+  const [remaining, setRemaining] = useState("—");
   useEffect(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    const from = fromRef.current;
-    const to   = value;
-    fromRef.current = to;
-    const start = performance.now();
-    const dur   = 900;
-    const tick  = (now: number) => {
-      const p = Math.min((now - start) / dur, 1);
-      const e = 1 - Math.pow(1 - p, 3);
-      setDisp(from + (to - from) * e);
-      if (p < 1) rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [value]);
-
-  return (
-    <span className={className} style={style}>
-      ${disp.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-    </span>
-  );
+    if (!targetIso) return;
+    const iso = targetIso;
+    function update() {
+      const ms = new Date(iso).getTime() - Date.now();
+      if (ms <= 0) { setRemaining("Now"); return; }
+      const h = Math.floor(ms / 3_600_000);
+      const m = Math.floor((ms % 3_600_000) / 60_000);
+      const s = Math.floor((ms % 60_000) / 1_000);
+      if (h > 0)      setRemaining(`${h}h ${m}m`);
+      else if (m > 0) setRemaining(`${m}m ${s}s`);
+      else            setRemaining(`${s}s`);
+    }
+    update();
+    const id = setInterval(update, 1_000);
+    return () => clearInterval(id);
+  }, [targetIso]);
+  return remaining;
 }
 
-/* ── Custom chart tooltips ───────────────────────────────────────────────── */
+/* ── Snapshot card ───────────────────────────────────────────────────────── */
 
-function TrendTooltip({ active, payload, label, period }: {
-  active?: boolean; payload?: Array<{ value: number }>; label?: string; period: TrendPeriod;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{
-      background: "#0A1628", border: "1px solid rgba(212,175,55,0.25)",
-      borderRadius: 10, padding: "10px 14px", boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-    }}>
-      <p style={{ color: MUTED, fontSize: 11, marginBottom: 4 }}>
-        {label ? fmtChartDate(label, period) : ""}
-      </p>
-      <p style={{ color: GOLD, fontWeight: 700, fontSize: 17, fontFamily: "Cormorant Garamond, serif" }}>
-        +${fmt(payload[0].value)}
-      </p>
-    </div>
-  );
+interface SnapCardProps {
+  label:      string;
+  value:      React.ReactNode;
+  sub?:       React.ReactNode;
+  icon:       React.ElementType;
+  iconColor?: string;
+  iconBg?:    string;
+  loading?:   boolean;
+  glow?:      string;
+  progress?:  { pct: number; label: string };
 }
 
-function DonutTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { color: string; percentage: string } }> }) {
-  if (!active || !payload?.length) return null;
-  const item = payload[0];
-  return (
-    <div style={{
-      background: "#0A1628", border: `1px solid ${item.payload.color}33`,
-      borderRadius: 10, padding: "10px 14px", boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-    }}>
-      <p style={{ color: MUTED, fontSize: 11, marginBottom: 3 }}>{item.name}</p>
-      <p style={{ color: item.payload.color, fontWeight: 700, fontSize: 16, fontFamily: "Cormorant Garamond, serif" }}>
-        ${fmt(item.value)}
-      </p>
-      <p style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>{item.payload.percentage}% of total</p>
-    </div>
-  );
-}
-
-/* ── SkeletonBlock ───────────────────────────────────────────────────────── */
-
-function Skeleton({ className }: { className?: string }) {
+function SnapCard({ label, value, sub, icon: Icon, iconColor = GOLD, iconBg, loading, progress }: SnapCardProps) {
   return (
     <div
-      className={`rounded-lg animate-pulse ${className}`}
-      style={{ background: "rgba(255,255,255,0.06)" }}
-    />
+      className="rounded-2xl p-5 flex flex-col gap-3"
+      style={{ background: CARD, border: "1px solid rgba(255,255,255,0.06)" }}
+    >
+      <div className="flex items-center gap-2">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+          style={{ background: iconBg ?? "rgba(212,175,55,0.1)", border: `1px solid ${iconColor}25` }}>
+          <Icon className="h-4 w-4" style={{ color: iconColor }} />
+        </div>
+        <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: MUTED }}>{label}</p>
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          <Sk className="h-8 w-32" />
+          <Sk className="h-4 w-24" />
+        </div>
+      ) : (
+        <>
+          <div className="text-2xl font-bold" style={{ color: "hsl(var(--foreground))", fontFamily: "Cormorant Garamond, serif" }}>
+            {value}
+          </div>
+          {sub && <p className="text-xs leading-snug" style={{ color: MUTED }}>{sub}</p>}
+          {progress && (
+            <div className="space-y-1">
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ background: `linear-gradient(90deg, ${GOLD} 0%, #F3D37A 100%)` }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress.pct}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                />
+              </div>
+              <p className="text-[10px]" style={{ color: MUTED }}>{progress.label}</p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── Source card ─────────────────────────────────────────────────────────── */
+
+interface SourceCardProps {
+  engine:      string;
+  loading?:    boolean;
+  snap:        IncomeDashboard | null;
+  nextCreditAt?: string;
+}
+
+function SourceCard({ engine, loading, snap }: SourceCardProps) {
+  const cfg = typeConfig(engine);
+  const Icon = cfg.icon;
+
+  const src = snap?.sources;
+
+  const data = engine === "ROI_CLAIM"
+    ? src?.roi
+    : engine === "BINARY_MATCH"
+      ? src?.binary
+      : engine === "BINARY_ORBIT"
+        ? src?.orbit
+        : engine === "SALARY"
+          ? src?.salary
+          : src?.levelIncome;
+
+  const nextCreditIso =
+    engine === "ROI_CLAIM"    ? snap?.sources.roi.nextCreditAt
+    : engine === "BINARY_MATCH" ? snap?.sources.binary.nextCycleAt
+    : engine === "BINARY_ORBIT" ? snap?.sources.orbit.nextCycleAt
+    : engine === "SALARY"       ? snap?.sources.salary.nextSalaryAt
+    : undefined;
+
+  const countdown = useCountdown(nextCreditIso);
+
+  function qualified(): boolean | null {
+    if (engine === "ROI_CLAIM")    return null;
+    if (engine === "LEVEL_INCOME") return null;
+    if (engine === "BINARY_MATCH") return src?.binary.isQualified ?? false;
+    if (engine === "BINARY_ORBIT") return src?.orbit.isQualified ?? false;
+    if (engine === "SALARY")       return src?.salary.isQualified ?? false;
+    return null;
+  }
+
+  function todayEarnings(): string {
+    if (!data) return "0.00";
+    if ("todayEarnings" in data) return data.todayEarnings;
+    return "0.00";
+  }
+
+  function lifetimeEarnings(): string {
+    if (!data) return "0.00";
+    if ("lifetimeEarnings" in data) return data.lifetimeEarnings;
+    return "0.00";
+  }
+
+  function statusLine(): React.ReactNode {
+    if (engine === "ROI_CLAIM") {
+      return <span style={{ color: "#34d399" }}>Auto-credits each cycle</span>;
+    }
+    if (engine === "LEVEL_INCOME") {
+      return <span style={{ color: "#34d399" }}>Instant credit</span>;
+    }
+    const q = qualified();
+    if (q === null) return null;
+    return q
+      ? <span style={{ color: "#34d399" }} className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />Qualified</span>
+      : <span style={{ color: "#ef4444" }} className="flex items-center gap-1"><XCircle className="h-3 w-3" />Not qualified</span>;
+  }
+
+  function subLine(): React.ReactNode {
+    if (engine === "SALARY" && src?.salary) {
+      const ranks = src.salary.activeRanks;
+      return ranks.length > 0
+        ? <span>${fmt(src.salary.monthlySalary)}/month · {ranks.join(" + ")}</span>
+        : <span style={{ color: MUTED }}>No active salary</span>;
+    }
+    if (engine === "LEVEL_INCOME" && src?.levelIncome) {
+      return <span>This month: ${fmt(src.levelIncome.thisMonthEarnings)}</span>;
+    }
+    if ((engine === "BINARY_MATCH" || engine === "BINARY_ORBIT") && src) {
+      const est = engine === "BINARY_MATCH"
+        ? src.binary.estimatedNextPayout
+        : src.orbit.estimatedNextPayout;
+      const isQ = engine === "BINARY_MATCH" ? src.binary.isQualified : src.orbit.isQualified;
+      if (!isQ) return <span style={{ color: MUTED }}>No pending income</span>;
+      return <span>Est. next: <strong style={{ color: cfg.color }}>${fmt(est)}</strong></span>;
+    }
+    return null;
+  }
+
+  return (
+    <div
+      className="rounded-2xl p-5 flex flex-col gap-3"
+      style={{ background: CARD, border: "1px solid rgba(255,255,255,0.06)" }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: cfg.bg }}>
+            <Icon className="h-4 w-4" style={{ color: cfg.color }} />
+          </div>
+          <span className="text-sm font-semibold text-foreground">{cfg.label}</span>
+        </div>
+        {loading ? <Sk className="h-5 w-16" /> : (
+          <div className="text-xs" style={{ color: MUTED }}>{statusLine()}</div>
+        )}
+      </div>
+
+      {/* Today / Lifetime */}
+      {loading ? (
+        <div className="grid grid-cols-2 gap-2">
+          <Sk className="h-10" /><Sk className="h-10" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+            <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: MUTED }}>Today</p>
+            <p className="text-sm font-bold" style={{ color: cfg.color, fontFamily: "Cormorant Garamond, serif" }}>
+              ${fmt(todayEarnings())}
+            </p>
+          </div>
+          <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+            <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: MUTED }}>Lifetime</p>
+            <p className="text-sm font-bold" style={{ color: "hsl(var(--foreground))", fontFamily: "Cormorant Garamond, serif" }}>
+              ${fmt(lifetimeEarnings())}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Sub detail */}
+      {!loading && (
+        <p className="text-xs" style={{ color: MUTED }}>{subLine()}</p>
+      )}
+
+      {/* Next credit countdown (if applicable) */}
+      {!loading && nextCreditIso && engine !== "LEVEL_INCOME" && (
+        <div className="flex items-center gap-1.5 rounded-lg px-3 py-2"
+          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+          <Timer className="h-3.5 w-3.5 shrink-0" style={{ color: MUTED }} />
+          <p className="text-xs" style={{ color: MUTED }}>
+            Next credit: <span style={{ color: "hsl(var(--foreground))" }}>{countdown}</span>
+          </p>
+        </div>
+      )}
+
+      {/* View details button */}
+      <button
+        className="flex items-center justify-center gap-1.5 w-full rounded-xl py-2.5 text-xs font-semibold transition-all duration-150 hover:opacity-90"
+        style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}25` }}
+        onClick={() => {}}
+      >
+        View Details
+        <ArrowRight className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+/* ── Timeline section ────────────────────────────────────────────────────── */
+
+interface TimelineEvent {
+  engine:          string;
+  label:           string;
+  scheduledAt:     string;
+  estimatedAmount: string | null;
+  isEstimated:     boolean;
+  isQualified:     boolean | null;
+}
+
+function engineColor(engine: string): string {
+  const map: Record<string, string> = {
+    ROI:    "#D4AF37",
+    Binary: "#a78bfa",
+    Orbit:  "#60a5fa",
+    Salary: "#fb923c",
+  };
+  return map[engine] ?? GOLD;
+}
+
+function engineIcon(engine: string): React.ElementType {
+  const map: Record<string, React.ElementType> = {
+    ROI:    TrendingUp,
+    Binary: GitMerge,
+    Orbit:  RefreshCw,
+    Salary: DollarSign,
+  };
+  return map[engine] ?? Sparkles;
+}
+
+function TimelineRow({ event, isLast }: { event: TimelineEvent; isLast: boolean }) {
+  const color = engineColor(event.engine);
+  const Icon  = engineIcon(event.engine);
+
+  const amountText = event.estimatedAmount != null
+    ? (event.isEstimated ? `~$${fmt(event.estimatedAmount)}` : `$${fmt(event.estimatedAmount)}`)
+    : "Pending calculation";
+
+  const amountColor = event.estimatedAmount != null ? color : MUTED;
+
+  function qualBadge() {
+    if (event.isQualified === null) return null;
+    if (event.engine === "ROI") return null;
+    return event.isQualified
+      ? <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(52,211,153,0.12)", color: "#34d399" }}>Qualified</span>
+      : <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}>Not qualified</span>;
+  }
+
+  return (
+    <div className="flex gap-3">
+      {/* Line + icon */}
+      <div className="flex flex-col items-center pt-0.5" style={{ minWidth: 32 }}>
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0"
+          style={{ background: `${color}18`, border: `1px solid ${color}35` }}>
+          <Icon className="h-3.5 w-3.5" style={{ color }} />
+        </div>
+        {!isLast && <div className="flex-1 w-px mt-2" style={{ background: "rgba(255,255,255,0.06)" }} />}
+      </div>
+
+      {/* Content */}
+      <div className={`flex-1 flex items-start justify-between gap-3 pb-5 ${isLast ? "pb-1" : "pb-5"}`}>
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-medium text-foreground">{event.label}</p>
+            {qualBadge()}
+          </div>
+          <p className="text-xs mt-0.5" style={{ color: MUTED }}>{fmtTime(event.scheduledAt)}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-sm font-bold" style={{ color: amountColor, fontFamily: "Cormorant Garamond, serif" }}>
+            {amountText}
+          </p>
+          {event.isEstimated && event.estimatedAmount != null && (
+            <p className="text-[10px]" style={{ color: MUTED }}>Estimated</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TimelineSection({ events, loading }: { events: TimelineEvent[]; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[0, 1, 2].map(i => <Sk key={i} className="h-14" />)}
+      </div>
+    );
+  }
+
+  if (events.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <p className="text-sm" style={{ color: MUTED }}>No upcoming payouts to display</p>
+      </div>
+    );
+  }
+
+  // Group by day label
+  const groups: { dayLabel: string; events: TimelineEvent[] }[] = [];
+  for (const ev of events) {
+    const dl = dayLabel(ev.scheduledAt);
+    const g  = groups.find(x => x.dayLabel === dl);
+    if (g) g.events.push(ev);
+    else groups.push({ dayLabel: dl, events: [ev] });
+  }
+
+  return (
+    <div className="space-y-4">
+      {groups.map(grp => (
+        <div key={grp.dayLabel}>
+          {/* Day label */}
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded"
+              style={{ background: "rgba(212,175,55,0.12)", color: GOLD }}>
+              {grp.dayLabel}
+            </span>
+            <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
+          </div>
+
+          {/* Events */}
+          <div>
+            {grp.events.map((ev, i) => (
+              <TimelineRow key={`${ev.engine}-${ev.scheduledAt}`} event={ev} isLast={i === grp.events.length - 1} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -152,137 +454,145 @@ function Skeleton({ className }: { className?: string }) {
    Main page
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const PERIOD_LABELS: { key: TrendPeriod; label: string }[] = [
-  { key: "7d",  label: "7D"  },
-  { key: "30d", label: "30D" },
-  { key: "90d", label: "90D" },
-  { key: "1y",  label: "1Y"  },
-  { key: "all", label: "All" },
-];
-
-const HERO_PERIODS = [
-  { key: "today",    label: "Today"     },
-  { key: "week",     label: "This Week" },
-  { key: "month",    label: "This Month"},
-  { key: "lifetime", label: "Lifetime"  },
-] as const;
-
-type HeroPeriod = "today" | "week" | "month" | "lifetime";
-
 export default function IncomeCenterPage() {
-  /* ── Data state ─────────────────────────────────────────────────────── */
-  const [summary, setSummary]         = useState<IncomeSummary | null>(null);
-  const [trend, setTrend]             = useState<TrendPoint[]>([]);
-  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>("30d");
-  const [txs, setTxs]                 = useState<Transaction[]>([]);
-  const [txPage, setTxPage]           = useState(1);
-  const [hasMore, setHasMore]         = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [filter, setFilter]           = useState<FilterKey>("ALL");
-  const [heroPeriod, setHeroPeriod]   = useState<HeroPeriod>("today");
-  const [selected, setSelected]       = useState<Transaction | null>(null);
-  const [loading, setLoading]         = useState(true);
-  const [trendLoading, setTrendLoading] = useState(false);
-  const [goal, setGoal] = useState<number>(() => {
-    const s = localStorage.getItem("pw_income_goal");
-    return s ? parseFloat(s) : 0;
-  });
-  const [editGoal, setEditGoal]   = useState(false);
-  const [goalInput, setGoalInput] = useState("");
+  const [dash, setDash]     = useState<IncomeDashboard | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]   = useState<string | null>(null);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  const filterRef   = useRef<FilterKey>(filter);
+  /* History section state */
+  const [filter, setFilter]   = useState<FilterKey>("ALL");
+  const [txs, setTxs]         = useState<Transaction[]>([]);
+  const [txPage, setTxPage]   = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [txLoading, setTxLoading] = useState(false);
+  const [selected, setSelected] = useState<Transaction | null>(null);
+  const [historyInitialized, setHistoryInitialized] = useState(false);
+
+  const filterRef = useRef<FilterKey>(filter);
   filterRef.current = filter;
 
-  /* ── Loaders ────────────────────────────────────────────────────────── */
+  const INCOME_TYPES_LIST = ["ROI_CLAIM", "BINARY_MATCH", "BINARY_ORBIT", "LEVEL_INCOME", "SALARY"] as const;
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const s = await getIncomeSummary();
-        setSummary(s);
-      } catch { /* empty state */ }
-      finally { setLoading(false); }
-    })();
-  }, []);
+  /* ── Load dashboard ──────────────────────────────────────────────────── */
 
-  useEffect(() => {
-    setTrendLoading(true);
-    getIncomeTrend(trendPeriod)
-      .then(setTrend)
-      .catch(() => setTrend([]))
-      .finally(() => setTrendLoading(false));
-  }, [trendPeriod]);
-
-  const loadTxs = useCallback(async (pageNum: number, currentFilter: FilterKey) => {
-    setLoadingMore(true);
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const types = currentFilter === "ALL" ? INCOME_TYPES : [currentFilter];
-      const res = await getWalletHistory({ page: pageNum, limit: 20, types });
-      if (pageNum === 1) {
-        setTxs(res.data);
-      } else {
-        setTxs(prev => [...prev, ...res.data]);
+      const data = await getIncomeDashboard();
+      setDash(data);
+      setLastRefresh(new Date());
+      // Seed recent income into history if we haven't loaded history yet
+      if (!historyInitialized) {
+        setTxs(data.recentIncome as unknown as Transaction[]);
+        setHasMore(data.recentIncome.length >= 20);
+        setHistoryInitialized(true);
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load income data");
+    } finally {
+      setLoading(false);
+    }
+  }, [historyInitialized]);
+
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
+
+  /* ── Load more history ───────────────────────────────────────────────── */
+
+  const loadMoreTxs = useCallback(async (pageNum: number, currentFilter: FilterKey) => {
+    setTxLoading(true);
+    try {
+      const types = currentFilter === "ALL" ? [...INCOME_TYPES_LIST] : [currentFilter];
+      const res   = await getWalletHistory({ page: pageNum, limit: 20, types });
+      if (pageNum === 1) setTxs(res.data);
+      else setTxs(prev => [...prev, ...res.data]);
       setHasMore(res.meta.hasNextPage);
       setTxPage(pageNum);
     } catch { /* keep existing */ }
-    finally { setLoadingMore(false); }
+    finally { setTxLoading(false); }
   }, []);
 
+  /* When filter changes, reload history */
   useEffect(() => {
-    setTxs([]);
+    if (!historyInitialized) return;
+    if (filter === "ALL" && txPage === 1) return; // already seeded from dashboard
     setTxPage(1);
     setHasMore(true);
-    loadTxs(1, filter);
-  }, [filter, loadTxs]);
+    loadMoreTxs(1, filter);
+  }, [filter]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Infinite scroll ────────────────────────────────────────────────── */
+  /* ── Snapshot counters ───────────────────────────────────────────────── */
 
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && hasMore && !loadingMore) {
-          loadTxs(txPage + 1, filterRef.current);
-        }
-      },
-      { rootMargin: "300px" },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [hasMore, loadingMore, txPage, loadTxs]);
+  const nextCredit  = useCountdown(dash?.snapshot.nextCreditAt);
+  const nextSalary  = useCountdown(dash?.snapshot.salaryNextAt);
 
-  /* ── Derived values ─────────────────────────────────────────────────── */
+  /* ── Pending label logic ─────────────────────────────────────────────── */
 
-  const heroValue = summary ? parseFloat(summary.periods[heroPeriod]) : 0;
-  const monthTotal = summary ? parseFloat(summary.periods.month) : 0;
-  const goalPct = goal > 0 ? Math.min((monthTotal / goal) * 100, 100) : 0;
-
-  const donutData = (summary?.breakdown ?? [])
-    .filter(b => parseFloat(b.total) > 0)
-    .map(b => {
-      const cfg = typeConfig(b.type);
-      return { name: cfg.label, value: parseFloat(b.total), color: cfg.color, percentage: b.percentage };
-    });
-
-  const chartData = trend.map(p => ({
-    date:  p.date,
-    total: p.total,
-  }));
-
-  /* ── Save goal ──────────────────────────────────────────────────────── */
-
-  function saveGoal() {
-    const val = parseFloat(goalInput);
-    if (!isNaN(val) && val > 0) {
-      setGoal(val);
-      localStorage.setItem("pw_income_goal", String(val));
+  function pendingDisplay(): { value: React.ReactNode; sub: string } {
+    if (!dash) return { value: "—", sub: "" };
+    const { pendingThisCycle, isQualifiedForAny } = dash.snapshot;
+    if (!isQualifiedForAny) {
+      return {
+        value: <span style={{ color: MUTED, fontSize: "1rem" }}>Not qualified</span>,
+        sub:   "Refer 2+ members on each leg to qualify",
+      };
     }
-    setEditGoal(false);
-    setGoalInput("");
+    const amt = parseFloat(pendingThisCycle);
+    if (amt === 0) {
+      return {
+        value: <span style={{ color: MUTED, fontSize: "1rem" }}>Calculating…</span>,
+        sub:   "No pending income for this cycle",
+      };
+    }
+    return {
+      value: <><span style={{ color: GOLD }}>~${fmt(pendingThisCycle)}</span></>,
+      sub:   "Binary + Orbit combined estimate",
+    };
   }
+
+  const pending = pendingDisplay();
+
+  /* ── Monthly salary display ──────────────────────────────────────────── */
+
+  function salaryDisplay(): { value: React.ReactNode; sub: string } {
+    if (!dash) return { value: "—", sub: "" };
+    const { monthlySalary, activeRanks } = dash.snapshot;
+    const amt = parseFloat(monthlySalary);
+    if (amt === 0) {
+      return {
+        value: <span style={{ color: MUTED, fontSize: "1rem" }}>Not qualified</span>,
+        sub:   "Reach Bronze rank to unlock salary",
+      };
+    }
+    return {
+      value: <span style={{ color: "#fb923c" }}>${fmt(monthlySalary)}<span style={{ fontSize: "0.75rem", fontWeight: 400 }}>/mo</span></span>,
+      sub:   activeRanks.join(" + "),
+    };
+  }
+
+  const salaryDisp = salaryDisplay();
+
+  /* ── Rank display ────────────────────────────────────────────────────── */
+
+  function rankDisplay(): { value: React.ReactNode; sub: string; progress?: { pct: number; label: string } } {
+    if (!dash) return { value: "—", sub: "" };
+    const { currentRank, nextRank, rankProgressPct } = dash.snapshot;
+    if (!currentRank) {
+      return {
+        value:    <span style={{ color: MUTED, fontSize: "1rem" }}>No rank yet</span>,
+        sub:      "Build your network to qualify for Bronze",
+        progress: nextRank ? { pct: rankProgressPct, label: `${rankProgressPct}% toward ${nextRank}` } : undefined,
+      };
+    }
+    return {
+      value:    <span style={{ color: GOLD }}>{currentRank}</span>,
+      sub:      nextRank ? `${rankProgressPct}% toward ${nextRank}` : "All ranks achieved",
+      progress: nextRank ? { pct: rankProgressPct, label: `${rankProgressPct}% toward ${nextRank}` } : undefined,
+    };
+  }
+
+  const rankDisp = rankDisplay();
 
   /* ─────────────────────────────────────────────────────────────────────
      Render
@@ -291,614 +601,368 @@ export default function IncomeCenterPage() {
   return (
     <AppLayout pageTitle="Income Center" notificationCount={0}>
       <PageContainer>
-        <div className="space-y-5 pb-6">
+        <div className="space-y-6 pb-8">
 
-          {/* ── HERO ──────────────────────────────────────────────────── */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-          >
-            <div
-              className="relative overflow-hidden rounded-2xl p-5 lg:p-7"
-              style={{
-                background: "linear-gradient(135deg, hsl(221,65%,13%) 0%, hsl(230,55%,18%) 100%)",
-                border: "1px solid rgba(212,175,55,0.18)",
-                boxShadow: "0 8px 40px rgba(0,0,0,0.4)",
-              }}
-            >
-              {/* Glow */}
-              <div className="pointer-events-none absolute -top-10 -right-10 h-48 w-48 rounded-full"
-                style={{ background: "radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 70%)" }} />
-
-              {/* Header */}
-              <div className="flex items-center gap-2 mb-5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg"
-                  style={{ background: "rgba(212,175,55,0.12)", border: "1px solid rgba(212,175,55,0.2)" }}>
-                  <Sparkles className="h-4 w-4" style={{ color: GOLD }} />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: GOLD }}>
-                    Income Center
-                  </p>
-                  <p className="text-[11px]" style={{ color: MUTED }}>All earnings in one view</p>
-                </div>
-              </div>
-
-              {/* Period tabs */}
-              <div className="flex gap-1.5 mb-4 flex-wrap">
-                {HERO_PERIODS.map(p => (
-                  <button
-                    key={p.key}
-                    onClick={() => setHeroPeriod(p.key)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150"
-                    style={{
-                      background: heroPeriod === p.key ? "rgba(212,175,55,0.18)" : "rgba(255,255,255,0.04)",
-                      border: `1px solid ${heroPeriod === p.key ? "rgba(212,175,55,0.35)" : "rgba(255,255,255,0.06)"}`,
-                      color: heroPeriod === p.key ? GOLD : MUTED,
-                    }}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Main number */}
-              {loading ? (
-                <Skeleton className="h-14 w-56 mb-2" />
-              ) : (
-                <AnimatedNumber
-                  value={heroValue}
-                  className="block text-4xl lg:text-5xl font-bold"
-                  style={{ fontFamily: "Cormorant Garamond, serif", color: GOLD }}
-                />
-              )}
-              <p className="text-sm mt-1" style={{ color: MUTED }}>
-                {HERO_PERIODS.find(p => p.key === heroPeriod)?.label} earnings
-              </p>
-
-              {/* Sub-period row */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5">
-                {HERO_PERIODS.map(p => (
-                  <button
-                    key={p.key}
-                    onClick={() => setHeroPeriod(p.key)}
-                    className="text-left rounded-xl p-3 transition-all duration-150"
-                    style={{
-                      background: heroPeriod === p.key ? "rgba(212,175,55,0.1)" : "rgba(255,255,255,0.03)",
-                      border: `1px solid ${heroPeriod === p.key ? "rgba(212,175,55,0.2)" : "rgba(255,255,255,0.05)"}`,
-                    }}
-                  >
-                    <p className="text-[10px] mb-1 uppercase tracking-wider" style={{ color: MUTED }}>{p.label}</p>
-                    {loading ? <Skeleton className="h-5 w-16" /> : (
-                      <p className="text-sm font-semibold" style={{ color: heroPeriod === p.key ? GOLD : "hsl(var(--foreground))" }}>
-                        ${fmt(summary?.periods[p.key])}
-                      </p>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-
-          {/* ── MONTHLY GOAL ──────────────────────────────────────────── */}
+          {/* ── PAGE HEADER ─────────────────────────────────────────────── */}
           <motion.div
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.05 }}
+            transition={{ duration: 0.35 }}
+            className="flex items-center justify-between flex-wrap gap-3"
           >
-            <div
-              className="rounded-2xl p-4 lg:p-5"
-              style={{ background: CARD, border: "1px solid rgba(255,255,255,0.06)" }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Target className="h-4 w-4" style={{ color: GOLD }} />
-                  <span className="text-sm font-semibold text-foreground">Monthly Goal</span>
-                </div>
-                <button
-                  onClick={() => { setEditGoal(true); setGoalInput(goal > 0 ? String(goal) : ""); }}
-                  className="text-xs px-2 py-1 rounded-lg transition-colors"
-                  style={{ background: "rgba(212,175,55,0.08)", color: GOLD, border: "1px solid rgba(212,175,55,0.15)" }}
-                >
-                  {goal > 0 ? "Edit" : "Set Goal"}
-                </button>
-              </div>
-
-              {goal > 0 ? (
-                <>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs" style={{ color: MUTED }}>
-                      ${fmt(monthTotal)} earned
-                    </span>
-                    <span className="text-xs font-medium" style={{ color: GOLD }}>
-                      {goalPct.toFixed(1)}% of ${fmt(goal)}
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                    <motion.div
-                      className="h-full rounded-full"
-                      style={{ background: `linear-gradient(90deg, ${GOLD} 0%, #F3D37A 100%)` }}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${goalPct}%` }}
-                      transition={{ duration: 1, ease: "easeOut" }}
-                    />
-                  </div>
-                  <p className="text-[11px] mt-1.5" style={{ color: MUTED }}>
-                    ${fmt(Math.max(0, goal - monthTotal))} remaining this month
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm" style={{ color: MUTED }}>
-                  Set a monthly income goal to track your progress
-                </p>
-              )}
-
-              {/* Edit goal input */}
-              <AnimatePresence>
-                {editGoal && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mt-3 flex gap-2"
-                  >
-                    <input
-                      type="number"
-                      value={goalInput}
-                      onChange={e => setGoalInput(e.target.value)}
-                      placeholder="Enter monthly goal ($)"
-                      className="flex-1 rounded-lg px-3 py-2 text-sm bg-transparent text-foreground"
-                      style={{ border: "1px solid rgba(212,175,55,0.25)", outline: "none" }}
-                      onKeyDown={e => e.key === "Enter" && saveGoal()}
-                      autoFocus
-                    />
-                    <button
-                      onClick={saveGoal}
-                      className="px-3 py-2 rounded-lg text-sm font-medium"
-                      style={{ background: "rgba(212,175,55,0.15)", color: GOLD, border: "1px solid rgba(212,175,55,0.25)" }}
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => setEditGoal(false)}
-                      className="px-3 py-2 rounded-lg text-sm"
-                      style={{ background: "rgba(255,255,255,0.05)", color: MUTED }}
-                    >
-                      Cancel
-                    </button>
-                  </motion.div>
+            <div>
+              <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+                <Sparkles className="h-5 w-5" style={{ color: GOLD }} />
+                Income Center
+              </h1>
+              <p className="text-xs mt-0.5" style={{ color: MUTED }}>
+                Your complete earnings overview — all in one view
+                {lastRefresh && (
+                  <span> · Updated {lastRefresh.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
                 )}
-              </AnimatePresence>
+              </p>
             </div>
+            <button
+              onClick={loadDashboard}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all"
+              style={{ background: "rgba(212,175,55,0.08)", color: GOLD, border: "1px solid rgba(212,175,55,0.2)" }}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
           </motion.div>
 
-          {/* ── BREAKDOWN CARDS ───────────────────────────────────────── */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.08 }}
-          >
-            <h2 className="text-sm font-semibold text-foreground mb-2.5 flex items-center gap-2">
-              <BarChart2 className="h-4 w-4" style={{ color: GOLD }} />
+          {/* Error banner */}
+          {error && (
+            <div className="rounded-xl px-4 py-3 text-sm flex items-center gap-2"
+              style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171" }}>
+              <XCircle className="h-4 w-4 shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {/* ────────────────────────────────────────────────────────────────
+              SECTION 1 — TODAY'S SNAPSHOT
+          ──────────────────────────────────────────────────────────────── */}
+          <section>
+            <h2 className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+              style={{ color: MUTED }}>
+              <Zap className="h-3.5 w-3.5" style={{ color: GOLD }} />
+              Today's Snapshot
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+
+              {/* Today's Earnings */}
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.04 }}>
+                <SnapCard
+                  label="Today's Earnings"
+                  value={<span style={{ color: GOLD }}>${fmt(dash?.snapshot.todayEarnings)}</span>}
+                  sub="All income credited today"
+                  icon={Sparkles}
+                  loading={loading}
+                />
+              </motion.div>
+
+              {/* Pending This Cycle */}
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }}>
+                <SnapCard
+                  label="Pending This Cycle"
+                  value={pending.value}
+                  sub={pending.sub}
+                  icon={Clock}
+                  iconColor="#60a5fa"
+                  iconBg="rgba(96,165,250,0.1)"
+                  loading={loading}
+                />
+              </motion.div>
+
+              {/* Next Credit */}
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.10 }}>
+                <SnapCard
+                  label="Next Credit"
+                  value={<span style={{ color: GOLD }}>{loading ? "—" : nextCredit}</span>}
+                  sub={
+                    dash?.snapshot.nextCreditAt
+                      ? `ROI · Binary · Orbit · ${fmtTime(dash.snapshot.nextCreditAt)}`
+                      : "ROI · Binary · Orbit"
+                  }
+                  icon={Timer}
+                  iconColor="#34d399"
+                  iconBg="rgba(52,211,153,0.1)"
+                  loading={loading}
+                />
+              </motion.div>
+
+              {/* Monthly Salary */}
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.13 }}>
+                <SnapCard
+                  label="Monthly Salary"
+                  value={salaryDisp.value}
+                  sub={salaryDisp.sub}
+                  icon={DollarSign}
+                  iconColor="#fb923c"
+                  iconBg="rgba(251,146,60,0.1)"
+                  loading={loading}
+                />
+              </motion.div>
+
+              {/* Current Rank */}
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
+                <SnapCard
+                  label="Current Rank"
+                  value={rankDisp.value}
+                  sub={rankDisp.sub}
+                  icon={Award}
+                  loading={loading}
+                  progress={rankDisp.progress}
+                />
+              </motion.div>
+            </div>
+          </section>
+
+          {/* ────────────────────────────────────────────────────────────────
+              SECTION 2 — INCOME SOURCES
+          ──────────────────────────────────────────────────────────────── */}
+          <section>
+            <h2 className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+              style={{ color: MUTED }}>
+              <TrendingUp className="h-3.5 w-3.5" style={{ color: GOLD }} />
               Income Sources
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-              {INCOME_TYPES.map((type, i) => {
-                const cfg = typeConfig(type);
-                const b   = summary?.breakdown.find(x => x.type === type);
-                const Icon = cfg.icon;
-                return (
-                  <motion.div
-                    key={type}
-                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 + i * 0.04 }}
-                  >
-                    <div
-                      className="rounded-2xl p-4 cursor-pointer transition-all duration-200"
-                      style={{
-                        background: CARD,
-                        border: filter === type
-                          ? `1px solid ${cfg.color}55`
-                          : "1px solid rgba(255,255,255,0.06)",
-                        boxShadow: filter === type ? `0 0 16px ${cfg.color}18` : undefined,
-                      }}
-                      onClick={() => setFilter(filter === type ? "ALL" : type)}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div
-                          className="flex h-8 w-8 items-center justify-center rounded-lg"
-                          style={{ background: cfg.bg }}
-                        >
-                          <Icon className="h-4 w-4" style={{ color: cfg.color }} />
-                        </div>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium"
-                          style={{ background: cfg.bg, color: cfg.color }}>
-                          {loading ? "—" : `${b?.percentage ?? "0"}%`}
-                        </span>
-                      </div>
-                      <p className="text-[11px] mb-0.5" style={{ color: MUTED }}>{cfg.label}</p>
-                      {loading ? (
-                        <Skeleton className="h-6 w-20" />
-                      ) : (
-                        <p className="text-base font-bold" style={{ color: cfg.color, fontFamily: "Cormorant Garamond, serif" }}>
-                          ${fmt(b?.total)}
-                        </p>
-                      )}
-                      <p className="text-[10px] mt-1" style={{ color: MUTED }}>
-                        Today: <span style={{ color: "hsl(var(--foreground))" }}>${fmt(b?.today)}</span>
-                      </p>
-                    </div>
-                  </motion.div>
-                );
-              })}
+              {["ROI_CLAIM", "BINARY_MATCH", "BINARY_ORBIT", "SALARY", "LEVEL_INCOME"].map((engine, i) => (
+                <motion.div
+                  key={engine}
+                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.04 + i * 0.04 }}
+                >
+                  <SourceCard engine={engine} loading={loading} snap={dash} />
+                </motion.div>
+              ))}
             </div>
-          </motion.div>
+          </section>
 
-          {/* ── CHARTS ROW ────────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-            {/* Donut chart */}
+          {/* ────────────────────────────────────────────────────────────────
+              SECTION 3 — UPCOMING PAYOUTS
+          ──────────────────────────────────────────────────────────────── */}
+          <section>
             <motion.div
-              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.12 }}
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.22 }}
             >
-              <div
-                className="rounded-2xl p-5 h-full"
-                style={{ background: CARD, border: "1px solid rgba(255,255,255,0.06)" }}
-              >
-                <h3 className="text-sm font-semibold text-foreground mb-1">Portfolio Mix</h3>
-                <p className="text-xs mb-4" style={{ color: MUTED }}>Income by source</p>
-
-                {loading || donutData.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-40">
-                    {loading
-                      ? <Skeleton className="h-32 w-32 rounded-full" />
-                      : <p className="text-sm text-center" style={{ color: MUTED }}>No income recorded yet</p>
-                    }
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={180}>
-                    <PieChart>
-                      <Pie
-                        data={donutData}
-                        cx="50%" cy="50%"
-                        innerRadius={52} outerRadius={78}
-                        dataKey="value"
-                        paddingAngle={3}
-                        strokeWidth={0}
-                      >
-                        {donutData.map((d, i) => (
-                          <Cell key={i} fill={d.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<DonutTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-
-                {/* Legend */}
-                <div className="space-y-1.5 mt-2">
-                  {donutData.map(d => (
-                    <div key={d.name} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-2 rounded-full shrink-0" style={{ background: d.color }} />
-                        <span className="text-xs" style={{ color: MUTED }}>{d.name}</span>
-                      </div>
-                      <span className="text-xs font-medium" style={{ color: "hsl(var(--foreground))" }}>
-                        {d.percentage}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
+              <h2 className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+                style={{ color: MUTED }}>
+                <Clock className="h-3.5 w-3.5" style={{ color: GOLD }} />
+                Upcoming Payouts
+              </h2>
+              <div className="rounded-2xl p-5" style={{ background: CARD, border: "1px solid rgba(255,255,255,0.06)" }}>
+                <TimelineSection events={dash?.timeline ?? []} loading={loading} />
               </div>
             </motion.div>
+          </section>
 
-            {/* Trend chart */}
+          {/* ────────────────────────────────────────────────────────────────
+              SECTION 4 — RECENT INCOME
+          ──────────────────────────────────────────────────────────────── */}
+          <section>
             <motion.div
-              className="lg:col-span-2"
-              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.14 }}
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.26 }}
             >
-              <div
-                className="rounded-2xl p-5 h-full"
-                style={{ background: CARD, border: "1px solid rgba(255,255,255,0.06)" }}
-              >
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground">Earnings Trend</h3>
-                    <p className="text-xs" style={{ color: MUTED }}>Daily income over time</p>
-                  </div>
-                  <div className="flex gap-1">
-                    {PERIOD_LABELS.map(p => (
-                      <button
-                        key={p.key}
-                        onClick={() => setTrendPeriod(p.key)}
-                        className="px-2.5 py-1 rounded-md text-xs font-medium transition-all"
-                        style={{
-                          background: trendPeriod === p.key ? "rgba(212,175,55,0.15)" : "rgba(255,255,255,0.04)",
-                          border: `1px solid ${trendPeriod === p.key ? "rgba(212,175,55,0.3)" : "rgba(255,255,255,0.05)"}`,
-                          color: trendPeriod === p.key ? GOLD : MUTED,
-                        }}
-                      >
-                        {p.label}
-                      </button>
+              {/* Filter chips */}
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <h2 className="text-xs font-bold uppercase tracking-widest flex items-center gap-2 mr-1"
+                  style={{ color: MUTED }}>
+                  <Sparkles className="h-3.5 w-3.5" style={{ color: GOLD }} />
+                  Recent Income
+                </h2>
+                {([
+                  { key: "ALL" as FilterKey,         label: "All"    },
+                  { key: "ROI_CLAIM" as FilterKey,    label: "ROI"    },
+                  { key: "BINARY_MATCH" as FilterKey, label: "Binary" },
+                  { key: "BINARY_ORBIT" as FilterKey, label: "Orbit"  },
+                  { key: "LEVEL_INCOME" as FilterKey, label: "Level"  },
+                  { key: "SALARY" as FilterKey,       label: "Salary" },
+                ]).map(({ key, label }) => {
+                  const active = filter === key;
+                  const color  = key === "ALL" ? GOLD : typeConfig(key).color;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setFilter(key)}
+                      className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+                      style={{
+                        background: active ? `${color}18` : "rgba(255,255,255,0.04)",
+                        border:     `1px solid ${active ? `${color}50` : "rgba(255,255,255,0.08)"}`,
+                        color:      active ? color : MUTED,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Transaction list */}
+              <div className="rounded-2xl overflow-hidden" style={{ background: CARD, border: "1px solid rgba(255,255,255,0.06)" }}>
+                {loading ? (
+                  <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                    {[0, 1, 2, 3, 4].map(i => (
+                      <div key={i} className="flex items-center gap-3 px-4 py-3.5">
+                        <Sk className="h-9 w-9 rounded-xl shrink-0" />
+                        <div className="flex-1 space-y-2">
+                          <Sk className="h-4 w-32" />
+                          <Sk className="h-3 w-20" />
+                        </div>
+                        <Sk className="h-5 w-16" />
+                      </div>
                     ))}
                   </div>
-                </div>
-
-                {trendLoading ? (
-                  <Skeleton className="h-48 w-full" />
-                ) : chartData.length === 0 ? (
-                  <div className="flex items-center justify-center h-48">
-                    <p className="text-sm" style={{ color: MUTED }}>No data for this period</p>
+                ) : txs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl mb-3"
+                      style={{ background: "rgba(212,175,55,0.08)", border: "1px solid rgba(212,175,55,0.12)" }}>
+                      <Sparkles className="h-6 w-6" style={{ color: GOLD }} />
+                    </div>
+                    <p className="text-sm font-medium text-foreground">No income yet</p>
+                    <p className="text-xs mt-1 text-center max-w-xs" style={{ color: MUTED }}>
+                      {filter === "ALL"
+                        ? "Once your investments start generating income, it will appear here."
+                        : `No ${typeConfig(filter).label.toLowerCase()} income recorded yet.`}
+                    </p>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={195}>
-                    <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="incGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%"   stopColor={GOLD} stopOpacity={0.3} />
-                          <stop offset="100%" stopColor={GOLD} stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                      <XAxis
-                        dataKey="date"
-                        tick={AXIS}
-                        axisLine={false} tickLine={false}
-                        tickFormatter={d => fmtChartDate(d, trendPeriod)}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        tick={AXIS}
-                        axisLine={false} tickLine={false}
-                        tickFormatter={(v: number) => `$${v >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`}
-                      />
-                      <Tooltip
-                        content={<TrendTooltip period={trendPeriod} />}
-                        cursor={{ stroke: "rgba(212,175,55,0.15)", strokeWidth: 1 }}
-                      />
-                      <Area
-                        type="monotone" dataKey="total"
-                        stroke={GOLD} strokeWidth={2}
-                        fill="url(#incGrad)"
-                        dot={false}
-                        activeDot={{ r: 5, fill: GOLD, stroke: "#0A1628", strokeWidth: 2 }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+                    {txs.map((tx, i) => {
+                      const cfg  = typeConfig(tx.type);
+                      const Icon = cfg.icon;
+                      return (
+                        <motion.button
+                          key={tx.id}
+                          initial={{ opacity: 0, x: -6 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: Math.min(i * 0.02, 0.3) }}
+                          onClick={() => setSelected(tx)}
+                          className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-white/[0.02]"
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: cfg.bg }}>
+                            <Icon className="h-4 w-4" style={{ color: cfg.color }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{cfg.label}</p>
+                            <p className="text-xs truncate mt-0.5" style={{ color: MUTED }}>
+                              {new Date(tx.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-sm font-semibold" style={{ color: cfg.color }}>+${fmt(tx.amount)}</p>
+                            <p className="text-[10px] mt-0.5 px-1.5 py-0.5 rounded"
+                              style={{ background: "rgba(52,211,153,0.1)", color: "#34d399" }}>
+                              {tx.status}
+                            </p>
+                          </div>
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0" style={{ color: "rgba(170,179,197,0.3)" }} />
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Load more */}
+                {!loading && hasMore && (
+                  <div className="flex justify-center p-4">
+                    <button
+                      onClick={() => loadMoreTxs(txPage + 1, filterRef.current)}
+                      disabled={txLoading}
+                      className="px-4 py-2 rounded-lg text-xs font-medium transition-all"
+                      style={{ background: "rgba(255,255,255,0.05)", color: MUTED, border: "1px solid rgba(255,255,255,0.08)" }}
+                    >
+                      {txLoading ? "Loading…" : "Load more"}
+                    </button>
+                  </div>
+                )}
+                {!loading && !hasMore && txs.length > 0 && (
+                  <p className="text-center text-xs py-4" style={{ color: MUTED }}>
+                    All {txs.length} records shown
+                  </p>
                 )}
               </div>
             </motion.div>
-          </div>
+          </section>
 
-          {/* ── ANALYTICS PANEL ───────────────────────────────────────── */}
-          {summary && (
+          {/* ────────────────────────────────────────────────────────────────
+              SECTION 5 — QUICK ACTIONS
+          ──────────────────────────────────────────────────────────────── */}
+          <section>
             <motion.div
-              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.16 }}
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.30 }}
             >
-              <div
-                className="rounded-2xl p-5"
-                style={{ background: CARD, border: "1px solid rgba(255,255,255,0.06)" }}
-              >
-                <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-                  <Zap className="h-4 w-4" style={{ color: GOLD }} />
-                  Analytics
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                  {[
-                    {
-                      label: "Highest Source",
-                      value: summary.analytics.highestSource
-                        ? typeConfig(summary.analytics.highestSource).short
-                        : "—",
-                      icon: Award,
-                      color: summary.analytics.highestSource
-                        ? typeConfig(summary.analytics.highestSource).color
-                        : GOLD,
-                    },
-                    {
-                      label: "Largest Reward",
-                      value: `$${fmt(summary.analytics.largestReward)}`,
-                      icon: ArrowUpRight,
-                      color: GOLD,
-                    },
-                    {
-                      label: "Avg Daily",
-                      value: `$${fmt(summary.analytics.avgDailyIncome)}`,
-                      icon: BarChart2,
-                      color: "#60a5fa",
-                    },
-                    {
-                      label: "Avg Monthly",
-                      value: `$${fmt(summary.analytics.avgMonthlyIncome)}`,
-                      icon: BarChart2,
-                      color: "#34d399",
-                    },
-                    {
-                      label: "ROI Share",
-                      value: `${summary.analytics.roiVsNetworkRoi}%`,
-                      icon: TrendingUp,
-                      color: GOLD,
-                    },
-                    {
-                      label: "Total Txns",
-                      value: summary.analytics.totalTransactions.toLocaleString(),
-                      icon: ChevronRight,
-                      color: "#a78bfa",
-                    },
-                  ].map(({ label, value, icon: Icon, color }) => (
-                    <div
-                      key={label}
-                      className="rounded-xl p-3"
-                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}
+              <h2 className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
+                style={{ color: MUTED }}>
+                <Zap className="h-3.5 w-3.5" style={{ color: GOLD }} />
+                Quick Actions
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                {[
+                  { label: "ROI Details",    engine: "ROI_CLAIM",    route: "/income/roi"    },
+                  { label: "Binary Details", engine: "BINARY_MATCH", route: "/income/binary" },
+                  { label: "Orbit Details",  engine: "BINARY_ORBIT", route: "/income/orbit"  },
+                  { label: "Salary Details", engine: "SALARY",       route: "/income/salary" },
+                  { label: "Level Details",  engine: "LEVEL_INCOME", route: "/income/level"  },
+                ].map(({ label, engine }) => {
+                  const cfg  = typeConfig(engine);
+                  const Icon = cfg.icon;
+                  return (
+                    <button
+                      key={engine}
+                      className="flex items-center justify-center gap-2 rounded-xl py-3 px-4 text-sm font-medium transition-all hover:opacity-90"
+                      style={{
+                        background: cfg.bg,
+                        color:      cfg.color,
+                        border:     `1px solid ${cfg.color}25`,
+                      }}
+                      onClick={() => {}}
                     >
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <Icon className="h-3.5 w-3.5 shrink-0" style={{ color }} />
-                        <p className="text-[10px] uppercase tracking-wide" style={{ color: MUTED }}>{label}</p>
-                      </div>
-                      <p className="text-sm font-semibold" style={{ color }}>
-                        {value}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                      <Icon className="h-4 w-4" />
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </motion.div>
-          )}
+          </section>
 
-          {/* ── UNIFIED TIMELINE ──────────────────────────────────────── */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.18 }}
-          >
-            {/* Filter chips */}
-            <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <h2 className="text-sm font-semibold text-foreground mr-1">History</h2>
-              {([
-                { key: "ALL" as FilterKey,    label: "All" },
-                { key: "ROI_CLAIM" as FilterKey, label: "ROI" },
-                { key: "BINARY_MATCH" as FilterKey, label: "Binary" },
-                { key: "BINARY_ORBIT" as FilterKey, label: "Orbit" },
-                { key: "LEVEL_INCOME" as FilterKey, label: "Level" },
-                { key: "SALARY" as FilterKey, label: "Salary" },
-              ]).map(({ key, label }) => {
-                const active = filter === key;
-                const color  = key === "ALL" ? GOLD : typeConfig(key).color;
-                return (
-                  <button
-                    key={key}
-                    onClick={() => setFilter(key)}
-                    className="px-3 py-1 rounded-full text-xs font-medium transition-all duration-150"
-                    style={{
-                      background: active ? `${color}18` : "rgba(255,255,255,0.04)",
-                      border: `1px solid ${active ? `${color}50` : "rgba(255,255,255,0.08)"}`,
-                      color: active ? color : MUTED,
-                    }}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Transaction list */}
-            <div
-              className="rounded-2xl overflow-hidden"
-              style={{ background: CARD, border: "1px solid rgba(255,255,255,0.06)" }}
-            >
-              {txs.length === 0 && !loadingMore ? (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl mb-3"
-                    style={{ background: "rgba(212,175,55,0.08)", border: "1px solid rgba(212,175,55,0.12)" }}>
-                    <Sparkles className="h-6 w-6" style={{ color: GOLD }} />
-                  </div>
-                  <p className="text-sm font-medium text-foreground">No income yet</p>
-                  <p className="text-xs mt-1 text-center max-w-xs" style={{ color: MUTED }}>
-                    {filter === "ALL"
-                      ? "Once your investments start generating income it will appear here."
-                      : `No ${typeConfig(filter as string).label.toLowerCase()} income recorded yet.`}
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-                  {txs.map((tx, i) => {
-                    const cfg = typeConfig(tx.type);
-                    const Icon = cfg.icon;
-                    return (
-                      <motion.button
-                        key={tx.id}
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: Math.min(i * 0.025, 0.4) }}
-                        onClick={() => setSelected(tx)}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-white/[0.02]"
-                      >
-                        {/* Icon */}
-                        <div
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                          style={{ background: cfg.bg }}
-                        >
-                          <Icon className="h-4 w-4" style={{ color: cfg.color }} />
-                        </div>
-
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{cfg.label}</p>
-                          <p className="text-xs truncate mt-0.5" style={{ color: MUTED }}>
-                            {tx.description ?? fmtFull(tx.createdAt).split("·")[0].trim()}
-                          </p>
-                        </div>
-
-                        {/* Amount + date */}
-                        <div className="text-right shrink-0">
-                          <p className="text-sm font-semibold" style={{ color: cfg.color }}>
-                            +${fmt(tx.amount)}
-                          </p>
-                          <p className="text-[10px] mt-0.5" style={{ color: MUTED }}>
-                            {new Date(tx.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                          </p>
-                        </div>
-
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0" style={{ color: "rgba(170,179,197,0.3)" }} />
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Loading more */}
-              {loadingMore && (
-                <div className="flex justify-center py-4">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-transparent"
-                    style={{ borderTopColor: GOLD }} />
-                </div>
-              )}
-
-              {/* Sentinel for infinite scroll */}
-              <div ref={sentinelRef} className="h-1" />
-
-              {!hasMore && txs.length > 0 && (
-                <p className="text-center text-xs py-4" style={{ color: MUTED }}>
-                  All {txs.length} records loaded
-                </p>
-              )}
-            </div>
-          </motion.div>
         </div>
       </PageContainer>
 
-      {/* ── DETAILS DRAWER ────────────────────────────────────────────── */}
+      {/* ── TRANSACTION DETAIL DRAWER ────────────────────────────────────── */}
       <AnimatePresence>
         {selected && (
           <>
-            {/* Backdrop */}
             <motion.div
               className="fixed inset-0 z-50"
               style={{ background: "rgba(0,0,0,0.6)" }}
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setSelected(null)}
             />
-
-            {/* Panel — bottom sheet on mobile, right sidebar on desktop */}
             <motion.div
               className="fixed bottom-0 left-0 right-0 z-50 flex flex-col rounded-t-3xl lg:top-0 lg:bottom-0 lg:left-auto lg:right-0 lg:w-96 lg:rounded-none lg:rounded-l-2xl"
               style={{
-                background: "hsl(221, 62%, 11%)",
-                border: "1px solid rgba(255,255,255,0.07)",
+                background:   "hsl(221, 62%, 11%)",
+                border:       "1px solid rgba(255,255,255,0.07)",
                 borderBottom: "none",
-                maxHeight: "85vh",
+                maxHeight:    "85vh",
               }}
               initial={{ opacity: 0, y: "100%" }}
               animate={{ opacity: 1, y: "0%" }}
               exit={{ opacity: 0, y: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 300 }}
             >
-              {/* Handle */}
               <div className="flex justify-center pt-3 pb-1 lg:hidden">
                 <div className="h-1 w-10 rounded-full" style={{ background: "rgba(255,255,255,0.12)" }} />
               </div>
-
               <div className="flex-1 overflow-y-auto p-5 pb-8">
-                {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-base font-semibold text-foreground">Transaction Details</h3>
                   <button
@@ -909,46 +973,32 @@ export default function IncomeCenterPage() {
                     <X className="h-4 w-4" style={{ color: MUTED }} />
                   </button>
                 </div>
-
-                {/* Type badge */}
                 {(() => {
-                  const cfg = typeConfig(selected.type);
+                  const cfg  = typeConfig(selected.type);
                   const Icon = cfg.icon;
                   return (
                     <div className="flex flex-col items-center text-center mb-6">
-                      <div
-                        className="flex h-16 w-16 items-center justify-center rounded-2xl mb-3"
-                        style={{ background: cfg.bg, border: `1px solid ${cfg.color}33` }}
-                      >
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl mb-3"
+                        style={{ background: cfg.bg, border: `1px solid ${cfg.color}33` }}>
                         <Icon className="h-7 w-7" style={{ color: cfg.color }} />
                       </div>
-                      <p className="text-xs uppercase tracking-widest mb-1" style={{ color: MUTED }}>
-                        {cfg.label}
-                      </p>
-                      <p
-                        className="text-3xl font-bold"
-                        style={{ color: cfg.color, fontFamily: "Cormorant Garamond, serif" }}
-                      >
+                      <p className="text-xs uppercase tracking-widest mb-1" style={{ color: MUTED }}>{cfg.label}</p>
+                      <p className="text-3xl font-bold" style={{ color: cfg.color, fontFamily: "Cormorant Garamond, serif" }}>
                         +${fmt(selected.amount)}
                       </p>
                     </div>
                   );
                 })()}
-
-                {/* Detail rows */}
                 <div className="space-y-0">
                   {[
                     { label: "Status",    value: selected.status },
-                    { label: "Date",      value: fmtFull(selected.createdAt).split("·")[0].trim() },
+                    { label: "Date",      value: fmtFull(selected.createdAt).split("·")[0]?.trim() },
                     { label: "Time",      value: fmtFull(selected.createdAt).split("·")[1]?.trim() },
                     { label: "Reference", value: selected.id },
                     ...(selected.description ? [{ label: "Note", value: selected.description }] : []),
                   ].map(({ label, value }) => (
-                    <div
-                      key={label}
-                      className="flex items-start justify-between py-3"
-                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
-                    >
+                    <div key={label} className="flex items-start justify-between py-3"
+                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                       <span className="text-xs" style={{ color: MUTED }}>{label}</span>
                       <span className="text-xs text-right text-foreground font-medium max-w-[60%] break-all">{value}</span>
                     </div>

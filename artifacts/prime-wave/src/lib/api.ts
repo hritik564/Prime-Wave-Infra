@@ -591,6 +591,78 @@ export function getLevelIncomeSummary() {
   return request<LevelIncomeSummary>("/api/level-income/summary");
 }
 
+/* ── Income Dashboard (aggregated) ────────────────────────────────── */
+
+export interface IncomeDashboard {
+  snapshot: {
+    todayEarnings:     string;
+    pendingThisCycle:  string;
+    isQualifiedForAny: boolean;
+    nextCreditAt:      string;
+    salaryNextAt:      string;
+    monthlySalary:     string;
+    activeRanks:       string[];
+    currentRank:       string | null;
+    nextRank:          string | null;
+    rankProgressPct:   number;
+  };
+  sources: {
+    roi: {
+      todayEarnings:    string;
+      lifetimeEarnings: string;
+      nextCreditAt:     string;
+    };
+    binary: {
+      todayEarnings:       string;
+      lifetimeEarnings:    string;
+      isQualified:         boolean;
+      estimatedNextPayout: string;
+      nextCycleAt:         string;
+    };
+    orbit: {
+      todayEarnings:       string;
+      lifetimeEarnings:    string;
+      isQualified:         boolean;
+      estimatedNextPayout: string;
+      nextCycleAt:         string;
+    };
+    salary: {
+      todayEarnings:    string;
+      lifetimeEarnings: string;
+      monthlySalary:    string;
+      activeRanks:      string[];
+      nextSalaryAt:     string;
+      isQualified:      boolean;
+    };
+    levelIncome: {
+      todayEarnings:     string;
+      thisMonthEarnings: string;
+      lifetimeEarnings:  string;
+      totalPayouts:      number;
+    };
+  };
+  timeline: Array<{
+    engine:          string;
+    label:           string;
+    scheduledAt:     string;
+    estimatedAmount: string | null;
+    isEstimated:     boolean;
+    isQualified:     boolean | null;
+  }>;
+  recentIncome: Array<{
+    id:          string;
+    type:        string;
+    amount:      string;
+    createdAt:   string;
+    description: string | null;
+    status:      string;
+  }>;
+}
+
+export function getIncomeDashboard() {
+  return request<IncomeDashboard>("/api/income/dashboard");
+}
+
 /* ── Admin Dashboard ──────────────────────────────────────────────── */
 
 export interface AdminDashboardStats {

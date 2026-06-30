@@ -1,0 +1,445 @@
+SPRINT 26A — INCOME CENTER REDESIGN (OVERVIEW)
+
+Objective
+
+Redesign the Income Center into an investor-first dashboard.
+
+This sprint is NOT a financial engine sprint.
+
+It is a presentation-layer sprint only.
+
+The existing ROI, Binary, Orbit, Salary, Level Income, Wallet, Investment, Scheduler, and Transparency engines are the single source of truth.
+
+Do NOT duplicate or reimplement business logic.
+
+Do NOT modify any payout engine.
+
+Do NOT change any database schema.
+
+Only aggregate existing data and present it more clearly.
+
+------------------------------------------------------------
+
+PRIMARY GOAL
+
+When a member opens Income Center they should instantly know:
+
+1. How much have I earned?
+2. What is my next payout?
+3. How much is expected next?
+4. Am I qualified?
+5. What should I do to earn more?
+
+Everything else becomes secondary.
+
+------------------------------------------------------------
+
+REMOVE FROM INCOME CENTER
+
+The current page is overloaded.
+
+Remove from the overview:
+
+• Portfolio Mix chart
+• Earnings Trend graph
+• Analytics cards
+• Technical percentages
+• Engine implementation details
+• Transfer engine information
+• Infrastructure status
+
+These belong on future analytics/detail pages.
+
+------------------------------------------------------------
+
+NEW PAGE STRUCTURE
+
+====================================================
+SECTION 1
+TODAY'S SNAPSHOT
+====================================================
+
+Large summary cards.
+
+Display:
+
+Today's Earnings
+
+Pending This Cycle
+
+Next Credit
+
+Current Monthly Salary
+
+Current Rank
+
+Each card should clearly explain its value.
+
+Example:
+
+Today's Earnings
+
+$248.50
+
+Includes all income credited today.
+
+------------------------------------------------------------
+
+Pending This Cycle
+
+Estimated
+
+$742.00
+
+Based on current qualification and existing business.
+
+If estimation cannot be computed accurately from existing engine data:
+
+Display
+
+"Calculating..."
+
+Never invent values.
+
+------------------------------------------------------------
+
+Next Credit
+
+ROI
+
+3h 26m
+
+If multiple engines execute at the same time:
+
+Display
+
+ROI + Binary
+3h 26m
+
+------------------------------------------------------------
+
+Current Salary
+
+$115/month
+
+Bronze + Silver
+
+------------------------------------------------------------
+
+Current Rank
+
+Silver
+
+45% toward Gold
+
+------------------------------------------------------------
+
+SECTION 2
+
+INCOME SOURCES
+
+====================================================
+
+Five clean cards only.
+
+ROI
+
+Binary
+
+Orbit
+
+Salary
+
+Level
+
+Each card should contain ONLY:
+
+--------------------------------
+
+ROI
+
+Today's ROI
+
+Next Credit
+
+Status
+
+View Details →
+
+--------------------------------
+
+Binary
+
+Qualified / Not Qualified
+
+Estimated Next Payout
+
+Next Matching Cycle
+
+View Details →
+
+--------------------------------
+
+Orbit
+
+Qualified / Not Qualified
+
+Current Progress
+
+Estimated Reward
+
+View Details →
+
+--------------------------------
+
+Salary
+
+Current Monthly Salary
+
+Next Salary Date
+
+Current Rank
+
+View Details →
+
+--------------------------------
+
+Level Income
+
+Earned Today
+
+Earned This Month
+
+Instant Credit
+
+View Details →
+
+------------------------------------------------------------
+
+NO TECHNICAL METRICS
+
+The overview page must NOT expose:
+
+leftBV
+
+rightBV
+
+carry forward
+
+reward units
+
+scheduler internals
+
+cycle counters
+
+engine IDs
+
+implementation details
+
+Those belong on future detail pages.
+
+------------------------------------------------------------
+
+SECTION 3
+
+UPCOMING PAYOUTS
+
+This becomes the heart of the page.
+
+Timeline style.
+
+Example
+
+TODAY
+
+11:00 PM
+
+ROI
+
++$8
+
+Waiting
+
+--------------------
+
+11:00 PM
+
+Binary
+
+Estimated
+
+~$250
+
+Qualified
+
+--------------------
+
+TOMORROW
+
+12:00 AM
+
+Orbit
+
+$500
+
+Qualified
+
+--------------------
+
+1 JULY
+
+12:00 AM
+
+Salary
+
+$115
+
+Qualified
+
+If an amount cannot be known accurately:
+
+Display
+
+"Estimated"
+
+or
+
+"Pending calculation"
+
+Never fabricate.
+
+------------------------------------------------------------
+
+SECTION 4
+
+RECENT INCOME
+
+Reuse existing history.
+
+Just redesign presentation.
+
+Show
+
+Income type
+
+Amount
+
+Date
+
+Status
+
+No implementation details.
+
+------------------------------------------------------------
+
+SECTION 5
+
+QUICK ACTIONS
+
+Simple buttons.
+
+View ROI Details
+
+View Binary Details
+
+View Salary Details
+
+View Orbit Details
+
+View Level Details
+
+The detail pages will be Sprint 26B.
+
+Buttons may point to placeholder routes if detail pages do not yet exist.
+
+------------------------------------------------------------
+
+BACKEND REQUIREMENTS
+
+Create aggregation endpoints only.
+
+Do NOT duplicate business logic.
+
+Use existing engines as the source of truth.
+
+If a value already exists elsewhere:
+
+Reuse it.
+
+Do NOT calculate it again differently.
+
+------------------------------------------------------------
+
+ESTIMATED VALUES
+
+Estimated values are allowed ONLY if they can be computed from existing engine state.
+
+Otherwise display:
+
+Not available
+
+Calculating
+
+Pending next cycle
+
+Never invent projected income.
+
+------------------------------------------------------------
+
+PERFORMANCE
+
+The overview should load with one aggregated API request wherever practical.
+
+Avoid five independent API calls.
+
+------------------------------------------------------------
+
+REGRESSION REQUIREMENTS
+
+Before completion verify that NONE of these changed:
+
+ROI Engine
+
+Binary Engine
+
+Orbit Engine
+
+Salary Engine
+
+Level Income Engine
+
+Wallet Engine
+
+Investment Engine
+
+Deposit Verification
+
+Withdrawal
+
+Schedulers
+
+Database schema
+
+Financial calculations
+
+Business rules
+
+Only presentation layer and aggregation APIs should change.
+
+------------------------------------------------------------
+
+FINAL REPORT
+
+Provide:
+
+1. Files changed
+
+2. New aggregation endpoints
+
+3. UI screenshots
+
+4. Regression report
+
+5. Confirmation that no financial engine changed
+
+6. Confirmation that all displayed values originate from existing production business logic.
