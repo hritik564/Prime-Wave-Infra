@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import {
   Search, RefreshCw, Loader2, Copy, CheckCheck,
   Clock, Wifi, RotateCcw, ExternalLink, CheckCircle2, X,
-  ShieldAlert, ShieldX, AlertTriangle,
+  ShieldAlert, ShieldX, AlertTriangle, DollarSign,
 } from "lucide-react";
 import AdminLayout from "./AdminLayout";
 import {
@@ -184,28 +184,44 @@ function FailureCategoryBadge({ category }: { category: FailureCategory }) {
   );
 }
 
-// ── Manual Approve Dialog ─────────────────────────────────────────────────────
+// ── Manual Credit Dialog ──────────────────────────────────────────────────────
 
-interface ManualApproveDialogProps {
+interface ManualCreditDialogProps {
   target:    AdminDepositVerificationItem | null;
   onClose:   () => void;
   onSuccess: () => void;
 }
 
-function ManualApproveDialog({ target, onClose, onSuccess }: ManualApproveDialogProps) {
-  const [reason,    setReason]    = useState("");
-  const [confirmed, setConfirmed] = useState(false);
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState<string | null>(null);
+function ManualCreditDialog({ target, onClose, onSuccess }: ManualCreditDialogProps) {
+  const [creditAmount,  setCreditAmount]  = useState("");
+  const [reason,        setReason]        = useState("");
+  const [verified,      setVerified]      = useState(false);
+  const [acknowledged,  setAcknowledged]  = useState(false);
+  const [loading,       setLoading]       = useState(false);
+  const [error,         setError]         = useState<string | null>(null);
 
   useEffect(() => {
-    if (!target) { setReason(""); setConfirmed(false); setError(null); }
+    if (target) {
+      setCreditAmount(target.blockchainAmount ?? "");
+      setReason("");
+      setVerified(false);
+      setAcknowledged(false);
+      setError(null);
+    }
   }, [target]);
 
   if (!target) return null;
 
-  const reasonOk  = reason.trim().length >= 15;
-  const canSubmit = reasonOk && confirmed && !loading;
+  const amountTrimmed = creditAmount.trim();
+  const amountNum     = parseFloat(amountTrimmed);
+  const amountValid   = /^\d+(\.\d{1,8})?$/.test(amountTrimmed) && !isNaN(amountNum) && amountNum > 0;
+  const reasonOk      = reason.trim().length >= 15;
+
+  const blockchainNum   = target.blockchainAmount ? parseFloat(target.blockchainAmount) : null;
+  const amountsDiffer   = blockchainNum !== null && amountValid && Math.abs(blockchainNum - amountNum) > 0.000_000_01;
+  const diffAmt         = amountsDiffer && blockchainNum !== null ? (amountNum - blockchainNum).toFixed(8) : null;
+
+  const canSubmit = amountValid && reasonOk && verified && acknowledged && !loading;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -213,11 +229,14 @@ function ManualApproveDialog({ target, onClose, onSuccess }: ManualApproveDialog
     setLoading(true);
     setError(null);
     try {
-      await adminManualApproveVerification(target.id, { reason: reason.trim() });
+      await adminManualApproveVerification(target.id, {
+        creditAmount: amountTrimmed,
+        reason:       reason.trim(),
+      });
       onSuccess();
       onClose();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Approval failed. Please try again.");
+      setError(err instanceof Error ? err.message : "Credit failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -227,51 +246,118 @@ function ManualApproveDialog({ target, onClose, onSuccess }: ManualApproveDialog
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="relative w-full max-w-md rounded-2xl p-6 z-10"
+        className="relative w-full max-w-lg rounded-2xl p-6 z-10 max-h-[90vh] overflow-y-auto"
         style={{ background: "hsl(var(--card))", border: "1px solid rgba(255,255,255,0.10)", boxShadow: "0 24px 64px rgba(0,0,0,0.6)" }}
       >
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5" style={{ color: "#34d399" }} />
-            <h2 className="font-bold text-base text-foreground">Manual Approve</h2>
+            <DollarSign className="h-5 w-5" style={{ color: "#34d399" }} />
+            <h2 className="font-bold text-base text-foreground">Manual Credit</h2>
           </div>
           <button onClick={onClose} className="h-7 w-7 flex items-center justify-center rounded-lg opacity-50 hover:opacity-100 transition-opacity">
             <X className="h-4 w-4" style={{ color: "rgba(170,179,197,0.7)" }} />
           </button>
         </div>
 
-        <div className="rounded-xl p-3.5 mb-4 text-xs space-y-1.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-          <div className="flex justify-between"><span style={{ color: "rgba(170,179,197,0.6)" }}>User</span><span className="font-semibold text-foreground">{target.user.username}</span></div>
-          <div className="flex justify-between"><span style={{ color: "rgba(170,179,197,0.6)" }}>Amount</span><span className="font-semibold" style={{ color: "#34d399" }}>{fmt(target.blockchainAmount)}</span></div>
-          <div className="flex justify-between"><span style={{ color: "rgba(170,179,197,0.6)" }}>Network</span><span className="font-semibold text-foreground">{target.network}</span></div>
+        {/* Transaction details */}
+        <div className="rounded-xl p-3.5 mb-4 text-xs space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
           <div className="flex justify-between items-center">
             <span style={{ color: "rgba(170,179,197,0.6)" }}>TX Hash</span>
             <div className="flex items-center gap-1">
               <span className="font-mono text-foreground">{shorten(target.txHash)}</span>
-              <a href={bscScanUrl(target.txHash)} target="_blank" rel="noopener noreferrer" className="opacity-50 hover:opacity-100 transition-opacity" style={{ color: "#D4AF37" }}>
+              <CopyButton text={target.txHash} />
+              <a href={bscScanUrl(target.txHash)} target="_blank" rel="noopener noreferrer"
+                className="opacity-50 hover:opacity-100 transition-opacity" style={{ color: "#D4AF37" }}>
                 <ExternalLink className="h-3 w-3" />
               </a>
             </div>
           </div>
-          <div className="flex justify-between"><span style={{ color: "rgba(170,179,197,0.6)" }}>Status</span><StatusBadge status={target.verificationStatus} /></div>
+          <div className="flex justify-between"><span style={{ color: "rgba(170,179,197,0.6)" }}>User</span><span className="font-semibold text-foreground">{target.user.username}</span></div>
+          <div className="flex justify-between"><span style={{ color: "rgba(170,179,197,0.6)" }}>Network</span><NetworkBadge network={target.network} /></div>
+          <div className="flex justify-between items-center"><span style={{ color: "rgba(170,179,197,0.6)" }}>Status</span><StatusBadge status={target.verificationStatus} /></div>
+          <div className="flex justify-between">
+            <span style={{ color: "rgba(170,179,197,0.6)" }}>Blockchain Amount</span>
+            <span className="font-semibold font-mono" style={{ color: target.blockchainAmount ? "#34d399" : "rgba(170,179,197,0.4)" }}>
+              {target.blockchainAmount ? `${target.blockchainAmount} USDT` : "Not detected"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span style={{ color: "rgba(170,179,197,0.6)" }}>Confirmations</span>
+            <span className="font-mono text-foreground">{target.confirmations} / {target.requiredConfirmations}</span>
+          </div>
+          {target.recipientAddress && (
+            <div className="flex justify-between items-center">
+              <span style={{ color: "rgba(170,179,197,0.6)" }}>Recipient</span>
+              <div className="flex items-center gap-1">
+                <span className="font-mono text-foreground" title={target.recipientAddress}>{shorten(target.recipientAddress)}</span>
+                <CopyButton text={target.recipientAddress} />
+              </div>
+            </div>
+          )}
+          {target.senderAddress && (
+            <div className="flex justify-between items-center">
+              <span style={{ color: "rgba(170,179,197,0.6)" }}>Sender</span>
+              <div className="flex items-center gap-1">
+                <span className="font-mono text-foreground" title={target.senderAddress}>{shorten(target.senderAddress)}</span>
+                <CopyButton text={target.senderAddress} />
+              </div>
+            </div>
+          )}
+          {target.failureReason && (
+            <div className="pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              <p className="text-xs" style={{ color: "#f87171" }}>
+                <span style={{ color: "rgba(170,179,197,0.6)" }}>Failure: </span>{target.failureReason}
+              </p>
+            </div>
+          )}
         </div>
 
-        {!target.blockchainAmount && (
-          <div className="rounded-xl p-3 mb-4 flex items-start gap-2 text-xs" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
-            <span className="text-red-400 mt-0.5">⚠</span>
-            <p style={{ color: "#f87171" }}>Transaction not yet found on-chain — amount unknown. Manual approval requires blockchain-confirmed amount.</p>
-          </div>
-        )}
-
         <form onSubmit={(e) => { void handleSubmit(e); }}>
+          {/* Credit Amount */}
           <label className="block text-xs font-semibold mb-2" style={{ color: "rgba(170,179,197,0.8)" }}>
-            Reason for manual approval <span style={{ color: "#f87171" }}>*</span>
+            Admin Credit Amount (USDT) <span style={{ color: "#f87171" }}>*</span>
+          </label>
+          <input
+            type="text"
+            value={creditAmount}
+            onChange={(e) => setCreditAmount(e.target.value)}
+            placeholder="0.00000000"
+            className="w-full text-sm rounded-xl px-3 py-2.5 outline-none transition-all mb-1 font-mono"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: `1px solid ${amountValid ? "rgba(52,211,153,0.35)" : amountTrimmed ? "rgba(248,113,113,0.35)" : "rgba(255,255,255,0.08)"}`,
+              color: "hsl(var(--foreground))",
+            }}
+          />
+          <p className="text-xs mb-3" style={{ color: !amountTrimmed ? "rgba(170,179,197,0.4)" : amountValid ? "rgba(52,211,153,0.7)" : "#f87171" }}>
+            {!amountTrimmed ? "Enter amount to credit (up to 8 decimal places)" :
+             amountValid ? `Will credit ${amountTrimmed} USDT to user's wallet` :
+             "Must be a positive number with up to 8 decimal places"}
+          </p>
+
+          {/* Amount diff warning */}
+          {amountsDiffer && diffAmt !== null && (
+            <div className="rounded-xl p-3 mb-4 flex items-start gap-2 text-xs"
+              style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.25)" }}>
+              <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: "#fbbf24" }} />
+              <p style={{ color: "#fbbf24" }}>
+                Credit amount differs from blockchain amount by{" "}
+                <span className="font-mono font-semibold">
+                  {parseFloat(diffAmt) > 0 ? "+" : ""}{diffAmt} USDT
+                </span>. Ensure this is intentional before proceeding.
+              </p>
+            </div>
+          )}
+
+          {/* Reason */}
+          <label className="block text-xs font-semibold mb-2" style={{ color: "rgba(170,179,197,0.8)" }}>
+            Reason for manual credit <span style={{ color: "#f87171" }}>*</span>
           </label>
           <textarea
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Describe why this deposit is being manually approved (min 15 characters)…"
+            placeholder="Describe why this deposit is being manually credited (min 15 characters)…"
             className="w-full text-sm rounded-xl px-3 py-2.5 outline-none resize-none transition-all mb-1"
             style={{
               background: "rgba(255,255,255,0.04)",
@@ -283,13 +369,23 @@ function ManualApproveDialog({ target, onClose, onSuccess }: ManualApproveDialog
             {reason.trim().length} / 15 min characters
           </p>
 
-          <label className="flex items-start gap-2.5 mb-5 cursor-pointer select-none">
-            <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)}
-              className="mt-0.5 h-3.5 w-3.5 rounded accent-yellow-500 flex-shrink-0" />
-            <span className="text-xs leading-relaxed" style={{ color: "rgba(170,179,197,0.7)" }}>
-              I have independently verified this blockchain transaction and understand this operation credits real user funds.
-            </span>
-          </label>
+          {/* Checkboxes */}
+          <div className="space-y-3 mb-5">
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <input type="checkbox" checked={verified} onChange={(e) => setVerified(e.target.checked)}
+                className="mt-0.5 h-3.5 w-3.5 rounded accent-yellow-500 flex-shrink-0" />
+              <span className="text-xs leading-relaxed" style={{ color: "rgba(170,179,197,0.7)" }}>
+                I have independently verified this blockchain transaction.
+              </span>
+            </label>
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)}
+                className="mt-0.5 h-3.5 w-3.5 rounded accent-yellow-500 flex-shrink-0" />
+              <span className="text-xs leading-relaxed" style={{ color: "rgba(170,179,197,0.7)" }}>
+                I understand this operation credits real user funds and cannot be automatically reversed.
+              </span>
+            </label>
+          </div>
 
           {error && (
             <div className="mb-4 rounded-xl px-3 py-2.5 text-xs" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "#f87171" }}>
@@ -303,14 +399,14 @@ function ManualApproveDialog({ target, onClose, onSuccess }: ManualApproveDialog
               style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(170,179,197,0.7)" }}>
               Cancel
             </button>
-            <button type="submit" disabled={!canSubmit || !target.blockchainAmount}
+            <button type="submit" disabled={!canSubmit}
               className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all disabled:opacity-40"
               style={{
-                background: canSubmit && target.blockchainAmount ? "rgba(52,211,153,0.15)" : "rgba(255,255,255,0.04)",
-                border: `1px solid ${canSubmit && target.blockchainAmount ? "rgba(52,211,153,0.35)" : "rgba(255,255,255,0.08)"}`,
-                color: canSubmit && target.blockchainAmount ? "#34d399" : "rgba(170,179,197,0.5)",
+                background: canSubmit ? "rgba(52,211,153,0.15)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${canSubmit ? "rgba(52,211,153,0.35)" : "rgba(255,255,255,0.08)"}`,
+                color: canSubmit ? "#34d399" : "rgba(170,179,197,0.5)",
               }}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Approve & Credit"}
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Credit Wallet"}
             </button>
           </div>
         </form>
@@ -385,14 +481,7 @@ function ManualRejectDialog({ target, onClose, onSuccess }: ManualRejectDialogPr
               </a>
             </div>
           </div>
-          <div className="flex justify-between"><span style={{ color: "rgba(170,179,197,0.6)" }}>Status</span><StatusBadge status={target.verificationStatus} /></div>
-        </div>
-
-        <div className="rounded-xl p-3 mb-4 flex items-start gap-2 text-xs" style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.15)" }}>
-          <span style={{ color: "#f87171" }}>⚠</span>
-          <p style={{ color: "#fca5a5" }}>
-            Rejection is <strong>permanent</strong> and cannot be undone. The user will be notified with the reason you provide. This verification will be closed and no funds will be credited.
-          </p>
+          <div className="flex justify-between items-center"><span style={{ color: "rgba(170,179,197,0.6)" }}>Status</span><StatusBadge status={target.verificationStatus} /></div>
         </div>
 
         <form onSubmit={(e) => { void handleSubmit(e); }}>
@@ -403,7 +492,7 @@ function ManualRejectDialog({ target, onClose, onSuccess }: ManualRejectDialogPr
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Explain why this verification is being rejected (min 10 characters)…"
+            placeholder="Describe why this verification is being rejected (min 10 characters)…"
             className="w-full text-sm rounded-xl px-3 py-2.5 outline-none resize-none transition-all mb-1"
             style={{
               background: "rgba(255,255,255,0.04)",
@@ -411,7 +500,7 @@ function ManualRejectDialog({ target, onClose, onSuccess }: ManualRejectDialogPr
               color: "hsl(var(--foreground))",
             }}
           />
-          <p className="text-xs mb-5" style={{ color: reason.trim().length < 10 ? "#f87171" : "rgba(170,179,197,0.4)" }}>
+          <p className="text-xs mb-4" style={{ color: reason.trim().length < 10 ? "#f87171" : "rgba(170,179,197,0.4)" }}>
             {reason.trim().length} / 10 min characters
           </p>
 
@@ -446,6 +535,7 @@ function ManualRejectDialog({ target, onClose, onSuccess }: ManualRejectDialogPr
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const TERMINAL_STATUSES = ["COMPLETED", "FAILED", "REJECTED", "EXPIRED"];
+const NO_CREDIT_STATUSES = ["COMPLETED", "CREDITED", "REJECTED"];
 
 export default function AutoDepositsPage() {
   const [records,        setRecords]        = useState<AdminDepositVerificationItem[]>([]);
@@ -518,7 +608,7 @@ export default function AutoDepositsPage() {
 
   return (
     <AdminLayout>
-      <ManualApproveDialog
+      <ManualCreditDialog
         target={approveTarget}
         onClose={() => setApproveTarget(null)}
         onSuccess={() => { void load(); }}
@@ -613,11 +703,14 @@ export default function AutoDepositsPage() {
                   </thead>
                   <tbody>
                     {records.map((r, i) => {
-                      const isDelayed  = r.verificationStatus === "VERIFICATION_DELAYED";
-                      const isFailed   = r.verificationStatus === "FAILED";
-                      const isTerminal = TERMINAL_STATUSES.includes(r.verificationStatus);
-                      const isActive   = !isTerminal;
-                      const failCat    = isFailed ? classifyFailure(r.failureReason) : "unknown";
+                      const isDelayed       = r.verificationStatus === "VERIFICATION_DELAYED";
+                      const isFailed        = r.verificationStatus === "FAILED";
+                      const isExpired       = r.verificationStatus === "EXPIRED";
+                      const isTerminal      = TERMINAL_STATUSES.includes(r.verificationStatus);
+                      const isActive        = !isTerminal;
+                      const isRevalidatable = isFailed || isExpired || isDelayed;
+                      const canCredit       = !NO_CREDIT_STATUSES.includes(r.verificationStatus);
+                      const failCat         = isFailed ? classifyFailure(r.failureReason) : "unknown";
 
                       return (
                         <tr
@@ -625,7 +718,7 @@ export default function AutoDepositsPage() {
                           className="transition-colors hover:bg-white/[0.02]"
                           style={{
                             borderBottom: i < records.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                            background: isDelayed ? "rgba(251,191,36,0.025)" : isFailed ? "rgba(248,113,113,0.015)" : undefined,
+                            background: isDelayed ? "rgba(251,191,36,0.025)" : (isFailed || isExpired) ? "rgba(248,113,113,0.015)" : undefined,
                           }}
                         >
                           <td className="px-4 py-3.5">
@@ -679,7 +772,7 @@ export default function AutoDepositsPage() {
                           </td>
                           <td className="px-4 py-3.5">
                             <div className="flex flex-col gap-1.5">
-                              {/* Active (non-terminal, non-failed): retry */}
+                              {/* Retry: active non-failed states */}
                               {isActive && !isFailed && (
                                 <button
                                   onClick={() => { void handleRetry(r.id); }}
@@ -697,20 +790,8 @@ export default function AutoDepositsPage() {
                                 </button>
                               )}
 
-                              {/* Active (non-terminal, non-failed): manual approve if amount known */}
-                              {isActive && !isFailed && r.blockchainAmount && (
-                                <button
-                                  onClick={() => setApproveTarget(r)}
-                                  className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap"
-                                  style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", color: "#34d399" }}
-                                  title="Manually approve and credit"
-                                >
-                                  <CheckCircle2 className="h-3 w-3" /> Approve
-                                </button>
-                              )}
-
-                              {/* FAILED: Re-Validate (recoverable or unknown failures only) */}
-                              {isFailed && (failCat === "recoverable" || failCat === "unknown") && (
+                              {/* Re-Validate: FAILED, EXPIRED, VERIFICATION_DELAYED */}
+                              {isRevalidatable && (
                                 <button
                                   onClick={() => { void handleRevalidate(r.id); }}
                                   disabled={revalidatingId === r.id}
@@ -723,20 +804,20 @@ export default function AutoDepositsPage() {
                                 </button>
                               )}
 
-                              {/* FAILED: Manual Approve (if blockchainAmount known) */}
-                              {isFailed && r.blockchainAmount && (
+                              {/* Manual Credit: any status that can still be credited */}
+                              {canCredit && (
                                 <button
                                   onClick={() => setApproveTarget(r)}
                                   className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap"
                                   style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", color: "#34d399" }}
-                                  title="Manually approve and credit"
+                                  title="Manually credit this deposit to user wallet"
                                 >
-                                  <CheckCircle2 className="h-3 w-3" /> Approve
+                                  <CheckCircle2 className="h-3 w-3" /> Manual Credit
                                 </button>
                               )}
 
-                              {/* FAILED: Reject */}
-                              {isFailed && (
+                              {/* Reject: FAILED, EXPIRED, VERIFICATION_DELAYED */}
+                              {isRevalidatable && (
                                 <button
                                   onClick={() => setRejectTarget(r)}
                                   className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap"
@@ -758,17 +839,20 @@ export default function AutoDepositsPage() {
               {/* Mobile cards */}
               <div className="lg:hidden divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
                 {records.map((r) => {
-                  const isDelayed  = r.verificationStatus === "VERIFICATION_DELAYED";
-                  const isFailed   = r.verificationStatus === "FAILED";
-                  const isTerminal = TERMINAL_STATUSES.includes(r.verificationStatus);
-                  const isActive   = !isTerminal;
-                  const failCat    = isFailed ? classifyFailure(r.failureReason) : "unknown";
+                  const isDelayed       = r.verificationStatus === "VERIFICATION_DELAYED";
+                  const isFailed        = r.verificationStatus === "FAILED";
+                  const isExpired       = r.verificationStatus === "EXPIRED";
+                  const isTerminal      = TERMINAL_STATUSES.includes(r.verificationStatus);
+                  const isActive        = !isTerminal;
+                  const isRevalidatable = isFailed || isExpired || isDelayed;
+                  const canCredit       = !NO_CREDIT_STATUSES.includes(r.verificationStatus);
+                  const failCat         = isFailed ? classifyFailure(r.failureReason) : "unknown";
 
                   return (
                     <div
                       key={r.id}
                       className="p-4"
-                      style={{ background: isDelayed ? "rgba(251,191,36,0.025)" : isFailed ? "rgba(248,113,113,0.015)" : undefined }}
+                      style={{ background: isDelayed ? "rgba(251,191,36,0.025)" : (isFailed || isExpired) ? "rgba(248,113,113,0.015)" : undefined }}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div>
@@ -811,6 +895,7 @@ export default function AutoDepositsPage() {
 
                       {/* Actions */}
                       <div className="mt-2 flex flex-wrap gap-2">
+                        {/* Retry: active non-failed states */}
                         {isActive && !isFailed && (
                           <button
                             onClick={() => { void handleRetry(r.id); }}
@@ -826,14 +911,9 @@ export default function AutoDepositsPage() {
                             Retry
                           </button>
                         )}
-                        {isActive && !isFailed && r.blockchainAmount && (
-                          <button onClick={() => setApproveTarget(r)}
-                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
-                            style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", color: "#34d399" }}>
-                            <CheckCircle2 className="h-3 w-3" /> Approve
-                          </button>
-                        )}
-                        {isFailed && (failCat === "recoverable" || failCat === "unknown") && (
+
+                        {/* Re-Validate: FAILED, EXPIRED, VERIFICATION_DELAYED */}
+                        {isRevalidatable && (
                           <button
                             onClick={() => { void handleRevalidate(r.id); }}
                             disabled={revalidatingId === r.id}
@@ -843,14 +923,18 @@ export default function AutoDepositsPage() {
                             Re-Validate
                           </button>
                         )}
-                        {isFailed && r.blockchainAmount && (
+
+                        {/* Manual Credit: any status that can still be credited */}
+                        {canCredit && (
                           <button onClick={() => setApproveTarget(r)}
                             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
                             style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", color: "#34d399" }}>
-                            <CheckCircle2 className="h-3 w-3" /> Approve
+                            <CheckCircle2 className="h-3 w-3" /> Manual Credit
                           </button>
                         )}
-                        {isFailed && (
+
+                        {/* Reject: FAILED, EXPIRED, VERIFICATION_DELAYED */}
+                        {isRevalidatable && (
                           <button onClick={() => setRejectTarget(r)}
                             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
                             style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", color: "#f87171" }}>

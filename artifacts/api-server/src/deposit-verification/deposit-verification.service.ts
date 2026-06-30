@@ -269,33 +269,38 @@ export async function getUserVerificationHistory(userId: string, params: { page:
 // ── Manual admin approval ─────────────────────────────────────────────────────
 
 export async function manualApproveVerification(
-  adminId: string,
-  id:      string,
-  reason:  string,
-  ip?:     string,
+  adminId:      string,
+  id:           string,
+  creditAmount: string,
+  reason:       string,
+  ip?:          string,
 ) {
   const v = await repo.findById(id);
   if (!v) {
     throw new AppError("Verification not found", HTTP_STATUS.NOT_FOUND, "VERIFICATION_NOT_FOUND");
   }
 
-  if (isTerminal(v.verificationStatus)) {
+  // ── Duplicate protection (HTTP 409) ───────────────────────────────────────
+
+  if (v.verificationStatus === "COMPLETED" || v.verificationStatus === "CREDITED") {
     throw new AppError(
-      `Cannot manually approve a ${v.verificationStatus} verification — it has reached a terminal state`,
+      `Cannot manually credit a ${v.verificationStatus} verification — funds have already been credited`,
       HTTP_STATUS.CONFLICT,
-      "VERIFICATION_TERMINAL",
+      "ALREADY_CREDITED",
     );
   }
 
-  if (!v.blockchainAmount) {
+  if (v.verificationStatus === "REJECTED") {
     throw new AppError(
-      "Transaction amount is not yet determined — the transaction has not been found on-chain. Use the Wallet Credit tool to credit the user manually before the transaction is confirmed.",
+      "Cannot manually credit a REJECTED verification",
       HTTP_STATUS.CONFLICT,
-      "AMOUNT_UNKNOWN",
+      "VERIFICATION_REJECTED",
     );
   }
 
-  // ── Find or create DepositRequest ─────────────────────────────────────────
+  const creditDecimal = new Prisma.Decimal(creditAmount);
+
+  // ── Find or create DepositRequest with the admin-specified amount ──────────
 
   let depositRequest: { id: string; status: string } | null =
     await prisma.depositRequest.findUnique({
@@ -303,12 +308,26 @@ export async function manualApproveVerification(
       select: { id: true, status: true },
     });
 
-  if (!depositRequest) {
+  if (depositRequest) {
+    if (depositRequest.status === "APPROVED") {
+      throw new AppError(
+        "This deposit has already been approved and credited",
+        HTTP_STATUS.CONFLICT,
+        "ALREADY_APPROVED",
+      );
+    }
+    // Existing PENDING or CONFIRMING — update to the admin-specified credit amount
+    // so that approveDeposit (which re-reads deposit.amount) uses the correct value.
+    await prisma.depositRequest.update({
+      where: { id: depositRequest.id },
+      data:  { amount: creditDecimal },
+    });
+  } else {
     try {
       depositRequest = await prisma.depositRequest.create({
         data: {
           userId:        v.userId,
-          amount:        v.blockchainAmount,
+          amount:        creditDecimal,
           network:       v.network,
           txHash:        v.txHash,
           companyWallet: v.recipientAddress,
@@ -322,23 +341,27 @@ export async function manualApproveVerification(
         e instanceof Prisma.PrismaClientKnownRequestError &&
         e.code === "P2002"
       ) {
+        // Concurrent creation — re-fetch and check
         depositRequest = await prisma.depositRequest.findUnique({
           where:  { txHash: v.txHash },
           select: { id: true, status: true },
         });
         if (!depositRequest) throw e;
+        if (depositRequest.status === "APPROVED") {
+          throw new AppError(
+            "This deposit has already been approved and credited",
+            HTTP_STATUS.CONFLICT,
+            "ALREADY_APPROVED",
+          );
+        }
+        await prisma.depositRequest.update({
+          where: { id: depositRequest.id },
+          data:  { amount: creditDecimal },
+        });
       } else {
         throw e;
       }
     }
-  }
-
-  if (depositRequest.status === "APPROVED") {
-    throw new AppError(
-      "This deposit has already been approved and credited",
-      HTTP_STATUS.CONFLICT,
-      "ALREADY_APPROVED",
-    );
   }
 
   // ── Credit via existing approveDeposit pipeline (no duplication) ──────────
@@ -358,41 +381,57 @@ export async function manualApproveVerification(
     },
   });
 
-  // ── Audit log for the manual action ───────────────────────────────────────
+  // ── Compute difference for audit ──────────────────────────────────────────
+
+  const difference = v.blockchainAmount
+    ? v.blockchainAmount.minus(creditDecimal).toFixed(8)
+    : null;
+
+  // ── Audit log — DEPOSIT_MANUALLY_CREDITED ─────────────────────────────────
 
   try {
     await prisma.adminLog.create({
       data: {
         adminId,
-        action:       "DEPOSIT_MANUALLY_APPROVED",
+        action:       "DEPOSIT_MANUALLY_CREDITED",
         targetUserId: v.userId,
         details: {
           verificationId:   v.id,
           depositRequestId: depositRequest.id,
-          txHash:           v.txHash,
-          network:          v.network,
-          amount:           v.blockchainAmount.toFixed(8),
+          blockchainAmount: v.blockchainAmount?.toFixed(8) ?? null,
+          creditedAmount:   creditDecimal.toFixed(8),
+          difference,
           reason,
           previousStatus:   v.verificationStatus,
-          approvalMode:     "MANUAL",
+          txHash:           v.txHash,
+          network:          v.network,
           ...(ip && { ipAddress: ip }),
+          timestamp:        now.toISOString(),
         } as Prisma.InputJsonValue,
       },
     });
   } catch (auditErr) {
-    logger.warn({ auditErr, verificationId: id }, "DepositVerification: manual-approve audit log failed (non-fatal)");
+    logger.warn({ auditErr, verificationId: id }, "DepositVerification: manual-credit audit log failed (non-fatal)");
   }
 
   logger.info(
-    { verificationId: id, adminId, previousStatus: v.verificationStatus },
-    "DepositVerification: MANUALLY APPROVED",
+    {
+      verificationId:   id,
+      adminId,
+      previousStatus:   v.verificationStatus,
+      creditedAmount:   creditDecimal.toFixed(8),
+      blockchainAmount: v.blockchainAmount?.toFixed(8) ?? null,
+    },
+    "DepositVerification: MANUALLY CREDITED",
   );
 
   return {
     verificationId:   v.id,
     depositRequestId: depositRequest.id,
     status:           "COMPLETED",
-    amount:           v.blockchainAmount.toFixed(8),
+    blockchainAmount: v.blockchainAmount?.toFixed(8) ?? null,
+    creditedAmount:   creditDecimal.toFixed(8),
+    difference,
   };
 }
 
@@ -419,16 +458,18 @@ export async function requestRevalidation(
     throw new AppError("Verification not found", HTTP_STATUS.NOT_FOUND, "VERIFICATION_NOT_FOUND");
   }
 
-  if (v.verificationStatus !== "FAILED") {
+  const REVALIDATABLE = ["FAILED", "EXPIRED", "VERIFICATION_DELAYED"] as const;
+
+  if (!(REVALIDATABLE as readonly string[]).includes(v.verificationStatus)) {
     throw new AppError(
-      `Re-validation is only available for FAILED verifications. Current status: ${v.verificationStatus}`,
+      `Re-validation is only available for FAILED, EXPIRED, or VERIFICATION_DELAYED verifications. Current status: ${v.verificationStatus}`,
       HTTP_STATUS.CONFLICT,
       "REVALIDATION_NOT_ALLOWED",
     );
   }
 
   const now     = new Date();
-  const updated = await repo.transition(v.id, "VERIFYING", { nextCheckAt: now }, ["FAILED"]);
+  const updated = await repo.transition(v.id, "VERIFYING", { nextCheckAt: now }, [...REVALIDATABLE]);
 
   if (!updated) {
     throw new AppError(
@@ -448,7 +489,7 @@ export async function requestRevalidation(
           verificationId:  v.id,
           txHash:          v.txHash,
           network:         v.network,
-          previousStatus:  "FAILED",
+          previousStatus:  v.verificationStatus,
           newStatus:       "VERIFYING",
           failureReason:   v.failureReason,
           ...(ip && { ipAddress: ip }),
@@ -461,12 +502,12 @@ export async function requestRevalidation(
 
   logger.info(
     { verificationId: id, adminId, failureReason: v.failureReason },
-    "DepositVerification: REVALIDATION REQUESTED — FAILED→VERIFYING",
+    `DepositVerification: REVALIDATION REQUESTED — ${v.verificationStatus}→VERIFYING`,
   );
 
   return {
     verificationId:  v.id,
-    previousStatus:  "FAILED" as const,
+    previousStatus:  v.verificationStatus,
     newStatus:       "VERIFYING" as const,
     nextCheckAt:     updated.nextCheckAt,
     message:         "Verification re-queued. The worker will re-check the blockchain transaction on the next tick.",

@@ -63,6 +63,13 @@ export const adminManualApproveParamsSchema = z.object({
 });
 
 export const adminManualApproveBodySchema = z.object({
+  creditAmount: z
+    .string()
+    .regex(
+      /^\d+(\.\d{1,8})?$/,
+      "Credit amount must be a positive number with up to 8 decimal places",
+    )
+    .refine((v) => parseFloat(v) > 0, { message: "Credit amount must be greater than zero" }),
   reason: z
     .string()
     .min(15, "Reason must be at least 15 characters")

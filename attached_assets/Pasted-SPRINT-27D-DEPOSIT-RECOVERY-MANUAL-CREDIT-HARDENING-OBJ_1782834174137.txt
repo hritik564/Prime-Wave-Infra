@@ -1,0 +1,322 @@
+SPRINT 27D — DEPOSIT RECOVERY & MANUAL CREDIT HARDENING
+
+OBJECTIVE
+
+Complete the administrative recovery workflow for deposit verification.
+
+This sprint focuses ONLY on recovery operations.
+
+Do NOT modify:
+
+- Deposit verification engine
+- Blockchain adapter
+- Worker
+- Wallet credit implementation
+- Financial calculations
+- Investment engine
+- Income engines
+
+Reuse existing production code wherever possible.
+
+==========================================================
+PART 1 — UNIVERSAL RE-VALIDATE
+==========================================================
+
+Expand the Re-Validate functionality.
+
+The button must be available for every verification that has NOT successfully completed.
+
+Supported statuses:
+
+FAILED
+EXPIRED
+VERIFICATION_DELAYED
+
+(and any future retryable status)
+
+It must NOT appear for:
+
+COMPLETED
+CREDITED
+REJECTED
+
+Behaviour:
+
+• verificationStatus → VERIFYING
+• nextCheckAt = now
+• Preserve txHash
+• Preserve timeline
+• Preserve verificationAttempts
+• Preserve audit history
+
+The worker must process the SAME verification record.
+
+Never create a duplicate verification.
+
+==========================================================
+PART 2 — RE-VALIDATE HISTORY
+==========================================================
+
+Every re-validation request must write an audit entry.
+
+Action:
+
+DEPOSIT_REVALIDATION_REQUESTED
+
+Include:
+
+verificationId
+adminId
+previousStatus
+failureReason
+ipAddress
+timestamp
+
+==========================================================
+PART 3 — MANUAL CREDIT
+==========================================================
+
+Replace the existing manual approval flow.
+
+Administrators must be able to manually credit a deposit after independently verifying it on BscScan.
+
+==========================================================
+PART 4 — MANUAL CREDIT DIALOG
+==========================================================
+
+Display:
+
+Transaction Hash
+
+BscScan button
+
+Recipient wallet
+
+Sender wallet
+
+Blockchain detected amount (if available)
+
+Confirmation count
+
+Status
+
+Failure reason
+
+Admin Credit Amount
+
+Reason
+
+==========================================================
+PART 5 — CREDIT AMOUNT
+==========================================================
+
+Allow the administrator to enter the amount actually received.
+
+Rules:
+
+positive decimal only
+
+greater than zero
+
+maximum 8 decimal places
+
+Display:
+
+Blockchain Amount
+
+Admin Credit Amount
+
+If the values differ
+
+show a prominent warning.
+
+Example:
+
+Blockchain Amount
+
+100.00000000
+
+Admin Credit Amount
+
+98.50000000
+
+⚠ The credited amount differs from the blockchain amount.
+
+Require explicit acknowledgement.
+
+==========================================================
+PART 6 — CONFIRMATION
+==========================================================
+
+Require BOTH:
+
+Checkbox
+
+"I have independently verified this blockchain transaction."
+
+Checkbox
+
+"I understand this credits real user funds."
+
+Minimum reason:
+
+15 characters
+
+==========================================================
+PART 7 — CREDIT IMPLEMENTATION
+==========================================================
+
+IMPORTANT
+
+Do NOT implement new wallet credit logic.
+
+Reuse the existing
+
+approveDeposit()
+
+pipeline.
+
+Only override the credited amount passed into that pipeline.
+
+Everything else must remain identical:
+
+wallet transaction
+
+ledger
+
+notifications
+
+audit
+
+deposit request
+
+==========================================================
+PART 8 — DUPLICATE PROTECTION
+==========================================================
+
+Prevent manual approval when:
+
+status is COMPLETED
+
+status is CREDITED
+
+DepositRequest already exists
+
+wallet already credited
+
+Return HTTP 409
+
+==========================================================
+PART 9 — USER HISTORY
+==========================================================
+
+Deposit History must clearly indicate:
+
+Verification failed
+
+↓
+
+Manually approved
+
+↓
+
+Wallet credited
+
+Timeline must remain continuous.
+
+Do NOT create a second history record.
+
+==========================================================
+PART 10 — ADMIN UI
+==========================================================
+
+For FAILED / EXPIRED / VERIFICATION_DELAYED
+
+show:
+
+Re-Validate
+
+Manual Credit
+
+Reject
+
+BscScan
+
+View Details
+
+==========================================================
+PART 11 — AUDIT
+==========================================================
+
+Create:
+
+DEPOSIT_MANUALLY_CREDITED
+
+Include:
+
+verificationId
+
+depositRequestId
+
+adminId
+
+blockchainAmount
+
+creditedAmount
+
+difference
+
+reason
+
+ipAddress
+
+timestamp
+
+==========================================================
+PART 12 — REGRESSION
+==========================================================
+
+Verify unchanged:
+
+Blockchain adapter
+
+Worker
+
+approveDeposit()
+
+Wallet engine
+
+Investment engine
+
+ROI
+
+Binary
+
+Salary
+
+Orbit
+
+Level income
+
+Notifications
+
+Financial calculations
+
+==========================================================
+FINAL REPORT
+
+Provide:
+
+1. Files modified
+
+2. UI screenshots
+
+3. Manual credit workflow
+
+4. Re-validation workflow
+
+5. Audit examples
+
+6. Regression report
+
+7. Confirmation that no financial business logic was modified.

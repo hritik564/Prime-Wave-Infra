@@ -2321,6 +2321,7 @@ export interface AdminDepositVerificationItem {
   verificationAttempts:  number;
   failureReason:         string | null;
   senderAddress:         string | null;
+  recipientAddress:      string | null;
   lastCheckedAt:         string | null;
   nextCheckAt:           string | null;
   confirmedAt:           string | null;
@@ -2396,8 +2397,19 @@ export function adminRetryDepositVerification(id: string) {
   );
 }
 
-export function adminManualApproveVerification(id: string, data: { reason: string }) {
-  return request<{ verificationId: string; depositRequestId: string; status: string; amount: string; message: string }>(
+export function adminManualApproveVerification(
+  id:   string,
+  data: { creditAmount: string; reason: string },
+) {
+  return request<{
+    verificationId:   string;
+    depositRequestId: string;
+    status:           string;
+    blockchainAmount: string | null;
+    creditedAmount:   string;
+    difference:       string | null;
+    message:          string;
+  }>(
     `/api/admin/deposit-verifications/${id}/manual-approve`,
     { method: "POST", body: JSON.stringify(data) },
   );

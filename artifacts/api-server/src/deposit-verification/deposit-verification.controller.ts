@@ -281,9 +281,10 @@ export async function adminRevalidateVerification(
 /**
  * POST /api/admin/deposit-verifications/:id/manual-approve
  *
- * Manually approves a non-terminal, blockchain-detected verification.
+ * Manually credits a verification for any non-completed/credited/rejected status.
+ * Accepts an admin-specified creditAmount (positive decimal, up to 8 dp).
  * Reuses the existing approveDeposit() pipeline — no duplicate credit logic.
- * Requires a reason (min 15 chars). Creates audit log + user notification.
+ * Requires a reason (min 15 chars). Creates DEPOSIT_MANUALLY_CREDITED audit log.
  */
 export async function adminManualApproveVerification(
   req: AuthenticatedRequest,
@@ -291,16 +292,16 @@ export async function adminManualApproveVerification(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const { id }     = getParsed<AdminManualApproveParams>(res, "params");
-    const { reason } = req.body as AdminManualApproveBody;
-    const adminId    = req.user!.sub;
-    const ip         = req.ip;
+    const { id }                   = getParsed<AdminManualApproveParams>(res, "params");
+    const { creditAmount, reason } = req.body as AdminManualApproveBody;
+    const adminId                  = req.user!.sub;
+    const ip                       = req.ip;
 
-    const result = await service.manualApproveVerification(adminId, id, reason, ip);
+    const result = await service.manualApproveVerification(adminId, id, creditAmount, reason, ip);
 
     sendSuccess(res, {
       ...result,
-      message: "Deposit manually approved and credited to user's wallet",
+      message: "Deposit manually credited to user's wallet",
     });
   } catch (err) {
     next(err);
