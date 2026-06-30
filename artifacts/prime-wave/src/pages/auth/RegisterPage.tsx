@@ -3,7 +3,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link } from "wouter";
-import { Loader2, Check, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Info } from "lucide-react";
+import {
+  Loader2, Check, ArrowLeft, ArrowRight, ChevronLeft, ChevronRight,
+  Info, AlertCircle, UserCheck,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { AuthHeader } from "@/components/auth/AuthHeader";
@@ -18,30 +21,30 @@ import { register as apiRegister, resolveReferralCode } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import type { StoredUser } from "@/lib/auth";
 
+// ── Zod schema ────────────────────────────────────────────────────────────────
+
 const registerSchema = z
   .object({
-    firstName: z.string().min(2, "Must be at least 2 characters"),
-    lastName: z.string().min(2, "Must be at least 2 characters"),
-    username: z
+    firstName:    z.string().min(2, "Must be at least 2 characters"),
+    lastName:     z.string().min(2, "Must be at least 2 characters"),
+    username:     z
       .string()
       .min(3, "Must be 3–20 characters")
       .max(20, "Must be 3–20 characters")
       .regex(/^[a-zA-Z0-9_]+$/, "Only letters, numbers, underscores"),
-    email: z.string().email("Enter a valid email address"),
-    phone: z.string().min(7, "Enter a valid phone number"),
-    password: z
+    email:        z.string().email("Enter a valid email address"),
+    phone:        z.string().min(7, "Enter a valid phone number"),
+    password:     z
       .string()
       .min(8, "Must be at least 8 characters")
       .regex(/[A-Z]/, "Must include an uppercase letter")
       .regex(/[0-9]/, "Must include a number"),
     confirmPassword: z.string().min(1, "Please confirm your password"),
     referralCode: z.string().min(1, "A referral code is required to join Prime Wave"),
-    leg: z.enum(["L", "R"]).optional(),
-    agreeToTerms: z
-      .boolean()
-      .refine((v) => v === true, {
-        message: "You must agree to the Terms & Conditions",
-      }),
+    leg:          z.enum(["L", "R"]).optional(),
+    agreeToTerms: z.boolean().refine((v) => v === true, {
+      message: "You must agree to the Terms & Conditions",
+    }),
   })
   .refine((d) => d.password === d.confirmPassword, {
     message: "Passwords do not match",
@@ -51,9 +54,8 @@ const registerSchema = z
     if (!data.leg) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["referralCode"],
-        message:
-          "This referral code is incomplete. Please use the complete referral code or referral link provided by your sponsor.",
+        path: ["leg"],
+        message: "Please select a placement side (Left Team or Right Team).",
       });
     }
   });
@@ -72,13 +74,79 @@ const STEP_FIELDS: Record<number, (Step1Fields | Step2Fields | Step3Fields)[]> =
 
 const STEP_LABELS = ["Personal Info", "Security", "Account Setup"];
 
-/** Parse leg and base code from a referral code string (supports "ABCD1234-L" suffix) */
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Splits a referral code that may contain a placement suffix.
+ * Supports:  "ABCD1234-L"  →  { baseCode: "ABCD1234", leg: "L" }
+ * Also normalises: trims whitespace, uppercases.
+ */
 function parseCodeSuffix(code: string): { baseCode: string; leg: "L" | "R" | null } {
   const upper = code.trim().toUpperCase();
   if (upper.endsWith("-L")) return { baseCode: upper.slice(0, -2), leg: "L" };
   if (upper.endsWith("-R")) return { baseCode: upper.slice(0, -2), leg: "R" };
   return { baseCode: upper, leg: null };
 }
+
+const SESSION_KEY = "_pw_referral";
+
+/**
+ * Reads URL params and sessionStorage to produce a normalised referral context.
+ *
+ * Supported URL formats:
+ *   /register?ref=MASTERROOT
+ *   /register?ref=MASTERROOT&leg=L
+ *   /register?ref=MASTERROOT&leg=R
+ *   /register?ref=MASTERROOT-L
+ *   /register?ref=MASTERROOT-R
+ *
+ * When URL params are present they are saved to sessionStorage so a page
+ * refresh preserves the referral context.
+ */
+function resolveReferralParams(): {
+  code:       string;       // normalised base code (no suffix)
+  leg:        "L" | "R" | null;
+  hasUrlCode: boolean;      // code came from URL / session → field is read-only
+  hasUrlLeg:  boolean;      // leg came from URL / session → leg is locked
+} {
+  const sp = new URLSearchParams(window.location.search);
+  const rawRef = sp.get("ref")?.trim() ?? "";
+  const rawLeg = (sp.get("leg") ?? "").trim().toUpperCase();
+
+  // Support ?ref=MASTERROOT-L  (suffix embedded in the ref param itself)
+  const { baseCode: refBase, leg: suffixLeg } = parseCodeSuffix(rawRef);
+  const paramLeg: "L" | "R" | null =
+    rawLeg === "L" || rawLeg === "R" ? (rawLeg as "L" | "R") : suffixLeg;
+
+  if (refBase) {
+    // URL has a referral code — save to sessionStorage and use it
+    const stored = paramLeg ? `${refBase}|${paramLeg}` : refBase;
+    try { sessionStorage.setItem(SESSION_KEY, stored); } catch { /* ignore */ }
+    return {
+      code:       refBase,
+      leg:        paramLeg,
+      hasUrlCode: true,
+      hasUrlLeg:  paramLeg === "L" || paramLeg === "R",
+    };
+  }
+
+  // No URL params — try to restore from sessionStorage (survives refresh)
+  try {
+    const stored = sessionStorage.getItem(SESSION_KEY);
+    if (stored) {
+      const [c, l] = stored.split("|");
+      const code = c?.trim().toUpperCase() ?? "";
+      const leg  = (l === "L" || l === "R") ? l : null;
+      if (code) {
+        return { code, leg, hasUrlCode: true, hasUrlLeg: !!leg };
+      }
+    }
+  } catch { /* ignore */ }
+
+  return { code: "", leg: null, hasUrlCode: false, hasUrlLeg: false };
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function PasswordStrengthBar({ password }: { password: string }) {
   const checks = [
@@ -90,8 +158,8 @@ function PasswordStrengthBar({ password }: { password: string }) {
   const strength = checks.filter(Boolean).length;
   if (!password) return null;
 
-  const colors = ["bg-red-500", "bg-orange-400", "bg-yellow-400", "bg-emerald-400"];
-  const labels = ["Weak", "Fair", "Good", "Strong"];
+  const colors    = ["bg-red-500", "bg-orange-400", "bg-yellow-400", "bg-emerald-400"];
+  const labels    = ["Weak", "Fair", "Good", "Strong"];
   const textColors = ["#f87171", "#fb923c", "#fbbf24", "#34d399"];
 
   return (
@@ -118,15 +186,15 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
   return (
     <div className="flex items-center justify-center gap-1 mb-7">
       {Array.from({ length: total }).map((_, i) => {
-        const step = i + 1;
+        const step      = i + 1;
         const isComplete = step < current;
-        const isActive = step === current;
+        const isActive   = step === current;
         return (
           <div key={step} className="flex items-center">
             <div
               className={cn(
                 "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all duration-300",
-                isActive && "text-navy-950 shadow-glow-gold",
+                isActive   && "text-navy-950 shadow-glow-gold",
                 isComplete && "text-gold",
                 !isActive && !isComplete && "text-muted-foreground"
               )}
@@ -144,9 +212,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
             {i < total - 1 && (
               <div
                 className="mx-1.5 h-0.5 w-8 rounded-full transition-all duration-500"
-                style={{
-                  background: isComplete ? "#D4AF37" : "hsl(var(--border))",
-                }}
+                style={{ background: isComplete ? "#D4AF37" : "hsl(var(--border))" }}
               />
             )}
           </div>
@@ -156,20 +222,68 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
   );
 }
 
+// ── Leg picker ────────────────────────────────────────────────────────────────
+
+interface LegPickerProps {
+  value:    "L" | "R" | undefined;
+  locked:   boolean;
+  onChange: (leg: "L" | "R") => void;
+}
+
+function LegPicker({ value, locked, onChange }: LegPickerProps) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {(["L", "R"] as const).map((side) => {
+        const isSelected = value === side;
+        const label      = side === "L" ? "Left Team" : "Right Team";
+        return (
+          <button
+            key={side}
+            type="button"
+            disabled={locked && value !== side}
+            onClick={() => { if (!locked) onChange(side); }}
+            className={cn(
+              "flex flex-col items-center justify-center gap-1.5 py-3.5 px-4 rounded-xl font-semibold text-sm transition-all",
+              locked && value !== side && "opacity-30 cursor-not-allowed",
+              !locked && !isSelected && "hover:border-yellow-500/40 cursor-pointer",
+            )}
+            style={{
+              background: isSelected ? "rgba(212,175,55,0.15)" : "rgba(255,255,255,0.03)",
+              border:     `1px solid ${isSelected ? "rgba(212,175,55,0.45)" : "rgba(255,255,255,0.08)"}`,
+              color:      isSelected ? "#D4AF37" : "hsl(var(--muted-foreground))",
+            }}
+          >
+            {isSelected && <Check className="h-4 w-4" />}
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default function RegisterPage() {
   const { authLogin } = useAuth();
-  const [step, setStep] = useState(1);
+  const [step,      setStep]      = useState(1);
   const [direction, setDirection] = useState(1);
   const [formError, setFormError] = useState<string>();
-  const [sponsorInfo, setSponsorInfo] = useState<{ username: string; firstName: string; lastName: string } | null>(null);
+
+  // Sponsor lookup state
+  const [sponsorInfo,    setSponsorInfo]    = useState<{ username: string; firstName: string; lastName: string } | null>(null);
   const [sponsorLoading, setSponsorLoading] = useState(false);
+  const [sponsorError,   setSponsorError]   = useState(false);
 
-  // Parse URL params: ?ref=ABCD1234&leg=L
-  const searchParams = new URLSearchParams(window.location.search);
-  const urlRef = searchParams.get("ref") ?? "";
-  const urlLeg = searchParams.get("leg") as "L" | "R" | null;
-  const fromUrl = !!(urlRef && (urlLeg === "L" || urlLeg === "R"));
+  // ── Resolve referral context from URL + sessionStorage ──────────────────────
+  // useMemo with [] runs once per mount; safe for sessionStorage side-effects.
+  const { code: urlRef, leg: urlLeg, hasUrlCode, hasUrlLeg } = useMemo(
+    () => resolveReferralParams(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
+  // ── React Hook Form ─────────────────────────────────────────────────────────
   const {
     register,
     handleSubmit,
@@ -182,7 +296,7 @@ export default function RegisterPage() {
     defaultValues: {
       agreeToTerms: false,
       referralCode: urlRef || "",
-      leg: (urlLeg === "L" || urlLeg === "R") ? urlLeg : undefined,
+      leg:          (urlLeg === "L" || urlLeg === "R") ? urlLeg : undefined,
     },
   });
 
@@ -191,57 +305,62 @@ export default function RegisterPage() {
   const referralCodeVal = watch("referralCode") ?? "";
   const legValue        = watch("leg");
 
-  // Clean base code (no suffix) — used for sponsor lookup and API payload
+  // ── Derived base code (no suffix) — used for API calls ─────────────────────
   const derivedBaseCode = useMemo(() => {
-    if (fromUrl) return urlRef.toUpperCase();
+    if (hasUrlCode) return urlRef;
     return parseCodeSuffix(referralCodeVal).baseCode;
-  }, [fromUrl, urlRef, referralCodeVal]);
+  }, [hasUrlCode, urlRef, referralCodeVal]);
 
-  // Auto-parse leg from code suffix as the user types; also clears leg when suffix is removed
+  // ── Auto-parse leg suffix when user types manually ──────────────────────────
+  // Only runs when the referral code was NOT supplied via URL.
   useEffect(() => {
-    if (fromUrl) return;
+    if (hasUrlCode) return;
     const { leg } = parseCodeSuffix(referralCodeVal);
     if (leg && leg !== legValue) {
       setValue("leg", leg, { shouldValidate: true });
     } else if (!leg && legValue) {
       setValue("leg", undefined, { shouldValidate: false });
     }
-  }, [referralCodeVal, legValue, setValue, fromUrl]);
+  }, [referralCodeVal, legValue, setValue, hasUrlCode]);
 
-  // Resolve sponsor name from backend when a valid code+leg is available
+  // ── Sponsor lookup — triggers as soon as a valid base code is available ─────
+  // Does NOT wait for legValue: you can verify a sponsor without knowing placement.
   useEffect(() => {
-    if (!legValue || !derivedBaseCode) {
+    if (!derivedBaseCode) {
       setSponsorInfo(null);
+      setSponsorError(false);
       return;
     }
     let cancelled = false;
     setSponsorLoading(true);
+    setSponsorError(false);
     resolveReferralCode(derivedBaseCode)
-      .then((info) => { if (!cancelled) setSponsorInfo(info); })
-      .catch(() => { if (!cancelled) setSponsorInfo(null); })
+      .then((info) => {
+        if (!cancelled) { setSponsorInfo(info); setSponsorError(false); }
+      })
+      .catch(() => {
+        if (!cancelled) { setSponsorInfo(null); setSponsorError(true); }
+      })
       .finally(() => { if (!cancelled) setSponsorLoading(false); });
     return () => { cancelled = true; };
-  }, [derivedBaseCode, legValue]);
+  }, [derivedBaseCode]);
 
+  // ── Navigation ──────────────────────────────────────────────────────────────
   const goNext = async () => {
     const fields = STEP_FIELDS[step];
-    const valid = await trigger(fields as Parameters<typeof trigger>[0]);
-    if (valid) {
-      setDirection(1);
-      setStep((s) => s + 1);
-    }
+    const valid  = await trigger(fields as Parameters<typeof trigger>[0]);
+    if (valid) { setDirection(1); setStep((s) => s + 1); }
   };
 
-  const goPrev = () => {
-    setDirection(-1);
-    setStep((s) => s - 1);
-  };
+  const goPrev = () => { setDirection(-1); setStep((s) => s - 1); };
 
+  // ── Submit ──────────────────────────────────────────────────────────────────
   const onSubmit = async (data: RegisterData) => {
     setFormError(undefined);
     try {
-      const { baseCode } = parseCodeSuffix(data.referralCode);
-      const result = await apiRegister({
+      // Always send the clean base code (no suffix) to the backend
+      const baseCode = hasUrlCode ? urlRef : parseCodeSuffix(data.referralCode).baseCode;
+      const result   = await apiRegister({
         firstName:    data.firstName,
         lastName:     data.lastName,
         username:     data.username,
@@ -251,21 +370,30 @@ export default function RegisterPage() {
         referralCode: baseCode || data.referralCode,
         leg:          data.leg as "L" | "R",
       });
+      // Clear saved referral params on successful registration
+      try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
       const storedUser: StoredUser = { ...result.user, type: "user" };
       authLogin(result.token, storedUser);
       window.location.href = "/dashboard";
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Registration failed. This username or email may already exist.");
+      setFormError(
+        err instanceof Error
+          ? err.message
+          : "Registration failed. This username or email may already exist.",
+      );
     }
   };
 
+  // ── Animation variants ──────────────────────────────────────────────────────
   const stepVariants = {
     initial: (d: number) => ({ opacity: 0, x: d > 0 ? 30 : -30 }),
     animate: { opacity: 1, x: 0 },
-    exit: (d: number) => ({ opacity: 0, x: d < 0 ? 30 : -30 }),
+    exit:    (d: number) => ({ opacity: 0, x: d < 0 ? 30 : -30 }),
   };
 
-  const legLabel = legValue === "L" ? "Left" : legValue === "R" ? "Right" : null;
+  // ── Sponsor card visibility ─────────────────────────────────────────────────
+  // Show the sponsor verification card as soon as we have a code to look up.
+  const showSponsorCard = !!(derivedBaseCode && (sponsorInfo || sponsorLoading || sponsorError));
 
   return (
     <AuthCard maxWidth="max-w-lg">
@@ -273,7 +401,6 @@ export default function RegisterPage() {
 
       <StepIndicator current={step} total={3} />
 
-      {/* Step label */}
       <p
         className="text-center text-xs font-semibold uppercase tracking-widest mb-6"
         style={{ color: "#D4AF37" }}
@@ -292,6 +419,7 @@ export default function RegisterPage() {
             exit="exit"
             transition={{ duration: 0.22, ease: "easeInOut" }}
           >
+
             {/* ── Step 1: Personal Info ── */}
             {step === 1 && (
               <div className="space-y-4">
@@ -306,9 +434,7 @@ export default function RegisterPage() {
                       {...register("firstName")}
                     />
                     {errors.firstName && (
-                      <p className="text-xs" style={{ color: "#f87171" }}>
-                        {errors.firstName.message}
-                      </p>
+                      <p className="text-xs" style={{ color: "#f87171" }}>{errors.firstName.message}</p>
                     )}
                   </div>
                   <div className="space-y-1.5">
@@ -321,9 +447,7 @@ export default function RegisterPage() {
                       {...register("lastName")}
                     />
                     {errors.lastName && (
-                      <p className="text-xs" style={{ color: "#f87171" }}>
-                        {errors.lastName.message}
-                      </p>
+                      <p className="text-xs" style={{ color: "#f87171" }}>{errors.lastName.message}</p>
                     )}
                   </div>
                 </div>
@@ -338,9 +462,7 @@ export default function RegisterPage() {
                     {...register("username")}
                   />
                   {errors.username && (
-                    <p className="text-xs" style={{ color: "#f87171" }}>
-                      {errors.username.message}
-                    </p>
+                    <p className="text-xs" style={{ color: "#f87171" }}>{errors.username.message}</p>
                   )}
                 </div>
 
@@ -355,9 +477,7 @@ export default function RegisterPage() {
                     {...register("email")}
                   />
                   {errors.email && (
-                    <p className="text-xs" style={{ color: "#f87171" }}>
-                      {errors.email.message}
-                    </p>
+                    <p className="text-xs" style={{ color: "#f87171" }}>{errors.email.message}</p>
                   )}
                 </div>
 
@@ -372,9 +492,7 @@ export default function RegisterPage() {
                     {...register("phone")}
                   />
                   {errors.phone && (
-                    <p className="text-xs" style={{ color: "#f87171" }}>
-                      {errors.phone.message}
-                    </p>
+                    <p className="text-xs" style={{ color: "#f87171" }}>{errors.phone.message}</p>
                   )}
                 </div>
               </div>
@@ -393,9 +511,7 @@ export default function RegisterPage() {
                     {...register("password")}
                   />
                   {errors.password ? (
-                    <p className="text-xs" style={{ color: "#f87171" }}>
-                      {errors.password.message}
-                    </p>
+                    <p className="text-xs" style={{ color: "#f87171" }}>{errors.password.message}</p>
                   ) : (
                     <PasswordStrengthBar password={passwordValue} />
                   )}
@@ -411,9 +527,7 @@ export default function RegisterPage() {
                     {...register("confirmPassword")}
                   />
                   {errors.confirmPassword && (
-                    <p className="text-xs" style={{ color: "#f87171" }}>
-                      {errors.confirmPassword.message}
-                    </p>
+                    <p className="text-xs" style={{ color: "#f87171" }}>{errors.confirmPassword.message}</p>
                   )}
                 </div>
 
@@ -433,14 +547,15 @@ export default function RegisterPage() {
             {/* ── Step 3: Account Setup ── */}
             {step === 3 && (
               <div className="space-y-5">
-                {/* Referral code */}
+
+                {/* Referral Code */}
                 <div className="space-y-1.5">
                   <Label htmlFor="referralCode">
-                    Referral Code{" "}
-                    <span style={{ color: "#f87171" }}>*</span>
+                    Referral Code <span style={{ color: "#f87171" }}>*</span>
                   </Label>
-                  {fromUrl ? (
-                    /* Pre-filled from URL — show as read-only banner */
+
+                  {hasUrlCode ? (
+                    /* Locked — came from referral link or sessionStorage */
                     <div
                       className="flex items-center gap-3 rounded-xl px-4 py-3"
                       style={{
@@ -450,7 +565,8 @@ export default function RegisterPage() {
                     >
                       <Check className="h-4 w-4 shrink-0" style={{ color: "#D4AF37" }} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "rgba(212,175,55,0.7)" }}>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5"
+                          style={{ color: "rgba(212,175,55,0.7)" }}>
                           Referral Code
                         </p>
                         <p className="text-sm font-bold text-foreground tracking-wider">{urlRef}</p>
@@ -458,6 +574,7 @@ export default function RegisterPage() {
                       <input type="hidden" {...register("referralCode")} />
                     </div>
                   ) : (
+                    /* Editable — direct registration */
                     <Input
                       id="referralCode"
                       placeholder="e.g. ABCD1234-L or ABCD1234-R"
@@ -465,60 +582,115 @@ export default function RegisterPage() {
                       {...register("referralCode")}
                     />
                   )}
+
                   {errors.referralCode && (
-                    <p className="text-xs" style={{ color: "#f87171" }}>
-                      {errors.referralCode.message}
-                    </p>
+                    <p className="text-xs" style={{ color: "#f87171" }}>{errors.referralCode.message}</p>
                   )}
-                  {!fromUrl && !errors.referralCode && (
+                  {!hasUrlCode && !errors.referralCode && (
                     <p className="text-xs flex items-start gap-1.5" style={{ color: "hsl(var(--muted-foreground))" }}>
                       <Info className="h-3 w-3 mt-0.5 shrink-0" />
-                      Your sponsor's referral code must include the placement side: e.g. ABCD1234-L or ABCD1234-R
+                      Include the placement side: e.g. ABCD1234<strong>-L</strong> or ABCD1234<strong>-R</strong>
                     </p>
                   )}
                 </div>
 
-                {/* Sponsor + Placement — shown once leg is resolved */}
-                {legValue && (
+                {/* Sponsor verification card — appears as soon as code is looked up */}
+                {showSponsorCard && (
                   <div
-                    className="rounded-xl px-4 py-4 space-y-3"
+                    className="rounded-xl px-4 py-3"
                     style={{
-                      background: "rgba(212,175,55,0.06)",
-                      border: "1px solid rgba(212,175,55,0.18)",
+                      background: sponsorError
+                        ? "rgba(248,113,113,0.06)"
+                        : "rgba(212,175,55,0.06)",
+                      border: `1px solid ${sponsorError
+                        ? "rgba(248,113,113,0.2)"
+                        : "rgba(212,175,55,0.18)"}`,
                     }}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <Check className="h-4 w-4 shrink-0" style={{ color: "#D4AF37" }} />
-                      <span
-                        className="text-[10px] font-semibold uppercase tracking-widest shrink-0"
-                        style={{ color: "rgba(212,175,55,0.6)", minWidth: "4.5rem" }}
-                      >
-                        Sponsor
-                      </span>
-                      <span className="text-sm font-semibold text-foreground truncate">
-                        {sponsorLoading
-                          ? "—"
-                          : sponsorInfo
-                          ? `${sponsorInfo.firstName} ${sponsorInfo.lastName} (@${sponsorInfo.username})`
-                          : derivedBaseCode}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2.5">
-                      <Check className="h-4 w-4 shrink-0" style={{ color: "#D4AF37" }} />
-                      <span
-                        className="text-[10px] font-semibold uppercase tracking-widest shrink-0"
-                        style={{ color: "rgba(212,175,55,0.6)", minWidth: "4.5rem" }}
-                      >
-                        Placement
-                      </span>
-                      <span className="text-sm font-semibold" style={{ color: "#F3D37A" }}>
-                        {legValue === "L" ? "Left Team" : "Right Team"}
-                      </span>
-                    </div>
+                    {sponsorLoading ? (
+                      <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(212,175,55,0.7)" }}>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Verifying sponsor…
+                      </div>
+                    ) : sponsorError ? (
+                      <div className="flex items-center gap-2 text-xs" style={{ color: "#f87171" }}>
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                        Referral code not found. Check the code and try again.
+                      </div>
+                    ) : sponsorInfo ? (
+                      <div className="space-y-2.5">
+                        {/* Sponsor row */}
+                        <div className="flex items-center gap-2.5">
+                          <UserCheck className="h-4 w-4 shrink-0" style={{ color: "#34d399" }} />
+                          <span className="text-[10px] font-semibold uppercase tracking-widest shrink-0"
+                            style={{ color: "rgba(212,175,55,0.6)", minWidth: "4.5rem" }}>
+                            Sponsor
+                          </span>
+                          <span className="text-sm font-semibold text-foreground truncate">
+                            {sponsorInfo.firstName} {sponsorInfo.lastName}{" "}
+                            <span style={{ color: "rgba(170,179,197,0.6)" }}>
+                              (@{sponsorInfo.username})
+                            </span>
+                          </span>
+                        </div>
+
+                        {/* Placement row — only shown once leg is chosen */}
+                        {legValue && (
+                          <div className="flex items-center gap-2.5">
+                            <Check className="h-4 w-4 shrink-0" style={{ color: "#D4AF37" }} />
+                            <span className="text-[10px] font-semibold uppercase tracking-widest shrink-0"
+                              style={{ color: "rgba(212,175,55,0.6)", minWidth: "4.5rem" }}>
+                              Placement
+                            </span>
+                            <span className="text-sm font-semibold" style={{ color: "#F3D37A" }}>
+                              {legValue === "L" ? "Left Team" : "Right Team"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
-                {/* Terms */}
+                {/* Placement picker */}
+                {/* Show when:
+                    - hasUrlCode + !hasUrlLeg  → locked code, no leg in URL → user must choose
+                    - !hasUrlCode              → manual entry → parse suffix auto, or let user pick
+                    - never shown when hasUrlLeg → leg already locked from URL */}
+                {!hasUrlLeg && derivedBaseCode && !sponsorError && (
+                  <div className="space-y-2">
+                    <Label>
+                      Placement <span style={{ color: "#f87171" }}>*</span>
+                    </Label>
+                    {hasUrlCode ? (
+                      /* URL-locked code but no leg — mandatory picker */
+                      <>
+                        <p className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
+                          Your referral link does not specify a team. Please choose where you'd like to be placed:
+                        </p>
+                        <LegPicker
+                          value={legValue}
+                          locked={false}
+                          onChange={(l) => setValue("leg", l, { shouldValidate: true })}
+                        />
+                      </>
+                    ) : (
+                      /* Manual entry — show picker only if suffix has been parsed */
+                      legValue && (
+                        <LegPicker
+                          value={legValue}
+                          locked={false}
+                          onChange={(l) => setValue("leg", l, { shouldValidate: true })}
+                        />
+                      )
+                    )}
+                    {errors.leg && (
+                      <p className="text-xs" style={{ color: "#f87171" }}>{errors.leg.message}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Terms & Conditions */}
                 <div className="flex items-start gap-3 pt-1">
                   <Checkbox
                     id="agreeToTerms"
@@ -535,21 +707,15 @@ export default function RegisterPage() {
                       style={{ color: "hsl(var(--muted-foreground))" }}
                     >
                       I agree to the{" "}
-                      <a
-                        href="#"
-                        className="font-semibold underline-offset-2 hover:underline"
+                      <a href="#" className="font-semibold underline-offset-2 hover:underline"
                         style={{ color: "#D4AF37" }}
-                        onClick={(e) => e.preventDefault()}
-                      >
+                        onClick={(e) => e.preventDefault()}>
                         Terms & Conditions
                       </a>{" "}
                       and{" "}
-                      <a
-                        href="#"
-                        className="font-semibold underline-offset-2 hover:underline"
+                      <a href="#" className="font-semibold underline-offset-2 hover:underline"
                         style={{ color: "#D4AF37" }}
-                        onClick={(e) => e.preventDefault()}
-                      >
+                        onClick={(e) => e.preventDefault()}>
                         Privacy Policy
                       </a>
                     </Label>
@@ -567,15 +733,10 @@ export default function RegisterPage() {
           </motion.div>
         </AnimatePresence>
 
-        {/* Navigation Buttons */}
+        {/* Navigation */}
         <div className={cn("flex gap-3 mt-7", step > 1 ? "justify-between" : "justify-end")}>
           {step > 1 && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={goPrev}
-              className="gap-1.5"
-            >
+            <Button type="button" variant="outline" onClick={goPrev} className="gap-1.5">
               <ArrowLeft className="h-4 w-4" />
               Back
             </Button>
@@ -594,17 +755,14 @@ export default function RegisterPage() {
           ) : (
             <Button
               type="submit"
-              className="gap-1.5 font-semibold flex-1"
               disabled={isSubmitting}
+              className="gap-1.5 font-semibold"
               style={{ background: "#D4AF37", color: "#050B1A" }}
             >
               {isSubmitting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Creating account…
-                </span>
+                <><Loader2 className="h-4 w-4 animate-spin" /> Creating Account…</>
               ) : (
-                "Create Account"
+                <>Create Account <ChevronRight className="h-4 w-4" /></>
               )}
             </Button>
           )}
@@ -616,12 +774,9 @@ export default function RegisterPage() {
         style={{ color: "hsl(var(--muted-foreground))" }}
       >
         Already have an account?{" "}
-        <Link
-          href="/login"
-          className="font-semibold transition-colors"
-          style={{ color: "#D4AF37" }}
-        >
-          Sign in
+        <Link href="/login" className="font-semibold hover:underline underline-offset-2"
+          style={{ color: "#D4AF37" }}>
+          Sign In
         </Link>
       </p>
     </AuthCard>

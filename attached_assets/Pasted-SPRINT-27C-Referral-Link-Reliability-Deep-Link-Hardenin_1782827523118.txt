@@ -1,0 +1,256 @@
+SPRINT 27C — Referral Link Reliability & Deep Link Hardening
+
+OBJECTIVE
+
+Fix the referral link system so that every shared referral link automatically pre-populates the sponsor and placement information correctly across desktop and mobile devices.
+
+This sprint is ONLY about referral onboarding reliability.
+
+Do NOT modify:
+
+- Registration business logic
+- Binary placement logic
+- Wallet engine
+- Deposit engine
+- Financial calculations
+- Income engines
+
+Only fix the referral/deep-link flow.
+
+==========================================================
+PART 1 — ROOT CAUSE ANALYSIS
+==========================================================
+
+Perform a full audit of the referral flow.
+
+Trace the complete path:
+
+Referral Link
+        ↓
+Router
+        ↓
+Search Params
+        ↓
+React State
+        ↓
+React Hook Form
+        ↓
+Default Values
+        ↓
+Sponsor Lookup
+        ↓
+Registration Submit
+
+Identify exactly where the referral code is being lost.
+
+Do NOT apply a blind patch.
+
+==========================================================
+PART 2 — SUPPORT ALL REFERRAL LINK FORMATS
+==========================================================
+
+The registration page must support ALL of these formats:
+
+/register?ref=MASTERROOT
+
+/register?ref=MASTERROOT&leg=L
+
+/register?ref=MASTERROOT&leg=R
+
+/register?ref=MASTERROOT-L
+
+/register?ref=MASTERROOT-R
+
+Older referral links must continue working.
+
+==========================================================
+PART 3 — AUTO POPULATE REFERRAL CODE
+==========================================================
+
+Opening
+
+https://primewave.live/register?ref=MASTERROOT
+
+must immediately display
+
+Referral Code
+
+MASTERROOT
+
+without requiring any user interaction.
+
+No refresh.
+
+No typing.
+
+No clicking.
+
+==========================================================
+PART 4 — AUTO POPULATE PLACEMENT
+==========================================================
+
+If the referral URL contains
+
+?leg=L
+
+or
+
+MASTERROOT-L
+
+automatically populate
+
+Placement
+
+Left Team
+
+Likewise for Right Team.
+
+==========================================================
+PART 5 — REFERRAL LOCKING
+==========================================================
+
+If registration originated from a referral link:
+
+• Referral Code field becomes read-only.
+
+Display
+
+Sponsored By
+
+Master ID
+
+Placement
+
+Left Team / Right Team
+
+Users should not accidentally overwrite their sponsor.
+
+If the page was opened directly (without a referral link),
+
+Referral Code remains editable.
+
+==========================================================
+PART 6 — MOBILE DEEP LINK SUPPORT
+==========================================================
+
+Verify referral links work correctly from:
+
+✓ WhatsApp
+
+✓ Telegram
+
+✓ Facebook Messenger
+
+✓ Gmail
+
+✓ Chrome
+
+✓ Safari
+
+✓ Android
+
+✓ iPhone
+
+Ensure URL parameters survive app redirects.
+
+==========================================================
+PART 7 — URL NORMALISATION
+==========================================================
+
+Treat all of these as identical:
+
+MASTERROOT
+
+masterroot
+
+MasterRoot
+
+Trim whitespace.
+
+Ignore duplicate "&"
+
+Ignore trailing "/"
+
+Handle URL encoding correctly.
+
+==========================================================
+PART 8 — SPONSOR VALIDATION
+==========================================================
+
+Immediately validate the sponsor after page load.
+
+Show
+
+✓ Sponsor Verified
+
+Master ID
+
+If invalid
+
+Show
+
+Referral code not found.
+
+Do NOT wait until Create Account is clicked.
+
+==========================================================
+PART 9 — PRESERVE REFERRAL DATA
+==========================================================
+
+Changing registration steps must NEVER lose:
+
+• Referral Code
+
+• Placement
+
+• Sponsor
+
+Refreshing the page should preserve them whenever possible.
+
+==========================================================
+PART 10 — REGRESSION TESTING
+==========================================================
+
+Verify:
+
+✓ Existing referral links still work
+
+✓ Manual referral entry still works
+
+✓ URL with placement works
+
+✓ URL without placement works
+
+✓ Referral Code auto-fills
+
+✓ Placement auto-fills
+
+✓ Sponsor card displays correctly
+
+✓ Hidden leg field populated correctly
+
+✓ Registration completes successfully
+
+✓ No changes to binary placement logic
+
+✓ No changes to wallets
+
+✓ No changes to deposits
+
+✓ No changes to financial calculations
+
+==========================================================
+DELIVERABLES
+==========================================================
+
+Provide:
+
+1. Root cause analysis
+
+2. Files modified
+
+3. Exact bug fixed
+
+4. Regression report
+
+5. Confirmation that no registration or financial business logic was modified.
