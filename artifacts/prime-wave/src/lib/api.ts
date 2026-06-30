@@ -2430,3 +2430,23 @@ export function adminRejectDepositVerification(id: string, data: { reason: strin
     { method: "POST", body: JSON.stringify(data) },
   );
 }
+
+export interface CompanyWallet {
+  id: string;
+  network: string;
+  walletAddress: string;
+  label: string | null;
+  updatedAt: string;
+  updatedBy: string | null;
+}
+
+export function adminGetCompanyWallets() {
+  return request<CompanyWallet[]>("/api/admin/company-wallets");
+}
+
+export function adminUpdateCompanyWallet(id: string, data: { walletAddress: string }) {
+  return request<CompanyWallet>(`/api/admin/company-wallets/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}

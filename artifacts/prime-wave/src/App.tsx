@@ -31,7 +31,8 @@ const AdminIncomeEnginePage  = lazy(() => import("@/pages/admin/IncomeEnginePage
 const AdminPlansPage         = lazy(() => import("@/pages/admin/PlansPage"));
 const AdminOperationsPage    = lazy(() => import("@/pages/admin/OperationsPage"));
 const AdminAutoDepositsPage  = lazy(() => import("@/pages/admin/AutoDepositsPage"));
-const AdminManualCreditPage  = lazy(() => import("@/pages/admin/ManualCreditPage"));
+const AdminManualCreditPage      = lazy(() => import("@/pages/admin/ManualCreditPage"));
+const AdminCompanyWalletsPage    = lazy(() => import("@/pages/admin/CompanyWalletsPage"));
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
@@ -216,6 +217,9 @@ function AppRoutes() {
       </Route>
       <Route path="/admin/plans">
         <RequireAdmin><Suspense fallback={null}><AdminPlansPage /></Suspense></RequireAdmin>
+      </Route>
+      <Route path="/admin/company-wallets">
+        <RequireAdmin><Suspense fallback={null}><AdminCompanyWalletsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/reports">
         <RequireAdmin><Suspense fallback={null}><AdminOperationsPage /></Suspense></RequireAdmin>

@@ -726,7 +726,11 @@ async function processOne(
   }
 
   const newAttempts = v.verificationAttempts + 1;
-  const ageMs       = Date.now() - v.createdAt.getTime();
+  // Age is measured from firstSeenAt — reset to "now" on re-validate so the
+  // delay threshold clock restarts cleanly for re-submitted records.
+  // Falls back to createdAt for brand-new TX_SUBMITTED → VERIFYING transitions
+  // where firstSeenAt was just set above (same value as now).
+  const ageMs       = Date.now() - (v.firstSeenAt ?? v.createdAt).getTime();
 
   // ── Delay threshold: VERIFYING → VERIFICATION_DELAYED ────────────────────
   //

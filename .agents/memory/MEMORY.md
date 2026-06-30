@@ -10,3 +10,4 @@
 - [Dev vs prod use separate databases](dev-prod-separate-dbs.md) — DATABASE_URL is one secret but Replit injects different connection strings; executeSql environment:"production" is READ-ONLY replica; only way to write prod data is through the deployed API or Publish flow.
 - [HTTP_STATUS enum](http-status-enum.md) — SERVICE_UNAVAILABLE (503) was added in Sprint 27B; always extend constants.ts when adding new HTTP codes rather than using raw numbers.
 - [VERIFICATION_DELAYED slow-poll pattern](verification-delayed-pattern.md) — Non-terminal timeout state; ACTIVE_VS must include it; keepStatus pattern preserves status on adapter retry/not-found; delayedPollMs from system_settings.
+- [Re-validate age clock must use firstSeenAt](revalidate-age-clock.md) — Delay threshold uses firstSeenAt (reset on re-validate), NOT createdAt (never reset). Using createdAt causes re-validate to always immediately enter VERIFICATION_DELAYED for old records.
