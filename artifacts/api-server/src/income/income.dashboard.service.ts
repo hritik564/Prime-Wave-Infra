@@ -157,7 +157,7 @@ export async function getIncomeDashboard(userId: string) {
   const timeline = [
     {
       engine:          "ROI",
-      label:           "Daily ROI",
+      label:           "ROI",
       scheduledAt:     nextBoundary,
       estimatedAmount: null as string | null,
       isEstimated:     false,
@@ -165,7 +165,7 @@ export async function getIncomeDashboard(userId: string) {
     },
     {
       engine:          "Binary",
-      label:           "Binary Match",
+      label:           "Binary",
       scheduledAt:     nextBoundary,
       estimatedAmount: matchingSummary.isQualified ? binaryPending : null,
       isEstimated:     true,
@@ -173,7 +173,7 @@ export async function getIncomeDashboard(userId: string) {
     },
     {
       engine:          "Orbit",
-      label:           "Binary Orbit",
+      label:           "Orbit",
       scheduledAt:     nextBoundary,
       estimatedAmount: orbitSummary.isQualified ? orbitPending : null,
       isEstimated:     true,
@@ -181,7 +181,7 @@ export async function getIncomeDashboard(userId: string) {
     },
     {
       engine:          "Salary",
-      label:           "Monthly Salary",
+      label:           "Salary",
       scheduledAt:     nextSalaryAt,
       estimatedAmount: salaryQualified ? monthlySalary : null,
       isEstimated:     false,

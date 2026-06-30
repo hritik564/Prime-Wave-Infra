@@ -1,0 +1,326 @@
+SPRINT 26A.1 — INCOME CENTER POLISH (UX REFINEMENT)
+
+Objective
+
+Polish the new Income Center before Sprint 26B.
+
+This sprint is presentation-only.
+
+DO NOT modify:
+
+- ROI Engine
+- Binary Engine
+- Orbit Engine
+- Salary Engine
+- Level Income Engine
+- Wallet Engine
+- Investment Engine
+- Deposit Verification
+- Withdrawal
+- Database schema
+- Business rules
+- Scheduler
+
+This sprint changes ONLY wording, presentation, navigation and user experience.
+
+====================================================
+1. RENAME SNAPSHOT CARD
+====================================================
+
+Replace
+
+"Pending This Cycle"
+
+with
+
+"Expected Next Credits"
+
+Reason:
+
+"Pending" sounds like approval is waiting.
+
+The card actually represents expected upcoming income.
+
+The description should read:
+
+"Expected income from your upcoming payout cycle."
+
+If no estimate exists:
+
+Display
+
+"Calculating..."
+
+Never display
+
+$0
+
+unless the engine has positively determined the payout is zero.
+
+====================================================
+2. IMPROVE INCOME SOURCE CARDS
+====================================================
+
+Reorganize every card.
+
+Do not add more information.
+
+Just improve hierarchy.
+
+ROI
+
+Show:
+
+Status
+
+ACTIVE
+
+Next Credit
+
+Today's ROI
+
+Claimable ROI
+
+View Details
+
+-----------------------------------
+
+Binary
+
+Show:
+
+Qualified / Not Qualified
+
+Next Matching
+
+Estimated Next Payout
+
+View Details
+
+-----------------------------------
+
+Orbit
+
+Show:
+
+Qualified / Not Qualified
+
+Next Orbit Cycle
+
+Current Progress
+
+Estimated Reward
+
+View Details
+
+-----------------------------------
+
+Salary
+
+Show:
+
+Qualified
+
+Current Monthly Salary
+
+Next Salary Date
+
+Current Rank
+
+View Details
+
+-----------------------------------
+
+Level Income
+
+Show:
+
+Instant Credit
+
+Earned Today
+
+Earned This Month
+
+View Details
+
+====================================================
+3. REMOVE LIFETIME VALUES FROM OVERVIEW
+====================================================
+
+Remove lifetime totals from the overview cards.
+
+Lifetime earnings belong on Sprint 26B detail pages.
+
+The overview should focus on:
+
+Current
+
+Next
+
+Today
+
+This Month
+
+Upcoming
+
+====================================================
+4. FIX ESTIMATED $0 DISPLAY
+====================================================
+
+Never display
+
+Estimated
+
+$0
+
+unless the engine actually calculated zero.
+
+Instead use one of:
+
+Calculating...
+
+Pending next cycle
+
+Available after next matching cycle
+
+Waiting for engine calculation
+
+The UI must clearly distinguish
+
+"unknown"
+
+from
+
+"zero."
+
+====================================================
+5. MAKE INCOME CARDS CLICKABLE
+====================================================
+
+Entire cards should navigate.
+
+Do not require pressing
+
+"View Details."
+
+Click anywhere on the card.
+
+Navigation:
+
+ROI
+
+→ /income/roi
+
+Binary
+
+→ /income/binary
+
+Orbit
+
+→ /income/orbit
+
+Salary
+
+→ /income/salary
+
+Level
+
+→ /income/level
+
+If pages don't exist yet:
+
+Create placeholder routes.
+
+====================================================
+6. REMOVE QUICK ACTIONS
+====================================================
+
+Delete the Quick Actions section completely.
+
+Once cards are clickable it becomes redundant.
+
+====================================================
+7. IMPROVE UPCOMING PAYOUT LABELS
+====================================================
+
+Rename
+
+Daily ROI
+
+to
+
+ROI
+
+Rename
+
+Binary Match
+
+to
+
+Binary
+
+Rename
+
+Binary Orbit
+
+to
+
+Orbit
+
+Keep names short.
+
+====================================================
+8. EMPHASIZE NEXT CREDIT
+====================================================
+
+The Next Credit card is the most important snapshot card.
+
+Improve its visual emphasis.
+
+Suggestions:
+
+Slightly larger countdown
+
+Slightly stronger accent
+
+Better visual hierarchy
+
+No flashing or distracting animations.
+
+Keep it elegant.
+
+====================================================
+9. REGRESSION REQUIREMENTS
+====================================================
+
+Confirm:
+
+No engine logic changed.
+
+No payout calculations changed.
+
+No API contracts changed.
+
+No scheduler changed.
+
+No database schema changed.
+
+No business rules changed.
+
+Presentation layer only.
+
+====================================================
+10. FINAL REPORT
+====================================================
+
+Provide:
+
+1. Updated screenshots
+
+2. Files changed
+
+3. Confirmation that this sprint only modified UI/presentation
+
+4. Confirmation that all financial logic remains unchanged
+
+After this sprint completes we will begin Sprint 26B (individual engine detail pages).

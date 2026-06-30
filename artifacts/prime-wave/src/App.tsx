@@ -17,6 +17,7 @@ import NotificationsPage from "@/pages/notifications/NotificationsPage";
 import SettingsPage from "@/pages/settings/SettingsPage";
 import DevToolsPage from "@/pages/DevToolsPage";
 import IncomeCenterPage from "@/pages/income/IncomeCenterPage";
+import IncomeDetailPage from "@/pages/income/IncomeDetailPage";
 import FinancialTransparencyPage from "@/pages/income/FinancialTransparencyPage";
 import { lazy, Suspense } from "react";
 const AdminDashboardPage     = lazy(() => import("@/pages/admin/AdminDashboardPage"));
@@ -160,18 +161,21 @@ function AppRoutes() {
       <Route path="/transparency">
         <RequireMember><FinancialTransparencyPage /></RequireMember>
       </Route>
-      {/* Legacy sub-routes redirect to Income Center */}
+      {/* Income engine detail pages (Sprint 26B placeholder) */}
+      <Route path="/income/roi">
+        <RequireMember><IncomeDetailPage engine="roi" /></RequireMember>
+      </Route>
       <Route path="/income/binary">
-        <Redirect to="/income" />
+        <RequireMember><IncomeDetailPage engine="binary" /></RequireMember>
       </Route>
       <Route path="/income/orbit">
-        <Redirect to="/income" />
-      </Route>
-      <Route path="/income/level">
-        <Redirect to="/income" />
+        <RequireMember><IncomeDetailPage engine="orbit" /></RequireMember>
       </Route>
       <Route path="/income/salary">
-        <Redirect to="/income" />
+        <RequireMember><IncomeDetailPage engine="salary" /></RequireMember>
+      </Route>
+      <Route path="/income/level">
+        <RequireMember><IncomeDetailPage engine="level" /></RequireMember>
       </Route>
 
       {/* ── Access Denied ── */}

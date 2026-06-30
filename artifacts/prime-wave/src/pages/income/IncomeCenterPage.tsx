@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLocation } from "wouter";
 import {
   TrendingUp, GitMerge, RefreshCw, Users, DollarSign,
   Clock, Award, ChevronRight, Sparkles, X, CheckCircle2,
-  XCircle, Zap, ArrowRight, Timer,
+  XCircle, Zap, Timer,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
@@ -48,6 +49,10 @@ function fmtFull(iso: string): string {
   );
 }
 
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 function typeConfig(type: string) {
   return TYPE_CONFIG[type] ?? { label: type, color: GOLD, bg: "rgba(212,175,55,0.08)", icon: Sparkles, short: type };
 }
@@ -64,6 +69,15 @@ function dayLabel(isoString: string): string {
 
 function fmtTime(isoString: string): string {
   return new Date(isoString).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+}
+
+/* "Unknown" vs "zero" — never show an estimated $0 */
+function safeEst(amount: string | null | undefined, qualified: boolean): string {
+  if (!qualified) return "Pending next cycle";
+  if (!amount) return "Calculating...";
+  const v = parseFloat(amount);
+  if (!isFinite(v) || v === 0) return "Calculating...";
+  return `~$${fmt(amount)}`;
 }
 
 /* ── Skeleton ─────────────────────────────────────────────────────────────── */
@@ -99,7 +113,7 @@ function useCountdown(targetIso: string | undefined): string {
   return remaining;
 }
 
-/* ── Snapshot card ───────────────────────────────────────────────────────── */
+/* ── Standard snapshot card ──────────────────────────────────────────────── */
 
 interface SnapCardProps {
   label:      string;
@@ -109,7 +123,6 @@ interface SnapCardProps {
   iconColor?: string;
   iconBg?:    string;
   loading?:   boolean;
-  glow?:      string;
   progress?:  { pct: number; label: string };
 }
 
@@ -158,100 +171,250 @@ function SnapCard({ label, value, sub, icon: Icon, iconColor = GOLD, iconBg, loa
   );
 }
 
-/* ── Source card ─────────────────────────────────────────────────────────── */
+/* ── Emphasized Next Credit card ─────────────────────────────────────────── */
+
+function NextCreditCard({ countdown, nextCreditAt, loading }: {
+  countdown: string; nextCreditAt: string | undefined; loading: boolean;
+}) {
+  return (
+    <div
+      className="rounded-2xl p-5 flex flex-col gap-3 relative overflow-hidden"
+      style={{
+        background: CARD,
+        border:     "1px solid rgba(212,175,55,0.3)",
+        boxShadow:  "0 0 20px rgba(212,175,55,0.06)",
+      }}
+    >
+      {/* Subtle gold shimmer strip at top */}
+      <div
+        className="absolute top-0 left-0 right-0 h-px"
+        style={{ background: "linear-gradient(90deg, transparent, rgba(212,175,55,0.5), transparent)" }}
+      />
+
+      <div className="flex items-center gap-2">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+          style={{ background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.25)" }}>
+          <Timer className="h-4 w-4" style={{ color: "#34d399" }} />
+        </div>
+        <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: MUTED }}>Next Credit</p>
+        {/* Live indicator */}
+        <div className="flex items-center gap-1 ml-auto">
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ background: "#34d399", boxShadow: "0 0 4px #34d399" }}
+          />
+          <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "#34d399" }}>Live</span>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          <Sk className="h-10 w-28" />
+          <Sk className="h-4 w-24" />
+        </div>
+      ) : (
+        <>
+          <div className="text-3xl font-bold" style={{ color: GOLD, fontFamily: "Cormorant Garamond, serif", letterSpacing: "-0.01em" }}>
+            {countdown}
+          </div>
+          <p className="text-xs leading-snug" style={{ color: MUTED }}>
+            ROI · Binary · Orbit
+            {nextCreditAt && ` · ${fmtTime(nextCreditAt)}`}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── Source card — per-engine hierarchy, fully clickable ─────────────────── */
 
 interface SourceCardProps {
-  engine:      string;
-  loading?:    boolean;
-  snap:        IncomeDashboard | null;
-  nextCreditAt?: string;
+  engine:  string;
+  loading?: boolean;
+  snap:    IncomeDashboard | null;
+}
+
+function DataRow({ label, value, valueColor }: { label: string; value: React.ReactNode; valueColor?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[11px]" style={{ color: MUTED }}>{label}</span>
+      <span className="text-[11px] font-semibold text-right" style={{ color: valueColor ?? "hsl(var(--foreground))" }}>
+        {value}
+      </span>
+    </div>
+  );
 }
 
 function SourceCard({ engine, loading, snap }: SourceCardProps) {
-  const cfg = typeConfig(engine);
+  const cfg  = typeConfig(engine);
   const Icon = cfg.icon;
+  const [, navigate] = useLocation();
 
-  const src = snap?.sources;
+  const ROUTE_MAP: Record<string, string> = {
+    ROI_CLAIM:    "/income/roi",
+    BINARY_MATCH: "/income/binary",
+    BINARY_ORBIT: "/income/orbit",
+    SALARY:       "/income/salary",
+    LEVEL_INCOME: "/income/level",
+  };
 
-  const data = engine === "ROI_CLAIM"
-    ? src?.roi
-    : engine === "BINARY_MATCH"
-      ? src?.binary
-      : engine === "BINARY_ORBIT"
-        ? src?.orbit
-        : engine === "SALARY"
-          ? src?.salary
-          : src?.levelIncome;
-
+  const src  = snap?.sources;
   const nextCreditIso =
-    engine === "ROI_CLAIM"    ? snap?.sources.roi.nextCreditAt
-    : engine === "BINARY_MATCH" ? snap?.sources.binary.nextCycleAt
-    : engine === "BINARY_ORBIT" ? snap?.sources.orbit.nextCycleAt
-    : engine === "SALARY"       ? snap?.sources.salary.nextSalaryAt
+    engine === "ROI_CLAIM"    ? src?.roi.nextCreditAt
+    : engine === "BINARY_MATCH" ? src?.binary.nextCycleAt
+    : engine === "BINARY_ORBIT" ? src?.orbit.nextCycleAt
+    : engine === "SALARY"       ? src?.salary.nextSalaryAt
     : undefined;
 
   const countdown = useCountdown(nextCreditIso);
 
-  function qualified(): boolean | null {
-    if (engine === "ROI_CLAIM")    return null;
-    if (engine === "LEVEL_INCOME") return null;
-    if (engine === "BINARY_MATCH") return src?.binary.isQualified ?? false;
-    if (engine === "BINARY_ORBIT") return src?.orbit.isQualified ?? false;
-    if (engine === "SALARY")       return src?.salary.isQualified ?? false;
-    return null;
-  }
+  /* Per-engine content rows */
+  function renderRows(): React.ReactNode {
+    if (!src) return null;
 
-  function todayEarnings(): string {
-    if (!data) return "0.00";
-    if ("todayEarnings" in data) return data.todayEarnings;
-    return "0.00";
-  }
-
-  function lifetimeEarnings(): string {
-    if (!data) return "0.00";
-    if ("lifetimeEarnings" in data) return data.lifetimeEarnings;
-    return "0.00";
-  }
-
-  function statusLine(): React.ReactNode {
     if (engine === "ROI_CLAIM") {
-      return <span style={{ color: "#34d399" }}>Auto-credits each cycle</span>;
+      return (
+        <>
+          <DataRow label="Status" value={
+            <span style={{ color: "#34d399" }} className="flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3" />Active
+            </span>
+          } />
+          <DataRow
+            label="Next Credit"
+            value={nextCreditIso ? countdown : "—"}
+            valueColor={GOLD}
+          />
+          <DataRow
+            label="Today's ROI"
+            value={`$${fmt(src.roi.todayEarnings)}`}
+            valueColor={cfg.color}
+          />
+        </>
+      );
     }
-    if (engine === "LEVEL_INCOME") {
-      return <span style={{ color: "#34d399" }}>Instant credit</span>;
+
+    if (engine === "BINARY_MATCH") {
+      const q   = src.binary.isQualified;
+      const est = safeEst(src.binary.estimatedNextPayout, q);
+      return (
+        <>
+          <DataRow label="Status" value={
+            q
+              ? <span style={{ color: "#34d399" }} className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />Qualified</span>
+              : <span style={{ color: "#ef4444" }} className="flex items-center gap-1"><XCircle className="h-3 w-3" />Not qualified</span>
+          } />
+          <DataRow
+            label="Next Matching"
+            value={nextCreditIso ? countdown : "—"}
+            valueColor={MUTED}
+          />
+          <DataRow
+            label="Est. Next Payout"
+            value={est}
+            valueColor={est.startsWith("~") ? cfg.color : MUTED}
+          />
+        </>
+      );
     }
-    const q = qualified();
-    if (q === null) return null;
-    return q
-      ? <span style={{ color: "#34d399" }} className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />Qualified</span>
-      : <span style={{ color: "#ef4444" }} className="flex items-center gap-1"><XCircle className="h-3 w-3" />Not qualified</span>;
+
+    if (engine === "BINARY_ORBIT") {
+      const q   = src.orbit.isQualified;
+      const est = safeEst(src.orbit.estimatedNextPayout, q);
+      return (
+        <>
+          <DataRow label="Status" value={
+            q
+              ? <span style={{ color: "#34d399" }} className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />Qualified</span>
+              : <span style={{ color: "#ef4444" }} className="flex items-center gap-1"><XCircle className="h-3 w-3" />Not qualified</span>
+          } />
+          <DataRow
+            label="Next Orbit Cycle"
+            value={nextCreditIso ? countdown : "—"}
+            valueColor={MUTED}
+          />
+          <DataRow
+            label="Est. Reward"
+            value={est}
+            valueColor={est.startsWith("~") ? cfg.color : MUTED}
+          />
+        </>
+      );
+    }
+
+    if (engine === "SALARY") {
+      const q = src.salary.isQualified;
+      const monthlySalaryAmt = parseFloat(src.salary.monthlySalary);
+      const rank = src.salary.activeRanks[0] ?? snap?.snapshot.currentRank ?? "—";
+      return (
+        <>
+          <DataRow label="Status" value={
+            q
+              ? <span style={{ color: "#34d399" }} className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />Qualified</span>
+              : <span style={{ color: "#ef4444" }} className="flex items-center gap-1"><XCircle className="h-3 w-3" />Not qualified</span>
+          } />
+          <DataRow
+            label="Monthly Salary"
+            value={monthlySalaryAmt > 0 ? `$${fmt(monthlySalaryAmt)}/mo` : "—"}
+            valueColor={monthlySalaryAmt > 0 ? cfg.color : MUTED}
+          />
+          <DataRow
+            label="Next Salary"
+            value={nextCreditIso ? fmtDate(nextCreditIso) : "—"}
+            valueColor="hsl(var(--foreground))"
+          />
+          <DataRow
+            label="Current Rank"
+            value={rank}
+            valueColor={GOLD}
+          />
+        </>
+      );
+    }
+
+    /* LEVEL_INCOME */
+    return (
+      <>
+        <DataRow label="Credit Type" value={
+          <span style={{ color: "#34d399" }} className="flex items-center gap-1">
+            <Zap className="h-3 w-3" />Instant
+          </span>
+        } />
+        <DataRow
+          label="Earned Today"
+          value={`$${fmt(src.levelIncome.todayEarnings)}`}
+          valueColor={cfg.color}
+        />
+        <DataRow
+          label="This Month"
+          value={`$${fmt(src.levelIncome.thisMonthEarnings)}`}
+          valueColor="hsl(var(--foreground))"
+        />
+      </>
+    );
   }
 
-  function subLine(): React.ReactNode {
-    if (engine === "SALARY" && src?.salary) {
-      const ranks = src.salary.activeRanks;
-      return ranks.length > 0
-        ? <span>${fmt(src.salary.monthlySalary)}/month · {ranks.join(" + ")}</span>
-        : <span style={{ color: MUTED }}>No active salary</span>;
-    }
-    if (engine === "LEVEL_INCOME" && src?.levelIncome) {
-      return <span>This month: ${fmt(src.levelIncome.thisMonthEarnings)}</span>;
-    }
-    if ((engine === "BINARY_MATCH" || engine === "BINARY_ORBIT") && src) {
-      const est = engine === "BINARY_MATCH"
-        ? src.binary.estimatedNextPayout
-        : src.orbit.estimatedNextPayout;
-      const isQ = engine === "BINARY_MATCH" ? src.binary.isQualified : src.orbit.isQualified;
-      if (!isQ) return <span style={{ color: MUTED }}>No pending income</span>;
-      return <span>Est. next: <strong style={{ color: cfg.color }}>${fmt(est)}</strong></span>;
-    }
-    return null;
-  }
+  const engineLabel: Record<string, string> = {
+    ROI_CLAIM:    "ROI",
+    BINARY_MATCH: "Binary",
+    BINARY_ORBIT: "Orbit",
+    SALARY:       "Salary",
+    LEVEL_INCOME: "Level Income",
+  };
 
   return (
     <div
-      className="rounded-2xl p-5 flex flex-col gap-3"
-      style={{ background: CARD, border: "1px solid rgba(255,255,255,0.06)" }}
+      role="button"
+      tabIndex={0}
+      className="rounded-2xl p-5 flex flex-col gap-3 cursor-pointer transition-all duration-150 hover:scale-[1.01] hover:border-white/10 focus:outline-none focus-visible:ring-2"
+      style={{
+        background:   CARD,
+        border:       "1px solid rgba(255,255,255,0.06)",
+        userSelect:   "none",
+      }}
+      onClick={() => navigate(ROUTE_MAP[engine] ?? "/income")}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") navigate(ROUTE_MAP[engine] ?? "/income"); }}
     >
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -259,60 +422,23 @@ function SourceCard({ engine, loading, snap }: SourceCardProps) {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: cfg.bg }}>
             <Icon className="h-4 w-4" style={{ color: cfg.color }} />
           </div>
-          <span className="text-sm font-semibold text-foreground">{cfg.label}</span>
+          <span className="text-sm font-semibold text-foreground">{engineLabel[engine] ?? cfg.label}</span>
         </div>
-        {loading ? <Sk className="h-5 w-16" /> : (
-          <div className="text-xs" style={{ color: MUTED }}>{statusLine()}</div>
-        )}
+        <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "rgba(170,179,197,0.3)" }} />
       </div>
 
-      {/* Today / Lifetime */}
+      {/* Rows */}
       {loading ? (
-        <div className="grid grid-cols-2 gap-2">
-          <Sk className="h-10" /><Sk className="h-10" />
+        <div className="space-y-2">
+          <Sk className="h-4 w-full" />
+          <Sk className="h-4 w-4/5" />
+          <Sk className="h-4 w-3/5" />
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-            <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: MUTED }}>Today</p>
-            <p className="text-sm font-bold" style={{ color: cfg.color, fontFamily: "Cormorant Garamond, serif" }}>
-              ${fmt(todayEarnings())}
-            </p>
-          </div>
-          <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-            <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: MUTED }}>Lifetime</p>
-            <p className="text-sm font-bold" style={{ color: "hsl(var(--foreground))", fontFamily: "Cormorant Garamond, serif" }}>
-              ${fmt(lifetimeEarnings())}
-            </p>
-          </div>
+        <div className="space-y-2.5">
+          {renderRows()}
         </div>
       )}
-
-      {/* Sub detail */}
-      {!loading && (
-        <p className="text-xs" style={{ color: MUTED }}>{subLine()}</p>
-      )}
-
-      {/* Next credit countdown (if applicable) */}
-      {!loading && nextCreditIso && engine !== "LEVEL_INCOME" && (
-        <div className="flex items-center gap-1.5 rounded-lg px-3 py-2"
-          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
-          <Timer className="h-3.5 w-3.5 shrink-0" style={{ color: MUTED }} />
-          <p className="text-xs" style={{ color: MUTED }}>
-            Next credit: <span style={{ color: "hsl(var(--foreground))" }}>{countdown}</span>
-          </p>
-        </div>
-      )}
-
-      {/* View details button */}
-      <button
-        className="flex items-center justify-center gap-1.5 w-full rounded-xl py-2.5 text-xs font-semibold transition-all duration-150 hover:opacity-90"
-        style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}25` }}
-        onClick={() => {}}
-      >
-        View Details
-        <ArrowRight className="h-3.5 w-3.5" />
-      </button>
     </div>
   );
 }
@@ -352,11 +478,24 @@ function TimelineRow({ event, isLast }: { event: TimelineEvent; isLast: boolean 
   const color = engineColor(event.engine);
   const Icon  = engineIcon(event.engine);
 
-  const amountText = event.estimatedAmount != null
-    ? (event.isEstimated ? `~$${fmt(event.estimatedAmount)}` : `$${fmt(event.estimatedAmount)}`)
-    : "Pending calculation";
+  /* Use safe estimate — never show "Estimated $0.00" */
+  const isQual = event.isQualified ?? true;
+  let amountText: string;
+  let amountColor: string;
 
-  const amountColor = event.estimatedAmount != null ? color : MUTED;
+  if (event.estimatedAmount != null) {
+    const v = parseFloat(event.estimatedAmount);
+    if (isFinite(v) && v > 0) {
+      amountText  = event.isEstimated ? `~$${fmt(event.estimatedAmount)}` : `$${fmt(event.estimatedAmount)}`;
+      amountColor = color;
+    } else {
+      amountText  = isQual ? "Calculating..." : "Pending next cycle";
+      amountColor = MUTED;
+    }
+  } else {
+    amountText  = isQual ? "Calculating..." : "Pending next cycle";
+    amountColor = MUTED;
+  }
 
   function qualBadge() {
     if (event.isQualified === null) return null;
@@ -368,7 +507,6 @@ function TimelineRow({ event, isLast }: { event: TimelineEvent; isLast: boolean 
 
   return (
     <div className="flex gap-3">
-      {/* Line + icon */}
       <div className="flex flex-col items-center pt-0.5" style={{ minWidth: 32 }}>
         <div className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0"
           style={{ background: `${color}18`, border: `1px solid ${color}35` }}>
@@ -377,8 +515,7 @@ function TimelineRow({ event, isLast }: { event: TimelineEvent; isLast: boolean 
         {!isLast && <div className="flex-1 w-px mt-2" style={{ background: "rgba(255,255,255,0.06)" }} />}
       </div>
 
-      {/* Content */}
-      <div className={`flex-1 flex items-start justify-between gap-3 pb-5 ${isLast ? "pb-1" : "pb-5"}`}>
+      <div className={`flex-1 flex items-start justify-between gap-3 ${isLast ? "pb-1" : "pb-5"}`}>
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-medium text-foreground">{event.label}</p>
@@ -390,7 +527,7 @@ function TimelineRow({ event, isLast }: { event: TimelineEvent; isLast: boolean 
           <p className="text-sm font-bold" style={{ color: amountColor, fontFamily: "Cormorant Garamond, serif" }}>
             {amountText}
           </p>
-          {event.isEstimated && event.estimatedAmount != null && (
+          {event.isEstimated && event.estimatedAmount != null && parseFloat(event.estimatedAmount) > 0 && (
             <p className="text-[10px]" style={{ color: MUTED }}>Estimated</p>
           )}
         </div>
@@ -416,7 +553,6 @@ function TimelineSection({ events, loading }: { events: TimelineEvent[]; loading
     );
   }
 
-  // Group by day label
   const groups: { dayLabel: string; events: TimelineEvent[] }[] = [];
   for (const ev of events) {
     const dl = dayLabel(ev.scheduledAt);
@@ -429,7 +565,6 @@ function TimelineSection({ events, loading }: { events: TimelineEvent[]; loading
     <div className="space-y-4">
       {groups.map(grp => (
         <div key={grp.dayLabel}>
-          {/* Day label */}
           <div className="flex items-center gap-2 mb-3">
             <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded"
               style={{ background: "rgba(212,175,55,0.12)", color: GOLD }}>
@@ -437,8 +572,6 @@ function TimelineSection({ events, loading }: { events: TimelineEvent[]; loading
             </span>
             <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
           </div>
-
-          {/* Events */}
           <div>
             {grp.events.map((ev, i) => (
               <TimelineRow key={`${ev.engine}-${ev.scheduledAt}`} event={ev} isLast={i === grp.events.length - 1} />
@@ -460,7 +593,6 @@ export default function IncomeCenterPage() {
   const [error, setError]   = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-  /* History section state */
   const [filter, setFilter]   = useState<FilterKey>("ALL");
   const [txs, setTxs]         = useState<Transaction[]>([]);
   const [txPage, setTxPage]   = useState(1);
@@ -483,7 +615,6 @@ export default function IncomeCenterPage() {
       const data = await getIncomeDashboard();
       setDash(data);
       setLastRefresh(new Date());
-      // Seed recent income into history if we haven't loaded history yet
       if (!historyInitialized) {
         setTxs(data.recentIncome as unknown as Transaction[]);
         setHasMore(data.recentIncome.length >= 20);
@@ -513,10 +644,9 @@ export default function IncomeCenterPage() {
     finally { setTxLoading(false); }
   }, []);
 
-  /* When filter changes, reload history */
   useEffect(() => {
     if (!historyInitialized) return;
-    if (filter === "ALL" && txPage === 1) return; // already seeded from dashboard
+    if (filter === "ALL" && txPage === 1) return;
     setTxPage(1);
     setHasMore(true);
     loadMoreTxs(1, filter);
@@ -524,10 +654,11 @@ export default function IncomeCenterPage() {
 
   /* ── Snapshot counters ───────────────────────────────────────────────── */
 
-  const nextCredit  = useCountdown(dash?.snapshot.nextCreditAt);
-  const nextSalary  = useCountdown(dash?.snapshot.salaryNextAt);
+  const nextCredit = useCountdown(dash?.snapshot.nextCreditAt);
+  const nextSalary = useCountdown(dash?.snapshot.salaryNextAt);
+  void nextSalary; // available for future use
 
-  /* ── Pending label logic ─────────────────────────────────────────────── */
+  /* ── Expected Next Credits display ──────────────────────────────────── */
 
   function pendingDisplay(): { value: React.ReactNode; sub: string } {
     if (!dash) return { value: "—", sub: "" };
@@ -539,15 +670,15 @@ export default function IncomeCenterPage() {
       };
     }
     const amt = parseFloat(pendingThisCycle);
-    if (amt === 0) {
+    if (!isFinite(amt) || amt === 0) {
       return {
         value: <span style={{ color: MUTED, fontSize: "1rem" }}>Calculating…</span>,
-        sub:   "No pending income for this cycle",
+        sub:   "Available after next matching cycle",
       };
     }
     return {
-      value: <><span style={{ color: GOLD }}>~${fmt(pendingThisCycle)}</span></>,
-      sub:   "Binary + Orbit combined estimate",
+      value: <span style={{ color: GOLD }}>~${fmt(pendingThisCycle)}</span>,
+      sub:   "Expected income from your upcoming payout cycle.",
     };
   }
 
@@ -559,7 +690,7 @@ export default function IncomeCenterPage() {
     if (!dash) return { value: "—", sub: "" };
     const { monthlySalary, activeRanks } = dash.snapshot;
     const amt = parseFloat(monthlySalary);
-    if (amt === 0) {
+    if (!isFinite(amt) || amt === 0) {
       return {
         value: <span style={{ color: MUTED, fontSize: "1rem" }}>Not qualified</span>,
         sub:   "Reach Bronze rank to unlock salary",
@@ -663,10 +794,10 @@ export default function IncomeCenterPage() {
                 />
               </motion.div>
 
-              {/* Pending This Cycle */}
+              {/* Expected Next Credits */}
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }}>
                 <SnapCard
-                  label="Pending This Cycle"
+                  label="Expected Next Credits"
                   value={pending.value}
                   sub={pending.sub}
                   icon={Clock}
@@ -676,19 +807,11 @@ export default function IncomeCenterPage() {
                 />
               </motion.div>
 
-              {/* Next Credit */}
+              {/* Next Credit — emphasized */}
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.10 }}>
-                <SnapCard
-                  label="Next Credit"
-                  value={<span style={{ color: GOLD }}>{loading ? "—" : nextCredit}</span>}
-                  sub={
-                    dash?.snapshot.nextCreditAt
-                      ? `ROI · Binary · Orbit · ${fmtTime(dash.snapshot.nextCreditAt)}`
-                      : "ROI · Binary · Orbit"
-                  }
-                  icon={Timer}
-                  iconColor="#34d399"
-                  iconBg="rgba(52,211,153,0.1)"
+                <NextCreditCard
+                  countdown={nextCredit}
+                  nextCreditAt={dash?.snapshot.nextCreditAt}
                   loading={loading}
                 />
               </motion.div>
@@ -886,49 +1009,6 @@ export default function IncomeCenterPage() {
                     All {txs.length} records shown
                   </p>
                 )}
-              </div>
-            </motion.div>
-          </section>
-
-          {/* ────────────────────────────────────────────────────────────────
-              SECTION 5 — QUICK ACTIONS
-          ──────────────────────────────────────────────────────────────── */}
-          <section>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.30 }}
-            >
-              <h2 className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2"
-                style={{ color: MUTED }}>
-                <Zap className="h-3.5 w-3.5" style={{ color: GOLD }} />
-                Quick Actions
-              </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                {[
-                  { label: "ROI Details",    engine: "ROI_CLAIM",    route: "/income/roi"    },
-                  { label: "Binary Details", engine: "BINARY_MATCH", route: "/income/binary" },
-                  { label: "Orbit Details",  engine: "BINARY_ORBIT", route: "/income/orbit"  },
-                  { label: "Salary Details", engine: "SALARY",       route: "/income/salary" },
-                  { label: "Level Details",  engine: "LEVEL_INCOME", route: "/income/level"  },
-                ].map(({ label, engine }) => {
-                  const cfg  = typeConfig(engine);
-                  const Icon = cfg.icon;
-                  return (
-                    <button
-                      key={engine}
-                      className="flex items-center justify-center gap-2 rounded-xl py-3 px-4 text-sm font-medium transition-all hover:opacity-90"
-                      style={{
-                        background: cfg.bg,
-                        color:      cfg.color,
-                        border:     `1px solid ${cfg.color}25`,
-                      }}
-                      onClick={() => {}}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {label}
-                    </button>
-                  );
-                })}
               </div>
             </motion.div>
           </section>
