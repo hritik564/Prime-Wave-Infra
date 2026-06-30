@@ -57,7 +57,8 @@ const navGroups: NavGroup[] = [
   {
     label: "Income",
     items: [
-      { label: "Income Center", href: "/income", icon: Sparkles },
+      { label: "Income Center",              href: "/income",        icon: Sparkles },
+      { label: "Financial Transparency",     href: "/transparency",  icon: FlaskConical },
     ],
   },
   {

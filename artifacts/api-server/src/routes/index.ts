@@ -16,6 +16,7 @@ import networkRouter from "../network/network.router";
 import devRouter from "../dev/dev.router";
 import seedRouter from "../seed/seed.router";
 import { depositVerificationRouter, adminDepositVerificationRouter } from "../deposit-verification/deposit-verification.routes";
+import financialTransparencyRouter from "../financial-transparency/financial-transparency.router";
 
 const router: IRouter = Router();
 
@@ -35,6 +36,7 @@ router.use("/income",        incomeRouter);
 router.use("/network",               networkRouter);
 router.use("/deposit-verifications",        depositVerificationRouter);
 router.use("/admin/deposit-verifications",  adminDepositVerificationRouter);
+router.use("/financial-transparency", financialTransparencyRouter);
 router.use("/dev",                   devRouter);
 router.use("/",                      seedRouter);
 

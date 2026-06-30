@@ -17,6 +17,7 @@ import NotificationsPage from "@/pages/notifications/NotificationsPage";
 import SettingsPage from "@/pages/settings/SettingsPage";
 import DevToolsPage from "@/pages/DevToolsPage";
 import IncomeCenterPage from "@/pages/income/IncomeCenterPage";
+import FinancialTransparencyPage from "@/pages/income/FinancialTransparencyPage";
 import { lazy, Suspense } from "react";
 const AdminDashboardPage     = lazy(() => import("@/pages/admin/AdminDashboardPage"));
 const AdminMembersPage       = lazy(() => import("@/pages/admin/MembersPage"));
@@ -155,6 +156,9 @@ function AppRoutes() {
       </Route>
       <Route path="/income">
         <RequireMember><IncomeCenterPage /></RequireMember>
+      </Route>
+      <Route path="/transparency">
+        <RequireMember><FinancialTransparencyPage /></RequireMember>
       </Route>
       {/* Legacy sub-routes redirect to Income Center */}
       <Route path="/income/binary">

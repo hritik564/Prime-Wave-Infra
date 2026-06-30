@@ -488,6 +488,109 @@ export function cancelWithdrawal(id: string) {
   return request<{ withdrawalId: string; status: string }>(`/api/withdrawals/${id}/cancel`, { method: "POST" });
 }
 
+/* ── Financial Transparency ────────────────────────────────────────── */
+
+export interface FinancialTransparencySchedule {
+  nextRunAt: string;
+  lastRunAt: string | null;
+}
+
+export interface FinancialTransparencyData {
+  fetchedAt: string;
+  schedule: {
+    roi:            FinancialTransparencySchedule;
+    binary:         FinancialTransparencySchedule;
+    orbit:          FinancialTransparencySchedule;
+    salary:         FinancialTransparencySchedule;
+    incomeTransfer: { nextRunAt: string };
+  };
+  engineFlags: {
+    roiEnabled:         boolean;
+    binaryEnabled:      boolean;
+    salaryEnabled:      boolean;
+    levelIncomeEnabled: boolean;
+  };
+}
+
+export function getFinancialTransparency() {
+  return request<FinancialTransparencyData>("/api/financial-transparency");
+}
+
+/* ── Binary Matching & Orbit Summaries ────────────────────────────── */
+
+export interface MatchingSummary {
+  userId:              string;
+  username:            string;
+  directReferralCount: number;
+  isQualified:         boolean;
+  currentLeftBV:       string;
+  currentRightBV:      string;
+  pendingMatchBV:      string;
+  pendingIncome:       string;
+  allTime: {
+    cycles:            number;
+    matchedBV:         string;
+    rewardedBV:        string;
+    destroyedBV:       string;
+    flushedBV:         string;
+    carryForwardLeft:  string;
+    carryForwardRight: string;
+    incomeAmount:      string;
+  };
+}
+
+export function getMatchingSummary() {
+  return request<MatchingSummary>("/api/binary/matching-summary");
+}
+
+export interface OrbitSummary {
+  userId:              string;
+  username:            string;
+  directReferralCount: number;
+  isQualified:         boolean;
+  currentLeftBV:       string;
+  currentRightBV:      string;
+  pendingRewardCount:  number;
+  pendingIncome:       string;
+  settings: {
+    bvPerReward:        number;
+    maxRewardsPerCycle: number;
+    incomePerReward:    number;
+    minReferrals:       number;
+  };
+  allTime: {
+    cycles:      number;
+    matchedBV:   string;
+    flushedBV:   string;
+    incomeAmount: string;
+  };
+}
+
+export function getOrbitSummary() {
+  return request<OrbitSummary>("/api/binary/orbit-summary");
+}
+
+/* ── Level Income Summary ─────────────────────────────────────────── */
+
+export interface LevelIncomeBreakdownRow {
+  level:        number;
+  count:        number;
+  incomeAmount: string;
+  percentage:   number;
+}
+
+export interface LevelIncomeSummary {
+  userId:       string;
+  username:     string;
+  totalIncome:  string;
+  totalPayouts: number;
+  breakdown:    LevelIncomeBreakdownRow[];
+}
+
+export function getLevelIncomeSummary() {
+  return request<LevelIncomeSummary>("/api/level-income/summary");
+}
+
 /* ── Admin Dashboard ──────────────────────────────────────────────── */
 
 export interface AdminDashboardStats {
