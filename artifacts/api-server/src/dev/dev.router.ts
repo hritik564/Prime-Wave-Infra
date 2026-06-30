@@ -15,6 +15,7 @@ import { logger } from "../lib/logger";
 import { requireAdminRoles } from "../middleware/auth.middleware";
 import networkRouter from "./dev-network.router";
 import seedRouter    from "./dev-seed.router";
+import auditRouter   from "./dev-audit.router";
 
 const devRouter = Router();
 
@@ -26,6 +27,9 @@ devRouter.use("/network", networkRouter);
 
 // ── Sprint 23B seed sub-router ───────────────────────────────────────────────
 devRouter.use("/seed", seedRouter);
+
+// ── Binary placement cache audit ─────────────────────────────────────────────
+devRouter.use("/binary/audit", auditRouter);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

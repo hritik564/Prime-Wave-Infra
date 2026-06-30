@@ -85,27 +85,123 @@ function formatNode(raw: RawNode): BinaryTreeNode {
   };
 }
 
-// ── Placement ─────────────────────────────────────────────────────────────────
+// ── Placement helpers ─────────────────────────────────────────────────────────
 
 /**
- * Place a referred user into the sponsor's binary tree.
+ * Walk the {side} greedy chain downward from nodeId and return the id of the
+ * deepest node whose {side} slot is currently empty (= next valid placement
+ * target for a {side} registration under nodeId).
  *
- * O(1): The sponsor's leftDeepestNodeId / rightDeepestNodeId cache always points
- * to the node whose slot in that direction is currently empty.  No tree traversal.
+ * Returns null when nodeId itself has no {side} child — meaning nodeId's own
+ * slot is available and no cache pointer is needed.
  *
- * Rules enforced:
- *  1. Caller must be the sponsor of the target user.
- *  2. Target user must not already be placed (binaryParentId must be null).
- *  3. Placement is permanent — no updates after commit.
- *  4. Entire operation runs inside a serializable Prisma transaction.
+ * Complexity: O(depth) — one DB read per level of the chain.
+ *
+ * Used for:
+ *   • Self-healing when the cached pointer is found to be stale.
+ *   • The dev audit/repair tool.
  */
+export async function rebuildPlacementCache(
+  tx: Prisma.TransactionClient,
+  nodeId: string,
+  side: "LEFT" | "RIGHT",
+): Promise<string | null> {
+  const root = await tx.user.findUnique({
+    where:  { id: nodeId },
+    select: {
+      binaryChildren: {
+        where:  { position: side },
+        select: { id: true },
+        take:   1,
+      },
+    },
+  });
+
+  if (!root || root.binaryChildren.length === 0) return null;
+
+  let cursor = root.binaryChildren[0].id;
+
+  for (;;) {
+    const cur = await tx.user.findUnique({
+      where:  { id: cursor },
+      select: {
+        binaryChildren: {
+          where:  { position: side },
+          select: { id: true },
+          take:   1,
+        },
+      },
+    });
+
+    if (!cur || cur.binaryChildren.length === 0) return cursor;
+    cursor = cur.binaryChildren[0].id;
+  }
+}
+
+/**
+ * After placing a new user, walk upward through every ancestor in the
+ * same-direction chain and update each node's deepest-node pointer to the
+ * new user.
+ *
+ * Stopping conditions (whichever comes first):
+ *   1. binaryParentId is null — we have reached the tree root.
+ *   2. The current node's `position` relative to its parent differs from
+ *      `side` — we have crossed a subtree-direction boundary.  The parent's
+ *      {side} chain runs through a different path and must not be touched.
+ *
+ * Why the direction check is correct:
+ *   Every node on the {side} greedy chain of an ancestor has position={side}
+ *   relative to its own parent (i.e., a left-chain node is always a LEFT child
+ *   of its parent).  The moment we encounter a node whose position ≠ side we
+ *   know we are in a cross-direction subtree; updating the ancestor's {side}
+ *   cache here would corrupt it.
+ *
+ * Complexity: O(depth) — one read + one write per ancestor level.
+ */
+async function propagateCacheUp(
+  tx: Prisma.TransactionClient,
+  fromId: string,
+  side: "LEFT" | "RIGHT",
+  newUserId: string,
+): Promise<void> {
+  let currentId  = fromId;
+  const field    = side === "LEFT" ? "leftDeepestNodeId" : "rightDeepestNodeId";
+
+  for (;;) {
+    await tx.user.update({
+      where: { id: currentId },
+      data:  { [field]: newUserId },
+    });
+
+    const cur = await tx.user.findUnique({
+      where:  { id: currentId },
+      select: { binaryParentId: true, position: true },
+    });
+
+    if (!cur?.binaryParentId) break;   // reached tree root
+    if (cur.position !== side)  break; // crossed direction boundary
+
+    currentId = cur.binaryParentId;
+  }
+}
+
+// ── Placement ─────────────────────────────────────────────────────────────────
+
 /**
  * Core binary tree placement logic — runs inside an existing transaction.
  * Exported so that registration can call it within its own atomic transaction.
  *
- * Callers must guarantee:
- *   • newUser was just created with sponsorId already set
- *   • newUser.binaryParentId is null
+ * Guarantees:
+ *   1. Only the direct sponsor may place the user.
+ *   2. A user can be placed at most once (ALREADY_PLACED guard).
+ *   3. A PostgreSQL FOR UPDATE lock on the sponsor row serialises concurrent
+ *      registrations under the same sponsor — no two transactions can claim
+ *      the same placement slot simultaneously.
+ *   4. If the cached deepest-node pointer is stale the cache is repaired
+ *      automatically; no CACHE_INCONSISTENCY error is surfaced to the caller.
+ *   5. After placement, every ancestor in the same-direction chain has its
+ *      cache pointer updated to the new user (full propagation, not just
+ *      the immediate sponsor).
  */
 export async function placeUserTx(
   tx: Prisma.TransactionClient,
@@ -113,7 +209,8 @@ export async function placeUserTx(
   userId: string,
   position: "LEFT" | "RIGHT",
 ): Promise<void> {
-  // ── 1. Load target user ───────────────────────────────────────────────────
+
+  // ── 1. Validate target user ────────────────────────────────────────────────
   const target = await tx.user.findUnique({
     where:  { id: userId },
     select: { id: true, sponsorId: true, binaryParentId: true },
@@ -122,7 +219,6 @@ export async function placeUserTx(
   if (!target) {
     throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
   }
-
   if (target.sponsorId !== sponsorId) {
     throw new AppError(
       "You can only place users you directly sponsored",
@@ -130,7 +226,6 @@ export async function placeUserTx(
       "NOT_YOUR_REFERRAL",
     );
   }
-
   if (target.binaryParentId !== null) {
     throw new AppError(
       "User is already placed in the binary tree",
@@ -139,80 +234,95 @@ export async function placeUserTx(
     );
   }
 
-  // ── 2. Load sponsor with deepest-node cache ──────────────────────────────
-  const sponsor = await tx.user.findUnique({
-    where:  { id: sponsorId },
-    select: { id: true, leftDeepestNodeId: true, rightDeepestNodeId: true },
-  });
+  // ── 2. Acquire row-level lock on sponsor (serialises concurrent placements) ─
+  //
+  // SELECT … FOR UPDATE prevents any other transaction from reading or writing
+  // this row until we commit.  Under READ COMMITTED isolation this is sufficient
+  // to ensure that two concurrent registrations under the same sponsor cannot
+  // both read the same cached pointer and race to claim the same slot.
+  //
+  // The second registration blocks here until the first commits, then re-reads
+  // the (now-updated) cache and targets the next available slot.
+  type SponsorRow = {
+    id:                  string;
+    leftDeepestNodeId:   string | null;
+    rightDeepestNodeId:  string | null;
+  };
+
+  const rows = await tx.$queryRaw<SponsorRow[]>`
+    SELECT id, "leftDeepestNodeId", "rightDeepestNodeId"
+    FROM   users
+    WHERE  id = ${sponsorId}
+    FOR UPDATE
+  `;
+  const sponsor = rows[0];
 
   if (!sponsor) {
     throw new AppError("Sponsor not found", HTTP_STATUS.NOT_FOUND, "SPONSOR_NOT_FOUND");
   }
 
-  // ── 3. Resolve placement target (O(1) via cache) ─────────────────────────
-  //
-  // The cache pointer holds the id of the node whose slot in that direction
-  // is guaranteed to be empty.  null means the sponsor's own slot is empty.
-  const cacheId =
+  // ── 3. Resolve placement target — O(1) happy path via cache ───────────────
+  const cachedId =
     position === "LEFT" ? sponsor.leftDeepestNodeId : sponsor.rightDeepestNodeId;
 
-  const placementTargetId = cacheId ?? sponsorId;
+  let placementTargetId: string;
 
-  // ── 4. Guard: verify the cache is consistent (slot really is empty) ───────
-  if (cacheId !== null) {
+  if (cachedId !== null) {
+    // Verify the cached slot is actually available
     const cacheNode = await tx.user.findUnique({
-      where:  { id: cacheId },
-      select: { binaryChildren: { select: { position: true } } },
+      where:  { id: cachedId },
+      select: { binaryChildren: { where: { position }, select: { id: true }, take: 1 } },
     });
 
-    if (cacheNode) {
-      const childPositions = cacheNode.binaryChildren.map((c) => c.position);
-      if (childPositions.includes(position)) {
-        // Cache is stale — this should not happen in normal operation.
-        throw new AppError(
-          "Binary placement cache inconsistency detected. Contact support.",
-          HTTP_STATUS.INTERNAL_SERVER_ERROR,
-          "CACHE_INCONSISTENCY",
-        );
-      }
+    if (cacheNode && cacheNode.binaryChildren.length > 0) {
+      // ── Self-healing: cache is stale — walk tree to find true deepest node ──
+      //
+      // This path is taken only when the cache diverged from the tree (e.g. the
+      // seed populated the tree without full ancestor propagation, or a prior
+      // transaction left the cache partially updated).  It is O(depth) instead
+      // of O(1), but it fires at most once per stale pointer and permanently
+      // repairs the cache so all subsequent registrations use the O(1) path.
+      const repairedId = await rebuildPlacementCache(tx, sponsorId, position);
+
+      await tx.user.update({
+        where: { id: sponsorId },
+        data:  position === "LEFT"
+          ? { leftDeepestNodeId:  repairedId }
+          : { rightDeepestNodeId: repairedId },
+      });
+
+      placementTargetId = repairedId ?? sponsorId;
+    } else {
+      placementTargetId = cachedId;
     }
+  } else {
+    placementTargetId = sponsorId;
   }
 
-  // ── 5. Place the user ────────────────────────────────────────────────────
+  // ── 4. Lock placement target slot (prevents concurrent dual-placement) ─────
+  //
+  // A second concurrent registration that somehow targets the same node
+  // (e.g. via a stale cache read before the sponsor lock was acquired) must
+  // wait here until the first transaction commits and updates the slot.
+  if (placementTargetId !== sponsorId) {
+    await tx.$executeRaw`
+      SELECT id FROM users WHERE id = ${placementTargetId} FOR UPDATE
+    `;
+  }
+
+  // ── 5. Place the user ──────────────────────────────────────────────────────
   await tx.user.update({
     where: { id: userId },
     data:  { binaryParentId: placementTargetId, position },
   });
 
-  // ── 6. Update the placement target's deepest-node cache ──────────────────
-  //   (The new user's own slot is empty → it becomes the deepest node.)
-  if (position === "LEFT") {
-    await tx.user.update({
-      where: { id: placementTargetId },
-      data:  { leftDeepestNodeId: userId },
-    });
-  } else {
-    await tx.user.update({
-      where: { id: placementTargetId },
-      data:  { rightDeepestNodeId: userId },
-    });
-  }
-
-  // ── 7. Update sponsor's top-level deepest-node cache ─────────────────────
-  //   Skip if sponsor IS the placement target (already updated above).
-  if (placementTargetId !== sponsorId) {
-    if (position === "LEFT") {
-      await tx.user.update({
-        where: { id: sponsorId },
-        data:  { leftDeepestNodeId: userId },
-      });
-    } else {
-      await tx.user.update({
-        where: { id: sponsorId },
-        data:  { rightDeepestNodeId: userId },
-      });
-    }
-  }
+  // ── 6. Propagate cache up all ancestors in the same-direction chain ────────
+  //
+  // Replaces the old two-node update (placement target + immediate sponsor).
+  // Now every ancestor whose {side} greedy chain passes through placementTarget
+  // gets its pointer updated to the newly placed user, keeping the O(1)
+  // invariant intact for all future registrations at every level of the tree.
+  await propagateCacheUp(tx, placementTargetId, position, userId);
 }
 
 export async function placeUser(sponsorId: string, input: PlaceUserInput): Promise<void> {

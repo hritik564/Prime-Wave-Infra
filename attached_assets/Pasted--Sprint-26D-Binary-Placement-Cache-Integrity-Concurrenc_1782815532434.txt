@@ -1,0 +1,314 @@
+# Sprint 26D — Binary Placement Cache Integrity & Concurrency Hardening
+
+## Objective
+
+Fix the binary placement cache architecture so it remains permanently consistent with the binary tree, even after millions of registrations, while preserving existing placement rules and making registration safe under concurrent requests.
+
+This sprint is **not** a feature sprint. It is an infrastructure reliability sprint.
+
+**This is production-critical.**
+
+---
+
+# Root Cause
+
+Current implementation updates:
+
+- placement target cache
+- immediate sponsor cache
+
+and stops.
+
+This allows ancestor caches (MASTERROOT, etc.) to become permanently stale as registrations occur deeper in the tree.
+
+Additionally, placement currently executes under READ COMMITTED without any row-level locking, allowing concurrent registrations to compete for the same placement slot.
+
+Both issues must be fixed.
+
+---
+
+# Requirements
+
+## Part 1 — Rewrite Cache Propagation
+
+Replace the existing sponsor-only cache update logic.
+
+After a successful placement:
+
+1. Place user into the binary tree.
+2. Update the placement target cache.
+3. Walk upward through **every ancestor** using `binaryParentId`.
+4. Update the appropriate cache pointer for **every ancestor**.
+5. Commit the transaction.
+
+Example:
+
+MASTERROOT
+
+↓
+
+A
+
+↓
+
+B
+
+↓
+
+C
+
+↓
+
+D
+
+↓
+
+NEW
+
+After NEW is inserted, update cache for:
+
+- D
+- C
+- B
+- A
+- MASTERROOT
+
+Every ancestor's LEFT or RIGHT deepest pointer must reference the newest deepest available node in that subtree.
+
+Do **not** stop at the immediate sponsor.
+
+---
+
+## Part 2 — Automatic Cache Self-Healing
+
+If the cached node fails validation:
+
+### Current behaviour
+
+Throw `CACHE_INCONSISTENCY`.
+
+### New behaviour
+
+1. Validate cached node.
+2. If valid → continue normally.
+3. If invalid:
+   - Walk the actual binary tree.
+   - Recalculate the correct deepest available node.
+   - Repair the cache.
+   - Continue registration automatically.
+
+Only throw an error if the binary tree itself is structurally invalid.
+
+Users should never see a cache inconsistency error caused only by stale cache data.
+
+---
+
+## Part 3 — Cache Rebuild Helper
+
+Implement:
+
+`rebuildPlacementCache(tx, sponsorId, side)`
+
+The helper should:
+
+- Walk only one subtree.
+- Determine the correct deepest available node.
+- Update the cache.
+- Return the repaired node.
+
+Complexity should remain **O(depth)**.
+
+Do **not** rebuild the entire tree.
+
+---
+
+## Part 4 — Concurrency Hardening
+
+Current implementation allows two concurrent registrations to claim the same placement target.
+
+Fix this.
+
+Before determining placement:
+
+- Acquire a database row-level lock on the placement target (or an equivalent PostgreSQL locking mechanism).
+
+Requirements:
+
+- Only one transaction may claim a placement slot at a time.
+- The second registration must wait until the first commits.
+- After waiting, re-read the cache and continue normally.
+- Duplicate placements must be impossible.
+
+Do **not** use application-level mutexes.
+
+Use PostgreSQL locking.
+
+---
+
+## Part 5 — Preserve Existing Business Logic
+
+Do **not** modify:
+
+- binaryParentId
+- position
+- sponsor selection
+- placement algorithm
+- spillover behaviour
+- referral logic
+- BV propagation
+- Binary Matching
+- Orbit Income
+- Salary
+- Level Income
+- ROI
+- Deposit Verification
+- Investment Engine
+- Withdrawal Engine
+
+This sprint changes **only**:
+
+- Cache maintenance
+- Cache recovery
+- Concurrency safety
+
+---
+
+## Part 6 — Binary Integrity Audit Utility
+
+Create a development-only verification utility.
+
+For every user:
+
+- Compute deepest LEFT node directly from the tree.
+- Compare with cached LEFT pointer.
+- Compute deepest RIGHT node directly from the tree.
+- Compare with cached RIGHT pointer.
+
+Generate a report showing:
+
+- Users scanned
+- Correct caches
+- Repaired caches
+- Remaining mismatches
+
+This tool must be available only in development.
+
+---
+
+## Part 7 — Regression & Stress Tests
+
+### Test 1
+
+Fresh registration under MASTERROOT.
+
+Expected:
+
+- Registration succeeds.
+- Cache updates correctly.
+
+---
+
+### Test 2
+
+Build a tree of depth 10.
+
+Register one more user.
+
+Expected:
+
+Every ancestor cache updates correctly.
+
+---
+
+### Test 3
+
+Artificially corrupt MASTERROOT cache.
+
+Register a user.
+
+Expected:
+
+- Cache repaired automatically.
+- Registration succeeds.
+- No user-visible error.
+
+---
+
+### Test 4
+
+Run two concurrent registrations under the same sponsor.
+
+Expected:
+
+- One transaction claims the first slot.
+- Second waits.
+- Second receives the next available slot.
+- No duplicate parent-position pair.
+
+---
+
+### Test 5
+
+Run the development seed.
+
+Create a tree with depth 20.
+
+Run the integrity audit.
+
+Expected:
+
+100% cache consistency.
+
+---
+
+### Test 6
+
+Run a complete financial regression.
+
+Verify the following remain unchanged:
+
+- ROI Engine
+- Binary Matching Engine
+- Orbit Engine
+- Salary Engine
+- Level Income Engine
+- Wallet Engine
+- Deposit Verification Engine
+- Investment Engine
+- Withdrawal Engine
+
+---
+
+# Deliverables
+
+Provide a final implementation report containing:
+
+1. Files modified
+2. Cache propagation algorithm
+3. Concurrency mechanism used (FOR UPDATE / advisory lock / equivalent)
+4. Cache recovery algorithm
+5. Integrity verification results
+6. Concurrency stress test results
+7. Regression report
+8. Performance impact (before vs after)
+9. Confirmation that existing business logic remains unchanged
+
+---
+
+# Critical Architectural Requirement
+
+Do **not** simply patch the existing cache logic.
+
+Replace it with a cache maintenance strategy whose invariant is:
+
+> For every node in the binary tree, `leftDeepestNodeId` and `rightDeepestNodeId` must always equal the deepest currently available placement node in that respective subtree.
+
+If a cache ever diverges from the tree, it must be repaired automatically during placement rather than causing registration to fail.
+
+The final implementation must leave the binary placement engine resilient to:
+
+- Deep trees
+- Stale caches
+- Concurrent registrations
+
+without changing any MLM business rules.
