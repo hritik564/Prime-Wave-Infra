@@ -1,3 +1,4 @@
+import fs from "fs";
 import bcrypt from "bcryptjs";
 import app from "./app";
 import { logger } from "./lib/logger";
@@ -9,8 +10,35 @@ import { maybeResetForLaunch } from "./admin/scripts/resetForLaunch";
 import { runSeed23B }                                      from "./dev/seed23b.fn";
 import { runPhase1HealthCheck, runPhase4Reconciliation, logPhase5Report } from "./dev/reconcile23b";
 
-// One-time admin password reset — runs only when ADMIN_RESET_PASSWORD is set.
-// Remove the env var after the first successful deploy to disable this.
+// ── Synchronous boot logger ───────────────────────────────────────────────────
+// Uses fs.writeSync so the write is a direct OS syscall — survives pipe
+// buffering and process.exit() without flushing stdio streams.
+function boot(stage: string, msg: string): void {
+  const line = `[BOOT ${stage}] ${new Date().toISOString()} ${msg}\n`;
+  try { fs.writeSync(1, line); } catch { /* stdout closed */ }
+  try { fs.writeSync(2, line); } catch { /* stderr closed */ }
+}
+
+// ── Process-level exception handlers ─────────────────────────────────────────
+// NOTE: static ESM imports are hoisted and evaluated *before* any module body
+// code runs, so these handlers cannot intercept module-evaluation crashes (e.g.
+// env.ts calling process.exit during import).  They DO catch every async
+// exception and unhandled rejection that occurs after the module body starts.
+process.on("uncaughtException", (err: unknown) => {
+  const stack = err instanceof Error ? err.stack : String(err);
+  boot("FATAL-uncaughtException", stack ?? "(no stack)");
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason: unknown) => {
+  const msg = reason instanceof Error ? reason.stack : String(reason);
+  boot("FATAL-unhandledRejection", msg ?? "(no reason)");
+  process.exit(1);
+});
+
+boot("1", "Module body started — all static imports have been evaluated");
+
+// ── One-time admin password reset ─────────────────────────────────────────────
 async function maybeResetAdminPassword() {
   const newPassword = process.env["ADMIN_RESET_PASSWORD"];
   if (!newPassword) return;
@@ -26,22 +54,11 @@ async function maybeResetAdminPassword() {
   }
 }
 
-// One-time startup seed — runs only when SEED_ON_START=1 is set and the
-// binary tree is not yet fully built (< 127 users).
-//
-// Phases:
-//   Phase 1 — Health check (DB, admin, salary config, etc.)  STOP if any fail.
-//   Phase 2 — In-process seed via runSeed23B()  (resumable, never deletes).
-//   Phase 3 — Per-user retry built into runSeed23B().
-//   Phase 4 — Automatic financial reconciliation.
-//   Phase 5 — Final production report logged.
-//
-// Remove SEED_ON_START env var after seeding is confirmed complete.
+// ── One-time startup seed ─────────────────────────────────────────────────────
 async function maybeSeedOnStart() {
   if (!process.env["SEED_ON_START"]) return;
 
   try {
-    // ── Phase 1: Health check ───────────────────────────────────────────────
     const health = await runPhase1HealthCheck();
     if (!health.passed) {
       logger.error({ summary: health.summary }, "SEED_ON_START: Phase 1 FAILED — aborting seed");
@@ -49,7 +66,6 @@ async function maybeSeedOnStart() {
     }
     logger.info({ summary: health.summary }, "SEED_ON_START: Phase 1 passed");
 
-    // ── Guard: already seeded? ──────────────────────────────────────────────
     const userCount = await prisma.user.count();
     if (userCount >= 127) {
       logger.info({ userCount }, "SEED_ON_START: skipped — seed already complete; running reconciliation only");
@@ -58,19 +74,16 @@ async function maybeSeedOnStart() {
       return;
     }
 
-    // ── Phase 2 + 3: Seed (resumable, per-user retry) ───────────────────────
     logger.info({ userCount }, "SEED_ON_START: Phase 2 — starting in-process seed…");
     const seedSummary = await runSeed23B();
     logger.info({ seedSummary }, "SEED_ON_START: Phase 2 complete");
 
-    // ── Phase 4: Financial reconciliation ───────────────────────────────────
     logger.info("SEED_ON_START: Phase 4 — running financial reconciliation…");
     const recon = await runPhase4Reconciliation({
       usersCreated: seedSummary.usersCreated,
       usersSkipped: seedSummary.usersSkipped,
     });
 
-    // ── Phase 5: Final production report ────────────────────────────────────
     logPhase5Report(health, recon);
 
     if (!recon.passed) {
@@ -84,9 +97,13 @@ async function maybeSeedOnStart() {
   }
 }
 
+// ── PORT validation ───────────────────────────────────────────────────────────
+boot("2", `PORT=${process.env["PORT"] ?? "(not set)"} NODE_ENV=${process.env["NODE_ENV"] ?? "(not set)"}`);
+
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
+  boot("FATAL-no-PORT", "PORT environment variable is required but was not provided — calling process.exit(1)");
   throw new Error(
     "PORT environment variable is required but was not provided.",
   );
@@ -95,32 +112,26 @@ if (!rawPort) {
 const port = Number(rawPort);
 
 if (Number.isNaN(port) || port <= 0) {
+  boot("FATAL-bad-PORT", `Invalid PORT value: "${rawPort}" — calling process.exit(1)`);
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+boot("3", `PORT validated: ${port} — calling app.listen()`);
+
+// ── HTTP server ───────────────────────────────────────────────────────────────
+const server = app.listen(port, () => {
+  boot("5", `app.listen() callback fired — port ${port} is bound`);
 
   logger.info({ port }, "Server listening");
 
-  // One-time admin password reset (disabled when env var is absent)
   maybeResetAdminPassword().catch((e) => logger.error({ e }, "maybeResetAdminPassword failed"));
-
-  // Pre-launch DB reset — runs only when RESET_FOR_LAUNCH=true; remove env var after first deploy
   maybeResetForLaunch().catch((e) => logger.error({ e }, "maybeResetForLaunch failed"));
-
-  // One-time startup seed — runs only when SEED_ON_START=1; remove env var after seeding
   maybeSeedOnStart().catch((e) => logger.error({ e }, "maybeSeedOnStart failed"));
 
-  // Start 12-hour ROI cycle scheduler (fires at 00:00 and 12:00 UTC)
   startScheduler();
 
-  // Startup: validate all active company wallets (Part 4 — Sprint 27B)
-  // Logs a detailed result for every network. In production, exits if any wallet
-  // is invalid so placeholder addresses never silently accept deposits.
+  boot("6", "validateCompanyWallets() starting");
+
   validateCompanyWallets()
     .then(({ results }) => {
       for (const r of results) {
@@ -131,11 +142,10 @@ app.listen(port, (err) => {
         }
       }
 
-      // Only BEP20 is currently accepted by submitVerification (network: z.literal("BEP20")).
-      // Placeholder wallets for inactive networks (ERC20, TRC20, SOL) are harmless — warn only.
-      // In production, exit immediately if BEP20 is invalid: accepting deposits with a wrong
-      // address would cause real user funds to be sent to an uncontrolled address.
       const bep20 = results.find((r) => r.network === "BEP20");
+
+      boot("7", `validateCompanyWallets() complete — BEP20 passed=${String(bep20?.passed)} issue=${bep20?.issue ?? "none"}`);
+
       if (bep20?.passed) {
         logger.info("Startup: BEP20 wallet valid — deposit submissions enabled");
       } else {
@@ -144,6 +154,7 @@ app.listen(port, (err) => {
           "Startup: BEP20 wallet is INVALID — deposit submissions will be rejected with 503",
         );
         if (process.env["NODE_ENV"] === "production") {
+          boot("FATAL-bep20-invalid", `BEP20 wallet invalid in production — address=${bep20?.address ?? "none"} issue=${bep20?.issue ?? "none"} — calling process.exit(1)`);
           logger.error("FATAL: BEP20 company wallet is invalid in production — exiting to prevent wrong-address deposits");
           process.exit(1);
         }
@@ -157,10 +168,28 @@ app.listen(port, (err) => {
         );
       }
     })
-    .catch((err) => logger.error({ err }, "Startup: company wallet validation threw unexpected error"));
+    .catch((err) => {
+      boot("ERROR-validateCompanyWallets", `validateCompanyWallets threw: ${err instanceof Error ? err.stack : String(err)}`);
+      logger.error({ err }, "Startup: company wallet validation threw unexpected error");
+    });
 
-  // Start deposit verification polling worker (DB-driven, restart-safe)
   startDepositVerificationWorker().catch((e) =>
     logger.error({ e }, "startDepositVerificationWorker failed"),
   );
+});
+
+boot("4", `app.listen() called — waiting for OS to bind port ${port}`);
+
+// ── Server-level error handler ────────────────────────────────────────────────
+// app.listen() only fires the callback on SUCCESS.  Bind failures (EADDRINUSE,
+// EACCES, ENOTFOUND, etc.) emit an 'error' event on the returned net.Server.
+// Without a handler this becomes an uncaught exception written to stderr only —
+// invisible in the current deployment log stream.
+server.on("error", (err: NodeJS.ErrnoException) => {
+  boot(
+    "FATAL-server-error",
+    `server 'error' event — code=${err.code ?? "none"} syscall=${err.syscall ?? "none"} port=${String((err as { port?: number }).port ?? port)} message=${err.message} stack=${err.stack ?? "(no stack)"}`,
+  );
+  logger.error({ err }, "FATAL: HTTP server failed to bind");
+  process.exit(1);
 });
