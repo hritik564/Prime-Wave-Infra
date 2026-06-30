@@ -1,0 +1,429 @@
+SPRINT 26B — INCOME ENGINE DETAIL PAGES
+
+Objective
+
+Build dedicated detail pages for every income engine.
+
+These pages replace the old Financial Transparency experience.
+
+Each page must answer:
+
+1. Am I qualified?
+2. When is my next payout?
+3. How much am I expected to receive?
+4. How do I increase this income?
+5. What have I earned historically?
+
+Do NOT expose implementation details before answering these questions.
+
+This sprint is presentation + aggregation only.
+
+Do NOT modify:
+
+- ROI Engine
+- Binary Engine
+- Orbit Engine
+- Salary Engine
+- Level Income Engine
+- Wallet Engine
+- Investment Engine
+- Deposit Verification
+- Withdrawal
+- Scheduler
+- Database schema
+- Financial calculations
+
+Use existing production business logic only.
+
+====================================================
+COMMON LAYOUT (ALL 5 PAGES)
+====================================================
+
+Every page must follow exactly the same structure.
+
+----------------------------------------------------
+
+SECTION 1
+
+Status Hero
+
+Contains
+
+• Engine Name
+• Current Status
+• Next Credit Countdown
+• Expected Credit
+• Small explanation sentence
+
+Example
+
+Binary Income
+
+Qualified
+
+Next Matching
+
+2h 41m
+
+Expected
+
+$250
+
+"Binary income is calculated every 12 hours."
+
+----------------------------------------------------
+
+SECTION 2
+
+Current Progress
+
+This section is different for every engine.
+
+Only show metrics users need.
+
+Never show implementation fields first.
+
+----------------------------------------------------
+
+SECTION 3
+
+How To Earn More
+
+Very important.
+
+Explain what the user should do.
+
+Not how the engine works internally.
+
+Examples
+
+ROI
+
+Keep investment active.
+
+Enable Auto Compound.
+
+Increase principal.
+
+----------------------------------------------------
+
+Binary
+
+Grow weaker leg.
+
+Maintain qualification.
+
+Invite balanced referrals.
+
+----------------------------------------------------
+
+Orbit
+
+Increase matched BV.
+
+Reach next reward unit.
+
+----------------------------------------------------
+
+Salary
+
+Increase business volume.
+
+Reach next rank.
+
+Maintain qualification.
+
+----------------------------------------------------
+
+Level
+
+Expand deeper referrals.
+
+Help direct referrals build.
+
+Increase active investors.
+
+----------------------------------------------------
+
+SECTION 4
+
+History
+
+Paginated
+
+Filterable
+
+Uses existing transaction data.
+
+----------------------------------------------------
+
+SECTION 5
+
+FAQ
+
+Short.
+
+3-5 questions.
+
+Example
+
+"When is Binary paid?"
+
+"What happens if I lose qualification?"
+
+"Why is my payout lower?"
+
+Answers should reuse actual business rules.
+
+====================================================
+ROI PAGE
+====================================================
+
+Hero
+
+Status
+
+Next Credit
+
+Today's ROI
+
+Claimable ROI
+
+Current Progress
+
+Investment
+
+Current ROI generated
+
+Remaining ROI
+
+Plan maturity
+
+Auto Compound status
+
+How To Increase
+
+Increase investment amount.
+
+Keep plan active.
+
+Enable Auto Compound.
+
+History
+
+ROI credits only.
+
+====================================================
+BINARY PAGE
+====================================================
+
+Hero
+
+Qualified
+
+Next Matching
+
+Expected Payout
+
+Current Progress
+
+Matched BV
+
+Carry Forward
+
+Current Cycle
+
+Estimated Income
+
+How To Increase
+
+Grow weaker leg.
+
+Balance referrals.
+
+Maintain qualification.
+
+History
+
+Binary payouts only.
+
+====================================================
+ORBIT PAGE
+====================================================
+
+Hero
+
+Qualified
+
+Next Orbit Cycle
+
+Expected Reward
+
+Current Progress
+
+Current Orbit Progress
+
+Reward Threshold
+
+Remaining BV
+
+Estimated Reward
+
+How To Increase
+
+Increase matched BV.
+
+Maintain qualification.
+
+History
+
+Orbit rewards only.
+
+====================================================
+SALARY PAGE
+====================================================
+
+Hero
+
+Qualified
+
+Next Salary Date
+
+Monthly Salary
+
+Current Rank
+
+Current Progress
+
+Current Rank
+
+Monthly Salary
+
+Progress Bar
+
+Remaining Business
+
+Next Rank
+
+How To Increase
+
+Increase team business.
+
+Grow both legs.
+
+Maintain qualification.
+
+History
+
+Salary payouts only.
+
+====================================================
+LEVEL PAGE
+====================================================
+
+Hero
+
+Instant Credit
+
+Today's Earnings
+
+Monthly Earnings
+
+Current Progress
+
+Today's Level Income
+
+Monthly Level Income
+
+Level Breakdown
+
+How To Increase
+
+Personally sponsor more people.
+
+Help direct referrals grow.
+
+Expand deeper generations.
+
+History
+
+Level commissions only.
+
+====================================================
+DESIGN RULES
+====================================================
+
+NO developer terminology.
+
+Avoid
+
+scheduler
+
+carry algorithm
+
+reward engine
+
+processing cycle
+
+job execution
+
+database wording
+
+Speak investor language.
+
+====================================================
+NAVIGATION
+====================================================
+
+Income Center cards already navigate here.
+
+Each detail page contains
+
+Back to Income Center
+
+====================================================
+DATA
+====================================================
+
+Every displayed number must come from existing production business logic.
+
+Do NOT duplicate financial calculations.
+
+If an estimated value cannot be computed accurately:
+
+Display
+
+Calculating...
+
+Never fabricate projections.
+
+====================================================
+REGRESSION
+====================================================
+
+Verify
+
+No engine modified.
+
+No scheduler modified.
+
+No calculations modified.
+
+No database changes.
+
+Presentation only.
+
+====================================================
+FINAL REPORT
+
+Provide
+
+1. New routes
+
+2. New components
+
+3. API additions
+
+4. Screenshots of all 5 pages
+
+5. Regression report confirming zero financial engine changes.

@@ -663,6 +663,99 @@ export function getIncomeDashboard() {
   return request<IncomeDashboard>("/api/income/dashboard");
 }
 
+/* ── Income Detail Types ──────────────────────────────────────────── */
+
+export interface RoiDetail {
+  nextCreditAt:         string;
+  todayROI:             string;
+  lifetimeROI:          string;
+  claimableROI:         string;
+  totalActivePrincipal: string;
+  hasAutoCompound:      boolean;
+  activeCount:          number;
+  investments: Array<{
+    id:          string;
+    planType:    string;
+    principal:   string;
+    dailyROI:    string;
+    durationDays: number;
+    autoCompound: boolean;
+    claimableROI: string;
+    status:      string;
+    startedAt:   string;
+    maturesAt:   string;
+  }>;
+}
+
+export interface BinaryDetail {
+  isQualified:         boolean;
+  directReferralCount: number;
+  nextCreditAt:        string;
+  estimatedPayout:     string;
+  currentLeftBV:       string;
+  currentRightBV:      string;
+  matchedBV:           string;
+  carryForward:        string;
+  todayEarnings:       string;
+  lifetimeEarnings:    string;
+  allTimeCycles:       number;
+  allTimeIncome:       string;
+}
+
+export interface OrbitDetail {
+  isQualified:         boolean;
+  directReferralCount: number;
+  nextCreditAt:        string;
+  estimatedReward:     string;
+  pendingRewardCount:  number;
+  currentLeftBV:       string;
+  currentRightBV:      string;
+  matchedBV:           string;
+  rewardThreshold:     string;
+  incomePerReward:     string;
+  bvProgress:          string;
+  bvRemaining:         string;
+  todayEarnings:       string;
+  lifetimeEarnings:    string;
+  allTimeCycles:       number;
+  allTimeIncome:       string;
+}
+
+export interface SalaryDetail {
+  isQualified:       boolean;
+  nextSalaryAt:      string;
+  monthlySalary:     string;
+  lifetimeSalary:    string;
+  activeRanks:       string[];
+  currentRank:       string | null;
+  nextRank:          string | null;
+  progressPct:       number;
+  remainingBusiness: string;
+  leftBusinessUSD:   string;
+  rightBusinessUSD:  string;
+  totalBusinessUSD:  string;
+  todayEarnings:     string;
+}
+
+export interface LevelDetail {
+  todayEarnings:    string;
+  thisMonthEarnings: string;
+  lifetimeEarnings: string;
+  totalPayouts:     number;
+  breakdown: Array<{
+    level:        number;
+    count:        number;
+    percentage:   number;
+    incomeAmount: string;
+  }>;
+}
+
+export function getRoiDetail()    { return request<RoiDetail>("/api/income/roi"); }
+export function getBinaryDetail() { return request<BinaryDetail>("/api/income/binary"); }
+export function getOrbitDetail()  { return request<OrbitDetail>("/api/income/orbit"); }
+export function getSalaryDetail() { return request<SalaryDetail>("/api/income/salary"); }
+export function getLevelDetail()  { return request<LevelDetail>("/api/income/level"); }
+
 /* ── Admin Dashboard ──────────────────────────────────────────────── */
 
 export interface AdminDashboardStats {
