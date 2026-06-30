@@ -8,6 +8,7 @@ import { env } from "./config/env";
 import { globalLimiter } from "./middleware/rateLimiter.middleware";
 import { errorMiddleware } from "./middleware/error.middleware";
 import router from "./routes";
+import { HealthCheckResponse } from "@workspace/api-zod";
 
 const app: Express = express();
 
@@ -52,6 +53,15 @@ app.use(
 // ── Body parsing ──────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+
+// ── Healthcheck (before rate limiter — startup probe must always pass) ────────
+// Cloud Run sends the startup probe immediately at container boot, before the
+// process is fully initialised. Registering this here ensures it bypasses the
+// in-memory rate limiter so the probe always gets an instant 200.
+app.get("/api/healthz", (_req, res) => {
+  const data = HealthCheckResponse.parse({ status: "ok" });
+  res.json(data);
+});
 
 // ── Global rate limit ─────────────────────────────────────────────────────────
 app.use(globalLimiter);
