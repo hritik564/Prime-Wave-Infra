@@ -165,6 +165,9 @@ export async function getBinaryDetail(userId: string) {
     lifetimeEarnings:    binaryB.total,
     allTimeCycles:       matchingSummary.allTime.cycles,
     allTimeIncome:       d2s(matchingSummary.allTime.incomeAmount),
+    // Platform constants — exposed so UI can explain the calculation
+    incomePerBV:         "5.00",
+    maxPayableBVPerCycle: "50.00",
   };
 }
 
@@ -260,13 +263,14 @@ export async function getLevelDetail(userId: string) {
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
 
-  const [incomeSummary, levelSummary, monthAgg] = await Promise.all([
+  const [incomeSummary, levelSummary, monthAgg, userInfo] = await Promise.all([
     getIncomeSummary(userId),
     getLevelIncomeSummary(userId),
     prisma.walletTransaction.aggregate({
       where: { userId, type: "LEVEL_INCOME", status: "SUCCESS", createdAt: { gte: monthStart } },
       _sum:  { amount: true },
     }),
+    prisma.user.findUnique({ where: { id: userId }, select: { directReferralCount: true } }),
   ]);
 
   const levelB = incomeSummary.breakdown.find(b => b.type === "LEVEL_INCOME")
@@ -276,11 +280,12 @@ export async function getLevelDetail(userId: string) {
     ? d2s(monthAgg._sum.amount) : "0.00";
 
   return {
-    todayEarnings:    levelB.today,
+    todayEarnings:       levelB.today,
     thisMonthEarnings,
-    lifetimeEarnings: d2s(levelSummary.totalIncome),
-    totalPayouts:     levelSummary.totalPayouts,
-    breakdown:        levelSummary.breakdown.map(b => ({
+    lifetimeEarnings:    d2s(levelSummary.totalIncome),
+    totalPayouts:        levelSummary.totalPayouts,
+    directReferralCount: userInfo?.directReferralCount ?? 0,
+    breakdown:           levelSummary.breakdown.map(b => ({
       level:        b.level,
       count:        b.count,
       percentage:   b.percentage,

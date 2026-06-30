@@ -688,18 +688,20 @@ export interface RoiDetail {
 }
 
 export interface BinaryDetail {
-  isQualified:         boolean;
-  directReferralCount: number;
-  nextCreditAt:        string;
-  estimatedPayout:     string;
-  currentLeftBV:       string;
-  currentRightBV:      string;
-  matchedBV:           string;
-  carryForward:        string;
-  todayEarnings:       string;
-  lifetimeEarnings:    string;
-  allTimeCycles:       number;
-  allTimeIncome:       string;
+  isQualified:          boolean;
+  directReferralCount:  number;
+  nextCreditAt:         string;
+  estimatedPayout:      string;
+  currentLeftBV:        string;
+  currentRightBV:       string;
+  matchedBV:            string;
+  carryForward:         string;
+  todayEarnings:        string;
+  lifetimeEarnings:     string;
+  allTimeCycles:        number;
+  allTimeIncome:        string;
+  incomePerBV:          string;
+  maxPayableBVPerCycle: string;
 }
 
 export interface OrbitDetail {
@@ -738,10 +740,11 @@ export interface SalaryDetail {
 }
 
 export interface LevelDetail {
-  todayEarnings:    string;
-  thisMonthEarnings: string;
-  lifetimeEarnings: string;
-  totalPayouts:     number;
+  todayEarnings:       string;
+  thisMonthEarnings:   string;
+  lifetimeEarnings:    string;
+  totalPayouts:        number;
+  directReferralCount: number;
   breakdown: Array<{
     level:        number;
     count:        number;

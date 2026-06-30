@@ -1,0 +1,331 @@
+SPRINT 26C — INCOME INSIGHTS & NEXT ACTIONS
+
+Objective
+
+Transform every income detail page from a reporting page into an intelligent coaching page.
+
+The platform should explain:
+
+• WHY the current payout is what it is
+• WHY the user is (or isn't) qualified
+• WHAT the user should do next
+• WHAT action gives the biggest increase in income
+
+This sprint is presentation and aggregation only.
+
+Do NOT modify:
+
+- ROI Engine
+- Binary Engine
+- Orbit Engine
+- Salary Engine
+- Level Income Engine
+- Wallet Engine
+- Investment Engine
+- Deposit Verification
+- Withdrawal
+- Scheduler
+- Database schema
+- Financial calculations
+
+====================================================
+NEW SECTION
+
+"YOUR NEXT BEST ACTION"
+
+Every detail page gets a new card directly below the Hero.
+
+This card must always answer:
+
+"What should I do next?"
+
+Never show generic advice.
+
+Advice must come from actual production data.
+
+====================================================
+ROI
+
+Examples
+
+If no active investment:
+
+"You currently have no active investment.
+Create a new investment to begin generating ROI."
+
+If investment exists:
+
+"Your fastest way to increase ROI is increasing your principal investment."
+
+If Auto Compound disabled:
+
+"Auto Compound is currently OFF.
+Enable it if you want future ROI reinvested automatically."
+
+====================================================
+BINARY
+
+If not qualified:
+
+"You need one active direct referral on both left and right."
+
+If qualified:
+
+"Your weaker leg currently limits your payout."
+
+Show
+
+Current weaker leg
+
+Current stronger leg
+
+Difference
+
+Need another
+
+$X BV
+
+to balance both legs.
+
+====================================================
+ORBIT
+
+Show
+
+Current reward unit
+
+Current matched BV
+
+Remaining BV until next reward
+
+Example
+
+Need another
+
+$350 BV
+
+to unlock the next Orbit reward.
+
+====================================================
+SALARY
+
+Show
+
+Current Rank
+
+Next Rank
+
+Remaining business
+
+Example
+
+You need
+
+$6,900
+
+additional business volume
+
+to reach Gold.
+
+====================================================
+LEVEL
+
+Show
+
+Current active referral count
+
+Current paying levels
+
+Largest earning level
+
+Suggestion
+
+"Helping your direct referrals become active will increase future Level Income."
+
+====================================================
+NEW SECTION
+
+"WHY THIS AMOUNT?"
+
+Every engine gets a simple explanation.
+
+Examples
+
+ROI
+
+Current Investment
+
+$2,500
+
+ROI Rate
+
+0.8%
+
+Expected Next Credit
+
+$20
+
+-------------------------------------
+
+Binary
+
+Matched BV
+
+500
+
+Binary %
+
+10%
+
+Expected
+
+$50
+
+-------------------------------------
+
+Orbit
+
+Matched BV
+
+450
+
+Reward Units
+
+3
+
+Expected
+
+$150
+
+-------------------------------------
+
+Salary
+
+Current Rank
+
+Silver
+
+Monthly Salary
+
+$75
+
+-------------------------------------
+
+Level
+
+Level 1
+
+$12
+
+Level 2
+
+$20
+
+Level 3
+
+$18
+
+etc.
+
+====================================================
+STATUS MESSAGES
+
+Use friendly language.
+
+Examples
+
+Excellent
+
+Everything is qualified.
+
+On Track
+
+Only small improvements needed.
+
+Needs Attention
+
+Qualification missing.
+
+Not Eligible
+
+Explain exactly why.
+
+Never display vague messages.
+
+====================================================
+EMPTY STATES
+
+Every page needs beautiful empty states.
+
+ROI
+
+"No active investment."
+
+Binary
+
+"No matching business yet."
+
+Orbit
+
+"No orbit rewards yet."
+
+Salary
+
+"No active salary rank."
+
+Level
+
+"No commissions yet."
+
+Each empty state includes
+
+headline
+
+explanation
+
+single CTA
+
+====================================================
+API
+
+Extend existing aggregation endpoints only.
+
+Do not create duplicate calculation logic.
+
+Reuse production services.
+
+====================================================
+DESIGN
+
+Large progress cards
+
+Simple language
+
+Minimal tables
+
+Focus on guidance
+
+Not technical metrics
+
+====================================================
+FINAL REPORT
+
+Provide
+
+1. New UI sections
+
+2. API additions
+
+3. Screenshots of all pages
+
+4. Regression report
+
+Confirm
+
+No engine modified
+
+No scheduler modified
+
+No financial calculations modified
+
+Presentation layer only.
