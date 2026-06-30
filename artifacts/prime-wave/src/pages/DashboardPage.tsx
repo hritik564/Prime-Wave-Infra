@@ -406,8 +406,9 @@ function ReferralCards({ referralCode }: { referralCode: string | null }) {
       {/* ── Mobile: compact 2-col side by side ── */}
       <div className="grid grid-cols-2 gap-2.5 mb-5 lg:hidden">
         {legs.map(({ leg, label, icon, color, bg, border }) => {
-          const code    = referralCode ? `${referralCode}-${leg}` : "—";
-          const link    = referralCode ? `${window.location.origin}/register?ref=${referralCode}&leg=${leg}` : "—";
+          const shortLeg = leg === "LEFT" ? "L" : "R";
+          const code    = referralCode ? `${referralCode}-${shortLeg}` : "—";
+          const link    = referralCode ? `${window.location.origin}/register?ref=${referralCode}&leg=${shortLeg}` : "—";
           const codeKey = `code-${leg}`;
           const linkKey = `link-${leg}`;
           return (
@@ -466,8 +467,9 @@ function ReferralCards({ referralCode }: { referralCode: string | null }) {
       {/* ── Desktop: full 2-col cards ── */}
       <div className="hidden lg:grid grid-cols-2 gap-4 mb-8">
         {legs.map(({ leg, label, icon, color, bg, border }) => {
-          const code    = referralCode ? `${referralCode}-${leg}` : "—";
-          const link    = referralCode ? `${window.location.origin}/register?ref=${referralCode}&leg=${leg}` : "—";
+          const shortLeg = leg === "LEFT" ? "L" : "R";
+          const code    = referralCode ? `${referralCode}-${shortLeg}` : "—";
+          const link    = referralCode ? `${window.location.origin}/register?ref=${referralCode}&leg=${shortLeg}` : "—";
           const codeKey = `code-${leg}`;
           const linkKey = `link-${leg}`;
           return (
