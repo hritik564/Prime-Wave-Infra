@@ -12,27 +12,40 @@ import router from "./routes";
 const app: Express = express();
 
 // ── Trust proxy ───────────────────────────────────────────────────────────────
-// Replit runs behind a reverse proxy that sets X-Forwarded-For.
-// This lets express-rate-limit and req.ip identify clients correctly.
 app.set("trust proxy", 1);
 
-// ── Health probe (MUST be first — no middleware dependencies) ─────────────────
-// Cloud Run fires the startup probe at GET /api immediately on container boot,
-// before port 8080 is fully initialised. Once the port binds this handler must
-// return 200 on the FIRST attempt — any middleware that could throw (helmet,
-// cors, pino, rate-limiter) must NOT run on this route.
-//
-// Rules:
-//   • Zero external imports — only built-in Node/Express APIs used here.
-//   • No Zod, no Prisma, no background-service dependencies.
-//   • Responds to both /api and /api/healthz (pid1 may probe either).
-//   • Deeper diagnostics go on GET /api/health/details (separate endpoint).
+// ── [DIAGNOSTIC] Health probe — MUST stay first, zero middleware dependencies ─
+// Try/catch added per diagnostic request. Synchronous stderr.write used so the
+// error cannot be lost if pino's stdout stream is buffered (Cloud Run pipes
+// stdout; process.exit() does NOT flush stdio buffers, so pino may drop logs).
 app.get(["/api", "/api/healthz"], (_req, res) => {
-  res.json({
-    status: "ok",
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-  });
+  try {
+    res.json({
+      status: "ok",
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: unknown) {
+    const stack = err instanceof Error ? err.stack : String(err);
+    const file  = err instanceof Error
+      ? (err as NodeJS.ErrnoException).code ?? "unknown"
+      : "unknown";
+
+    // Synchronous write — survives process.exit() buffering:
+    process.stderr.write(
+      `[HEALTH-HANDLER-EXCEPTION] ${new Date().toISOString()}\n` +
+      `stack: ${stack}\n` +
+      `file: ${file}\n`,
+    );
+
+    // Pino (may or may not flush before caller exits):
+    logger.error({ err, stack }, "[DIAG] GET /api handler threw");
+
+    // Still return 500 so the caller sees something:
+    if (!res.headersSent) {
+      res.status(500).json({ status: "error", message: String(err) });
+    }
+  }
 });
 
 // ── Security headers ─────────────────────────────────────────────────────────
@@ -42,7 +55,6 @@ app.use(helmet());
 app.use(cors());
 
 // ── HTTP logging ─────────────────────────────────────────────────────────────
-// Development: morgan for human-readable request logs in the console
 if (env.NODE_ENV === "development") {
   app.use(
     morgan("dev", {
@@ -51,11 +63,9 @@ if (env.NODE_ENV === "development") {
   );
 }
 
-// Production: structured JSON request logs via pino-http
 app.use(
   pinoHttp({
     logger,
-    // Skip pino request logs in development to avoid duplication with morgan
     autoLogging: env.NODE_ENV !== "development",
     serializers: {
       req(req) {
