@@ -13,11 +13,17 @@ import type {
   verificationStatusSchema,
   adminListVerificationsSchema,
   adminGetVerificationSchema,
+  adminManualApproveParamsSchema,
+  adminManualApproveBodySchema,
+  userHistorySchema,
 } from "./deposit-verification.schema";
 
 type VerificationStatusParams    = z.infer<typeof verificationStatusSchema>;
 type AdminListVerificationsQuery = z.infer<typeof adminListVerificationsSchema>;
 type AdminGetVerificationParams  = z.infer<typeof adminGetVerificationSchema>;
+type AdminManualApproveParams    = z.infer<typeof adminManualApproveParamsSchema>;
+type AdminManualApproveBody      = z.infer<typeof adminManualApproveBodySchema>;
+type UserHistoryQuery            = z.infer<typeof userHistorySchema>;
 
 // ── Terminal / active status sets ─────────────────────────────────────────────
 
@@ -94,6 +100,26 @@ export async function getVerificationStatus(
       isTerminal,
       isActive,
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/deposit-verifications/history
+ * Returns all verifications for the authenticated user, newest first.
+ * Every submitted TX hash appears immediately — source of truth for deposit history.
+ */
+export async function getUserVerificationHistory(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { page, limit } = getParsed<UserHistoryQuery>(res, "query");
+    const userId = req.user!.sub;
+    const result = await service.getUserVerificationHistory(userId, { page, limit });
+    sendSuccess(res, result);
   } catch (err) {
     next(err);
   }
@@ -205,6 +231,7 @@ export async function adminRetryVerification(
             txHash:          v.txHash,
             previousStatus:  v.verificationStatus,
             scheduledAt:     updated.nextCheckAt,
+            ipAddress:       req.ip,
           },
         },
       });
@@ -215,6 +242,35 @@ export async function adminRetryVerification(
       verificationStatus: updated.verificationStatus,
       nextCheckAt:        updated.nextCheckAt,
       message:            "Verification scheduled for immediate re-check on the next worker tick",
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/admin/deposit-verifications/:id/manual-approve
+ *
+ * Manually approves a non-terminal, blockchain-detected verification.
+ * Reuses the existing approveDeposit() pipeline — no duplicate credit logic.
+ * Requires a reason (min 10 chars). Creates audit log + user notification.
+ */
+export async function adminManualApproveVerification(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { id }     = getParsed<AdminManualApproveParams>(res, "params");
+    const { reason } = req.body as AdminManualApproveBody;
+    const adminId    = req.user!.sub;
+    const ip         = req.ip;
+
+    const result = await service.manualApproveVerification(adminId, id, reason, ip);
+
+    sendSuccess(res, {
+      ...result,
+      message: "Deposit manually approved and credited to user's wallet",
     });
   } catch (err) {
     next(err);

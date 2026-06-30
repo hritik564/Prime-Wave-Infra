@@ -3,19 +3,18 @@ import qrImage from "@assets/QR_PW_1782675415129.png";
 import {
   Copy, CheckCheck, ArrowDownToLine, CheckCircle2, Loader2,
   AlertTriangle, Clock, Wifi, RefreshCw, Send, ExternalLink,
-  XCircle, ChevronRight,
+  XCircle, ChevronRight, X,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import WalletTabs from "@/components/wallet/WalletTabs";
 import WalletHero from "@/components/wallet/WalletHero";
-import { Badge } from "@/components/ui/badge";
 import {
   getWallets,
-  getDepositHistory,
+  getUserDepositVerificationHistory,
   submitDepositVerification,
   getDepositVerificationStatus,
-  type DepositRequest,
+  type DepositVerificationHistoryItem,
   type DepositVerificationStatusResult,
   type DepositVerificationStatus,
 } from "@/lib/api";
@@ -87,12 +86,237 @@ function humanReadableFailure(failureReason: string | null, status: DepositVerif
 
 // ── Deposit history helpers ───────────────────────────────────────────────────
 
-const depositStatusConfig: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
-  APPROVED:   { label: "Approved",   variant: "success"     },
-  PENDING:    { label: "Pending",    variant: "warning"     },
-  REJECTED:   { label: "Rejected",   variant: "destructive" },
-  CONFIRMING: { label: "Confirming", variant: "secondary"   },
+function bscScanUrl(txHash: string) {
+  return `https://bscscan.com/tx/${txHash}`;
+}
+
+type HistStatusVariant = "active" | "success" | "warning" | "error" | "muted";
+
+const HISTORY_STATUS_CONFIG: Record<string, { label: string; variant: HistStatusVariant }> = {
+  TX_SUBMITTED:          { label: "Submitted",  variant: "active"  },
+  VERIFYING:             { label: "Verifying",  variant: "active"  },
+  VERIFICATION_DELAYED:  { label: "Delayed",    variant: "warning" },
+  WAITING_CONFIRMATIONS: { label: "Confirming", variant: "warning" },
+  CONFIRMED:             { label: "Confirmed",  variant: "success" },
+  CREDITED:              { label: "Credited",   variant: "success" },
+  COMPLETED:             { label: "Completed",  variant: "success" },
+  FAILED:                { label: "Failed",     variant: "error"   },
+  REJECTED:              { label: "Rejected",   variant: "error"   },
+  EXPIRED:               { label: "Expired",    variant: "error"   },
 };
+
+const HIST_VARIANT_STYLE: Record<HistStatusVariant, { bg: string; color: string }> = {
+  active:  { bg: "rgba(212,175,55,0.12)",  color: "#D4AF37"  },
+  success: { bg: "rgba(52,211,153,0.12)",  color: "#34d399"  },
+  warning: { bg: "rgba(251,191,36,0.12)",  color: "#fbbf24"  },
+  error:   { bg: "rgba(248,113,113,0.12)", color: "#f87171"  },
+  muted:   { bg: "rgba(255,255,255,0.05)", color: "rgba(170,179,197,0.6)" },
+};
+
+function HistStatusBadge({ status }: { status: string }) {
+  const cfg   = HISTORY_STATUS_CONFIG[status] ?? { label: status, variant: "muted" as HistStatusVariant };
+  const style = HIST_VARIANT_STYLE[cfg.variant];
+  const pulsing = cfg.variant === "active" || status === "VERIFICATION_DELAYED";
+  return (
+    <span
+      className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
+      style={{ background: style.bg, color: style.color }}
+    >
+      {pulsing && <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: style.color }} />}
+      {cfg.label}
+    </span>
+  );
+}
+
+// ── Deposit Detail Drawer ─────────────────────────────────────────────────────
+
+function fmtTs(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function DepositDetailDrawer({ item, onClose }: { item: DepositVerificationHistoryItem | null; onClose: () => void }) {
+  if (!item) return null;
+
+  const statusCfg   = HISTORY_STATUS_CONFIG[item.verificationStatus] ?? { label: item.verificationStatus, variant: "muted" as HistStatusVariant };
+  const statusStyle = HIST_VARIANT_STYLE[statusCfg.variant];
+  const isSuccess   = item.verificationStatus === "COMPLETED";
+  const isFailed    = ["FAILED", "REJECTED", "EXPIRED"].includes(item.verificationStatus);
+
+  const timelineSteps: { label: string; ts: string | null }[] = [
+    { label: "Submitted",            ts: item.createdAt },
+    { label: "Found on blockchain",  ts: item.firstSeenAt },
+    { label: "Confirmations met",    ts: item.confirmedAt },
+    { label: "Wallet credited",      ts: item.creditedAt },
+    { label: "Completed",            ts: item.completedAt },
+  ];
+
+  const confPct = Math.min(100, (item.confirmations / Math.max(1, item.requiredConfirmations)) * 100);
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div
+        className="fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-y-auto rounded-t-2xl lg:inset-y-0 lg:right-0 lg:left-auto lg:w-[440px] lg:rounded-none lg:rounded-l-2xl"
+        style={{ background: "hsl(var(--card))", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 -8px 48px rgba(0,0,0,0.5)" }}
+      >
+        {/* Drag handle (mobile only) */}
+        <div className="flex justify-center pt-3 pb-1 lg:hidden">
+          <div className="h-1 w-10 rounded-full bg-white/20" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-xl"
+              style={{ background: statusStyle.bg }}
+            >
+              {isSuccess  ? <CheckCircle2 className="h-4.5 w-4.5" style={{ color: statusStyle.color }} />
+                : isFailed ? <XCircle      className="h-4.5 w-4.5" style={{ color: statusStyle.color }} />
+                : <Loader2 className="h-4.5 w-4.5 animate-spin" style={{ color: statusStyle.color }} />}
+            </div>
+            <div>
+              <h2 className="font-bold text-sm text-foreground">Deposit Details</h2>
+              <HistStatusBadge status={item.verificationStatus} />
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg opacity-50 hover:opacity-100 transition-opacity"
+            style={{ color: "rgba(170,179,197,0.7)" }}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-5 py-5 space-y-5">
+          {/* Amount */}
+          <div className="text-center py-2">
+            {item.blockchainAmount ? (
+              <div>
+                <p className="text-3xl font-bold font-heading" style={{ color: isSuccess ? "#34d399" : "hsl(var(--foreground))" }}>
+                  {isSuccess ? "+" : ""}{parseFloat(item.blockchainAmount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs mt-1 font-semibold" style={{ color: "rgba(170,179,197,0.6)" }}>USDT • {item.network}</p>
+              </div>
+            ) : (
+              <p className="text-sm" style={{ color: "rgba(170,179,197,0.5)" }}>Amount pending blockchain detection</p>
+            )}
+          </div>
+
+          {/* TX Hash */}
+          <div className="rounded-xl px-4 py-3.5 space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "rgba(170,179,197,0.5)" }}>Transaction Hash</p>
+            <div className="flex items-center gap-2">
+              <p className="font-mono text-xs text-foreground flex-1 break-all">{item.txHash}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <CopyButton text={item.txHash} />
+              <a
+                href={bscScanUrl(item.txHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg transition-all hover:opacity-80"
+                style={{ background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.2)", color: "#D4AF37" }}
+              >
+                <ExternalLink className="h-3 w-3" />
+                View on BscScan
+              </a>
+            </div>
+          </div>
+
+          {/* Failure reason */}
+          {isFailed && item.failureReason && (
+            <div className="rounded-xl px-4 py-3" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
+              <p className="text-xs font-semibold mb-1" style={{ color: "#f87171" }}>Failure Reason</p>
+              <p className="text-xs leading-relaxed" style={{ color: "#fca5a5" }}>{item.failureReason}</p>
+            </div>
+          )}
+
+          {/* Confirmation progress */}
+          {!isSuccess && !isFailed && (
+            <div className="rounded-xl px-4 py-3.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "rgba(170,179,197,0.5)" }}>Block Confirmations</p>
+                <span className="text-xs font-bold" style={{ color: "#D4AF37" }}>{item.confirmations} / {item.requiredConfirmations}</span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${confPct}%`, background: "linear-gradient(90deg, #D4AF37, #F3D37A)" }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Timeline */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "rgba(170,179,197,0.5)" }}>Timeline</p>
+            <div className="space-y-0">
+              {timelineSteps.map((step, idx) => {
+                const done = step.ts !== null;
+                const last = idx === timelineSteps.length - 1;
+                return (
+                  <div key={step.label} className="flex items-start gap-3">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className="h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{
+                          background: done ? (isSuccess && idx === timelineSteps.length - 1 ? "rgba(52,211,153,0.15)" : "rgba(212,175,55,0.12)") : "rgba(255,255,255,0.05)",
+                          border: `1.5px solid ${done ? (isSuccess && idx === timelineSteps.length - 1 ? "#34d399" : "#D4AF37") : "rgba(255,255,255,0.12)"}`,
+                        }}
+                      >
+                        {done && (
+                          <span
+                            className="h-2 w-2 rounded-full"
+                            style={{ background: isSuccess && idx === timelineSteps.length - 1 ? "#34d399" : "#D4AF37" }}
+                          />
+                        )}
+                      </div>
+                      {!last && (
+                        <div
+                          className="w-px flex-1 mt-0.5 mb-0.5"
+                          style={{ background: done ? "rgba(212,175,55,0.25)" : "rgba(255,255,255,0.07)", minHeight: 20 }}
+                        />
+                      )}
+                    </div>
+                    <div className="pb-4 flex-1 min-w-0">
+                      <p className="text-xs font-semibold" style={{ color: done ? "hsl(var(--foreground))" : "rgba(170,179,197,0.4)" }}>
+                        {step.label}
+                      </p>
+                      {done && (
+                        <p className="text-xs mt-0.5" style={{ color: "rgba(170,179,197,0.5)" }}>{fmtTs(step.ts)}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Meta */}
+          <div className="rounded-xl divide-y" style={{ border: "1px solid rgba(255,255,255,0.07)", borderColor: "rgba(255,255,255,0.07)" }}>
+            {[
+              { label: "Network",   value: item.network },
+              { label: "Submitted", value: fmtTs(item.createdAt) },
+              { label: "Attempts",  value: String(item.verificationAttempts) },
+              ...(item.senderAddress ? [{ label: "From wallet", value: `${item.senderAddress.slice(0, 8)}…${item.senderAddress.slice(-6)}` }] : []),
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-xs" style={{ color: "rgba(170,179,197,0.5)" }}>{label}</span>
+                <span className="text-xs font-semibold text-foreground">{value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
 
 function fmt(amount: string) {
   const n = parseFloat(amount);
@@ -623,7 +847,8 @@ function FailureBanner({
 
 export default function DepositWalletPage() {
   const [balance,        setBalance]        = useState<string | null>(null);
-  const [deposits,       setDeposits]       = useState<DepositRequest[]>([]);
+  const [deposits,       setDeposits]       = useState<DepositVerificationHistoryItem[]>([]);
+  const [selectedItem,   setSelectedItem]   = useState<DepositVerificationHistoryItem | null>(null);
   const [loading,        setLoading]        = useState(true);
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [verifStatus,    setVerifStatus]    = useState<DepositVerificationStatusResult | null>(null);
@@ -636,7 +861,7 @@ export default function DepositWalletPage() {
     try {
       const [walletData, historyData] = await Promise.all([
         getWallets(),
-        getDepositHistory({ limit: 50 }),
+        getUserDepositVerificationHistory({ limit: 50 }),
       ]);
       setBalance(walletData.depositWallet);
       setDeposits(historyData.data);
@@ -834,10 +1059,18 @@ export default function DepositWalletPage() {
           </div>
         )}
 
+        {/* ── Deposit Detail Drawer ─────────────────────────────────────────── */}
+        <DepositDetailDrawer item={selectedItem} onClose={() => setSelectedItem(null)} />
+
         {/* ── Deposit History ───────────────────────────────────────────────── */}
         <div className="mb-2">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold font-heading text-foreground">Deposit History</h2>
+            <div>
+              <h2 className="text-lg font-semibold font-heading text-foreground">Deposit History</h2>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(170,179,197,0.5)" }}>
+                Every submitted TX hash — tap any row for full details
+              </p>
+            </div>
             <button
               onClick={() => void load()}
               className="flex items-center gap-1.5 text-xs transition-opacity hover:opacity-70"
@@ -864,73 +1097,89 @@ export default function DepositWalletPage() {
               </p>
             </div>
           ) : (
-            <>
-              {/* Mobile cards */}
-              <div className="md:hidden space-y-3">
-                {deposits.map((dep) => {
-                  const s = depositStatusConfig[dep.status] ?? depositStatusConfig.PENDING;
-                  return (
-                    <div
-                      key={dep.id}
-                      className="rounded-xl p-4"
-                      style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 2px 12px rgba(0,0,0,0.25)" }}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-lg font-bold font-heading" style={{ color: "#34d399" }}>+{fmt(dep.amount)}</span>
-                        <Badge variant={s.variant}>{s.label}</Badge>
-                      </div>
-                      <div className="flex items-center justify-between text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
-                        <span className="font-medium" style={{ color: "hsl(var(--foreground))" }}>{dep.network}</span>
-                        <span>{fmtDate(dep.createdAt)}</span>
-                      </div>
-                      <div className="flex items-center justify-between mt-1.5">
-                        <span className="text-xs font-mono truncate max-w-[160px]" style={{ color: "rgba(170,179,197,0.55)" }}>
-                          Tx: {shorten(dep.txHash)}
-                        </span>
-                        <CopyButton text={dep.txHash} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}
+            >
+              {deposits.map((dep, i) => {
+                const isCompleted = dep.verificationStatus === "COMPLETED";
+                const isFailed    = ["FAILED", "REJECTED", "EXPIRED"].includes(dep.verificationStatus);
+                const isActive    = ["TX_SUBMITTED", "VERIFYING", "VERIFICATION_DELAYED", "WAITING_CONFIRMATIONS"].includes(dep.verificationStatus);
+                const amtColor    = isCompleted ? "#34d399" : isFailed ? "#f87171" : "hsl(var(--foreground))";
 
-              {/* Desktop table */}
-              <div
-                className="hidden md:block rounded-2xl overflow-hidden"
-                style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}
-              >
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid hsl(var(--border))" }}>
-                      {["Amount", "Network", "Status", "Date", "Tx Hash"].map((h) => (
-                        <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: "hsl(var(--muted-foreground))" }}>
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deposits.map((dep, i) => {
-                      const s = depositStatusConfig[dep.status] ?? depositStatusConfig.PENDING;
-                      return (
-                        <tr key={dep.id} className="transition-colors hover:bg-white/[0.02]" style={{ borderBottom: i < deposits.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
-                          <td className="px-5 py-4"><span className="font-semibold font-mono" style={{ color: "#34d399" }}>+{fmt(dep.amount)}</span></td>
-                          <td className="px-5 py-4"><span className="text-xs font-semibold px-2 py-1 rounded-md" style={{ background: "rgba(212,175,55,0.1)", color: "#D4AF37" }}>{dep.network}</span></td>
-                          <td className="px-5 py-4"><Badge variant={s.variant}>{s.label}</Badge></td>
-                          <td className="px-5 py-4 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>{fmtDate(dep.createdAt)}</td>
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs truncate max-w-[140px]" style={{ color: "rgba(170,179,197,0.55)" }}>{shorten(dep.txHash)}</span>
-                              <CopyButton text={dep.txHash} />
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
+                return (
+                  <button
+                    key={dep.id}
+                    onClick={() => setSelectedItem(dep)}
+                    className="w-full text-left transition-colors hover:bg-white/[0.025] active:bg-white/[0.04]"
+                    style={{ borderBottom: i < deposits.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}
+                  >
+                    <div className="px-4 py-3.5">
+                      {/* Row 1: amount + status + chevron */}
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="flex h-8 w-8 items-center justify-center rounded-full flex-shrink-0"
+                            style={{ background: isCompleted ? "rgba(52,211,153,0.12)" : isFailed ? "rgba(248,113,113,0.12)" : "rgba(212,175,55,0.10)" }}
+                          >
+                            {isCompleted
+                              ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#34d399" }} />
+                              : isFailed
+                              ? <XCircle      className="h-3.5 w-3.5" style={{ color: "#f87171" }} />
+                              : <Loader2      className="h-3.5 w-3.5 animate-spin" style={{ color: "#D4AF37" }} />}
+                          </div>
+                          <div>
+                            <span className="font-bold font-mono text-sm" style={{ color: amtColor }}>
+                              {isCompleted ? "+" : ""}{dep.blockchainAmount
+                                ? `${parseFloat(dep.blockchainAmount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT`
+                                : "Pending…"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <HistStatusBadge status={dep.verificationStatus} />
+                          <ChevronRight className="h-3.5 w-3.5 opacity-30" />
+                        </div>
+                      </div>
+
+                      {/* Row 2: TX hash + network + date */}
+                      <div className="flex items-center gap-3 ml-10">
+                        <span className="font-mono text-xs" style={{ color: "rgba(170,179,197,0.45)" }}>
+                          {dep.txHash.slice(0, 8)}…{dep.txHash.slice(-6)}
+                        </span>
+                        <span
+                          className="text-xs font-semibold px-1.5 py-0.5 rounded"
+                          style={{ background: "rgba(212,175,55,0.08)", color: "#D4AF37", border: "1px solid rgba(212,175,55,0.15)" }}
+                        >
+                          {dep.network}
+                        </span>
+                        <span className="text-xs ml-auto" style={{ color: "rgba(170,179,197,0.4)" }}>
+                          {fmtDate(dep.createdAt)}
+                        </span>
+                      </div>
+
+                      {/* Row 3: confirmation progress (active only) */}
+                      {isActive && dep.confirmations > 0 && (
+                        <div className="mt-2 ml-10">
+                          <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${Math.min(100, (dep.confirmations / Math.max(1, dep.requiredConfirmations)) * 100)}%`,
+                                background: "linear-gradient(90deg, #D4AF37, #F3D37A)",
+                              }}
+                            />
+                          </div>
+                          <p className="text-xs mt-1" style={{ color: "#D4AF37" }}>
+                            {dep.confirmations}/{dep.requiredConfirmations} confirmations
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
       </PageContainer>

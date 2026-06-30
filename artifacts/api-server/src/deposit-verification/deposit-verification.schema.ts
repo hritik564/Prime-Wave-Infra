@@ -27,6 +27,11 @@ export const verificationStatusSchema = z.object({
   id: z.string().min(1, "Verification ID is required"),
 });
 
+export const userHistorySchema = z.object({
+  page:  z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
 // ── Admin endpoints ───────────────────────────────────────────────────────────
 
 export const adminListVerificationsSchema = z.object({
@@ -47,4 +52,12 @@ export const adminGetVerificationSchema = z.object({
 
 export const adminRetryVerificationSchema = z.object({
   id: z.string().min(1, "Verification ID is required"),
+});
+
+export const adminManualApproveParamsSchema = z.object({
+  id: z.string().min(1, "Verification ID is required"),
+});
+
+export const adminManualApproveBodySchema = z.object({
+  reason: z.string().min(10, "Reason must be at least 10 characters").max(500, "Reason must be at most 500 characters"),
 });

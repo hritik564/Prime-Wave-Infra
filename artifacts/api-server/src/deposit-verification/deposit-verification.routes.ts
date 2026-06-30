@@ -4,17 +4,22 @@ import { validate } from "../middleware/validate.middleware";
 import {
   submitVerificationSchema,
   verificationStatusSchema,
+  userHistorySchema,
   adminListVerificationsSchema,
   adminGetVerificationSchema,
   adminRetryVerificationSchema,
+  adminManualApproveParamsSchema,
+  adminManualApproveBodySchema,
 } from "./deposit-verification.schema";
 import {
   submitVerification,
   getVerificationStatus,
+  getUserVerificationHistory,
   adminListVerifications,
   adminGetVerification,
   adminGetMetrics,
   adminRetryVerification,
+  adminManualApproveVerification,
 } from "./deposit-verification.controller";
 
 // ── User routes (/api/deposit-verifications) ──────────────────────────────────
@@ -26,6 +31,14 @@ userRouter.post(
   requireAuth,
   validate(submitVerificationSchema),
   submitVerification,
+);
+
+// /history must be before /:id so Express does not match "history" as an id param
+userRouter.get(
+  "/history",
+  requireAuth,
+  validate(userHistorySchema, "query"),
+  getUserVerificationHistory,
 );
 
 userRouter.get(
@@ -58,6 +71,14 @@ adminRouter.post(
   requireAdminAuth,
   validate(adminRetryVerificationSchema, "params"),
   adminRetryVerification,
+);
+
+adminRouter.post(
+  "/:id/manual-approve",
+  requireAdminAuth,
+  validate(adminManualApproveParamsSchema, "params"),
+  validate(adminManualApproveBodySchema, "body"),
+  adminManualApproveVerification,
 );
 
 adminRouter.get(

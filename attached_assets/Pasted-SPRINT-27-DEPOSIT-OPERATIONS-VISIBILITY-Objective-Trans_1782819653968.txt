@@ -1,0 +1,383 @@
+SPRINT 27 — DEPOSIT OPERATIONS & VISIBILITY
+
+Objective
+
+Transform the Deposit Verification system into a complete operational workflow.
+
+Every submitted transaction must always be visible.
+
+Users should always know where their money is.
+
+Admins should always have recovery tools.
+
+This sprint is presentation + operational tooling.
+
+Do NOT modify:
+
+- Blockchain verification logic
+- BSCBlockchainAdapter
+- Wallet credit calculations
+- approveDeposit()
+- Financial calculations
+- Investment Engine
+- ROI Engine
+- Binary Engine
+- Salary Engine
+- Orbit Engine
+- Level Income Engine
+
+Reuse existing production business logic.
+
+====================================================
+PART 1 — DEPOSIT HISTORY BECOMES SOURCE OF TRUTH
+====================================================
+
+Every submitted TX hash must immediately appear in Deposit History.
+
+Do NOT wait until the deposit is credited.
+
+Create/update history entries during the entire verification lifecycle.
+
+Supported statuses:
+
+• Submitted
+• Verifying
+• Waiting for Confirmations
+• Verification Delayed
+• Completed
+• Failed
+• Duplicate
+
+The user must never wonder whether the system received the transaction.
+
+====================================================
+PART 2 — LIVE STATUS TIMELINE
+====================================================
+
+Every deposit history item contains a timeline.
+
+Example
+
+09:12
+
+Transaction Submitted
+
+↓
+
+09:13
+
+Transaction Found
+
+↓
+
+09:14
+
+3 / 12 Confirmations
+
+↓
+
+09:15
+
+12 / 12 Confirmations
+
+↓
+
+09:15
+
+Wallet Credited
+
+↓
+
+09:15
+
+Completed
+
+If a stage has not happened yet,
+
+show it as pending.
+
+====================================================
+PART 3 — CONFIRMATION PROGRESS
+====================================================
+
+Show confirmation progress.
+
+Example
+
+Current Confirmations
+
+7 / 12
+
+Progress bar
+
+Estimated status
+
+Waiting for confirmations...
+
+If confirmation count unavailable:
+
+Display
+
+Checking blockchain...
+
+====================================================
+PART 4 — ADMIN REVALIDATE
+====================================================
+
+Add button
+
+Revalidate Transaction
+
+Behaviour:
+
+Reset nextCheckAt = now
+
+Return verification to worker queue
+
+Reuse normal verification pipeline
+
+No shortcuts
+
+No duplicate verification logic
+
+Log admin action.
+
+====================================================
+PART 5 — ADMIN MANUAL APPROVAL
+====================================================
+
+Add button
+
+Approve Manually
+
+Rules
+
+Only allowed when:
+
+NOT COMPLETED
+
+Require:
+
+Mandatory reason
+
+Confirmation dialog
+
+Example
+
+"I have independently verified this transaction on-chain."
+
+Reuse existing
+
+approveDeposit()
+
+Do NOT duplicate wallet credit logic.
+
+After approval
+
+Create audit log
+
+Notify user
+
+Prevent duplicate approval
+
+====================================================
+PART 6 — VIEW ON BSCSCAN
+====================================================
+
+Both user and admin can click
+
+View on BscScan
+
+Construct URL using txHash.
+
+Never hardcode transaction URLs.
+
+====================================================
+PART 7 — OPERATIONS PANEL
+====================================================
+
+Improve admin table.
+
+Add columns
+
+Verification Age
+
+Last Checked
+
+Next Check
+
+Attempts
+
+Current Confirmations
+
+Worker Status
+
+Adapter Errors (if any)
+
+Filters
+
+Submitted
+
+Verifying
+
+Waiting
+
+Delayed
+
+Completed
+
+Failed
+
+Duplicate
+
+====================================================
+PART 8 — USER DETAILS DRAWER
+====================================================
+
+Clicking a deposit opens details.
+
+Display
+
+Transaction Hash
+
+Copy button
+
+Submitted At
+
+Blockchain Network
+
+Current Status
+
+Current Confirmations
+
+Wallet Credited At
+
+Amount
+
+Timeline
+
+Explorer button
+
+====================================================
+PART 9 — NOTIFICATIONS
+====================================================
+
+Notify user when:
+
+Verification delayed
+
+Deposit completed
+
+Manual approval
+
+Verification failed
+
+Use existing notification system.
+
+====================================================
+PART 10 — AUDIT LOG
+====================================================
+
+Audit every admin operation.
+
+Include
+
+Admin ID
+
+Verification ID
+
+Previous status
+
+New status
+
+Reason
+
+Timestamp
+
+IP
+
+====================================================
+PART 11 — API
+====================================================
+
+Extend existing APIs.
+
+Avoid duplicate endpoints.
+
+Reuse existing aggregation services.
+
+No duplicated business logic.
+
+====================================================
+PART 12 — UI
+====================================================
+
+Deposit History should look like a banking transaction list.
+
+Status badge
+
+Amount
+
+Date
+
+Timeline preview
+
+Click for details
+
+No raw database terminology.
+
+No internal error messages.
+
+====================================================
+PART 13 — REGRESSION
+====================================================
+
+Verify unchanged
+
+✓ Deposit Verification Engine
+
+✓ Blockchain Adapter
+
+✓ Worker
+
+✓ Wallet Credits
+
+✓ Financial Calculations
+
+✓ ROI
+
+✓ Binary
+
+✓ Salary
+
+✓ Orbit
+
+✓ Level Income
+
+✓ Investment
+
+====================================================
+FINAL REPORT
+====================================================
+
+Provide
+
+1. Files changed
+
+2. New APIs
+
+3. UI screenshots (user)
+
+4. UI screenshots (admin)
+
+5. Timeline screenshots
+
+6. Manual approval flow
+
+7. Revalidation flow
+
+8. Audit log example
+
+9. Regression report
+
+10. Confirmation that no financial business logic was modified.

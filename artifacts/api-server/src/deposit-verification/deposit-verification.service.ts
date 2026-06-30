@@ -6,6 +6,7 @@ import { HTTP_STATUS } from "../shared/constants";
 import { getAdapter } from "./adapter/adapter-factory";
 import { approveDeposit } from "../admin/admin-deposits.service";
 import { eventBus } from "../events/event-bus";
+import { notificationService } from "../notifications/notifications.service";
 import * as repo from "./deposit-verification.repository";
 import type { VerificationRow } from "./deposit-verification.repository";
 import type { TickStats } from "./deposit-verification.metrics";
@@ -188,6 +189,142 @@ export async function getVerificationStatus(id: string, userId: string) {
   return v;
 }
 
+// ── User history query ────────────────────────────────────────────────────────
+
+export async function getUserVerificationHistory(userId: string, params: { page: number; limit: number }) {
+  return repo.findAllForUser(userId, params);
+}
+
+// ── Manual admin approval ─────────────────────────────────────────────────────
+
+export async function manualApproveVerification(
+  adminId: string,
+  id:      string,
+  reason:  string,
+  ip?:     string,
+) {
+  const v = await repo.findById(id);
+  if (!v) {
+    throw new AppError("Verification not found", HTTP_STATUS.NOT_FOUND, "VERIFICATION_NOT_FOUND");
+  }
+
+  if (isTerminal(v.verificationStatus)) {
+    throw new AppError(
+      `Cannot manually approve a ${v.verificationStatus} verification — it has reached a terminal state`,
+      HTTP_STATUS.CONFLICT,
+      "VERIFICATION_TERMINAL",
+    );
+  }
+
+  if (!v.blockchainAmount) {
+    throw new AppError(
+      "Transaction amount is not yet determined — the transaction has not been found on-chain. Use the Wallet Credit tool to credit the user manually before the transaction is confirmed.",
+      HTTP_STATUS.CONFLICT,
+      "AMOUNT_UNKNOWN",
+    );
+  }
+
+  // ── Find or create DepositRequest ─────────────────────────────────────────
+
+  let depositRequest: { id: string; status: string } | null =
+    await prisma.depositRequest.findUnique({
+      where:  { txHash: v.txHash },
+      select: { id: true, status: true },
+    });
+
+  if (!depositRequest) {
+    try {
+      depositRequest = await prisma.depositRequest.create({
+        data: {
+          userId:        v.userId,
+          amount:        v.blockchainAmount,
+          network:       v.network,
+          txHash:        v.txHash,
+          companyWallet: v.recipientAddress,
+          status:        "PENDING",
+        },
+        select: { id: true, status: true },
+      });
+      await repo.linkDeposit(v.id, depositRequest.id);
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2002"
+      ) {
+        depositRequest = await prisma.depositRequest.findUnique({
+          where:  { txHash: v.txHash },
+          select: { id: true, status: true },
+        });
+        if (!depositRequest) throw e;
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  if (depositRequest.status === "APPROVED") {
+    throw new AppError(
+      "This deposit has already been approved and credited",
+      HTTP_STATUS.CONFLICT,
+      "ALREADY_APPROVED",
+    );
+  }
+
+  // ── Credit via existing approveDeposit pipeline (no duplication) ──────────
+
+  await approveDeposit(adminId, depositRequest.id);
+
+  // ── Transition verification to COMPLETED ──────────────────────────────────
+
+  const now = new Date();
+  await prisma.depositVerification.update({
+    where: { id: v.id },
+    data:  {
+      verificationStatus: "COMPLETED",
+      creditedAt:         now,
+      completedAt:        now,
+      confirmedAt:        v.confirmedAt ?? now,
+    },
+  });
+
+  // ── Audit log for the manual action ───────────────────────────────────────
+
+  try {
+    await prisma.adminLog.create({
+      data: {
+        adminId,
+        action:       "DEPOSIT_MANUALLY_APPROVED",
+        targetUserId: v.userId,
+        details: {
+          verificationId:   v.id,
+          depositRequestId: depositRequest.id,
+          txHash:           v.txHash,
+          network:          v.network,
+          amount:           v.blockchainAmount.toFixed(8),
+          reason,
+          previousStatus:   v.verificationStatus,
+          approvalMode:     "MANUAL",
+          ...(ip && { ipAddress: ip }),
+        } as Prisma.InputJsonValue,
+      },
+    });
+  } catch (auditErr) {
+    logger.warn({ auditErr, verificationId: id }, "DepositVerification: manual-approve audit log failed (non-fatal)");
+  }
+
+  logger.info(
+    { verificationId: id, adminId, previousStatus: v.verificationStatus },
+    "DepositVerification: MANUALLY APPROVED",
+  );
+
+  return {
+    verificationId:   v.id,
+    depositRequestId: depositRequest.id,
+    status:           "COMPLETED",
+    amount:           v.blockchainAmount.toFixed(8),
+  };
+}
+
 // ── Worker entry point ────────────────────────────────────────────────────────
 
 export async function processPendingVerifications(): Promise<TickStats> {
@@ -260,6 +397,13 @@ async function processOne(
       await repo.transition(v.id, "FAILED", {
         failureReason: "Crash recovery: blockchainAmount not stored on CONFIRMED record",
       });
+      void notificationService.create({
+        userId:  v.userId,
+        type:    "DEPOSIT_FAILED",
+        title:   "Deposit Verification Failed",
+        message: "Your deposit verification could not be completed due to a system error. Please contact support with your transaction hash.",
+        metadata: { verificationId: v.id, txHash: v.txHash, reason: "crash_recovery_no_amount" } as Prisma.InputJsonValue,
+      });
       logger.error({ verificationId: v.id }, "DepositVerification: CONFIRMED but no blockchainAmount — FAILED");
       return "failed";
     }
@@ -317,6 +461,20 @@ async function processOne(
       logger.warn({ auditErr, verificationId: v.id }, "DepositVerification: VERIFICATION_DELAYED audit log failed (non-fatal)");
     }
 
+    // Notify user that verification is taking longer than expected
+    void notificationService.create({
+      userId:  v.userId,
+      type:    "DEPOSIT_VERIFICATION_DELAYED",
+      title:   "Deposit Verification Delayed",
+      message: `Your transaction (${v.txHash.slice(0, 12)}…) is taking longer than expected to verify on the blockchain. We will continue checking automatically — no action is needed from you.`,
+      metadata: {
+        verificationId: v.id,
+        txHash:         v.txHash,
+        network:        v.network,
+        ageMinutes:     Math.round(ageMs / 60_000),
+      } as Prisma.InputJsonValue,
+    });
+
     logger.warn(
       { verificationId: v.id, txHash: v.txHash, ageMinutes: Math.round(ageMs / 60_000), attempts: newAttempts },
       "DepositVerification: VERIFICATION_DELAYED — entering slow-poll mode",
@@ -372,6 +530,13 @@ async function processOne(
       verificationAttempts: newAttempts,
       lastCheckedAt:        now,
     }, [...ACTIVE_VS]);
+    void notificationService.create({
+      userId:  v.userId,
+      type:    "DEPOSIT_FAILED",
+      title:   "Deposit Verification Failed",
+      message: "Your transaction failed on the blockchain and cannot be credited. Please send a new transaction.",
+      metadata: { verificationId: v.id, txHash: v.txHash, reason: "tx_reverted" } as Prisma.InputJsonValue,
+    });
     return "failed";
   }
 
@@ -381,6 +546,13 @@ async function processOne(
       verificationAttempts: newAttempts,
       lastCheckedAt:        now,
     }, [...ACTIVE_VS]);
+    void notificationService.create({
+      userId:  v.userId,
+      type:    "DEPOSIT_FAILED",
+      title:   "Deposit Verification Failed",
+      message: `Your transaction was detected on an unsupported network. Only USDT on BEP20 (BSC) is accepted.`,
+      metadata: { verificationId: v.id, txHash: v.txHash, reason: "wrong_network" } as Prisma.InputJsonValue,
+    });
     return "failed";
   }
 
@@ -390,6 +562,13 @@ async function processOne(
       verificationAttempts: newAttempts,
       lastCheckedAt:        now,
     }, [...ACTIVE_VS]);
+    void notificationService.create({
+      userId:  v.userId,
+      type:    "DEPOSIT_FAILED",
+      title:   "Deposit Verification Failed",
+      message: "The funds were not sent to Prime Wave's deposit address. Please always send to the address shown on the deposit page.",
+      metadata: { verificationId: v.id, txHash: v.txHash, reason: "wrong_recipient" } as Prisma.InputJsonValue,
+    });
     return "failed";
   }
 
@@ -529,6 +708,22 @@ async function creditVerifiedDeposit(
     const completedAt = new Date();
     await repo.transition(v.id, "COMPLETED", { completedAt }, ["CREDITED"]);
 
+    // Notify user that deposit is complete (auto-verified path)
+    void notificationService.create({
+      userId:  v.userId,
+      type:    "DEPOSIT_APPROVED",
+      title:   "Deposit Credited",
+      message: `Your deposit of $${amount.toFixed(2)} USDT has been blockchain-verified and credited to your Deposit Wallet.`,
+      metadata: {
+        verificationId: v.id,
+        depositId:      depositRequest.id,
+        txHash:         v.txHash,
+        amount:         amount.toFixed(8),
+        network:        v.network,
+        approvalMode:   "AUTOMATIC",
+      } as Prisma.InputJsonValue,
+    });
+
     eventBus.emitDepositVerified({
       verificationId: v.id,
       depositId:      depositRequest.id,
@@ -551,5 +746,13 @@ async function creditVerifiedDeposit(
     await repo.transition(v.id, "FAILED", {
       failureReason: err instanceof Error ? err.message : "Credit pipeline failed (unknown error)",
     }).catch(() => { /* best effort */ });
+
+    void notificationService.create({
+      userId:  v.userId,
+      type:    "DEPOSIT_FAILED",
+      title:   "Deposit Processing Error",
+      message: "There was an error processing your deposit. Our team has been notified. Please contact support if this issue persists.",
+      metadata: { verificationId: v.id, txHash: v.txHash } as Prisma.InputJsonValue,
+    });
   }
 }

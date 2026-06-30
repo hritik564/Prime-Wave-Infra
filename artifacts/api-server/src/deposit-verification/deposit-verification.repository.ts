@@ -58,12 +58,44 @@ export async function findByIdForUser(id: string, userId: string) {
 }
 
 /**
+ * Returns all verifications for a user, newest first (paginated).
+ * Used as the "source of truth" deposit history — every submitted TX hash
+ * appears here immediately regardless of verification state.
+ */
+export async function findAllForUser(userId: string, params: { page: number; limit: number }) {
+  const { page, limit } = params;
+  const skip = (page - 1) * limit;
+
+  const [records, total] = await prisma.$transaction([
+    prisma.depositVerification.findMany({
+      where:   { userId },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take:    limit,
+      select:  fullSelect,
+    }),
+    prisma.depositVerification.count({ where: { userId } }),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+  return {
+    data: records,
+    meta: {
+      total, page, limit, totalPages,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1,
+    },
+  };
+}
+
+/**
  * Returns all verifications the worker should process on this tick.
  *
  * Statuses fetched:
  *   TX_SUBMITTED         — awaiting first blockchain check
  *   VERIFYING            — actively polling blockchain
  *   WAITING_CONFIRMATIONS — found, accumulating block confirmations
+ *   VERIFICATION_DELAYED — slow-polling; TX not found after threshold
  *   CONFIRMED            — M3: crash recovery — credit step did not complete
  *   CREDITED             — M3: crash recovery — COMPLETED write did not fire
  *

@@ -2355,9 +2355,50 @@ export function adminGetDepositVerification(id: string) {
   return request<AdminDepositVerificationItem>(`/api/admin/deposit-verifications/${id}`);
 }
 
+// ── User Deposit Verification History ────────────────────────────────────────
+
+export interface DepositVerificationHistoryItem {
+  id:                    string;
+  depositId:             string | null;
+  txHash:                string;
+  network:               string;
+  verificationStatus:    DepositVerificationStatus;
+  blockchainAmount:      string | null;
+  confirmations:         number;
+  requiredConfirmations: number;
+  senderAddress:         string | null;
+  recipientAddress:      string | null;
+  tokenContract:         string | null;
+  failureReason:         string | null;
+  verificationAttempts:  number;
+  firstSeenAt:           string | null;
+  lastCheckedAt:         string | null;
+  nextCheckAt:           string | null;
+  confirmedAt:           string | null;
+  creditedAt:            string | null;
+  completedAt:           string | null;
+  createdAt:             string;
+}
+
+export function getUserDepositVerificationHistory(params?: { page?: number; limit?: number }) {
+  const q = new URLSearchParams();
+  if (params?.page)  q.set("page",  String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  return request<{ data: DepositVerificationHistoryItem[]; meta: ListMeta }>(
+    `/api/deposit-verifications/history?${q}`,
+  );
+}
+
 export function adminRetryDepositVerification(id: string) {
   return request<{ id: string; verificationStatus: string; nextCheckAt: string; message: string }>(
     `/api/admin/deposit-verifications/${id}/retry`,
     { method: "POST" },
+  );
+}
+
+export function adminManualApproveVerification(id: string, data: { reason: string }) {
+  return request<{ verificationId: string; depositRequestId: string; status: string; amount: string; message: string }>(
+    `/api/admin/deposit-verifications/${id}/manual-approve`,
+    { method: "POST", body: JSON.stringify(data) },
   );
 }
