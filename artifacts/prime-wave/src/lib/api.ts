@@ -1455,6 +1455,30 @@ export function adminWalletAdjustment(
   );
 }
 
+export interface WalletCreditResult {
+  userId:     string;
+  username:   string;
+  walletType: "depositWallet" | "incomeWallet" | "withdrawalWallet";
+  amount:     string;
+  reason:     string;
+  creditedAt: string;
+}
+
+export function adminCreditUserWallet(
+  userId:     string,
+  walletType: "depositWallet" | "incomeWallet" | "withdrawalWallet",
+  amount:     number,
+  reason:     string,
+  notes?:     string,
+) {
+  const body: Record<string, unknown> = { userId, walletType, amount, reason };
+  if (notes?.trim()) body.notes = notes.trim();
+  return request<WalletCreditResult>("/api/admin/wallets/credit", {
+    method: "POST",
+    body:   JSON.stringify(body),
+  });
+}
+
 /* ── Admin — Deposit Center ───────────────────────────────────────── */
 
 export type AdminDepositStatus = "PENDING" | "CONFIRMING" | "APPROVED" | "REJECTED";

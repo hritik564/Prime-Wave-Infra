@@ -44,7 +44,24 @@ export const rejectDepositSchema = z.object({
   rejectedReason: z.string().trim().min(1, "Rejection reason is required").max(500),
 });
 
+// ── Admin Wallet Credit ───────────────────────────────────────────────────────
+// Used by POST /api/admin/wallets/credit (SUPER_ADMIN + FINANCE_ADMIN).
+// Supports crediting depositWallet, incomeWallet, or withdrawalWallet directly.
+export const walletCreditSchema = z.object({
+  userId:     z.string().min(1, "User ID is required"),
+  walletType: z.enum(["depositWallet", "incomeWallet", "withdrawalWallet"], {
+                required_error: "Wallet type is required",
+              }),
+  amount:     z.number({
+                required_error:    "Amount is required",
+                invalid_type_error: "Amount must be a number",
+              }).positive("Amount must be greater than zero"),
+  reason:     z.string().trim().min(1, "Reason is required").max(500, "Reason must be 500 characters or fewer"),
+  notes:      z.string().trim().max(1000, "Notes must be 1000 characters or fewer").optional(),
+});
+
 export type ManualAdminDepositInput = z.infer<typeof manualAdminDepositSchema>;
+export type WalletCreditInput       = z.infer<typeof walletCreditSchema>;
 export type DepositHistoryQuery     = z.infer<typeof depositHistoryQuerySchema>;
 export type AdminDepositListQuery   = z.infer<typeof adminDepositListQuerySchema>;
 export type RejectDepositInput      = z.infer<typeof rejectDepositSchema>;

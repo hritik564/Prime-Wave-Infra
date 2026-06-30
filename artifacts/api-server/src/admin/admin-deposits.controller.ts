@@ -8,11 +8,12 @@ import {
   rejectDeposit,
   markDepositConfirming,
   createManualAdminDeposit,
+  creditUserWallet,
 } from "./admin-deposits.service";
 import { sendSuccess, sendCreated } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
 import type { AuthenticatedRequest } from "../shared/types";
-import type { AdminDepositListQuery, RejectDepositInput, ManualAdminDepositInput } from "../deposits/deposits.schema";
+import type { AdminDepositListQuery, RejectDepositInput, ManualAdminDepositInput, WalletCreditInput } from "../deposits/deposits.schema";
 
 export async function getAdminDepositsHandler(
   req: Request, res: Response, next: NextFunction,
@@ -96,5 +97,17 @@ export async function createManualAdminDepositHandler(
     const ip       = typeof req.ip === "string" ? req.ip : undefined;
     const result   = await createManualAdminDeposit(user.sub, input, ip);
     sendCreated(res, result, "Manual deposit credited successfully");
+  } catch (err) { next(err); }
+}
+
+export async function creditUserWalletHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const input    = req.body as WalletCreditInput;
+    const ip       = typeof req.ip === "string" ? req.ip : undefined;
+    const result   = await creditUserWallet(user.sub, input, ip);
+    sendCreated(res, result, "Wallet credited successfully");
   } catch (err) { next(err); }
 }

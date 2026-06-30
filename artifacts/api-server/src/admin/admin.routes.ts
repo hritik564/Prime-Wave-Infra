@@ -22,6 +22,7 @@ import {
   rejectDepositHandler,
   markDepositConfirmingHandler,
   createManualAdminDepositHandler,
+  creditUserWalletHandler,
 } from "./admin-deposits.controller";
 import {
   getAdminWithdrawalsHandler,
@@ -123,6 +124,7 @@ import {
   adminDepositListQuerySchema,
   rejectDepositSchema,
   manualAdminDepositSchema,
+  walletCreditSchema,
 } from "../deposits/deposits.schema";
 import {
   adminWithdrawalListQuerySchema,
@@ -325,6 +327,15 @@ router.get(
   adminLimiter,
   superAdminGuard,
   userIncomeSummaryHandler,
+);
+
+// ── Manual Wallet Credit — SUPER_ADMIN + FINANCE_ADMIN ───────────────────────
+router.post(
+  "/wallets/credit",
+  adminLimiter,
+  financeAdminGuard,
+  validate(walletCreditSchema, "body"),
+  creditUserWalletHandler,
 );
 
 // ── Wallet Control Center — SUPER_ADMIN + FINANCE_ADMIN ──────────────────────

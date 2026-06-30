@@ -326,7 +326,7 @@ export async function rejectDeposit(
 //   • Reason and Notes are stored immutably in AdminLog.details JSON.
 
 import { randomUUID } from "crypto";
-import type { ManualAdminDepositInput } from "../deposits/deposits.schema";
+import type { ManualAdminDepositInput, WalletCreditInput } from "../deposits/deposits.schema";
 
 export async function createManualAdminDeposit(
   adminId: string,
@@ -442,5 +442,115 @@ export async function createManualAdminDeposit(
     reason,
     approvalMode: "MANUAL_ADMIN" as const,
     creditedAt:   now,
+  };
+}
+
+// ── Admin Wallet Credit ───────────────────────────────────────────────────────
+//
+// Credits any of the three user wallets (deposit / income / withdrawal).
+// For depositWallet: delegates to createManualAdminDeposit which creates a
+//   DepositRequest record for full audit and blockchain-style history.
+// For incomeWallet / withdrawalWallet: direct wallet increment + wallet
+//   transaction + audit log + user notification; no DepositRequest created.
+
+export async function creditUserWallet(
+  adminId: string,
+  input:   WalletCreditInput,
+  ip?:     string,
+) {
+  const { userId, walletType, amount, reason, notes } = input;
+
+  if (walletType === "depositWallet") {
+    const result = await createManualAdminDeposit(adminId, {
+      userId, amount, network: "BEP20", reason, notes,
+    }, ip);
+    return {
+      userId:      result.userId,
+      username:    result.username,
+      walletType:  "depositWallet" as const,
+      amount:      result.amount,
+      reason:      result.reason,
+      creditedAt:  result.creditedAt,
+    };
+  }
+
+  const user = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: { id: true, username: true },
+  });
+  if (!user) {
+    throw new AppError("Target user not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
+  }
+
+  const decimalAmount = new Prisma.Decimal(amount.toString());
+  const now           = new Date();
+  const walletLabel   = walletType === "incomeWallet" ? "Income" : "Withdrawal";
+
+  await prisma.$transaction(async (tx) => {
+    const walletData = walletType === "incomeWallet"
+      ? { incomeWallet:     { increment: decimalAmount } }
+      : { withdrawalWallet: { increment: decimalAmount } };
+
+    const wallet = await tx.wallet.update({
+      where:  { userId },
+      data:   walletData,
+      select: { id: true },
+    });
+
+    await tx.walletTransaction.create({
+      data: {
+        walletId:    wallet.id,
+        userId,
+        type:        "INCOME_TRANSFER",
+        status:      "SUCCESS",
+        amount:      decimalAmount,
+        description: `Admin Credit — ${walletLabel} Wallet`,
+        metadata:    {
+          approvalMode: "MANUAL_ADMIN",
+          walletType,
+          reason,
+          ...(notes !== undefined && { notes }),
+          adminId,
+        },
+      },
+    });
+
+    await tx.adminLog.create({
+      data: {
+        adminId,
+        action:       "MANUAL_WALLET_CREDIT",
+        targetUserId: userId,
+        details: {
+          walletType,
+          amount:     decimalAmount.toFixed(2),
+          reason,
+          ...(notes !== undefined && { notes }),
+          ...(ip    !== undefined && { ipAddress: ip }),
+          creditedAt: now.toISOString(),
+        },
+      },
+    });
+  }, { timeout: 30_000 });
+
+  void notificationService.create({
+    userId,
+    type:    "DEPOSIT_APPROVED",
+    title:   `${walletLabel} Wallet Credited`,
+    message: `An administrator has credited your ${walletLabel} Wallet with ${decimalAmount.toFixed(2)} USDT. Reason: ${reason}`,
+    metadata: {
+      approvalMode: "MANUAL_ADMIN",
+      walletType,
+      amount:  decimalAmount.toFixed(2),
+      reason,
+    },
+  });
+
+  return {
+    userId,
+    username:   user.username,
+    walletType,
+    amount:     decimalAmount.toFixed(2),
+    reason,
+    creditedAt: now,
   };
 }
