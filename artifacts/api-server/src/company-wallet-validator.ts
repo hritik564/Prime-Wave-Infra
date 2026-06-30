@@ -24,8 +24,16 @@ function isValidWalletFormat(address: string, network: CheckedNetwork): boolean 
 
 // ── Per-network result ────────────────────────────────────────────────────────
 
-interface WalletCheckResult {
+export interface WalletCheckResult {
   network:  CheckedNetwork;
+  /**
+   * "active"   — network has at least one wallet with a valid address format;
+   *              full validation was run; `passed` reflects the outcome.
+   * "inactive" — no wallets exist for this network, or every configured wallet
+   *              has a placeholder/invalid address; validation was skipped;
+   *              `passed` is always true and must not block startup.
+   */
+  kind:     "active" | "inactive";
   passed:   boolean;
   address?: string;
   issue?:   string;
@@ -34,14 +42,25 @@ interface WalletCheckResult {
 // ── Public validation function ────────────────────────────────────────────────
 
 /**
- * Validates every active company wallet in the database.
+ * Validates company wallets for every known network.
  *
- * For each network checks:
- *   ✓ exactly one active wallet exists
- *   ✓ address format is valid (not a placeholder)
+ * A network is considered ACTIVE if it has at least one `isActive = true`
+ * wallet with a real (non-placeholder) address.  Only ACTIVE networks are
+ * fully validated, and only ACTIVE failures set `passed = false` on the
+ * returned top-level flag.
  *
- * Returns a structured report. Does NOT throw — callers decide whether to
- * abort startup based on the `passed` flag.
+ * Inactive networks (no active wallets, or every active wallet is a
+ * placeholder) are silently skipped — they never block startup.
+ *
+ * Active network validation checks:
+ *   ✓ exactly one active wallet
+ *   ✓ wallet exists
+ *   ✓ address format is valid
+ *   ✓ not a placeholder address
+ *   ✓ no duplicate active wallets
+ *
+ * Does NOT throw — callers decide whether to abort startup based on the
+ * `passed` flag and each result's `kind`.
  */
 export async function validateCompanyWallets(): Promise<{
   passed:  boolean;
@@ -58,25 +77,45 @@ export async function validateCompanyWallets(): Promise<{
         select: { walletAddress: true },
       });
     } catch (err) {
-      results.push({ network, passed: false, issue: `DB query failed: ${err instanceof Error ? err.message : String(err)}` });
+      // DB failure counts as an active-network failure so startup can surface it.
+      results.push({
+        network,
+        kind:   "active",
+        passed: false,
+        issue:  `DB query failed: ${err instanceof Error ? err.message : String(err)}`,
+      });
       continue;
     }
 
-    if (wallets.length === 0) {
-      results.push({ network, passed: false, issue: "No active wallet configured" });
+    // ── Determine active vs inactive ──────────────────────────────────────────
+    // A network is INACTIVE when it has no active wallet rows, or every row
+    // holds a placeholder/invalid address.  Inactive networks are skipped.
+    const hasRealAddress = wallets.some((w) => isValidWalletFormat(w.walletAddress, network));
+
+    if (wallets.length === 0 || !hasRealAddress) {
+      results.push({ network, kind: "inactive", passed: true });
       continue;
     }
+
+    // ── Full validation for ACTIVE networks ───────────────────────────────────
 
     if (wallets.length > 1) {
-      results.push({ network, passed: false, issue: `Multiple active wallets configured (${wallets.length}) — only one is allowed` });
+      results.push({
+        network,
+        kind:   "active",
+        passed: false,
+        issue:  `Multiple active wallets configured (${wallets.length}) — only one is allowed`,
+      });
       continue;
     }
 
     const address = wallets[0].walletAddress;
 
     if (!isValidWalletFormat(address, network)) {
+      // Guarded above by hasRealAddress, but kept for completeness.
       results.push({
         network,
+        kind:    "active",
         passed:  false,
         address,
         issue:   "Address format is invalid or placeholder — real wallet address required",
@@ -84,9 +123,10 @@ export async function validateCompanyWallets(): Promise<{
       continue;
     }
 
-    results.push({ network, passed: true, address });
+    results.push({ network, kind: "active", passed: true, address });
   }
 
-  const passed = results.every((r) => r.passed);
+  // Top-level flag: only ACTIVE network failures count.
+  const passed = results.every((r) => r.kind === "inactive" || r.passed);
   return { passed, results };
 }

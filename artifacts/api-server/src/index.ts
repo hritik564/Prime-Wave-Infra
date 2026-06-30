@@ -135,7 +135,9 @@ const server = app.listen(port, () => {
   validateCompanyWallets()
     .then(({ results }) => {
       for (const r of results) {
-        if (r.passed) {
+        if (r.kind === "inactive") {
+          logger.info({ network: r.network }, "Startup: company wallet skipped (inactive)");
+        } else if (r.passed) {
           logger.info({ network: r.network, address: r.address }, "Startup: company wallet valid ✓");
         } else {
           logger.warn({ network: r.network, issue: r.issue, address: r.address }, "Startup: company wallet INVALID ✗");
@@ -143,10 +145,11 @@ const server = app.listen(port, () => {
       }
 
       const bep20 = results.find((r) => r.network === "BEP20");
+      const bep20ActiveFailed = bep20?.kind === "active" && !bep20.passed;
 
-      boot("7", `validateCompanyWallets() complete — BEP20 passed=${String(bep20?.passed)} issue=${bep20?.issue ?? "none"}`);
+      boot("7", `validateCompanyWallets() complete — BEP20 kind=${bep20?.kind ?? "none"} passed=${String(bep20?.passed)} issue=${bep20?.issue ?? "none"}`);
 
-      if (bep20?.passed) {
+      if (!bep20ActiveFailed) {
         logger.info("Startup: BEP20 wallet valid — deposit submissions enabled");
       } else {
         logger.error(
@@ -160,11 +163,11 @@ const server = app.listen(port, () => {
         }
       }
 
-      const invalid = results.filter((r) => !r.passed && r.network !== "BEP20");
-      if (invalid.length > 0) {
+      const activeFailed = results.filter((r) => r.kind === "active" && !r.passed && r.network !== "BEP20");
+      if (activeFailed.length > 0) {
         logger.warn(
-          { networks: invalid.map((r) => r.network) },
-          "Startup: inactive networks have placeholder wallets — configure real addresses before enabling those networks",
+          { networks: activeFailed.map((r) => r.network) },
+          "Startup: active networks failed wallet validation — configure valid addresses before enabling those networks",
         );
       }
     })
