@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { register as apiRegister } from "@/lib/api";
+import { register as apiRegister, resolveReferralCode } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import type { StoredUser } from "@/lib/auth";
 
@@ -36,9 +36,7 @@ const registerSchema = z
       .regex(/[0-9]/, "Must include a number"),
     confirmPassword: z.string().min(1, "Please confirm your password"),
     referralCode: z.string().min(1, "A referral code is required to join Prime Wave"),
-    leg: z.enum(["L", "R"], {
-      required_error: "Your referral link must include a placement side (Left or Right)",
-    }),
+    leg: z.enum(["L", "R"]).optional(),
     agreeToTerms: z
       .boolean()
       .refine((v) => v === true, {
@@ -48,6 +46,16 @@ const registerSchema = z
   .refine((d) => d.password === d.confirmPassword, {
     message: "Passwords do not match",
     path: ["confirmPassword"],
+  })
+  .superRefine((data, ctx) => {
+    if (!data.leg) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["referralCode"],
+        message:
+          "This referral code is incomplete. Please use the complete referral code or referral link provided by your sponsor.",
+      });
+    }
   });
 
 type RegisterData = z.infer<typeof registerSchema>;
@@ -153,6 +161,8 @@ export default function RegisterPage() {
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState(1);
   const [formError, setFormError] = useState<string>();
+  const [sponsorInfo, setSponsorInfo] = useState<{ username: string; firstName: string; lastName: string } | null>(null);
+  const [sponsorLoading, setSponsorLoading] = useState(false);
 
   // Parse URL params: ?ref=ABCD1234&leg=L
   const searchParams = new URLSearchParams(window.location.search);
@@ -181,14 +191,37 @@ export default function RegisterPage() {
   const referralCodeVal = watch("referralCode") ?? "";
   const legValue        = watch("leg");
 
-  // Auto-parse leg from code suffix as the user types (e.g. ABCD1234-L)
+  // Clean base code (no suffix) — used for sponsor lookup and API payload
+  const derivedBaseCode = useMemo(() => {
+    if (fromUrl) return urlRef.toUpperCase();
+    return parseCodeSuffix(referralCodeVal).baseCode;
+  }, [fromUrl, urlRef, referralCodeVal]);
+
+  // Auto-parse leg from code suffix as the user types; also clears leg when suffix is removed
   useEffect(() => {
     if (fromUrl) return;
     const { leg } = parseCodeSuffix(referralCodeVal);
     if (leg && leg !== legValue) {
       setValue("leg", leg, { shouldValidate: true });
+    } else if (!leg && legValue) {
+      setValue("leg", undefined, { shouldValidate: false });
     }
   }, [referralCodeVal, legValue, setValue, fromUrl]);
+
+  // Resolve sponsor name from backend when a valid code+leg is available
+  useEffect(() => {
+    if (!legValue || !derivedBaseCode) {
+      setSponsorInfo(null);
+      return;
+    }
+    let cancelled = false;
+    setSponsorLoading(true);
+    resolveReferralCode(derivedBaseCode)
+      .then((info) => { if (!cancelled) setSponsorInfo(info); })
+      .catch(() => { if (!cancelled) setSponsorInfo(null); })
+      .finally(() => { if (!cancelled) setSponsorLoading(false); });
+    return () => { cancelled = true; };
+  }, [derivedBaseCode, legValue]);
 
   const goNext = async () => {
     const fields = STEP_FIELDS[step];
@@ -216,7 +249,7 @@ export default function RegisterPage() {
         phone:        data.phone,
         password:     data.password,
         referralCode: baseCode || data.referralCode,
-        leg:          data.leg,
+        leg:          data.leg as "L" | "R",
       });
       const storedUser: StoredUser = { ...result.user, type: "user" };
       authLogin(result.token, storedUser);
@@ -445,44 +478,45 @@ export default function RegisterPage() {
                   )}
                 </div>
 
-                {/* Placement indicator — shown once leg is determined */}
-                {legLabel ? (
+                {/* Sponsor + Placement — shown once leg is resolved */}
+                {legValue && (
                   <div
-                    className="flex items-center gap-3 rounded-xl px-4 py-3.5"
+                    className="rounded-xl px-4 py-4 space-y-3"
                     style={{
                       background: "rgba(212,175,55,0.06)",
                       border: "1px solid rgba(212,175,55,0.18)",
                     }}
                   >
-                    <div
-                      className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0"
-                      style={{ background: "rgba(212,175,55,0.12)" }}
-                    >
-                      {legValue === "L" ? (
-                        <ChevronLeft className="h-5 w-5" style={{ color: "#D4AF37" }} />
-                      ) : (
-                        <ChevronRight className="h-5 w-5" style={{ color: "#D4AF37" }} />
-                      )}
+                    <div className="flex items-center gap-2.5">
+                      <Check className="h-4 w-4 shrink-0" style={{ color: "#D4AF37" }} />
+                      <span
+                        className="text-[10px] font-semibold uppercase tracking-widest shrink-0"
+                        style={{ color: "rgba(212,175,55,0.6)", minWidth: "4.5rem" }}
+                      >
+                        Sponsor
+                      </span>
+                      <span className="text-sm font-semibold text-foreground truncate">
+                        {sponsorLoading
+                          ? "—"
+                          : sponsorInfo
+                          ? `${sponsorInfo.firstName} ${sponsorInfo.lastName} (@${sponsorInfo.username})`
+                          : derivedBaseCode}
+                      </span>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">
-                        Joining <span style={{ color: "#F3D37A" }}>{legLabel} Team</span>
-                      </p>
-                      <p className="text-xs mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>
-                        Your placement is set by your referral link
-                      </p>
+                    <div className="flex items-center gap-2.5">
+                      <Check className="h-4 w-4 shrink-0" style={{ color: "#D4AF37" }} />
+                      <span
+                        className="text-[10px] font-semibold uppercase tracking-widest shrink-0"
+                        style={{ color: "rgba(212,175,55,0.6)", minWidth: "4.5rem" }}
+                      >
+                        Placement
+                      </span>
+                      <span className="text-sm font-semibold" style={{ color: "#F3D37A" }}>
+                        {legValue === "L" ? "Left Team" : "Right Team"}
+                      </span>
                     </div>
                   </div>
-                ) : (
-                  errors.leg && (
-                    <p className="text-xs" style={{ color: "#f87171" }}>
-                      {errors.leg.message}
-                    </p>
-                  )
                 )}
-
-                {/* Hidden leg field (set via URL params or code parsing) */}
-                <input type="hidden" {...register("leg")} />
 
                 {/* Terms */}
                 <div className="flex items-start gap-3 pt-1">

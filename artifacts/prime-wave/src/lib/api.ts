@@ -84,6 +84,12 @@ export function register(data: {
   });
 }
 
+export function resolveReferralCode(code: string) {
+  return request<{ username: string; firstName: string; lastName: string }>(
+    `/api/referrals/resolve?code=${encodeURIComponent(code)}`,
+  );
+}
+
 export function changePassword(currentPassword: string, newPassword: string) {
   return request<null>("/api/auth/change-password", {
     method: "POST",
