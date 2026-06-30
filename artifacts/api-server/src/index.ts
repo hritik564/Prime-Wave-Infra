@@ -122,25 +122,39 @@ app.listen(port, (err) => {
   // Logs a detailed result for every network. In production, exits if any wallet
   // is invalid so placeholder addresses never silently accept deposits.
   validateCompanyWallets()
-    .then(({ passed, results }) => {
+    .then(({ results }) => {
       for (const r of results) {
         if (r.passed) {
           logger.info({ network: r.network, address: r.address }, "Startup: company wallet valid ✓");
         } else {
-          logger.error({ network: r.network, issue: r.issue, address: r.address }, "Startup: company wallet INVALID ✗");
+          logger.warn({ network: r.network, issue: r.issue, address: r.address }, "Startup: company wallet INVALID ✗");
         }
       }
-      if (passed) {
-        logger.info("Startup: all company wallets valid — deposit submissions enabled");
+
+      // Only BEP20 is currently accepted by submitVerification (network: z.literal("BEP20")).
+      // Placeholder wallets for inactive networks (ERC20, TRC20, SOL) are harmless — warn only.
+      // In production, exit immediately if BEP20 is invalid: accepting deposits with a wrong
+      // address would cause real user funds to be sent to an uncontrolled address.
+      const bep20 = results.find((r) => r.network === "BEP20");
+      if (bep20?.passed) {
+        logger.info("Startup: BEP20 wallet valid — deposit submissions enabled");
       } else {
         logger.error(
-          { results },
-          "Startup: one or more company wallets are invalid/placeholder — deposit submissions will be rejected for affected networks",
+          { issue: bep20?.issue, address: bep20?.address },
+          "Startup: BEP20 wallet is INVALID — deposit submissions will be rejected with 503",
         );
         if (process.env["NODE_ENV"] === "production") {
-          logger.error("FATAL: Invalid company wallet configuration detected in production — exiting to prevent accepting deposits with wrong address");
+          logger.error("FATAL: BEP20 company wallet is invalid in production — exiting to prevent wrong-address deposits");
           process.exit(1);
         }
+      }
+
+      const invalid = results.filter((r) => !r.passed && r.network !== "BEP20");
+      if (invalid.length > 0) {
+        logger.warn(
+          { networks: invalid.map((r) => r.network) },
+          "Startup: inactive networks have placeholder wallets — configure real addresses before enabling those networks",
+        );
       }
     })
     .catch((err) => logger.error({ err }, "Startup: company wallet validation threw unexpected error"));
