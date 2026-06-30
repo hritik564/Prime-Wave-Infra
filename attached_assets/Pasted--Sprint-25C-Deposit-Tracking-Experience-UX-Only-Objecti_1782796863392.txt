@@ -1,0 +1,271 @@
+# Sprint 25C — Deposit Tracking Experience (UX Only)
+
+## Objective
+
+Sprint 25B completed the automatic deposit backend.
+
+Sprint 25C is a PURE USER EXPERIENCE sprint.
+
+Do NOT modify:
+
+* Deposit Verification Engine
+* Worker
+* Repository
+* State Machine
+* Wallet Engine
+* Investment Engine
+* Financial Engines
+* Database Schema
+* Business Logic
+
+This sprint must only improve the Deposit Wallet user experience.
+
+---
+
+# 1. Remove Any Need For User Amount Input
+
+The current design is correct.
+
+Users should NEVER enter the deposit amount.
+
+The blockchain is the source of truth.
+
+The only required input is:
+
+✓ Transaction Hash
+
+Everything else (amount, sender, recipient, confirmations, network, token) must always come directly from the blockchain.
+
+---
+
+# 2. Add Helper Text
+
+Under the transaction hash field add:
+
+"Only paste your BEP20 transaction hash. Prime Wave automatically reads the deposited amount directly from the blockchain."
+
+Small text.
+
+Subtle.
+
+Professional.
+
+---
+
+# 3. Replace Form After Submission
+
+Once the transaction hash is submitted successfully:
+
+Hide the input form.
+
+Replace it with a live Deposit Tracking card.
+
+Do not require the user to refresh the page.
+
+Automatically poll the existing API every 5 seconds until the verification reaches a terminal state.
+
+Reuse the existing backend.
+
+No new endpoints unless absolutely necessary.
+
+---
+
+# 4. Deposit Tracking Timeline
+
+Display a vertical progress tracker similar to modern parcel tracking.
+
+Example:
+
+✓ Transaction Submitted
+
+✓ Transaction Found
+
+✓ USDT Token Verified
+
+✓ Recipient Wallet Verified
+
+⏳ Waiting for Blockchain Confirmations
+
+Current:
+6 / 12 Confirmations
+
+↓
+
+Estimated time remaining:
+~30 seconds (if estimate available)
+
+↓
+
+✓ Deposit Approved
+
+↓
+
+✓ Deposit Wallet Credited
+
+Each completed step:
+
+Green.
+
+Current step:
+
+Animated.
+
+Pending steps:
+
+Muted.
+
+---
+
+# 5. Transaction Summary Card
+
+Alongside the timeline show:
+
+Transaction Hash
+(click to copy)
+
+Network
+BEP20 (BSC)
+
+Sender Address
+
+Recipient Address
+
+Detected Amount
+
+Current Confirmations
+
+Required Confirmations
+
+Current Status
+
+Last Updated
+
+All values must come from the existing Deposit Verification API.
+
+Never trust frontend values.
+
+---
+
+# 6. Completion State
+
+When verification reaches COMPLETED:
+
+Replace the waiting indicator with:
+
+✅ Deposit Successfully Credited
+
+100.00 USDT has been added to your Deposit Wallet.
+
+Show:
+
+"View Deposit Wallet"
+
+button.
+
+Do not automatically redirect.
+
+Allow the user to remain on the page.
+
+---
+
+# 7. Failure State
+
+If verification fails:
+
+Show the exact reason.
+
+Examples:
+
+Wrong Network
+
+Wrong Token
+
+Transaction Failed
+
+Recipient Wallet Incorrect
+
+Confirmation Timeout
+
+Transaction Not Found
+
+Duplicate Transaction
+
+Do not expose internal error codes.
+
+Display clear human-readable explanations.
+
+---
+
+# 8. Duplicate Submission
+
+If the user pastes the same transaction hash again:
+
+Show:
+
+"This transaction has already been submitted for verification."
+
+If already completed:
+
+"This deposit has already been credited to your account."
+
+No technical messages.
+
+---
+
+# 9. Mobile Experience
+
+Timeline must be fully responsive.
+
+Cards stack vertically.
+
+No horizontal scrolling.
+
+---
+
+# 10. Regression Requirements
+
+Confirm that NO backend business logic changed.
+
+Specifically verify:
+
+✓ Deposit Verification Engine
+
+✓ Wallet Engine
+
+✓ Investment Engine
+
+✓ Salary Engine
+
+✓ Binary Engine
+
+✓ ROI Engine
+
+✓ Orbit Engine
+
+✓ Level Income Engine
+
+Only frontend experience should change.
+
+---
+
+# Deliverables
+
+Provide:
+
+1. Screenshots
+
+* Initial screen
+* Verification in progress
+* Waiting confirmations
+* Completed state
+* Failed state
+
+2. Files modified
+
+3. Components created
+
+4. APIs reused
+
+5. Confirmation that no backend business logic was modified.
+
+This sprint is purely a user experience improvement that makes automatic blockchain deposits transparent and easy to understand without changing any financial behaviour.

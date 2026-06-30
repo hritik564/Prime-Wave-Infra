@@ -1981,11 +1981,13 @@ export interface DepositVerificationStatusResult {
   requiredConfirmations: number;
   blockchainAmount:      string | null;
   senderAddress:         string | null;
+  recipientAddress:      string | null;
   failureReason:         string | null;
   firstSeenAt:           string | null;
   confirmedAt:           string | null;
   creditedAt:            string | null;
   completedAt:           string | null;
+  lastCheckedAt:         string | null;
   createdAt:             string;
   isTerminal:            boolean;
   isActive:              boolean;
