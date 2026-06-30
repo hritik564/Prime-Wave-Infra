@@ -2435,18 +2435,19 @@ export interface CompanyWallet {
   id: string;
   network: string;
   walletAddress: string;
-  label: string | null;
-  updatedAt: string;
-  updatedBy: string | null;
+  isActive: boolean;
+  createdAt: string;
 }
 
-export function adminGetCompanyWallets() {
-  return request<CompanyWallet[]>("/api/admin/company-wallets");
+export async function adminGetCompanyWallets(): Promise<CompanyWallet[]> {
+  const res = await request<{ wallets: CompanyWallet[] }>("/api/admin/company-wallets");
+  return res.wallets;
 }
 
-export function adminUpdateCompanyWallet(id: string, data: { walletAddress: string }) {
-  return request<CompanyWallet>(`/api/admin/company-wallets/${id}`, {
+export async function adminUpdateCompanyWallet(id: string, data: { walletAddress: string }): Promise<CompanyWallet> {
+  const res = await request<{ wallet: CompanyWallet }>(`/api/admin/company-wallets/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),
   });
+  return res.wallet;
 }

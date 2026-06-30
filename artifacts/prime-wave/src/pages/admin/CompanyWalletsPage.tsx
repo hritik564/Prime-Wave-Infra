@@ -194,9 +194,6 @@ export default function CompanyWalletsPage() {
                     }}>
                       {meta.label}
                     </span>
-                    {w.label && (
-                      <span style={{ fontSize: 12, color: MUTED }}>{w.label}</span>
-                    )}
                     {!isEditing && (
                       <button
                         onClick={() => startEdit(w)}
@@ -279,12 +276,9 @@ export default function CompanyWalletsPage() {
                           {badAddr ? w.walletAddress : truncate(w.walletAddress, 18, 16)}
                         </span>
                       </div>
-                      {w.updatedAt && (
-                        <p style={{ fontSize: 11, color: MUTED, marginTop: 8 }}>
-                          Last updated {new Date(w.updatedAt).toLocaleString()}
-                          {w.updatedBy ? ` by ${w.updatedBy}` : ""}
-                        </p>
-                      )}
+                      <p style={{ fontSize: 11, color: MUTED, marginTop: 8 }}>
+                        Added {new Date(w.createdAt).toLocaleString()}
+                      </p>
                     </div>
                   )}
                 </div>
