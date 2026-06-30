@@ -9,8 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import DepositModal from "@/components/deposits/DepositModal";
 import {
-  ArrowDownToLine, ArrowUpFromLine, GitFork, Bell, Wallet,
-  PiggyBank, Banknote, TrendingUp, GitBranch, Globe, Layers3,
+  ArrowUpFromLine, Wallet,
+  PiggyBank, TrendingUp,
   Clock, CheckCircle, DollarSign,
 } from "lucide-react";
 import { Link } from "wouter";
@@ -72,13 +72,6 @@ const TX_TYPE_POSITIVE: Record<string, boolean> = {
   INCOME_TRANSFER: false, INVESTMENT: false, WITHDRAWAL: false,
 };
 
-const quickActions = [
-  { label: "New Deposit",    icon: ArrowDownToLine, primary: true,  href: "/wallets/deposit"    },
-  { label: "Withdraw Funds", icon: ArrowUpFromLine, primary: false, href: "/wallets/withdrawal" },
-  { label: "My Network",     icon: GitFork,         primary: false, href: "/team"               },
-  { label: "Notifications",  icon: Bell,            primary: false, href: "/notifications"      },
-];
-
 export default function DashboardPage() {
   const greeting = getGreeting();
   const { user } = useAuth();
@@ -91,6 +84,8 @@ export default function DashboardPage() {
   const [salaryQual, setSalaryQual] = useState<SalaryQualificationSummary | null>(null);
   const [salarySummary, setSalarySummary] = useState<SalarySummaryData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [portfolioTxs, setPortfolioTxs] = useState<Transaction[]>([]);
+  const [earningsTxs, setEarningsTxs]   = useState<Transaction[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -117,6 +112,24 @@ export default function DashboardPage() {
       }
     }
     void load();
+  }, []);
+
+  // ── Chart data (loaded after initial paint) ──────────────────────────────────
+  useEffect(() => {
+    async function loadCharts() {
+      try {
+        const INCOME_TYPES = ["ROI_CLAIM", "BINARY_MATCH", "BINARY_ORBIT", "LEVEL_INCOME", "SALARY"];
+        const [portResult, earnResult] = await Promise.all([
+          getWalletHistory({ types: ["INVESTMENT"], limit: 100 }),
+          getWalletHistory({ types: INCOME_TYPES,  limit: 100 }),
+        ]);
+        setPortfolioTxs(portResult.data);
+        setEarningsTxs(earnResult.data);
+      } catch {
+        // charts stay empty — not critical
+      }
+    }
+    void loadCharts();
   }, []);
 
   const showToast = useCallback((message: string) => {
@@ -188,13 +201,6 @@ export default function DashboardPage() {
     { label: "Income Wallet",     value: fmt(incomeWallet),     subtext: "Available to transfer",                                      icon: Wallet,         color: "#60a5fa", bg: "rgba(96,165,250,0.1)" },
     { label: "Withdrawal Wallet", value: fmt(withdrawalWallet), subtext: "Pending processing",                                         icon: ArrowUpFromLine, color: "#c084fc", bg: "rgba(192,132,252,0.1)" },
     { label: "Today's ROI",       value: `+${fmt(dailyEarnings)}`, subtext: "Daily earnings",                                          icon: TrendingUp,     color: "#34d399", bg: "rgba(52,211,153,0.1)" },
-  ];
-
-  const earnings = [
-    { label: "Binary Income", value: "$0.00", subtext: "Coming soon", icon: GitBranch, color: "#60a5fa", bg: "rgba(96,165,250,0.08)" },
-    { label: "Orbit Income",  value: "$0.00", subtext: "Coming soon", icon: Globe,     color: "#c084fc", bg: "rgba(192,132,252,0.08)" },
-    { label: "Level Income",  value: "$0.00", subtext: "Coming soon", icon: Layers3,   color: "#22d3ee", bg: "rgba(34,211,238,0.08)" },
-    { label: "Salary Income", value: "$0.00", subtext: "Coming soon", icon: Banknote,  color: "#D4AF37", bg: "rgba(212,175,55,0.08)"  },
   ];
 
   return (
@@ -310,70 +316,11 @@ export default function DashboardPage() {
               </div>
             </Section>
 
-            {/* ── Quick Actions ── */}
-            <Section title="Quick Actions">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {quickActions.map((action) => {
-                  const Icon = action.icon;
-                  const sharedClass = "flex items-center justify-center gap-2.5 rounded-xl font-semibold text-sm transition-all duration-200 active:scale-[0.97] min-h-[52px]";
-                  const primaryStyle = { background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)", color: "#0E1B37", border: "none", boxShadow: "0 4px 16px rgba(212,175,55,0.3)" };
-                  const secondaryStyle = { background: "hsl(var(--card))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" };
-                  if (action.label === "New Deposit") {
-                    return (
-                      <button
-                        key={action.label}
-                        onClick={() => setDepositOpen(true)}
-                        className={sharedClass}
-                        style={primaryStyle}
-                      >
-                        <Icon className="h-4 w-4 shrink-0" />
-                        <span>{action.label}</span>
-                      </button>
-                    );
-                  }
-                  return (
-                    <Link
-                      key={action.label}
-                      href={action.href}
-                      className={sharedClass}
-                      style={secondaryStyle}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span>{action.label}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </Section>
-
-            {/* ── Earnings Overview ── */}
-            <Section title="Earnings Overview" description="Passive income across all channels">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-                {earnings.map((e) => {
-                  const Icon = e.icon;
-                  return (
-                    <div
-                      key={e.label}
-                      className="rounded-xl p-4 lg:p-5"
-                      style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 4px 20px rgba(0,0,0,0.25)" }}
-                    >
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl mb-3" style={{ background: e.bg }}>
-                        <Icon className="h-4 w-4" style={{ color: e.color }} />
-                      </div>
-                      <p className="text-lg lg:text-xl font-bold font-heading text-foreground">{e.value}</p>
-                      <p className="text-xs mt-0.5 font-medium truncate" style={{ color: "hsl(var(--muted-foreground))" }}>{e.label}</p>
-                      <p className="text-[10px] mt-0.5" style={{ color: "rgba(170,179,197,0.45)" }}>{e.subtext}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </Section>
-
             {/* ── Charts ── */}
             <Section title="Performance Charts" description="Portfolio & earnings analytics">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <PortfolioGrowthChart />
-                <EarningsTrendChart />
+                <PortfolioGrowthChart transactions={portfolioTxs} />
+                <EarningsTrendChart transactions={earningsTxs} />
               </div>
             </Section>
 
