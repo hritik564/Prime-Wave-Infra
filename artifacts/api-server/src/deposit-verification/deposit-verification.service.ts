@@ -473,11 +473,33 @@ export async function requestRevalidation(
     );
   }
 
-  const now     = new Date();
+  const now = new Date();
+
+  // Refresh recipientAddress to the current active company wallet for this
+  // network. The stored snapshot may be a placeholder (set when the wallet was
+  // not yet configured). The comparison in processOne2 uses v.recipientAddress,
+  // so if it still holds the old placeholder, every re-validate cycle will fail
+  // "Wrong recipient" regardless of the on-chain result.
+  // Fall back to the existing stored address if no wallet is configured yet.
+  let refreshedRecipient: string | undefined;
+  try {
+    refreshedRecipient = await getCompanyWalletAddress(v.network);
+    if (refreshedRecipient !== v.recipientAddress) {
+      logger.info(
+        { verificationId: v.id, network: v.network, old: v.recipientAddress, new: refreshedRecipient },
+        "DepositVerification: re-validate refreshing recipientAddress to current company wallet",
+      );
+    }
+  } catch {
+    // No active wallet configured — keep the existing address; cron will fail with a clear message.
+    logger.warn({ verificationId: v.id, network: v.network }, "DepositVerification: re-validate could not fetch current company wallet — keeping existing recipientAddress");
+  }
+
   const updated = await repo.transition(v.id, "VERIFYING", {
     nextCheckAt:          now,
     firstSeenAt:          now,
     verificationAttempts: 0,
+    ...(refreshedRecipient !== undefined && { recipientAddress: refreshedRecipient }),
   }, [...REVALIDATABLE]);
 
   if (!updated) {
