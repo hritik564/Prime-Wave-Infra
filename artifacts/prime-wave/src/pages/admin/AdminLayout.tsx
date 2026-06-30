@@ -48,9 +48,9 @@ const NAV_GROUPS = [
     label: "PLATFORM",
     items: [
       { icon: BarChart2,     label: "Reports",   path: "/admin/reports"  },
-      { icon: FileText,      label: "CMS",       path: "/admin/cms"      },
-      { icon: Headphones,    label: "Support",   path: "/admin/support"  },
-      { icon: Settings,      label: "Settings",  path: "/admin/settings" },
+      // { icon: FileText,      label: "CMS",       path: "/admin/cms"      },
+      // { icon: Headphones,    label: "Support",   path: "/admin/support"  },
+      // { icon: Settings,      label: "Settings",  path: "/admin/settings" },
     ],
   },
   {
