@@ -2261,8 +2261,9 @@ export function adminUpdateSalaryRank(
 // ── Deposit Verification ──────────────────────────────────────────────────────
 
 export type DepositVerificationStatus =
-  | "CREATED" | "TX_SUBMITTED" | "VERIFYING" | "WAITING_CONFIRMATIONS"
-  | "CONFIRMED" | "CREDITED" | "COMPLETED" | "FAILED" | "REJECTED" | "EXPIRED";
+  | "CREATED" | "TX_SUBMITTED" | "VERIFYING" | "VERIFICATION_DELAYED"
+  | "WAITING_CONFIRMATIONS" | "CONFIRMED" | "CREDITED" | "COMPLETED"
+  | "FAILED" | "REJECTED" | "EXPIRED";
 
 export interface DepositVerificationSubmitResult {
   verificationId: string;
@@ -2284,11 +2285,13 @@ export interface DepositVerificationStatusResult {
   senderAddress:         string | null;
   recipientAddress:      string | null;
   failureReason:         string | null;
+  verificationAttempts:  number;
   firstSeenAt:           string | null;
+  lastCheckedAt:         string | null;
+  nextCheckAt:           string | null;
   confirmedAt:           string | null;
   creditedAt:            string | null;
   completedAt:           string | null;
-  lastCheckedAt:         string | null;
   createdAt:             string;
   isTerminal:            boolean;
   isActive:              boolean;
@@ -2318,6 +2321,8 @@ export interface AdminDepositVerificationItem {
   verificationAttempts:  number;
   failureReason:         string | null;
   senderAddress:         string | null;
+  lastCheckedAt:         string | null;
+  nextCheckAt:           string | null;
   confirmedAt:           string | null;
   creditedAt:            string | null;
   createdAt:             string;
@@ -2348,4 +2353,11 @@ export function adminListDepositVerifications(params?: {
 
 export function adminGetDepositVerification(id: string) {
   return request<AdminDepositVerificationItem>(`/api/admin/deposit-verifications/${id}`);
+}
+
+export function adminRetryDepositVerification(id: string) {
+  return request<{ id: string; verificationStatus: string; nextCheckAt: string; message: string }>(
+    `/api/admin/deposit-verifications/${id}/retry`,
+    { method: "POST" },
+  );
 }

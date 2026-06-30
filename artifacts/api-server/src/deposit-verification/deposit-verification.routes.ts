@@ -6,6 +6,7 @@ import {
   verificationStatusSchema,
   adminListVerificationsSchema,
   adminGetVerificationSchema,
+  adminRetryVerificationSchema,
 } from "./deposit-verification.schema";
 import {
   submitVerification,
@@ -13,6 +14,7 @@ import {
   adminListVerifications,
   adminGetVerification,
   adminGetMetrics,
+  adminRetryVerification,
 } from "./deposit-verification.controller";
 
 // ── User routes (/api/deposit-verifications) ──────────────────────────────────
@@ -49,6 +51,13 @@ adminRouter.get(
   "/metrics",
   requireAdminAuth,
   adminGetMetrics,
+);
+
+adminRouter.post(
+  "/:id/retry",
+  requireAdminAuth,
+  validate(adminRetryVerificationSchema, "params"),
+  adminRetryVerification,
 );
 
 adminRouter.get(

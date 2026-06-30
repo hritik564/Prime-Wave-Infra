@@ -16,23 +16,29 @@ import type { TickStats } from "./deposit-verification.metrics";
  * Result code returned by processOne() for metrics collection.
  *   completed — deposit fully credited and marked COMPLETED
  *   failed    — terminal failure (bad TX, credit error, etc.)
- *   expired   — timed out before sufficient confirmations
+ *   expired   — timed out before sufficient confirmations (legacy EXPIRED records only)
  *   skipped   — optimistic lock lost; another worker already transitioned this row
- *   active    — TX not yet confirmed; will be re-checked next tick
+ *   active    — TX not yet confirmed (or delayed); will be re-checked next tick
  */
 export type ProcessResult = "completed" | "failed" | "expired" | "skipped" | "active";
 
 // ── Active status set used as fromStatuses in all optimistic-lock transitions ─
-// Only rows in one of these statuses should be mutated by the normal worker flow.
+// VERIFICATION_DELAYED is active — worker continues slow-polling these records.
 
-const ACTIVE_VS = ["TX_SUBMITTED", "VERIFYING", "WAITING_CONFIRMATIONS"] as const;
+const ACTIVE_VS = [
+  "TX_SUBMITTED",
+  "VERIFYING",
+  "WAITING_CONFIRMATIONS",
+  "VERIFICATION_DELAYED",
+] as const;
 
 // ── Worker settings ───────────────────────────────────────────────────────────
 
 interface WorkerSettings {
-  pollMs:           number;
-  concurrencyLimit: number;
-  timeoutMs:        number;
+  pollMs:            number;  // normal poll interval (VERIFYING / WAITING_CONFIRMATIONS)
+  concurrencyLimit:  number;
+  delayThresholdMs:  number;  // age at which VERIFYING → VERIFICATION_DELAYED
+  delayedPollMs:     number;  // poll interval while VERIFICATION_DELAYED (slow-poll)
 }
 
 async function getWorkerSettings(): Promise<WorkerSettings> {
@@ -43,7 +49,8 @@ async function getWorkerSettings(): Promise<WorkerSettings> {
           in: [
             "deposit_verification.poll_interval_ms",
             "deposit_verification.concurrency_limit",
-            "deposit_verification.timeout_ms",
+            "deposit_verification.delay_threshold_ms",
+            "deposit_verification.delayed_poll_interval_ms",
           ],
         },
       },
@@ -51,12 +58,13 @@ async function getWorkerSettings(): Promise<WorkerSettings> {
     });
     const m = new Map(rows.map((r) => [r.key, Number(r.value)]));
     return {
-      pollMs:           Math.max(1_000,  isFinite(m.get("deposit_verification.poll_interval_ms")  ?? NaN) ? m.get("deposit_verification.poll_interval_ms")!  : 20_000),
+      pollMs:           Math.max(1_000,  isFinite(m.get("deposit_verification.poll_interval_ms")         ?? NaN) ? m.get("deposit_verification.poll_interval_ms")!         : 20_000),
       concurrencyLimit: Math.max(1, Math.min(50, isFinite(m.get("deposit_verification.concurrency_limit") ?? NaN) ? m.get("deposit_verification.concurrency_limit")! : 10)),
-      timeoutMs:        Math.max(60_000, isFinite(m.get("deposit_verification.timeout_ms")         ?? NaN) ? m.get("deposit_verification.timeout_ms")!         : 1_800_000),
+      delayThresholdMs: Math.max(60_000, isFinite(m.get("deposit_verification.delay_threshold_ms")        ?? NaN) ? m.get("deposit_verification.delay_threshold_ms")!        : 1_800_000),
+      delayedPollMs:    Math.max(60_000, isFinite(m.get("deposit_verification.delayed_poll_interval_ms")  ?? NaN) ? m.get("deposit_verification.delayed_poll_interval_ms")!  : 300_000),
     };
   } catch {
-    return { pollMs: 20_000, concurrencyLimit: 10, timeoutMs: 1_800_000 };
+    return { pollMs: 20_000, concurrencyLimit: 10, delayThresholdMs: 1_800_000, delayedPollMs: 300_000 };
   }
 }
 
@@ -64,6 +72,14 @@ async function getWorkerSettings(): Promise<WorkerSettings> {
 
 function isTerminal(status: string): boolean {
   return ["COMPLETED", "FAILED", "REJECTED", "EXPIRED"].includes(status);
+}
+
+/**
+ * Returns the poll interval to use for nextCheckAt based on the current status.
+ * VERIFICATION_DELAYED records use the slow-poll interval; all others use normal.
+ */
+function activePollMs(status: string, pollMs: number, delayedPollMs: number): number {
+  return status === "VERIFICATION_DELAYED" ? delayedPollMs : pollMs;
 }
 
 /**
@@ -102,11 +118,6 @@ function nextCheckAt(pollMs: number): Date {
 
 // ── Concurrency control ───────────────────────────────────────────────────────
 
-/**
- * Run `fn` over `items` with at most `limit` concurrent executions.
- * Similar to Promise.allSettled but with a configurable concurrency cap.
- * Errors inside `fn` must be caught by the caller — this function does not swallow them.
- */
 async function runWithConcurrency(
   items:  VerificationRow[],
   limit:  number,
@@ -122,7 +133,6 @@ async function runWithConcurrency(
     }
   };
 
-  // Spawn `limit` concurrent "slots" that each consume from the shared queue
   await Promise.allSettled(
     Array.from({ length: Math.min(limit, items.length) }, slot),
   );
@@ -132,21 +142,11 @@ async function runWithConcurrency(
 
 // ── Submit ────────────────────────────────────────────────────────────────────
 
-/**
- * Creates a DepositVerification for a submitted transaction hash.
- *
- * txHash is normalized (trimmed + lowercased) by the Zod body schema
- * before this function is called.
- *
- * The worker picks it up immediately (nextCheckAt = now).
- */
 export async function submitVerification(
   userId:  string,
   txHash:  string,
   network: string,
 ) {
-  // Duplicate guard — DB @unique on txHash is the backstop, but we prefer
-  // a clear 409 message over a generic P2002 unique-violation error.
   const existing = await repo.findByTxHash(txHash);
   if (existing) {
     throw new AppError(
@@ -158,7 +158,6 @@ export async function submitVerification(
 
   const recipientAddress = await getCompanyWalletAddress(network);
 
-  // requiredConfirmations comes from the adapter — never from mock statics.
   const adapter               = getAdapter(network as DepositNetwork);
   const requiredConfirmations = adapter.requiredConfirmations;
 
@@ -191,11 +190,6 @@ export async function getVerificationStatus(id: string, userId: string) {
 
 // ── Worker entry point ────────────────────────────────────────────────────────
 
-/**
- * Processes all pending verifications due for a check.
- * Called by the worker on each polling interval.
- * Returns per-tick statistics for metrics collection.
- */
 export async function processPendingVerifications(): Promise<TickStats> {
   const startMs  = Date.now();
   const now      = new Date();
@@ -211,7 +205,7 @@ export async function processPendingVerifications(): Promise<TickStats> {
     pending,
     settings.concurrencyLimit,
     (v) =>
-      processOne(v, settings.pollMs, settings.timeoutMs).catch((err) => {
+      processOne(v, settings.pollMs, settings.delayThresholdMs, settings.delayedPollMs).catch((err) => {
         logger.error({ err, verificationId: v.id }, "DepositVerification: unhandled error in processOne");
         return "failed" as ProcessResult;
       }),
@@ -241,17 +235,16 @@ export async function processPendingVerifications(): Promise<TickStats> {
 // ── Core verification logic ───────────────────────────────────────────────────
 
 async function processOne(
-  v:         VerificationRow,
-  pollMs:    number,
-  timeoutMs: number,
+  v:                VerificationRow,
+  pollMs:           number,
+  delayThresholdMs: number,
+  delayedPollMs:    number,
 ): Promise<ProcessResult> {
   if (isTerminal(v.verificationStatus)) return "skipped";
 
-  const now     = new Date();
+  const now = new Date();
 
   // ── M3: Crash recovery — CREDITED stuck before COMPLETED ─────────────────
-  // Window: server crashed after CREDITED was written but before COMPLETED.
-  // Recovery: just write COMPLETED (optimistically locked).
 
   if (v.verificationStatus === "CREDITED") {
     const completedAt = new Date();
@@ -261,9 +254,6 @@ async function processOne(
   }
 
   // ── M3: Crash recovery — CONFIRMED stuck before credit completed ──────────
-  // Window: server crashed after CONFIRMED was written but before creditVerifiedDeposit
-  // returned. The stored blockchainAmount / confirmations / confirmedAt are used
-  // to resume — no adapter call needed.
 
   if (v.verificationStatus === "CONFIRMED") {
     if (!v.blockchainAmount) {
@@ -279,7 +269,6 @@ async function processOne(
   }
 
   // ── H1: Optimistic lock on first pickup (TX_SUBMITTED → VERIFYING) ────────
-  // If another worker already transitioned this row, bail out immediately.
 
   if (v.verificationStatus === "TX_SUBMITTED") {
     const moved = await repo.transition(v.id, "VERIFYING", {
@@ -287,28 +276,59 @@ async function processOne(
       verificationAttempts: 0,
       nextCheckAt:          now,
     }, ["TX_SUBMITTED"]);
-    if (!moved) return "skipped"; // Another worker won
+    if (!moved) return "skipped";
   }
 
   const newAttempts = v.verificationAttempts + 1;
+  const ageMs       = Date.now() - v.createdAt.getTime();
 
-  // ── Time-based expiry (configurable, default 30 min) ─────────────────────
+  // ── Delay threshold: VERIFYING → VERIFICATION_DELAYED ────────────────────
+  //
+  // Triggered only when still VERIFYING (TX not found within delayThresholdMs).
+  // WAITING_CONFIRMATIONS and VERIFICATION_DELAYED records skip this block.
+  // The verification remains active — no funds are ever automatically expired.
 
-  const ageMs = Date.now() - v.createdAt.getTime();
-  if (ageMs > timeoutMs) {
-    await repo.transition(v.id, "EXPIRED", {
-      failureReason:        `Verification timed out after ${Math.round(ageMs / 60_000)} minute(s) without sufficient confirmations`,
+  if (v.verificationStatus === "VERIFYING" && ageMs > delayThresholdMs) {
+    await repo.transition(v.id, "VERIFICATION_DELAYED", {
       verificationAttempts: newAttempts,
       lastCheckedAt:        now,
+      nextCheckAt:          nextCheckAt(delayedPollMs),
     }, [...ACTIVE_VS]);
+
+    // Audit log — best-effort; do not fail the state transition if this throws
+    try {
+      const superAdminId = await getSuperAdminId();
+      await prisma.adminLog.create({
+        data: {
+          adminId:      superAdminId,
+          action:       "DEPOSIT_VERIFICATION_DELAYED",
+          targetUserId: v.userId,
+          details: {
+            verificationId: v.id,
+            txHash:         v.txHash,
+            network:        v.network,
+            ageMinutes:     Math.round(ageMs / 60_000),
+            attempts:       newAttempts,
+            reason:         `No transaction found on-chain after ${Math.round(ageMs / 60_000)} minute(s); entering slow-poll mode`,
+          } as Prisma.InputJsonValue,
+        },
+      });
+    } catch (auditErr) {
+      logger.warn({ auditErr, verificationId: v.id }, "DepositVerification: VERIFICATION_DELAYED audit log failed (non-fatal)");
+    }
+
     logger.warn(
-      { verificationId: v.id, txHash: v.txHash, ageMinutes: Math.round(ageMs / 60_000) },
-      "DepositVerification: EXPIRED",
+      { verificationId: v.id, txHash: v.txHash, ageMinutes: Math.round(ageMs / 60_000), attempts: newAttempts },
+      "DepositVerification: VERIFICATION_DELAYED — entering slow-poll mode",
     );
-    return "expired";
+    return "active";
   }
 
   // ── Call blockchain adapter ───────────────────────────────────────────────
+  //
+  // VERIFICATION_DELAYED records continue polling at delayedPollMs rate.
+  // If the TX is eventually found, verification proceeds normally through
+  // WAITING_CONFIRMATIONS → CONFIRMED → CREDITED → COMPLETED.
 
   const adapter = getAdapter(v.network);
   let adapterResult;
@@ -316,21 +336,28 @@ async function processOne(
   try {
     adapterResult = await adapter.verifyTransaction(v.txHash, v.recipientAddress ?? undefined);
   } catch (err) {
-    await repo.transition(v.id, "VERIFYING", {
+    // Preserve current status (VERIFYING or VERIFICATION_DELAYED) on adapter error
+    const keepStatus = v.verificationStatus === "VERIFICATION_DELAYED"
+      ? "VERIFICATION_DELAYED" as const
+      : "VERIFYING" as const;
+    await repo.transition(v.id, keepStatus, {
       verificationAttempts: newAttempts,
       lastCheckedAt:        now,
-      nextCheckAt:          nextCheckAt(pollMs),
+      nextCheckAt:          nextCheckAt(activePollMs(v.verificationStatus, pollMs, delayedPollMs)),
     }, [...ACTIVE_VS]);
     logger.warn({ err, verificationId: v.id }, "DepositVerification: adapter error — will retry");
     return "active";
   }
 
-  // TX not found yet — keep VERIFYING
+  // TX not found yet — preserve current status
   if (!adapterResult.found) {
-    await repo.transition(v.id, "VERIFYING", {
+    const keepStatus = v.verificationStatus === "VERIFICATION_DELAYED"
+      ? "VERIFICATION_DELAYED" as const
+      : "VERIFYING" as const;
+    await repo.transition(v.id, keepStatus, {
       verificationAttempts: newAttempts,
       lastCheckedAt:        now,
-      nextCheckAt:          nextCheckAt(pollMs),
+      nextCheckAt:          nextCheckAt(activePollMs(v.verificationStatus, pollMs, delayedPollMs)),
     }, [...ACTIVE_VS]);
     return "active";
   }
@@ -379,6 +406,7 @@ async function processOne(
   };
 
   // ── Waiting for confirmations ─────────────────────────────────────────────
+  // Once the TX is found (even from VERIFICATION_DELAYED), resume normal polling.
 
   if (details.confirmations < v.requiredConfirmations) {
     await repo.transition(v.id, "WAITING_CONFIRMATIONS", {
@@ -397,17 +425,16 @@ async function processOne(
   }
 
   // ── CONFIRMED ─────────────────────────────────────────────────────────────
-  // H1: Optimistic lock — only one concurrent worker can win this transition.
 
-  const confirmedAt   = new Date();
-  const confirmedRow  = await repo.transition(
+  const confirmedAt  = new Date();
+  const confirmedRow = await repo.transition(
     v.id,
     "CONFIRMED",
     { ...blockchainUpdate, confirmedAt },
     [...ACTIVE_VS],
   );
 
-  if (!confirmedRow) return "skipped"; // Another worker won
+  if (!confirmedRow) return "skipped";
 
   logger.info({ verificationId: v.id, txHash: v.txHash }, "DepositVerification: CONFIRMED — crediting wallet");
 
@@ -416,15 +443,6 @@ async function processOne(
 }
 
 // ── Credit wallet — reuses approveDeposit() pipeline ─────────────────────────
-//
-// Regression guarantee: approveDeposit() is called unchanged. Both auto and
-// manual flows produce identical wallet credits, ledger entries, notifications,
-// and audit logs after approveDeposit() completes.
-//
-// Idempotency guarantee: safe to call multiple times for the same verification.
-//   • DepositRequest is found-or-created using txHash @unique
-//   • approveDeposit is skipped if status is already APPROVED
-//   • CONFIRMED → CREDITED uses an optimistic lock (only one worker wins)
 
 async function creditVerifiedDeposit(
   v:             VerificationRow,
@@ -434,11 +452,6 @@ async function creditVerifiedDeposit(
 ): Promise<void> {
   try {
     const superAdminId = await getSuperAdminId();
-
-    // ── Idempotent find-or-create DepositRequest ──────────────────────────────
-    // Two concurrent workers may both enter here during crash recovery.
-    // txHash @unique prevents duplicate inserts; a concurrent P2002 is caught
-    // and resolved by re-fetching the row the winner just created.
 
     let depositRequest: { id: string; status: string } | null =
       await prisma.depositRequest.findUnique({
@@ -475,11 +488,10 @@ async function creditVerifiedDeposit(
               amount:         amount.toFixed(8),
               confirmations,
               approvalMode:   "AUTOMATIC",
-            },
+            } as Prisma.InputJsonValue,
           },
         });
       } catch (e) {
-        // Concurrent worker created the DepositRequest — fetch what it created
         if (
           e instanceof Prisma.PrismaClientKnownRequestError &&
           e.code === "P2002"
@@ -488,15 +500,12 @@ async function creditVerifiedDeposit(
             where:  { txHash: v.txHash },
             select: { id: true, status: true },
           });
-          if (!depositRequest) throw e; // Shouldn't happen — re-throw to be safe
+          if (!depositRequest) throw e;
         } else {
           throw e;
         }
       }
     }
-
-    // ── Call approveDeposit only if not yet approved ──────────────────────────
-    // Idempotent: skip if already APPROVED (crash recovery after approve succeeded).
 
     if (depositRequest.status === "PENDING" || depositRequest.status === "CONFIRMING") {
       await approveDeposit(superAdminId, depositRequest.id);
@@ -505,10 +514,6 @@ async function creditVerifiedDeposit(
         `DepositRequest ${depositRequest.id} is in unexpected status ${depositRequest.status} — cannot auto-credit`,
       );
     }
-
-    // ── Optimistic lock: CONFIRMED → CREDITED ─────────────────────────────────
-    // Only one concurrent worker can win this transition.
-    // The loser gets count=0 (null return) and bails out gracefully.
 
     const creditedAt = new Date();
     const credited   = await repo.transition(v.id, "CREDITED", { creditedAt }, ["CONFIRMED"]);
@@ -521,12 +526,8 @@ async function creditVerifiedDeposit(
       return;
     }
 
-    // ── CREDITED → COMPLETED ──────────────────────────────────────────────────
-
     const completedAt = new Date();
     await repo.transition(v.id, "COMPLETED", { completedAt }, ["CREDITED"]);
-
-    // ── Domain event ──────────────────────────────────────────────────────────
 
     eventBus.emitDepositVerified({
       verificationId: v.id,
@@ -549,6 +550,6 @@ async function creditVerifiedDeposit(
     );
     await repo.transition(v.id, "FAILED", {
       failureReason: err instanceof Error ? err.message : "Credit pipeline failed (unknown error)",
-    }).catch(() => { /* best effort — do not mask the original error */ });
+    }).catch(() => { /* best effort */ });
   }
 }

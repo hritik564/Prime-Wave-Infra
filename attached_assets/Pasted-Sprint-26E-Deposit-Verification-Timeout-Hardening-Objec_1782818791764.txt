@@ -1,0 +1,219 @@
+Sprint 26E — Deposit Verification Timeout Hardening
+
+Objective
+
+Replace the current hard EXPIRED timeout behaviour with a resilient long-lived verification state.
+
+This sprint must NOT modify:
+
+- Deposit verification logic
+- Blockchain adapter
+- Wallet credit logic
+- Worker architecture
+- State machine flow
+- Financial calculations
+- Approval pipeline
+- Notification pipeline
+
+This sprint only changes timeout behaviour.
+
+--------------------------------------------------
+1. Add New Status
+--------------------------------------------------
+
+Add a new verification status:
+
+VERIFICATION_DELAYED
+
+Meaning:
+
+"The verification is taking longer than expected but is still eligible for automatic verification."
+
+This is NOT a terminal state.
+
+--------------------------------------------------
+2. Remove Hard Timeout Behaviour
+--------------------------------------------------
+
+Current behaviour:
+
+VERIFYING
+    ↓
+EXPIRED
+
+after 30 minutes.
+
+Replace with:
+
+VERIFYING
+    ↓
+VERIFICATION_DELAYED
+
+The verification must remain active.
+
+Do NOT automatically expire a legitimate deposit simply because verification exceeded the expected duration.
+
+--------------------------------------------------
+3. Slow Polling
+--------------------------------------------------
+
+While status is VERIFICATION_DELAYED:
+
+Reduce polling frequency.
+
+Example:
+
+Current:
+
+every 20 seconds
+
+Delayed:
+
+every 5 minutes
+
+Continue polling until:
+
+• transaction verified
+• transaction fails validation
+• admin manually intervenes
+
+--------------------------------------------------
+4. Terminal States
+--------------------------------------------------
+
+FAILED remains terminal for:
+
+• wrong recipient
+• wrong token
+• reverted transaction
+• invalid transaction hash
+• unsupported network
+
+COMPLETED remains terminal after successful credit.
+
+VERIFICATION_DELAYED is NOT terminal.
+
+Do not automatically expire delayed deposits.
+
+--------------------------------------------------
+5. User Experience
+--------------------------------------------------
+
+Replace any "Expired" message caused by timeout with:
+
+Verification Delayed
+
+Message:
+
+"Your transaction is taking longer than expected to verify on the blockchain. We will continue checking automatically. No action is required from you."
+
+Show:
+
+• last verification attempt
+• next scheduled verification
+• current confirmation count (if available)
+
+Never suggest the user resend funds.
+
+--------------------------------------------------
+6. Admin Panel
+--------------------------------------------------
+
+Add a filter:
+
+Verification Delayed
+
+Display:
+
+• verification age
+• last check
+• next check
+• current confirmations
+• attempts
+
+Allow:
+
+Retry Verification Now
+
+This simply schedules nextCheckAt = now.
+
+Do NOT bypass normal verification.
+
+--------------------------------------------------
+7. Audit Trail
+--------------------------------------------------
+
+Record an audit event whenever:
+
+VERIFYING
+↓
+
+VERIFICATION_DELAYED
+
+Include:
+
+reason
+
+verification age
+
+attempt count
+
+--------------------------------------------------
+8. Configuration
+--------------------------------------------------
+
+Move timeout values into System Settings if not already configurable.
+
+Settings:
+
+Normal polling interval
+
+Delayed polling interval
+
+Delay threshold
+
+Use existing configuration architecture.
+
+No hardcoded values.
+
+--------------------------------------------------
+9. Regression
+--------------------------------------------------
+
+Verify unchanged:
+
+✓ blockchain adapter
+
+✓ wallet credits
+
+✓ approval pipeline
+
+✓ notifications
+
+✓ idempotency
+
+✓ financial calculations
+
+✓ worker concurrency
+
+✓ scheduler
+
+--------------------------------------------------
+10. Final Report
+--------------------------------------------------
+
+Provide:
+
+1. Files modified
+
+2. State transition diagram
+
+3. New configuration values
+
+4. UI screenshots
+
+5. Admin screenshots
+
+6. Regression report
+
+7. Confirmation that no financial business logic was modified.

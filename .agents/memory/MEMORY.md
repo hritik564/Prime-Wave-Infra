@@ -7,3 +7,4 @@
 - [Framer Motion inside ReactFlow nodes](framer-motion-reactflow-nodes.md) — Never use motion.* components as ReactFlow custom node components; causes non-Error unhandled Promise rejections and crashes.
 - [ResizeObserver false crash in Replit](resize-observer-replit.md) — React Flow ResizeObserver triggers a Chrome non-Error window.onerror that Replit's monitoring misreads as a crash; suppress with capture-phase addEventListener + window.onerror override in main.tsx.
 - [Admin controllers use req.user not res.locals.auth](admin-auth-access.md) — Admin controllers must read identity from `req.user.sub` / `req.user.email` (AuthenticatedRequest), NOT `res.locals.auth` which is never set in this codebase.
+- [VERIFICATION_DELAYED slow-poll pattern](verification-delayed-pattern.md) — Non-terminal timeout state; ACTIVE_VS must include it; keepStatus pattern preserves status on adapter retry/not-found; delayedPollMs from system_settings.

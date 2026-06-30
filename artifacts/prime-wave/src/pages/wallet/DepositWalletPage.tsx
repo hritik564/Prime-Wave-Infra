@@ -33,6 +33,9 @@ const STATUS_ORDER: DepositVerificationStatus[] = [
 ];
 
 function statusIdx(s: DepositVerificationStatus): number {
+  // VERIFICATION_DELAYED = TX found and submitted, but not yet located on-chain.
+  // For timeline purposes it maps to the same progress level as VERIFYING.
+  if (s === "VERIFICATION_DELAYED") return STATUS_ORDER.indexOf("VERIFYING");
   return STATUS_ORDER.indexOf(s);
 }
 
@@ -113,6 +116,7 @@ function shorten(hash: string) {
 function statusLabel(v: DepositVerificationStatus): string {
   const map: Record<string, string> = {
     CREATED: "Created", TX_SUBMITTED: "Submitted", VERIFYING: "Verifying",
+    VERIFICATION_DELAYED: "Verification Delayed",
     WAITING_CONFIRMATIONS: "Waiting Confirmations", CONFIRMED: "Confirmed",
     CREDITED: "Credited", COMPLETED: "Completed",
     FAILED: "Failed", REJECTED: "Rejected", EXPIRED: "Expired",
@@ -259,6 +263,7 @@ function SubmitTxForm({ onSubmitted }: { onSubmitted: (id: string) => void }) {
 
 function VerificationTimeline({ status }: { status: DepositVerificationStatusResult }) {
   const isError    = TERMINAL_ERROR.includes(status.verificationStatus as DepositVerificationStatus);
+  const isDelayed  = status.verificationStatus === "VERIFICATION_DELAYED";
   const currentIdx = statusIdx(status.verificationStatus);
 
   return (
@@ -266,7 +271,7 @@ function VerificationTimeline({ status }: { status: DepositVerificationStatusRes
       className="rounded-2xl p-5"
       style={{
         background: "hsl(var(--card))",
-        border: `1px solid ${isError ? "rgba(248,113,113,0.25)" : "rgba(52,211,153,0.18)"}`,
+        border: `1px solid ${isError ? "rgba(248,113,113,0.25)" : isDelayed ? "rgba(251,191,36,0.25)" : "rgba(52,211,153,0.18)"}`,
         boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
       }}
     >
@@ -280,14 +285,18 @@ function VerificationTimeline({ status }: { status: DepositVerificationStatusRes
           style={{
             background: isError
               ? "rgba(248,113,113,0.15)"
-              : status.isActive
-                ? "rgba(212,175,55,0.15)"
-                : "rgba(52,211,153,0.15)",
+              : isDelayed
+                ? "rgba(251,191,36,0.15)"
+                : status.isActive
+                  ? "rgba(212,175,55,0.15)"
+                  : "rgba(52,211,153,0.15)",
             color: isError
               ? "#f87171"
-              : status.isActive
-                ? "#D4AF37"
-                : "#34d399",
+              : isDelayed
+                ? "#fbbf24"
+                : status.isActive
+                  ? "#D4AF37"
+                  : "#34d399",
           }}
         >
           {statusLabel(status.verificationStatus)}
@@ -308,6 +317,43 @@ function VerificationTimeline({ status }: { status: DepositVerificationStatusRes
             <p className="text-xs mt-1 leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
               {humanReadableFailure(status.failureReason, status.verificationStatus)}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Verification Delayed banner */}
+      {isDelayed && (
+        <div
+          className="flex items-start gap-3 rounded-xl p-3.5 mb-4"
+          style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.2)" }}
+        >
+          <Clock className="h-4 w-4 mt-0.5 shrink-0" style={{ color: "#fbbf24" }} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold" style={{ color: "#fbbf24" }}>
+              Verification Delayed
+            </p>
+            <p className="text-xs mt-1 leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
+              Your transaction is taking longer than expected to verify on the blockchain. We will continue checking automatically. No action is required from you.
+            </p>
+            {(status.lastCheckedAt ?? status.nextCheckAt) && (
+              <div className="mt-2.5 space-y-0.5">
+                {status.lastCheckedAt && (
+                  <p className="text-xs" style={{ color: "rgba(170,179,197,0.6)" }}>
+                    Last checked: {fmtDateTime(status.lastCheckedAt)}
+                  </p>
+                )}
+                {status.nextCheckAt && (
+                  <p className="text-xs" style={{ color: "rgba(170,179,197,0.6)" }}>
+                    Next check: {fmtDateTime(status.nextCheckAt)}
+                  </p>
+                )}
+                {status.confirmations > 0 && (
+                  <p className="text-xs" style={{ color: "#D4AF37" }}>
+                    Confirmations detected: {status.confirmations} / {status.requiredConfirmations}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

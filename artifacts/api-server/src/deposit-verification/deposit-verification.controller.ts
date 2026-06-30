@@ -6,6 +6,7 @@ import { AppError } from "../middleware/error.middleware";
 import { getParsed } from "../middleware/validate.middleware";
 import * as service from "./deposit-verification.service";
 import * as repo from "./deposit-verification.repository";
+import { prisma } from "../config/prisma";
 import { getVerificationMetricsSnapshot } from "./deposit-verification.worker";
 import type { z } from "zod";
 import type {
@@ -18,11 +19,18 @@ type VerificationStatusParams    = z.infer<typeof verificationStatusSchema>;
 type AdminListVerificationsQuery = z.infer<typeof adminListVerificationsSchema>;
 type AdminGetVerificationParams  = z.infer<typeof adminGetVerificationSchema>;
 
+// ── Terminal / active status sets ─────────────────────────────────────────────
+
+const TERMINAL_STATUSES = ["COMPLETED", "FAILED", "REJECTED", "EXPIRED"] as const;
+const ACTIVE_STATUSES   = [
+  "TX_SUBMITTED", "VERIFYING", "WAITING_CONFIRMATIONS",
+  "VERIFICATION_DELAYED", "CONFIRMED", "CREDITED",
+] as const;
+
 // ── User controllers ──────────────────────────────────────────────────────────
 
 /**
  * POST /api/deposit-verifications/submit
- * Submit a transaction hash for automatic verification.
  */
 export async function submitVerification(
   req: AuthenticatedRequest,
@@ -50,7 +58,6 @@ export async function submitVerification(
 
 /**
  * GET /api/deposit-verifications/:id/status
- * Poll verification status (user-scoped).
  */
 export async function getVerificationStatus(
   req: AuthenticatedRequest,
@@ -58,12 +65,12 @@ export async function getVerificationStatus(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const { id }   = getParsed<VerificationStatusParams>(res, "params");
-    const userId   = req.user!.sub;
-    const v        = await service.getVerificationStatus(id, userId);
+    const { id } = getParsed<VerificationStatusParams>(res, "params");
+    const userId = req.user!.sub;
+    const v      = await service.getVerificationStatus(id, userId);
 
-    const isTerminal = ["COMPLETED", "FAILED", "REJECTED", "EXPIRED"].includes(v.verificationStatus);
-    const isActive   = ["TX_SUBMITTED", "VERIFYING", "WAITING_CONFIRMATIONS", "CONFIRMED", "CREDITED"].includes(v.verificationStatus);
+    const isTerminal = (TERMINAL_STATUSES as readonly string[]).includes(v.verificationStatus);
+    const isActive   = (ACTIVE_STATUSES   as readonly string[]).includes(v.verificationStatus);
 
     sendSuccess(res, {
       id:                    v.id,
@@ -74,8 +81,12 @@ export async function getVerificationStatus(
       requiredConfirmations: v.requiredConfirmations,
       blockchainAmount:      v.blockchainAmount,
       senderAddress:         v.senderAddress,
+      recipientAddress:      v.recipientAddress,
       failureReason:         v.failureReason,
+      verificationAttempts:  v.verificationAttempts,
       firstSeenAt:           v.firstSeenAt,
+      lastCheckedAt:         v.lastCheckedAt,
+      nextCheckAt:           v.nextCheckAt,
       confirmedAt:           v.confirmedAt,
       creditedAt:            v.creditedAt,
       completedAt:           v.completedAt,
@@ -92,7 +103,6 @@ export async function getVerificationStatus(
 
 /**
  * GET /api/admin/deposit-verifications
- * List verifications with filters (admin-only).
  */
 export async function adminListVerifications(
   req: AuthenticatedRequest,
@@ -110,21 +120,18 @@ export async function adminListVerifications(
 
 /**
  * GET /api/admin/deposit-verifications/metrics
- * In-memory worker metrics snapshot (admin-only).
  */
 export async function adminGetMetrics(
   _req: AuthenticatedRequest,
-  res: Response,
+  res:  Response,
   next: NextFunction,
 ): Promise<void> {
   try {
-    const session = getVerificationMetricsSnapshot();
+    const session     = getVerificationMetricsSnapshot();
     const allTimeRows = await repo.adminList({ page: 1, limit: 1 });
     sendSuccess(res, {
       session,
-      allTime: {
-        totalRecords: allTimeRows.meta.total,
-      },
+      allTime: { totalRecords: allTimeRows.meta.total },
     });
   } catch (err) {
     next(err);
@@ -133,7 +140,6 @@ export async function adminGetMetrics(
 
 /**
  * GET /api/admin/deposit-verifications/:id
- * Full verification detail (admin-only).
  */
 export async function adminGetVerification(
   req: AuthenticatedRequest,
@@ -147,6 +153,69 @@ export async function adminGetVerification(
       throw new AppError("Verification not found", HTTP_STATUS.NOT_FOUND, "VERIFICATION_NOT_FOUND");
     }
     sendSuccess(res, v);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/admin/deposit-verifications/:id/retry
+ *
+ * Schedules a non-terminal verification for immediate re-check by setting
+ * nextCheckAt = now. Does NOT bypass normal verification logic — the worker
+ * picks it up on the next tick and runs the standard adapter pipeline.
+ */
+export async function adminRetryVerification(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { id } = getParsed<AdminGetVerificationParams>(res, "params");
+    const v      = await repo.findById(id);
+
+    if (!v) {
+      throw new AppError("Verification not found", HTTP_STATUS.NOT_FOUND, "VERIFICATION_NOT_FOUND");
+    }
+
+    if ((TERMINAL_STATUSES as readonly string[]).includes(v.verificationStatus)) {
+      throw new AppError(
+        `Cannot retry a ${v.verificationStatus} verification — it has reached a terminal state`,
+        HTTP_STATUS.CONFLICT,
+        "VERIFICATION_TERMINAL",
+      );
+    }
+
+    const now     = new Date();
+    const updated = await prisma.depositVerification.update({
+      where:  { id },
+      data:   { nextCheckAt: now },
+      select: { id: true, verificationStatus: true, nextCheckAt: true },
+    });
+
+    // Admin audit log (best-effort)
+    try {
+      await prisma.adminLog.create({
+        data: {
+          adminId:      req.user!.sub,
+          action:       "DEPOSIT_VERIFICATION_RETRY_SCHEDULED",
+          targetUserId: v.userId,
+          details: {
+            verificationId:  id,
+            txHash:          v.txHash,
+            previousStatus:  v.verificationStatus,
+            scheduledAt:     updated.nextCheckAt,
+          },
+        },
+      });
+    } catch { /* non-fatal */ }
+
+    sendSuccess(res, {
+      id:                 updated.id,
+      verificationStatus: updated.verificationStatus,
+      nextCheckAt:        updated.nextCheckAt,
+      message:            "Verification scheduled for immediate re-check on the next worker tick",
+    });
   } catch (err) {
     next(err);
   }
