@@ -54,22 +54,59 @@ export function startScheduler(): void {
   setInterval(() => void runTransferReleases(), 60 * 60 * 1000);
 
   // ── Monthly salary cron (1st of month, 00:00 London) ──────────────────────
-  const salaryDelay = msUntilNextMonthStart();
-  const nextSalary  = new Date(Date.now() + salaryDelay);
+  //
+  // IMPORTANT: msUntilNextMonthStart() can return > 24.8 days in ms, which
+  // exceeds the 32-bit signed integer limit that Node.js setTimeout uses
+  // internally (~2.147 billion ms).  Passing an overflowing value causes
+  // Node to set the delay to 1 ms instead — creating an infinite tight loop
+  // that floods the connection pool.
+  //
+  // Fix: cap every setTimeout call to MAX_SALARY_WAIT_MS (12 h). The boundary
+  // check at the top of scheduleSalaryCycle is what actually triggers the run,
+  // not the timeout alone.  A "last ran" guard keyed to (year, month) prevents
+  // double-execution within the same calendar month.
+  const MAX_SALARY_WAIT_MS = 12 * 60 * 60 * 1_000; // 12 hours — safely < 2^31
+
+  let lastSalaryYear  = -1;
+  let lastSalaryMonth = -1;
+
+  const scheduleSalaryCycle = () => {
+    const delayMs = msUntilNextMonthStart();
+
+    if (delayMs <= 1_000) {
+      // We have reached (or just passed) the month boundary.
+      // Compute which London year+month this boundary belongs to so we can
+      // guard against re-running within the same window.
+      const fmt   = new Intl.DateTimeFormat("en-GB", {
+        timeZone: APP_TIMEZONE, year: "numeric", month: "numeric",
+      });
+      const parts = fmt.formatToParts(new Date());
+      const yr    = Number(parts.find((p) => p.type === "year")?.value  ?? -1);
+      const mo    = Number(parts.find((p) => p.type === "month")?.value ?? -1);
+
+      if (yr !== lastSalaryYear || mo !== lastSalaryMonth) {
+        lastSalaryYear  = yr;
+        lastSalaryMonth = mo;
+        void runSalaryMonth();
+      }
+    }
+
+    // Recompute the delay after a potential run (boundary may have shifted).
+    // Clamp so we never pass an overflowing value to setTimeout.
+    const nextDelay = msUntilNextMonthStart();
+    const safeDelay = Math.min(Math.max(nextDelay, 60_000), MAX_SALARY_WAIT_MS);
+    setTimeout(scheduleSalaryCycle, safeDelay);
+  };
+
+  const initialSalaryDelay = Math.min(msUntilNextMonthStart(), MAX_SALARY_WAIT_MS);
+  const nextSalary          = new Date(Date.now() + initialSalaryDelay);
 
   logger.info(
     { nextRunAt: nextSalary.toISOString(), timezone: APP_TIMEZONE },
     "Salary scheduler: armed (1st of month)",
   );
 
-  // Recursively re-arm itself after each run to compute the next month boundary.
-  const scheduleSalaryCycle = () => {
-    void runSalaryMonth();
-    const nextDelay = msUntilNextMonthStart();
-    setTimeout(scheduleSalaryCycle, nextDelay);
-  };
-
-  setTimeout(scheduleSalaryCycle, salaryDelay);
+  setTimeout(scheduleSalaryCycle, initialSalaryDelay);
 }
 
 // ── Internal ──────────────────────────────────────────────────────────────────

@@ -11,3 +11,4 @@
 - [HTTP_STATUS enum](http-status-enum.md) — SERVICE_UNAVAILABLE (503) was added in Sprint 27B; always extend constants.ts when adding new HTTP codes rather than using raw numbers.
 - [VERIFICATION_DELAYED slow-poll pattern](verification-delayed-pattern.md) — Non-terminal timeout state; ACTIVE_VS must include it; keepStatus pattern preserves status on adapter retry/not-found; delayedPollMs from system_settings.
 - [Re-validate age clock must use firstSeenAt](revalidate-age-clock.md) — Delay threshold uses firstSeenAt (reset on re-validate), NOT createdAt (never reset). Using createdAt causes re-validate to always immediately enter VERIFICATION_DELAYED for old records.
+- [32-bit setTimeout overflow in salary cron](salary-cron-overflow.md) — Any month delay (≥25 days) overflows Node's 32-bit setTimeout → fires at 1ms → infinite loop floods DB pool. Fix: cap all delays at MAX_SAFE_DELAY (12h) and guard with (year, month) pair before running.

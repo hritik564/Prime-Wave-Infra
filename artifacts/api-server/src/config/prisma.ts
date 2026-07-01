@@ -5,34 +5,19 @@ declare global {
   var __prisma: PrismaClient | undefined;
 }
 
-/**
- * Returns the DATABASE_URL with connection pool parameters set if not already
- * present.  Defaults: connection_limit=20, pool_timeout=30 (seconds).
- *
- * Uses URL search-params so we never duplicate a param the caller has set.
- * Falls back to the raw URL string if URL parsing fails (non-standard format).
- */
-function buildDatabaseUrl(): string {
-  const base = process.env["DATABASE_URL"] ?? "";
-  if (!base) return base;
-  try {
-    const url = new URL(base);
-    if (!url.searchParams.has("connection_limit")) {
-      url.searchParams.set("connection_limit", "20");
-    }
-    if (!url.searchParams.has("pool_timeout")) {
-      url.searchParams.set("pool_timeout", "30");
-    }
-    return url.toString();
-  } catch {
-    return base;
-  }
+// Append connection pool parameters to DATABASE_URL if not already present.
+// Mutating process.env before PrismaClient is instantiated means both the
+// runtime client and the Prisma CLI (if called later) see the same settings.
+// Simple string concatenation avoids URL-encoding issues with new URL().
+const _dbUrl = process.env["DATABASE_URL"];
+if (_dbUrl && !_dbUrl.includes("connection_limit=")) {
+  process.env["DATABASE_URL"] =
+    _dbUrl + (_dbUrl.includes("?") ? "&" : "?") + "connection_limit=20&pool_timeout=30";
 }
 
 export const prisma: PrismaClient =
   globalThis.__prisma ??
   new PrismaClient({
-    datasources: { db: { url: buildDatabaseUrl() } },
     log:
       process.env["NODE_ENV"] === "development"
         ? ["query", "warn", "error"]
