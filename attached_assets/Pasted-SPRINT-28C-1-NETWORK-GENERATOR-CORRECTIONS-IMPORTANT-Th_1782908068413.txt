@@ -1,0 +1,364 @@
+SPRINT 28C.1 — NETWORK GENERATOR CORRECTIONS
+
+IMPORTANT
+
+This sprint modifies ONLY the Network Generator.
+
+Do NOT modify:
+
+- Registration logic
+- Binary placement engine
+- Wallet logic
+- Deposit engine
+- Income engine
+- Financial calculations
+
+==========================================================
+OBJECTIVE
+==========================================================
+
+Correct two architectural issues before production generation.
+
+==========================================================
+PART 1 — ACCOUNT TYPES
+==========================================================
+
+Current implementation incorrectly labels all 6,400 spill accounts as RD accounts.
+
+This must be corrected.
+
+Final account hierarchy:
+
+Infrastructure
+
+127 accounts
+
+Username format:
+
+MI0001
+
+...
+
+MI0127
+
+------------------------------------------
+
+RD Layer
+
+64 accounts
+
+Username format
+
+RD0001
+
+...
+
+RD0064
+
+These are ONLY the 64 RD root accounts.
+
+------------------------------------------
+
+Spill Layer
+
+6,400 accounts
+
+Username format
+
+SP000001
+
+...
+
+SP006400
+
+These are the generated spill accounts beneath each RD.
+
+No spill account may use the RD prefix.
+
+==========================================================
+EXPECTED COUNTS
+==========================================================
+
+MI accounts
+
+127
+
+RD accounts
+
+64
+
+SP accounts
+
+6400
+
+Grand Total
+
+6527
+
+==========================================================
+PART 2 — REFERRAL STRUCTURE
+==========================================================
+
+Current implementation:
+
+RD
+
+↓
+
+SP1
+
+↓
+
+SP2
+
+↓
+
+SP3
+
+↓
+
+SP4
+
+Sequential referrals.
+
+THIS IS INCORRECT.
+
+Replace it with:
+
+RD
+
+├── Left Spill 1
+
+├── Left Spill 2
+
+...
+
+├── Left Spill 50
+
+├── Right Spill 1
+
+├── Right Spill 2
+
+...
+
+└── Right Spill 50
+
+Every spill account under an RD must have:
+
+sponsorId = that RD account
+
+Every RD must end with:
+
+directReferralCount = 100
+
+The referral chain is NO LONGER sequential.
+
+==========================================================
+PART 3 — BINARY STRUCTURE
+==========================================================
+
+DO NOT change binary placement.
+
+Binary remains:
+
+RD
+
+↓
+
+LEFT
+
+↓
+
+LEFT
+
+↓
+
+LEFT
+
+...
+
+50 deep
+
+and
+
+RD
+
+↓
+
+RIGHT
+
+↓
+
+RIGHT
+
+↓
+
+RIGHT
+
+...
+
+50 deep
+
+Only the referral tree changes.
+
+==========================================================
+PART 4 — EXCEL OUTPUT
+==========================================================
+
+Update both workbooks.
+
+PrimeWave_Network.xlsx
+
+Infrastructure sheet
+
+127 MI accounts
+
+RD sheet
+
+64 RD accounts only
+
+NEW Sheet
+
+Spill Accounts
+
+6400 SP accounts
+
+Include:
+
+Username
+
+Password
+
+RD Parent
+
+Side
+
+Depth
+
+Binary Parent
+
+Referral Sponsor
+
+Status
+
+------------------------------------------
+
+PrimeWave_Credentials.xlsx
+
+Must contain all
+
+6527 accounts
+
+Columns
+
+Username
+
+Password
+
+Account Type
+
+(MI / RD / SP)
+
+Binary Parent
+
+Referral Sponsor
+
+Status
+
+==========================================================
+PART 5 — VERIFICATION
+==========================================================
+
+Verify:
+
+MI Accounts
+
+127
+
+RD Accounts
+
+64
+
+SP Accounts
+
+6400
+
+Grand Total
+
+6527
+
+Every RD
+
+Direct referrals = 100
+
+Every SP
+
+Sponsor = owning RD
+
+Referral History
+
+6526 records
+
+Binary Integrity
+
+PASS
+
+Referral Integrity
+
+PASS
+
+Duplicate usernames
+
+0
+
+Duplicate referrals
+
+0
+
+Duplicate placements
+
+0
+
+==========================================================
+PART 6 — REGRESSION
+==========================================================
+
+Confirm:
+
+Registration engine unchanged
+
+Binary engine unchanged
+
+Wallet engine unchanged
+
+Deposit engine unchanged
+
+Financial calculations unchanged
+
+Only generator logic changed.
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return:
+
+1. Files modified
+
+2. Generator changes
+
+3. Naming convention
+
+4. Referral structure
+
+5. Binary verification
+
+6. Referral verification
+
+7. Updated Excel structure
+
+8. Runtime
+
+9. Regression report
+
+10. Confirmation that Sprint 28D (Funding Engine) can proceed.
