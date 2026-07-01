@@ -198,25 +198,47 @@ export async function updateBinaryCache(
   // Single recursive CTE — runs OUTSIDE any transaction so there are no open
   // row locks that could conflict with live traffic.  This replaces the old
   // per-row loop (16+ round-trips) with one DB call regardless of tree depth.
-  const field = side === "LEFT" ? "leftDeepestNodeId" : "rightDeepestNodeId";
-  await prisma.$executeRaw`
-    WITH RECURSIVE chain AS (
-      SELECT id, "binaryParentId", position::text AS pos
-      FROM   users
-      WHERE  id = ${fromId}::uuid
+  // Two explicit branches avoid the need for dynamic column names in the
+  // tagged-template form of $executeRaw (Prisma.raw() is not supported there).
+  if (side === "LEFT") {
+    await prisma.$executeRaw`
+      WITH RECURSIVE chain AS (
+        SELECT id, "binaryParentId", position::text AS pos
+        FROM   users
+        WHERE  id = ${fromId}::uuid
 
-      UNION ALL
+        UNION ALL
 
-      SELECT u.id, u."binaryParentId", u.position::text
-      FROM   users u
-      JOIN   chain  c ON u.id = c."binaryParentId"
-      WHERE  c.pos  = ${side}
-        AND  c."binaryParentId" IS NOT NULL
-    )
-    UPDATE users
-    SET    ${Prisma.raw(`"${field}"`)} = ${newUserId}::uuid
-    WHERE  id IN (SELECT id FROM chain)
-  `;
+        SELECT u.id, u."binaryParentId", u.position::text
+        FROM   users u
+        JOIN   chain  c ON u.id = c."binaryParentId"
+        WHERE  c.pos = 'LEFT'
+          AND  c."binaryParentId" IS NOT NULL
+      )
+      UPDATE users
+      SET    "leftDeepestNodeId" = ${newUserId}::uuid
+      WHERE  id IN (SELECT id FROM chain)
+    `;
+  } else {
+    await prisma.$executeRaw`
+      WITH RECURSIVE chain AS (
+        SELECT id, "binaryParentId", position::text AS pos
+        FROM   users
+        WHERE  id = ${fromId}::uuid
+
+        UNION ALL
+
+        SELECT u.id, u."binaryParentId", u.position::text
+        FROM   users u
+        JOIN   chain  c ON u.id = c."binaryParentId"
+        WHERE  c.pos = 'RIGHT'
+          AND  c."binaryParentId" IS NOT NULL
+      )
+      UPDATE users
+      SET    "rightDeepestNodeId" = ${newUserId}::uuid
+      WHERE  id IN (SELECT id FROM chain)
+    `;
+  }
 }
 
 // ── Placement ─────────────────────────────────────────────────────────────────
