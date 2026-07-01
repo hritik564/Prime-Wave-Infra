@@ -12,7 +12,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "generate-network": "node --enable-source-maps ./dist/admin/scripts/networkGenerator.mjs"
+    "generate-network": "node --enable-source-maps ./dist/admin/scripts/networkGenerator.mjs",
+    "fund-network": "node --enable-source-maps ./dist/admin/scripts/networkFunder.mjs"
   },
   "prisma": {
     "schema": "./prisma/schema.prisma"

@@ -18,6 +18,7 @@ async function buildAll() {
     entryPoints: [
       path.resolve(artifactDir, "src/index.ts"),
       path.resolve(artifactDir, "src/admin/scripts/networkGenerator.ts"),
+      path.resolve(artifactDir, "src/admin/scripts/networkFunder.ts"),
     ],
     platform: "node",
     bundle: true,

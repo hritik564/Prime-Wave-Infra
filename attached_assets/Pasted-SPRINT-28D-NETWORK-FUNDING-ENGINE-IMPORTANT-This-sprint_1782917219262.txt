@@ -1,0 +1,451 @@
+SPRINT 28D — NETWORK FUNDING ENGINE
+
+IMPORTANT
+
+This sprint funds the seeded network.
+
+DO NOT modify:
+
+- Wallet engine
+- Deposit verification engine
+- Financial calculations
+- Binary engine
+- Referral engine
+- Income engine
+- Registration engine
+
+Reuse existing business logic wherever possible.
+
+==========================================================
+OBJECTIVE
+==========================================================
+
+Fund ONLY the endpoint spill accounts.
+
+The funding must look exactly like legitimate deposits.
+
+No direct wallet manipulation.
+
+No SQL wallet updates.
+
+No bypasses.
+
+==========================================================
+NETWORK
+==========================================================
+
+Infrastructure
+
+127 MI accounts
+
+RD
+
+64 accounts
+
+Spill
+
+6400 accounts
+
+Total
+
+6527 users
+
+==========================================================
+FUNDED ACCOUNTS
+==========================================================
+
+Each RD has:
+
+Left chain
+
+50 deep
+
+Right chain
+
+50 deep
+
+Only the LAST account on each chain receives funding.
+
+Therefore
+
+64 LEFT endpoints
+
+64 RIGHT endpoints
+
+Total
+
+128 funded accounts
+
+==========================================================
+FUNDING
+==========================================================
+
+Every funded endpoint receives
+
+Deposit Wallet
+
+$20,000
+
+Investment Wallet
+
+$0
+
+No investment created.
+
+==========================================================
+TOTAL
+==========================================================
+
+128
+
+×
+
+$20,000
+
+=
+
+$2,560,000
+
+==========================================================
+FUNDING METHOD
+==========================================================
+
+DO NOT
+
+wallet.depositWallet += amount
+
+DO NOT
+
+update wallet balance directly
+
+Instead
+
+Reuse the existing deposit approval flow.
+
+The result should be identical to a real successful deposit.
+
+Expected artifacts:
+
+Deposit Request
+
+Wallet Transaction
+
+Admin Log
+
+Notification
+
+Wallet balance
+
+Everything must be produced by existing business logic.
+
+==========================================================
+IDEMPOTENCY
+==========================================================
+
+Funding must be resumable.
+
+If endpoint already has
+
+Deposit Wallet = $20,000
+
+Skip.
+
+Never duplicate.
+
+Never double-credit.
+
+Sprint 27F idempotency protections must remain intact.
+
+==========================================================
+EXECUTION
+==========================================================
+
+Funding should execute
+
+RD by RD.
+
+Example
+
+RD0001
+
+↓
+
+Locate Left endpoint
+
+↓
+
+Verify
+
+↓
+
+Fund
+
+↓
+
+Verify
+
+↓
+
+Locate Right endpoint
+
+↓
+
+Verify
+
+↓
+
+Fund
+
+↓
+
+Verify
+
+↓
+
+Mark RD complete
+
+↓
+
+Next RD
+
+==========================================================
+PRE-FUND CHECK
+==========================================================
+
+Before funding any RD verify
+
+Binary chain length = 50
+
+Left endpoint exists
+
+Right endpoint exists
+
+Wallet exists
+
+Deposit Wallet = 0
+
+Investment Wallet = 0
+
+If any check fails
+
+Skip RD
+
+Log error
+
+Continue
+
+==========================================================
+POST-FUND CHECK
+==========================================================
+
+Immediately verify
+
+Deposit Wallet
+
+=
+
+$20,000
+
+Investment Wallet
+
+=
+
+$0
+
+Exactly
+
+1 Deposit Request
+
+Exactly
+
+1 Wallet Transaction
+
+No duplicate credits
+
+==========================================================
+EXCEL
+==========================================================
+
+Generate
+
+PrimeWave_Funded_Accounts.xlsx
+
+Columns
+
+Username
+
+Password
+
+Account Type
+
+RD
+
+Side
+
+Depth
+
+Deposit Wallet
+
+Investment Wallet
+
+Deposit Request ID
+
+Wallet Transaction ID
+
+Funding Status
+
+Timestamp
+
+Exactly
+
+128 rows
+
+==========================================================
+SUMMARY WORKBOOK
+==========================================================
+
+Generate
+
+PrimeWave_Funding_Summary.xlsx
+
+Sheet 1
+
+One row per RD
+
+Columns
+
+RD
+
+Left Endpoint
+
+Right Endpoint
+
+Left Funded
+
+Right Funded
+
+Status
+
+Sheet 2
+
+Totals
+
+Expected Funded
+
+128
+
+Actual Funded
+
+...
+
+Expected Wallet Total
+
+$2,560,000
+
+Actual Wallet Total
+
+...
+
+==========================================================
+FINAL VERIFICATION
+==========================================================
+
+Verify
+
+Total Users
+
+6527
+
+Funded Accounts
+
+128
+
+Deposit Wallet Total
+
+$2,560,000
+
+Investment Wallet Total
+
+$0
+
+Investments
+
+0
+
+Deposit Requests
+
+128
+
+Wallet Transactions
+
+128
+
+Duplicate Deposit Requests
+
+0
+
+Duplicate Wallet Transactions
+
+0
+
+Duplicate Credits
+
+0
+
+Binary Integrity
+
+PASS
+
+Referral Integrity
+
+PASS
+
+Wallet Ledger Integrity
+
+PASS
+
+==========================================================
+REGRESSION
+==========================================================
+
+Confirm
+
+No business logic changed
+
+No wallet engine changed
+
+No binary engine changed
+
+No deposit engine changed
+
+No income engine changed
+
+Only the funding generator was added.
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return
+
+1. Files modified
+
+2. Funding architecture
+
+3. Number funded
+
+4. Total funded amount
+
+5. Wallet verification
+
+6. Deposit verification
+
+7. Ledger verification
+
+8. Generated Excel files
+
+9. Runtime
+
+10. Regression report
+
+11. Confirmation that the seeded launch network is fully funded and production-ready.

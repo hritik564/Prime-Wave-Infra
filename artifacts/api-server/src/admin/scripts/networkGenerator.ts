@@ -30,20 +30,23 @@
 import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { mkdir } from "node:fs/promises";
 import { prisma } from "../../config/prisma.js";
 import { placeUserTx } from "../../binary/binary.service.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
-
 // ── Constants ─────────────────────────────────────────────────────────────────
+//
+// OUTPUT_DIR resolves via process.cwd() — this is needed because the generator
+// code is bundled into index.mjs when imported by the server. In that context,
+// import.meta.url points to index.mjs, not networkGenerator.mjs.
+// Both standalone (pnpm run generate-network) and server-hosted runs share
+// CWD = /home/runner/workspace/artifacts/api-server.
+// Two levels up reaches the workspace root.
 
 const PASSWORD         = "Master@PrimeWave2025!";
 const MASTER_REFERRAL  = "MASTERROOT";
 const PROGRESS_KEY     = "NETWORK_GENERATOR_PROGRESS";
-const OUTPUT_DIR       = path.resolve(__dirname, "../../../../../generated");
+const OUTPUT_DIR       = path.resolve(process.cwd(), "../../generated");
 
 // Tier sizing
 const MI_COUNT         = 63;   // BFS nodes 1–63 (levels 1–6)
@@ -679,9 +682,19 @@ async function main(): Promise<void> {
   if (!allPass) process.exit(1);
 }
 
-main()
-  .catch(err => {
-    console.error("FATAL:", err);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+// Guard: only auto-execute when invoked directly as a standalone script.
+// When imported by index.ts (via runGenerator()), the server calls main()
+// explicitly — this block must not fire on module load.
+const isStandaloneScript =
+  process.argv[1] != null &&
+  (process.argv[1].endsWith("networkGenerator.mjs") ||
+   process.argv[1].endsWith("networkGenerator.ts"));
+
+if (isStandaloneScript) {
+  main()
+    .catch(err => {
+      console.error("FATAL:", err);
+      process.exit(1);
+    })
+    .finally(() => prisma.$disconnect());
+}
