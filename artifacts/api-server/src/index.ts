@@ -45,12 +45,11 @@ async function maybeResetAdminPassword() {
   try {
     const hash = await bcrypt.hash(newPassword, 12);
     const updated = await prisma.admin.updateMany({
-      where: { email: "admin@primewave.io" },
       data: { passwordHash: hash },
     });
-    logger.info({ count: updated.count }, "Admin password reset via ADMIN_RESET_PASSWORD env var");
+    logger.info({ count: updated.count }, "All admin passwords reset via ADMIN_RESET_PASSWORD env var");
   } catch (err) {
-    logger.error({ err }, "Failed to reset admin password");
+    logger.error({ err }, "Failed to reset admin passwords");
   }
 }
 
