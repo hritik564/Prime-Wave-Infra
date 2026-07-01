@@ -24,3 +24,21 @@ id = "LOl9-Hfndf24YeG8-uJVk"
 uri = "file://generated/PrimeWave_Credentials.xlsx"
 type = "table"
 title = "PrimeWave_Credentials.xlsx — All 6527 Accounts"
+
+[[outputs]]
+id = "WlrcjWA1K8X5KvchnjV_r"
+uri = "file://generated/PrimeWave_All_Accounts.xlsx"
+type = "table"
+title = "PrimeWave_All_Accounts.xlsx — 6,528 rows"
+
+[[outputs]]
+id = "J7v8Ykgi0KbyXsWvPwMzg"
+uri = "file://generated/PrimeWave_RD_Accounts.xlsx"
+type = "table"
+title = "PrimeWave_RD_Accounts.xlsx — 64 rows"
+
+[[outputs]]
+id = "L3dR7_wvOrzrqLPw7JJJb"
+uri = "file://generated/PrimeWave_Funded_Accounts.xlsx"
+type = "table"
+title = "PrimeWave_Funded_Accounts.xlsx — 128 rows"
