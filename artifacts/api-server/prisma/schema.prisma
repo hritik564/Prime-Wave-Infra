@@ -42,6 +42,7 @@ enum DepositVerificationStatus {
   VERIFICATION_DELAYED
   WAITING_CONFIRMATIONS
   CONFIRMED
+  CREDITING
   CREDITED
   COMPLETED
   FAILED
@@ -235,18 +236,22 @@ model AdminLog {
 }
 
 model WalletTransaction {
-  id          String            @id @default(cuid())
-  walletId    String
-  userId      String
-  type        TransactionType
-  status      TransactionStatus @default(PENDING)
-  amount      Decimal           @db.Decimal(18, 8)
-  fee         Decimal?          @db.Decimal(18, 8)
-  netAmount   Decimal?          @db.Decimal(18, 8)
-  description String?
-  metadata    Json?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id              String            @id @default(cuid())
+  walletId        String
+  userId          String
+  type            TransactionType
+  status          TransactionStatus @default(PENDING)
+  amount          Decimal           @db.Decimal(18, 8)
+  fee             Decimal?          @db.Decimal(18, 8)
+  netAmount       Decimal?          @db.Decimal(18, 8)
+  description     String?
+  // DB-level idempotency guard: only one wallet transaction may ever be created
+  // for a given deposit. PostgreSQL rejects any duplicate insert immediately,
+  // even if application-level guards somehow fail simultaneously.
+  sourceDepositId String?           @unique @map("source_deposit_id")
+  metadata        Json?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
   user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)

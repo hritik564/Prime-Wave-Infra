@@ -116,6 +116,7 @@ import {
   exportSalaryIncomeHandler,
   exportBinaryIncomeHandler,
 } from "./reports/csv-export.controller";
+import { depositAuditHandler } from "./reports/deposit-audit.controller";
 import { validate } from "../middleware/validate.middleware";
 import { requireAdminAuth, requireAdminRoles } from "../middleware/auth.middleware";
 import { authLimiter, adminLimiter } from "../middleware/rateLimiter.middleware";
@@ -283,6 +284,9 @@ router.get(
 );
 router.get("/reports/pending",              adminLimiter, superAdminGuard, pendingOperationsHandler);
 router.get("/reports/risk",                 adminLimiter, superAdminGuard, riskReportHandler);
+
+// ── Deposit idempotency audit — SUPER_ADMIN only ─────────────────────────────
+router.get("/reports/deposit-audit",        adminLimiter, superAdminGuard, depositAuditHandler);
 
 // ── CSV exports — SUPER_ADMIN only ───────────────────────────────────────────
 router.get("/reports/export/users",         adminLimiter, superAdminGuard, exportUsersHandler);

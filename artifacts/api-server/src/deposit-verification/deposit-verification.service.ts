@@ -714,6 +714,53 @@ async function processOne(
     return "completed";
   }
 
+  // ── M3: Crash recovery — CREDITING stuck (server crashed during credit) ───
+  //
+  // The server died after CONFIRMED→CREDITING was committed but before the
+  // credit pipeline completed.  Check whether the wallet was already credited
+  // before deciding whether to re-run or just advance the DV state.
+
+  if (v.verificationStatus === "CREDITING") {
+    const depositRequest = v.depositId
+      ? await prisma.depositRequest.findUnique({
+          where:  { id: v.depositId },
+          select: { id: true, status: true },
+        })
+      : await prisma.depositRequest.findUnique({
+          where:  { txHash: v.txHash },
+          select: { id: true, status: true },
+        });
+
+    if (depositRequest?.status === "APPROVED") {
+      // Wallet already credited — advance DV state only, no re-credit.
+      const creditedAt  = new Date();
+      await repo.transition(v.id, "CREDITED",  { creditedAt  }, ["CREDITING"]);
+      const completedAt = new Date();
+      await repo.transition(v.id, "COMPLETED", { completedAt }, ["CREDITED"]);
+      logger.info(
+        { verificationId: v.id },
+        "DepositVerification: crash recovery — CREDITING→COMPLETED (deposit already approved, no re-credit)",
+      );
+      return "completed";
+    }
+
+    // Wallet not yet credited — resume via the normal credit path.
+    // creditVerifiedDeposit() detects the existing CREDITING state and
+    // continues without attempting another CONFIRMED→CREDITING transition.
+    if (!v.blockchainAmount) {
+      await repo.transition(v.id, "FAILED", {
+        failureReason: "Crash recovery CREDITING: blockchainAmount not stored",
+      });
+      logger.error(
+        { verificationId: v.id },
+        "DepositVerification: CREDITING crash recovery — no blockchainAmount — FAILED",
+      );
+      return "failed";
+    }
+    logger.info({ verificationId: v.id }, "DepositVerification: crash recovery — CREDITING, resuming credit");
+    return creditWithRetry(v, v.blockchainAmount, v.confirmations, v.confirmedAt ?? now);
+  }
+
   // ── M3: Crash recovery — CONFIRMED stuck before credit completed ──────────
 
   if (v.verificationStatus === "CONFIRMED") {
@@ -947,7 +994,24 @@ async function processOne(
   return creditWithRetry(v, details.amount, details.confirmations, confirmedAt);
 }
 
-// ── Credit wallet — reuses approveDeposit() pipeline ─────────────────────────
+// ── Credit wallet (idempotent, Sprint 27F) ────────────────────────────────────
+//
+// CREDITING is the two-phase lock that prevents any concurrent path from
+// crediting the same deposit twice.
+//
+// Phase 1 — Claim ownership:
+//   Atomically transition CONFIRMED → CREDITING.  Exactly one concurrent caller
+//   succeeds; all others see null and exit.  On retry/resume the function detects
+//   it already owns CREDITING and continues.
+//
+// Phase 2 — Approval:
+//   approveDeposit() uses its own atomic UPDATE WHERE status IN (PENDING,CONFIRMING).
+//   If the admin already won that race the worker receives ALREADY_APPROVED and
+//   simply advances the DV state without re-crediting.
+//
+// Phase 3 — Advance DV:
+//   CREDITING → CREDITED → COMPLETED.  No second credit is possible because the
+//   sourceDepositId UNIQUE constraint on wallet_transactions would also reject it.
 
 async function creditVerifiedDeposit(
   v:             VerificationRow,
@@ -955,9 +1019,31 @@ async function creditVerifiedDeposit(
   confirmations: number,
   confirmedAt:   Date,
 ): Promise<void> {
+  // ── Phase 1: Atomic CREDITING ownership claim ─────────────────────────────
+  const claimed = await repo.transition(v.id, "CREDITING", {}, ["CONFIRMED"]);
+
+  if (!claimed) {
+    // Transition returned null.  Either a concurrent process won, or this is a
+    // retry/crash-resume where we already own CREDITING.  Re-fetch to decide.
+    const current = await prisma.depositVerification.findUnique({
+      where:  { id: v.id },
+      select: { verificationStatus: true },
+    });
+    if (current?.verificationStatus !== "CREDITING") {
+      // Another process has progressed beyond CREDITING — bail out cleanly.
+      logger.info(
+        { verificationId: v.id },
+        "DepositVerification: CREDITING lock won by concurrent process — exiting",
+      );
+      return;
+    }
+    // DV is still CREDITING and we own it (retry / crash-resume) — continue.
+  }
+
   try {
     const superAdminId = await getSuperAdminId();
 
+    // ── Phase 2a: Find or create the DepositRequest ───────────────────────
     let depositRequest: { id: string; status: string } | null =
       await prisma.depositRequest.findUnique({
         where:  { txHash: v.txHash },
@@ -1001,6 +1087,7 @@ async function creditVerifiedDeposit(
           e instanceof Prisma.PrismaClientKnownRequestError &&
           e.code === "P2002"
         ) {
+          // Race: another process created the same DepositRequest — re-read it.
           depositRequest = await prisma.depositRequest.findUnique({
             where:  { txHash: v.txHash },
             select: { id: true, status: true },
@@ -1012,29 +1099,42 @@ async function creditVerifiedDeposit(
       }
     }
 
+    // ── Phase 2b: Claim wallet credit via atomic approval ─────────────────
+    // approveDeposit() uses updateMany WHERE status IN ('PENDING','CONFIRMING').
+    // If admin already approved (ALREADY_APPROVED) the wallet is credited — skip.
     if (depositRequest.status === "PENDING" || depositRequest.status === "CONFIRMING") {
-      await approveDeposit(superAdminId, depositRequest.id);
+      try {
+        await approveDeposit(superAdminId, depositRequest.id);
+      } catch (e) {
+        if (e instanceof AppError && e.code === "ALREADY_APPROVED") {
+          // Admin won the approval race.  Wallet credited by admin path — do not re-credit.
+          logger.info(
+            { verificationId: v.id, depositId: depositRequest.id },
+            "DepositVerification: deposit already approved by admin — advancing DV state without re-credit",
+          );
+        } else {
+          throw e;
+        }
+      }
     } else if (depositRequest.status !== "APPROVED") {
       throw new Error(
         `DepositRequest ${depositRequest.id} is in unexpected status ${depositRequest.status} — cannot auto-credit`,
       );
-    }
-
-    const creditedAt = new Date();
-    const credited   = await repo.transition(v.id, "CREDITED", { creditedAt }, ["CONFIRMED"]);
-
-    if (!credited) {
+    } else {
+      // depositRequest was already APPROVED when we found it (admin approved
+      // between the CREDITING transition and here).  No re-credit needed.
       logger.info(
-        { verificationId: v.id },
-        "DepositVerification: creditVerifiedDeposit — CONFIRMED lock won by concurrent worker, exiting",
+        { verificationId: v.id, depositId: depositRequest.id },
+        "DepositVerification: depositRequest already APPROVED — advancing DV state without re-credit",
       );
-      return;
     }
 
+    // ── Phase 3: Advance DV state: CREDITING → CREDITED → COMPLETED ───────
+    const creditedAt  = new Date();
+    await repo.transition(v.id, "CREDITED",  { creditedAt  }, ["CREDITING"]);
     const completedAt = new Date();
     await repo.transition(v.id, "COMPLETED", { completedAt }, ["CREDITED"]);
 
-    // Notify user that deposit is complete (auto-verified path)
     void notificationService.create({
       userId:  v.userId,
       type:    "DEPOSIT_APPROVED",
@@ -1135,12 +1235,14 @@ async function creditWithRetry(
     }
   }
 
-  // All retries exhausted — reset to VERIFYING so the worker retries organically.
-  // This is never a permanent failure: the blockchain confirmation is already stored
-  // and crash recovery (M3) will also resume if the process restarts.
+  // All retries exhausted.
+  // Reset to CONFIRMED (not VERIFYING) so M3 crash recovery picks it up on the
+  // next tick without re-running the full blockchain verification chain.
+  // The blockchainAmount is already stored on the DV record, so CONFIRMED→CREDITING
+  // can resume immediately on the next worker pass.
   logger.error(
     { verificationId: v.id },
-    "DepositVerification: DB pool timeout — all retries exhausted; resetting CONFIRMED→VERIFYING for next tick",
+    "DepositVerification: DB pool timeout — all retries exhausted; resetting CREDITING→CONFIRMED for M3 crash recovery",
   );
 
   // Non-alarming user notification — funds are safe, credit is only delayed
@@ -1152,15 +1254,15 @@ async function creditWithRetry(
     metadata: { verificationId: v.id, txHash: v.txHash, reason: "pool_timeout_retry" } as Prisma.InputJsonValue,
   });
 
-  // Best-effort reset — if this also fails, M3 crash recovery handles CONFIRMED on the next tick
+  // Best-effort reset to CONFIRMED — if this also fails, M3 handles CREDITING on the next tick
   try {
-    await repo.transition(v.id, "VERIFYING", {
+    await repo.transition(v.id, "CONFIRMED", {
       nextCheckAt: new Date(Date.now() + 30_000),
     });
   } catch (resetErr) {
     logger.error(
       { resetErr, verificationId: v.id },
-      "DepositVerification: failed to reset CONFIRMED→VERIFYING after pool exhaustion — M3 will recover on next tick",
+      "DepositVerification: failed to reset CREDITING→CONFIRMED after pool exhaustion — M3 will recover on next tick",
     );
   }
 

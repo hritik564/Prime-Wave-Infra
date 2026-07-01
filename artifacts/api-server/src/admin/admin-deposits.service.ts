@@ -186,8 +186,31 @@ export async function markDepositConfirming(adminId: string, depositId: string) 
 }
 
 // ── Approve ───────────────────────────────────────────────────────────────────
+//
+// IDEMPOTENCY GUARANTEE (Sprint 27F):
+//
+// The entire approve + credit sequence is wrapped in a single Prisma transaction.
+// The first statement inside that transaction is an atomic conditional UPDATE:
+//
+//   UPDATE deposit_requests
+//   SET status='APPROVED', approvedByAdminId=?, approvedAt=?
+//   WHERE id=? AND status IN ('PENDING','CONFIRMING')
+//
+// PostgreSQL's row-level locking serialises concurrent callers:
+//   • Caller A acquires the row lock → count=1 → proceeds to credit the wallet.
+//   • Caller B waits for A to commit, then sees status='APPROVED' → count=0 →
+//     throws ALREADY_APPROVED → transaction rolls back (nothing was written).
+//
+// Consequence: no matter how many concurrent callers race (admin double-click,
+// admin + worker simultaneously), exactly ONE wallet credit is ever executed.
+//
+// The sourceDepositId UNIQUE constraint on wallet_transactions is a second,
+// database-level safety net: even if application logic fails, PostgreSQL will
+// reject any duplicate insert for the same depositId.
 
 export async function approveDeposit(adminId: string, depositId: string) {
+  // Optimistic fast-reject: surface obvious non-approvable states before entering
+  // the transaction.  The definitive check is the conditional UPDATE inside.
   const deposit = await prisma.depositRequest.findUnique({
     where:  { id: depositId },
     select: { id: true, userId: true, amount: true, status: true, txHash: true, network: true },
@@ -198,35 +221,53 @@ export async function approveDeposit(adminId: string, depositId: string) {
   }
   if (deposit.status !== "PENDING" && deposit.status !== "CONFIRMING") {
     throw new AppError(
-      `Deposit is already ${deposit.status.toLowerCase()}`,
+      deposit.status === "APPROVED"
+        ? "Deposit already approved"
+        : `Deposit is already ${deposit.status.toLowerCase()}`,
       HTTP_STATUS.CONFLICT,
-      "DEPOSIT_NOT_APPROVABLE",
+      deposit.status === "APPROVED" ? "ALREADY_APPROVED" : "DEPOSIT_NOT_APPROVABLE",
     );
   }
 
   const approvedAt = new Date();
 
   await prisma.$transaction(async (tx) => {
-    await tx.depositRequest.update({
-      where: { id: depositId },
+    // ── Atomic ownership claim ────────────────────────────────────────────────
+    // Only the caller that successfully transitions PENDING/CONFIRMING → APPROVED
+    // proceeds to the wallet credit.  All other concurrent callers see count = 0.
+    const { count } = await tx.depositRequest.updateMany({
+      where: { id: depositId, status: { in: ["PENDING", "CONFIRMING"] } },
       data:  { status: "APPROVED", approvedByAdminId: adminId, approvedAt },
     });
 
+    if (count === 0) {
+      // Another concurrent process already claimed this deposit.
+      throw new AppError(
+        "Deposit already approved",
+        HTTP_STATUS.CONFLICT,
+        "ALREADY_APPROVED",
+      );
+    }
+
+    // ── Credit wallet (only one caller ever reaches here) ─────────────────────
     const wallet = await tx.wallet.update({
       where:  { userId: deposit.userId },
       data:   { depositWallet: { increment: deposit.amount } },
       select: { id: true },
     });
 
+    // sourceDepositId carries a DB-level UNIQUE constraint — a second insert for
+    // the same depositId is rejected by PostgreSQL even if application guards fail.
     await tx.walletTransaction.create({
       data: {
-        walletId:    wallet.id,
-        userId:      deposit.userId,
-        type:        "DEPOSIT",
-        status:      "SUCCESS",
-        amount:      deposit.amount,
-        description: `Crypto deposit approved — ${deposit.network} (${deposit.txHash.slice(0, 12)}…)`,
-        metadata:    { depositId, network: deposit.network, txHash: deposit.txHash, approvedBy: adminId },
+        walletId:        wallet.id,
+        userId:          deposit.userId,
+        type:            "DEPOSIT",
+        status:          "SUCCESS",
+        amount:          deposit.amount,
+        description:     `Crypto deposit approved — ${deposit.network} (${deposit.txHash.slice(0, 12)}…)`,
+        sourceDepositId: depositId,
+        metadata:        { depositId, network: deposit.network, txHash: deposit.txHash, approvedBy: adminId },
       },
     });
 

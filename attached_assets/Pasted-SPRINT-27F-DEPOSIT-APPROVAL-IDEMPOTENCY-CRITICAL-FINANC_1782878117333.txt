@@ -1,0 +1,311 @@
+SPRINT 27F — DEPOSIT APPROVAL IDEMPOTENCY (CRITICAL FINANCIAL FIX)
+
+OBJECTIVE
+
+A production race condition was discovered.
+
+A Deposit Verification was automatically approved by the blockchain worker while an administrator manually approved the same deposit approximately one second later.
+
+Result:
+
+• Wallet credited twice
+• Two wallet transactions created
+• Two DEPOSIT_APPROVED audit logs
+• User received double funds
+
+This must NEVER be possible.
+
+This sprint is a financial integrity sprint.
+
+Do NOT implement a workaround.
+
+Make the entire approval pipeline mathematically idempotent.
+
+==========================================================
+ROOT CAUSE
+==========================================================
+
+The Worker and the Admin can currently execute approveDeposit()
+at nearly the same time.
+
+Both paths successfully pass validation and both perform
+wallet credit.
+
+This must become impossible.
+
+==========================================================
+REQUIREMENT 1
+Atomic Approval
+==========================================================
+
+The approval operation must be protected by the database.
+
+Never use:
+
+SELECT status
+↓
+
+if status == PENDING
+
+↓
+
+approve()
+
+This is race-prone.
+
+Instead use an atomic conditional update.
+
+Example behaviour:
+
+UPDATE deposit_request
+
+SET status='APPROVED'
+
+WHERE
+
+id=?
+
+AND status='PENDING'
+
+If zero rows are updated
+
+the approval has already been processed.
+
+Return immediately.
+
+==========================================================
+REQUIREMENT 2
+Wallet Credit Idempotency
+==========================================================
+
+Wallet credit must only execute after ownership
+of the approval has been obtained.
+
+No second code path may reach wallet.update().
+
+==========================================================
+REQUIREMENT 3
+Wallet Transaction Idempotency
+==========================================================
+
+Exactly ONE wallet transaction may ever exist
+for a deposit verification.
+
+Enforce this using a database-level constraint.
+
+Do NOT rely only on application code.
+
+If another transaction attempts to create
+a duplicate wallet transaction
+
+the database must reject it.
+
+==========================================================
+REQUIREMENT 4
+Deposit Verification State
+==========================================================
+
+Introduce an intermediate processing state if required.
+
+Example:
+
+CONFIRMED
+
+↓
+
+CREDITING
+
+↓
+
+COMPLETED
+
+Only one process may transition:
+
+CONFIRMED
+
+↓
+
+CREDITING
+
+Any second process attempting the same transition
+must fail gracefully.
+
+==========================================================
+REQUIREMENT 5
+Admin Approval
+==========================================================
+
+If an administrator attempts to approve
+a deposit that has already been credited
+
+Return:
+
+HTTP 409
+
+Code:
+
+ALREADY_APPROVED
+
+Admin UI must immediately refresh
+and remove the Approve button.
+
+==========================================================
+REQUIREMENT 6
+Worker
+==========================================================
+
+Worker retries must also be idempotent.
+
+If credit already happened
+
+do nothing.
+
+Never generate:
+
+duplicate wallet credits
+
+duplicate wallet transactions
+
+duplicate notifications
+
+duplicate audit logs
+
+==========================================================
+REQUIREMENT 7
+Audit Existing Production Data
+==========================================================
+
+Create a one-time audit.
+
+Scan every completed Deposit Verification.
+
+For every verification:
+
+Count wallet transactions
+linked to that verification.
+
+Expected:
+
+1
+
+If count > 1
+
+Generate report:
+
+Verification ID
+
+User
+
+Deposit amount
+
+Wallet transaction IDs
+
+Duplicate amount
+
+Timestamp difference
+
+Do NOT automatically modify data.
+
+Report only.
+
+==========================================================
+REQUIREMENT 8
+Regression Tests
+==========================================================
+
+Simulate:
+
+Worker approves
+
+Admin approves simultaneously
+
+Admin approves twice
+
+Worker retries
+
+Worker crash recovery
+
+Re-validation after completion
+
+Manual approval after automatic approval
+
+Automatic approval after manual approval
+
+Every scenario must result in:
+
+Exactly one wallet credit
+
+Exactly one wallet transaction
+
+Exactly one notification
+
+Exactly one approval audit
+
+==========================================================
+REQUIREMENT 9
+Financial Integrity
+==========================================================
+
+No existing business rules may change.
+
+Do NOT modify:
+
+Blockchain adapter
+
+Verification engine
+
+Wallet calculations
+
+Investment engine
+
+ROI
+
+Binary
+
+Salary
+
+Orbit
+
+Withdrawal
+
+Only harden the approval pipeline.
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Provide:
+
+1.
+
+Root cause.
+
+2.
+
+Files modified.
+
+3.
+
+Database changes.
+
+4.
+
+Idempotency strategy.
+
+5.
+
+Concurrency strategy.
+
+6.
+
+Audit report of existing production deposits.
+
+7.
+
+Regression test results.
+
+8.
+
+Confirmation that it is now impossible for a deposit
+to be credited twice, even if multiple workers,
+multiple admins, retries, or race conditions occur.

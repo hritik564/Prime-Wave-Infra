@@ -107,7 +107,7 @@ export async function findPendingForWorker(now: Date) {
   return prisma.depositVerification.findMany({
     where: {
       verificationStatus: {
-        in: ["TX_SUBMITTED", "VERIFYING", "WAITING_CONFIRMATIONS", "VERIFICATION_DELAYED", "CONFIRMED", "CREDITED"],
+        in: ["TX_SUBMITTED", "VERIFYING", "WAITING_CONFIRMATIONS", "VERIFICATION_DELAYED", "CONFIRMED", "CREDITING", "CREDITED"],
       },
       nextCheckAt: { lte: now },
     },
