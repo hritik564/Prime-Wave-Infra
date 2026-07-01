@@ -60,6 +60,9 @@ export async function maybeResetForLaunch(): Promise<void> {
         // Investments
         await tx.investment.deleteMany();
 
+        // Deposit verifications must be deleted before deposit requests (FK constraint)
+        await tx.depositVerification.deleteMany();
+
         // Deposits and withdrawals
         await tx.withdrawalRequest.deleteMany();
         await tx.depositRequest.deleteMany();
