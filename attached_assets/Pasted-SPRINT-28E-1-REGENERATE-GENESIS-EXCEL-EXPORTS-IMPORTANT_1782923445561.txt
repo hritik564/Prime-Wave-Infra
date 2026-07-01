@@ -1,0 +1,219 @@
+SPRINT 28E.1 — REGENERATE GENESIS EXCEL EXPORTS
+
+IMPORTANT
+
+DO NOT regenerate the network.
+
+DO NOT regenerate funding.
+
+DO NOT create or modify any users.
+
+DO NOT modify any wallet balances.
+
+DO NOT modify any deposits.
+
+DO NOT modify any referrals.
+
+DO NOT modify any binary placements.
+
+This sprint is EXPORT ONLY.
+
+Read the current database exactly as it exists and regenerate the Excel files.
+
+==========================================================
+VERIFY DATABASE FIRST
+==========================================================
+
+Before exporting, verify:
+
+Master users = 1
+
+MI users = 63
+
+RD users = 64
+
+SP users = 6400
+
+Total users = 6528
+
+Funded endpoints = 128
+
+Deposit Wallet Total = $2,560,000
+
+Investments = 0
+
+Deposit Requests = 128
+
+Wallet Transactions = 128
+
+If any verification fails,
+
+STOP
+
+and report the mismatch.
+
+==========================================================
+GENERATE FILE 1
+==========================================================
+
+Filename
+
+PrimeWave_All_Accounts.xlsx
+
+Rows
+
+6528
+
+Columns
+
+Username
+
+Password (Master@PrimeWave2025!)
+
+Account Type
+
+(MASTER / MI / RD / SP)
+
+Level
+
+Referral Sponsor
+
+Binary Parent
+
+Placement Side
+
+Status
+
+Deposit Wallet
+
+Income Wallet
+
+Withdrawal Wallet
+
+Investment Wallet
+
+Funded
+
+Created At
+
+==========================================================
+GENERATE FILE 2
+==========================================================
+
+Filename
+
+PrimeWave_RD_Accounts.xlsx
+
+Rows
+
+64
+
+Columns
+
+Username
+
+Password
+
+RD Number
+
+Binary Parent
+
+Referral Sponsor
+
+Left Chain Size
+
+Right Chain Size
+
+Direct Referrals
+
+Funded Left Endpoint
+
+Funded Right Endpoint
+
+Status
+
+Created At
+
+==========================================================
+GENERATE FILE 3
+==========================================================
+
+Filename
+
+PrimeWave_Funded_Accounts.xlsx
+
+Rows
+
+128
+
+Columns
+
+Username
+
+Password
+
+Owning RD
+
+Side
+
+Chain Depth
+
+Deposit Wallet
+
+Investment Wallet
+
+Deposit Request ID
+
+Wallet Transaction ID
+
+Funding Amount
+
+Funding Status
+
+Created At
+
+==========================================================
+CROSS VERIFICATION
+==========================================================
+
+Verify:
+
+File 1 = 6528 rows
+
+File 2 = 64 rows
+
+File 3 = 128 rows
+
+No duplicate usernames
+
+All funded accounts exist in File 1
+
+All RD accounts exist in File 1
+
+Every password column contains:
+
+Master@PrimeWave2025!
+
+==========================================================
+OUTPUT LOCATION
+==========================================================
+
+Write all three files to:
+
+/home/runner/workspace/generated/
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return:
+
+1. Verification summary
+
+2. File names
+
+3. Row counts
+
+4. Output directory
+
+5. Confirmation that NO database records were modified during this sprint.
