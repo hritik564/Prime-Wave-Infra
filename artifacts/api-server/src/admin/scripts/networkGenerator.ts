@@ -171,6 +171,7 @@ async function registerNetworkUser(
         passwordHash,
         firstName,
         lastName,
+        status:       "INACTIVE",   // Genesis accounts start INACTIVE; activation is a separate business process
         referralCode,
         referredBy: sponsorId,
         sponsorId,

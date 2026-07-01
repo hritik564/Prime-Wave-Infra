@@ -772,6 +772,7 @@ export function getLevelDetail()  { return request<LevelDetail>("/api/income/lev
 export interface AdminDashboardStats {
   totalUsers: number;
   activeUsers: number;
+  inactiveUsers: number;
   blockedUsers: number;
   suspendedUsers: number;
   totalDeposits: number;

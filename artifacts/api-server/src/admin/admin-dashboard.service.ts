@@ -15,6 +15,7 @@ export async function getDashboardStats() {
     activeUsers,
     blockedUsers,
     suspendedUsers,
+    inactiveUsers,
 
     totalDeposits,
     pendingDeposits,
@@ -39,6 +40,7 @@ export async function getDashboardStats() {
     prisma.user.count({ where: { status: "ACTIVE" } }),
     prisma.user.count({ where: { status: "BLOCKED" } }),
     prisma.user.count({ where: { status: "SUSPENDED" } }),
+    prisma.user.count({ where: { status: "INACTIVE" } }),
 
     // Deposits
     prisma.depositRequest.count(),
@@ -71,6 +73,7 @@ export async function getDashboardStats() {
   return {
     totalUsers,
     activeUsers,
+    inactiveUsers,
     blockedUsers,
     suspendedUsers,
 

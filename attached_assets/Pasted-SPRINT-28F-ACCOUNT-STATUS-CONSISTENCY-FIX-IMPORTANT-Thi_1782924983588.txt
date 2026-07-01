@@ -1,0 +1,270 @@
+SPRINT 28F — ACCOUNT STATUS CONSISTENCY FIX
+
+IMPORTANT
+
+This is a DATA CONSISTENCY fix.
+
+DO NOT hardcode UI badges.
+
+DO NOT fake counts.
+
+The system must display the REAL account status everywhere.
+
+==========================================================
+BACKGROUND
+==========================================================
+
+The Genesis Network was intentionally created with:
+
+MASTER = INACTIVE
+
+All MI accounts = INACTIVE
+
+All RD accounts = INACTIVE
+
+All SP accounts = INACTIVE
+
+Funding a Deposit Wallet DOES NOT activate an account.
+
+Having referrals DOES NOT activate an account.
+
+Having a binary position DOES NOT activate an account.
+
+An account only becomes ACTIVE through the actual business activation process.
+
+==========================================================
+CURRENT PROBLEM
+==========================================================
+
+The platform currently shows:
+
+Admin Dashboard
+
+6528 Active Members
+
+Tree Explorer
+
+MI/RD accounts = ACTIVE
+
+Member List
+
+All SP accounts = ACTIVE
+
+This is incorrect.
+
+==========================================================
+STEP 1 — FIND THE SOURCE OF TRUTH
+==========================================================
+
+Determine:
+
+Which database field represents the REAL account status.
+
+Examples:
+
+status
+
+memberStatus
+
+isActive
+
+accountStatus
+
+or another field.
+
+Report:
+
+Database field
+
+Database value
+
+Meaning of every possible value.
+
+==========================================================
+STEP 2 — TRACE THE STATUS
+==========================================================
+
+Trace the entire flow.
+
+Database
+
+↓
+
+API
+
+↓
+
+Frontend
+
+↓
+
+Badge
+
+Find exactly where ACTIVE is being introduced.
+
+Possibilities:
+
+Wrong database value
+
+Wrong API mapping
+
+Wrong frontend mapping
+
+Default fallback
+
+Hardcoded value
+
+Assumption based on investment
+
+Assumption based on wallet
+
+Assumption based on login
+
+Report the exact source.
+
+==========================================================
+STEP 3 — FIX THE SOURCE
+==========================================================
+
+The system must always display the REAL account status.
+
+Never infer status.
+
+Never derive it.
+
+Never default to ACTIVE.
+
+Every screen must use the same source of truth.
+
+==========================================================
+SCREENS TO FIX
+==========================================================
+
+Admin Members
+
+Status badge
+
+Active Members dashboard card
+
+Tree Explorer cards
+
+Network Intelligence
+
+Any member search
+
+Any profile page
+
+Any API returning member status
+
+==========================================================
+STEP 4 — VERIFY SAMPLE USERS
+==========================================================
+
+Verify these users.
+
+MASTER
+
+mi0001
+
+mi0063
+
+rd0001
+
+rd0064
+
+sp000001
+
+sp006400
+
+For each return:
+
+Database status
+
+↓
+
+API response
+
+↓
+
+UI badge
+
+All three must match.
+
+==========================================================
+STEP 5 — VERIFY DASHBOARD COUNTS
+==========================================================
+
+Recalculate using the actual status field.
+
+Expected today:
+
+Total Members
+
+6528
+
+Active Members
+
+Should equal the actual number of ACTIVE accounts in the database
+(not hardcoded)
+
+Inactive Members
+
+Should equal the remaining accounts
+
+Suspended Members
+
+Should equal database
+
+Pending Members
+
+Should equal database
+
+No derived counts.
+
+==========================================================
+STEP 6 — REGRESSION
+==========================================================
+
+Confirm NO changes to:
+
+Registration
+
+Wallets
+
+Deposit engine
+
+Funding engine
+
+Binary engine
+
+Referral engine
+
+Income engine
+
+Investment engine
+
+This sprint must only correct account status consistency.
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return:
+
+1. Root cause
+
+2. Files modified
+
+3. Database status field
+
+4. API changes
+
+5. UI changes
+
+6. Before/after screenshots
+
+7. Dashboard counts after fix
+
+8. Verification of the seven sample accounts
+
+9. Confirmation that ALL platform components now display the real account status consistently.
