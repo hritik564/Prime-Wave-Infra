@@ -1,0 +1,350 @@
+SPRINT 28B — PRODUCTION RESET (SAFE RESET)
+
+⚠️ CRITICAL
+This is the only destructive operation before Prime Wave goes live.
+
+Do NOT rush.
+Do NOT improvise.
+Do NOT delete anything until every safety check passes.
+
+==========================================================
+OBJECTIVE
+==========================================================
+
+We are resetting the production database.
+
+There are NO real users.
+
+All seeded accounts, investments, deposits, wallet balances, binary trees and business data will be removed.
+
+Configuration must remain untouched.
+
+After this sprint the system should behave exactly like a freshly deployed production platform.
+
+==========================================================
+PRE-CONDITIONS (MANDATORY)
+==========================================================
+
+Before deleting anything verify ALL of the following:
+
+✓ Production PostgreSQL backup exists
+✓ Backup completed successfully
+✓ Backup checksum available
+✓ Restore procedure documented
+✓ Production database is reachable
+✓ No migration is currently running
+✓ No worker is currently executing
+✓ No cron job is executing
+✓ No active deployment in progress
+
+If ANY check fails
+
+STOP.
+
+Return the reason.
+
+==========================================================
+STEP 1
+ENTER MAINTENANCE MODE
+==========================================================
+
+Before modifying data:
+
+• Enable maintenance mode.
+• Disable user registration.
+• Disable deposits.
+• Disable withdrawals.
+• Disable investment creation.
+• Disable income transfers.
+• Disable binary processing.
+• Disable ROI processing.
+• Disable salary processing.
+• Disable background workers.
+• Disable scheduled jobs.
+
+No financial engine should execute during the reset.
+
+==========================================================
+STEP 2
+VERIFY CONFIGURATION TABLES
+==========================================================
+
+These MUST NOT be deleted.
+
+Verify they exist before reset.
+
+Keep:
+
+✓ Admin accounts
+✓ Roles
+✓ Permissions
+✓ Company Wallets
+✓ System Settings
+✓ Investment Plans
+✓ Salary Configuration
+✓ Withdrawal Settings
+✓ Countries
+✓ Notification Templates
+✓ Package Configuration
+✓ Binary Configuration
+✓ ROI Configuration
+✓ Network Configuration
+✓ Prisma Migration History
+
+These are platform configuration.
+
+==========================================================
+STEP 3
+DELETE BUSINESS DATA
+==========================================================
+
+Delete ONLY business data.
+
+Examples include:
+
+Users
+Wallets
+Wallet Transactions
+Investments
+Deposit Requests
+Deposit Verifications
+Withdraw Requests
+Notifications
+Referral History
+Binary Relationships
+BV Ledgers
+ROI Ledgers
+Salary Income
+Level Income
+Binary Income
+Orbit Income
+Income Transfers
+Transfer Releases
+Job Execution Logs
+Login Sessions
+OTP Records
+KYC
+Audit records related to deleted users
+
+Delete in dependency order.
+
+Prefer TRUNCATE where safe.
+
+Reset all sequences afterwards.
+
+==========================================================
+STEP 4
+RESET BINARY STATE
+==========================================================
+
+After deletion verify:
+
+No binaryParentId values remain.
+
+No leftDeepestNodeId values remain.
+
+No rightDeepestNodeId values remain.
+
+No orphan binary references.
+
+No orphan referral references.
+
+==========================================================
+STEP 5
+DATABASE INTEGRITY
+==========================================================
+
+Run a complete integrity audit.
+
+Confirm:
+
+Users = 0
+
+Wallets = 0
+
+Investments = 0
+
+Deposit Requests = 0
+
+Deposit Verifications = 0
+
+Withdraw Requests = 0
+
+Wallet Transactions = 0
+
+Notifications = 0
+
+Referral History = 0
+
+Income tables = 0
+
+Binary tables = 0
+
+Transfer tables = 0
+
+Job logs = 0
+
+==========================================================
+STEP 6
+VERIFY CONFIGURATION SURVIVED
+==========================================================
+
+Confirm these counts remain unchanged:
+
+Admins
+
+Company Wallets
+
+System Settings
+
+Plans
+
+Salary Slabs
+
+Withdrawal Settings
+
+Migration History
+
+Nothing in configuration should be lost.
+
+==========================================================
+STEP 7
+HEALTH CHECK
+==========================================================
+
+Start every service again.
+
+Enable:
+
+Registration
+
+Deposits
+
+Withdrawals
+
+Workers
+
+Schedulers
+
+ROI
+
+Binary
+
+Salary
+
+Transfers
+
+Run:
+
+GET /api
+
+GET /api/healthz
+
+Verify:
+
+HTTP 200
+
+==========================================================
+STEP 8
+EMPTY PLATFORM AUDIT
+==========================================================
+
+Generate one report.
+
+Example:
+
+Users................0
+
+Wallets..............0
+
+Investments..........0
+
+Deposits.............0
+
+Withdrawals..........0
+
+Notifications........0
+
+Referral Records.....0
+
+Binary Records.......0
+
+Wallet Transactions..0
+
+Configuration.........PASS
+
+Health...............PASS
+
+==========================================================
+STEP 9
+REGRESSION
+==========================================================
+
+Confirm:
+
+No migrations pending
+
+No schema drift
+
+No missing enum
+
+No missing constraint
+
+sourceDepositId UNIQUE still exists
+
+CREDITING enum still exists
+
+Company wallet configuration intact
+
+BSC adapter still active
+
+==========================================================
+STEP 10
+FINAL REPORT
+==========================================================
+
+Provide:
+
+1. Files modified
+
+2. Reset strategy
+
+3. Tables cleared
+
+4. Tables preserved
+
+5. Record counts before
+
+6. Record counts after
+
+7. Integrity audit
+
+8. Health check
+
+9. Regression report
+
+10. Confirmation that the production database is now a clean, empty platform ready for rebuilding the network.
+
+==========================================================
+NON-NEGOTIABLE
+==========================================================
+
+• Do NOT remove configuration.
+
+• Do NOT remove admin accounts.
+
+• Do NOT modify business logic.
+
+• Do NOT change financial calculations.
+
+• Do NOT change wallet logic.
+
+• Do NOT change deposit verification.
+
+• Do NOT change binary placement.
+
+• Do NOT introduce any new feature.
+
+This sprint is a DATA RESET ONLY.
+
+If ANY unexpected condition is encountered, STOP immediately and return the reason instead of attempting to continue.
