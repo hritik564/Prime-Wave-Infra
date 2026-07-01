@@ -949,8 +949,8 @@ export default function NetworkIntelligencePage() {
                 <div style={{ width: `${rightPct}%`, background: "linear-gradient(90deg,#a78bfa,#7c3aed)", transition: "width 0.8s ease" }} />
               </div>
               <div className="flex justify-between mt-1.5">
-                <span style={{ fontSize: 10, color: "#60a5fa", fontWeight: 600 }}>{leftPct.toFixed(0)}% L</span>
-                <span style={{ fontSize: 10, color: "#a78bfa", fontWeight: 600 }}>R {rightPct.toFixed(0)}%</span>
+                <span style={{ fontSize: 10, color: "#60a5fa", fontWeight: 700 }}>LEFT TEAM {leftPct.toFixed(0)}%</span>
+                <span style={{ fontSize: 10, color: "#a78bfa", fontWeight: 700 }}>RIGHT TEAM {rightPct.toFixed(0)}%</span>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
@@ -965,11 +965,20 @@ export default function NetworkIntelligencePage() {
                 </div>
               ))}
             </div>
-            <div className="mt-3 flex items-center gap-2 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-              <div style={{ width: 7, height: 7, borderRadius: "50%", background: qualified ? "#34d399" : "rgba(170,179,197,0.35)", flexShrink: 0 }} />
-              <span style={{ fontSize: 11, color: qualified ? "#34d399" : MUTED }}>
-                {qualified ? "Binary income qualified — earning matching payouts" : "Not yet qualified — need 2+ direct referrals"}
-              </span>
+            <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+              {qualified ? (
+                <div className="flex items-center gap-2">
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#34d399", flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: "#34d399", fontWeight: 600 }}>✓ Binary Qualified — earning matching payouts</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: "rgba(251,146,60,0.6)", flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: "#fb923c" }}>
+                    {`You need ${2 - (bvSummary?.directReferrals ?? 0)} more direct referral${(2 - (bvSummary?.directReferrals ?? 0)) === 1 ? "" : "s"} to unlock binary matching income`}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </Section>

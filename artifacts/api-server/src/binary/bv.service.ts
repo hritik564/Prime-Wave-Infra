@@ -113,10 +113,11 @@ export async function getBvSummary(userId: string) {
   const user = await prisma.user.findUnique({
     where:  { id: userId },
     select: {
-      id:       true,
-      username: true,
-      leftBV:   true,
-      rightBV:  true,
+      id:                  true,
+      username:            true,
+      leftBV:              true,
+      rightBV:             true,
+      directReferralCount: true,
     },
   });
 
@@ -139,14 +140,16 @@ export async function getBvSummary(userId: string) {
   const generatedEvents = outboundBvAgg._count;
 
   return {
-    userId:          user.id,
-    username:        user.username,
-    leftBV:          user.leftBV,
-    rightBV:         user.rightBV,
+    userId:           user.id,
+    username:         user.username,
+    leftBV:           user.leftBV,
+    rightBV:          user.rightBV,
     totalBV,
-    inboundEvents:   inboundCount,   // how many times BV flowed into this user's legs
-    generatedBV,                     // total BV this user's investments have pushed upward
-    generatedEvents,                 // number of investment events that generated BV
+    inboundEvents:    inboundCount,          // how many times BV flowed into this user's legs
+    generatedBV,                             // total BV this user's investments have pushed upward
+    generatedEvents,                         // number of investment events that generated BV
+    binaryQualified:  user.directReferralCount >= 2,  // qualification gate: ≥2 direct referrals
+    directReferrals:  user.directReferralCount,
   };
 }
 

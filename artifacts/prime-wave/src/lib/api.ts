@@ -1253,6 +1253,7 @@ export interface BvSummary {
   matchedBV:       string;
   carryForwardBV:  string;
   binaryQualified: boolean;
+  directReferrals: number;
 }
 
 export function getBinaryTree(depth = 3) {
