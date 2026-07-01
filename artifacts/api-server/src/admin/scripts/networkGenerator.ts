@@ -1,24 +1,35 @@
 /**
- * Prime Wave Network Generator — Sprint 28C.1 (corrected)
+ * Prime Wave Network Generator — Sprint 28C.2 (topology corrected)
  *
- * Three-tier launch network:
- *   MI (Infrastructure) — nodes 1–63  of a 7-level binary tree (levels 1–6)
- *   RD (Root Distributors) — nodes 64–127 (level 7, 64 accounts)
- *   SP (Spill)  — 100 accounts per RD (50 LEFT + 50 RIGHT linear chains)
+ * Three-tier launch network with MASTER as the binary tree root:
  *
- * Referral structure (corrected):
+ *   MASTER
+ *   ├── LEFT  → MI0001
+ *   └── RIGHT → MI0002   ← both arms filled at root level
+ *
+ *   MI (Infrastructure) — 63 accounts, BFS nodes 1–63 below master
+ *   RD (Root Distributors) — 64 accounts, BFS nodes 64–127 below master
+ *   SP (Spill) — 100 accounts per RD (50 LEFT + 50 RIGHT linear chains)
+ *
+ * BFS formula (master = index 0, nodes are 1-indexed):
+ *   Parent of node i = floor((i-1) / 2)   [0 = master, 1–63 = MI, 64–127 = RD]
+ *   Position:          odd i → LEFT,  even i → RIGHT
+ *
+ * Transition nodes:
+ *   mi0031 (node 31): LEFT → mi0063, RIGHT → rd0001
+ *   mi0063 (node 63): LEFT → rd0064, RIGHT → (empty)
+ *
+ * Referral structure:
  *   Every SP account is sponsored DIRECTLY by its owning RD.
  *   → Each RD ends with directReferralCount = 100.
  *
- * Binary structure (unchanged):
+ * Binary structure:
  *   RD → SP1(L) → SP2(L) → … → SP50(L)   (left linear chain)
  *   RD → SP51(R) → SP52(R) → … → SP100(R) (right linear chain)
- *   placeUserTx greedy-deepest handles this automatically because all SPs
- *   share the same sponsorId (= RD) and the cache always points to the deepest
- *   free slot in the RD's subtree.
  *
  * Counts:
  *   MI = 63  |  RD = 64  |  SP = 6400  |  Grand Total = 6527
+ *   Master LEFT subtree: 3264  |  Master RIGHT subtree: 3263
  *
  * Usage:
  *   pnpm --filter @workspace/api-server run generate-network
@@ -192,13 +203,17 @@ async function registerNetworkUser(
 
 // ── Phase 1: Infrastructure (MI + RD tier accounts, 127 total) ───────────────
 //
-// BFS-ordered 7-level complete binary tree (1-indexed):
-//   Parent of node i = floor(i / 2)
-//   Position:         i even → LEFT, i odd → RIGHT (i > 1)
-//   Level:            floor(log2(i)) + 1
+// BFS-ordered binary tree — master is the root (index 0), nodes are 1-indexed:
+//   Parent of node i = floor((i-1) / 2)   [0 = master, 1–63 = MI, 64–127 = RD]
+//   Position:          odd  i → LEFT,  even i → RIGHT
+//   Level from master: floor(log2(i+1))
 //
-//   Nodes 1–63  → MI accounts (mi0001…mi0063)  levels 1–6
-//   Nodes 64–127 → RD accounts (rd0001…rd0064) level 7
+//   Nodes 1–63   → MI accounts (mi0001…mi0063)  levels 1–6 below master
+//   Nodes 64–127 → RD accounts (rd0001…rd0064)  level 7 below master
+//
+//   Master:  LEFT → mi0001 (node 1),  RIGHT → mi0002 (node 2)
+//   mi0031 (node 31): LEFT → mi0063 (node 63),  RIGHT → rd0001 (node 64)
+//   mi0063 (node 63): LEFT → rd0064 (node 127),  RIGHT → (empty)
 //
 // Both tiers are generated in a single BFS pass.
 
@@ -238,25 +253,22 @@ async function generateInfrastructure(
     if (isMI && miCodeMap.has(node))          continue;
     if (!isMI && rdCodeMap.has(rdIdx))        continue;
 
-    // Determine sponsor + leg
+    // Determine sponsor + leg using new BFS formula:
+    //   parent index = floor((node-1)/2)  [0=master, 1-63=MI, 64-127=RD]
+    //   position: odd node → LEFT, even node → RIGHT
     let sponsorCode: string;
-    let leg: "L" | "R";
+    const parentIdx = Math.floor((node - 1) / 2);
+    const leg: "L" | "R" = (node % 2 === 1) ? "L" : "R";
 
-    if (node === 1) {
-      // MI0001 is sponsored by the master user
+    if (parentIdx === 0) {
+      // Direct child of master: node 1 = mi0001 (LEFT), node 2 = mi0002 (RIGHT)
       sponsorCode = MASTER_REFERRAL;
-      leg         = "L";
+    } else if (parentIdx <= MI_COUNT) {
+      // Parent is a MI account
+      sponsorCode = miCodeMap.get(parentIdx)!;
     } else {
-      const parentNode = Math.floor(node / 2);
-      leg = node % 2 === 0 ? "L" : "R";
-
-      if (parentNode <= MI_COUNT) {
-        // Parent is a MI account
-        sponsorCode = miCodeMap.get(parentNode)!;
-      } else {
-        // Parent is a RD account
-        sponsorCode = rdCodeMap.get(parentNode - MI_COUNT)!;
-      }
+      // Parent is a RD account
+      sponsorCode = rdCodeMap.get(parentIdx - MI_COUNT)!;
     }
 
     const username = isMI ? miUsername(node) : rdUsername(rdIdx);
@@ -389,7 +401,9 @@ async function runVerification(): Promise<boolean> {
     having: { email: { _count: { gt: 1 } } },
   });
 
-  // Binary integrity: every generated account (except the root MI0001) must have binaryParentId
+  // Binary integrity: ALL generated accounts must have binaryParentId.
+  // In the new topology both mi0001 (LEFT of master) and mi0002 (RIGHT of master)
+  // have master as their binaryParentId — no exceptions.
   const missingBinaryParent = await prisma.user.count({
     where: {
       OR: [
@@ -398,9 +412,17 @@ async function runVerification(): Promise<boolean> {
         { username: { startsWith: "sp0" } },
       ],
       binaryParentId: null,
-      NOT: { username: "mi0001" },
     },
   });
+
+  // Master must have exactly 2 binary children (mi0001 LEFT + mi0002 RIGHT)
+  const masterUser = await prisma.user.findUnique({
+    where:  { username: "master" },
+    select: { id: true },
+  });
+  const masterChildCount = masterUser
+    ? await prisma.user.count({ where: { binaryParentId: masterUser.id } })
+    : -1;
 
   // Referral integrity: every generated account must have a sponsorId
   const missingSponsors = await prisma.user.count({
@@ -442,21 +464,22 @@ async function runVerification(): Promise<boolean> {
   });
 
   const checks = [
-    { label: "MI accounts",                  expected: MI_COUNT,              actual: miCount,              pass: miCount === MI_COUNT },
-    { label: "RD accounts",                  expected: RD_COUNT,              actual: rdCount,              pass: rdCount === RD_COUNT },
-    { label: "SP accounts",                  expected: SP_TOTAL,              actual: spCount,              pass: spCount === SP_TOTAL },
-    { label: "Grand total",                  expected: MI_COUNT+RD_COUNT+SP_TOTAL, actual: totalUsers,      pass: totalUsers === MI_COUNT+RD_COUNT+SP_TOTAL },
-    { label: "Wallets",                      expected: MI_COUNT+RD_COUNT+SP_TOTAL, actual: walletCount,     pass: walletCount === MI_COUNT+RD_COUNT+SP_TOTAL },
-    { label: "Investments (must be 0)",      expected: 0,                     actual: investCount,          pass: investCount === 0 },
-    { label: "Deposits (must be 0)",         expected: 0,                     actual: depositCount,         pass: depositCount === 0 },
-    { label: "Withdrawals (must be 0)",      expected: 0,                     actual: withdrawCount,        pass: withdrawCount === 0 },
-    { label: "Duplicate usernames",          expected: 0,                     actual: dupUsername.length,   pass: dupUsername.length === 0 },
-    { label: "Duplicate emails",             expected: 0,                     actual: dupEmail.length,      pass: dupEmail.length === 0 },
-    { label: "Binary integrity (no orphans)",expected: 0,                     actual: missingBinaryParent,  pass: missingBinaryParent === 0 },
-    { label: "Referral integrity (all have sponsor)", expected: 0,            actual: missingSponsors,      pass: missingSponsors === 0 },
-    { label: "RD directReferralCount = 100", expected: 0,                     actual: rdBadReferralCount,   pass: rdBadReferralCount === 0 },
-    { label: "SP sponsor = owning RD",       expected: 0,                     actual: spBadSponsor,         pass: spBadSponsor === 0 },
-    { label: "Referral history records",     expected: MI_COUNT+RD_COUNT+SP_TOTAL, actual: refHistoryCount, pass: refHistoryCount === MI_COUNT+RD_COUNT+SP_TOTAL },
+    { label: "MI accounts",                        expected: MI_COUNT,              actual: miCount,              pass: miCount === MI_COUNT },
+    { label: "RD accounts",                        expected: RD_COUNT,              actual: rdCount,              pass: rdCount === RD_COUNT },
+    { label: "SP accounts",                        expected: SP_TOTAL,              actual: spCount,              pass: spCount === SP_TOTAL },
+    { label: "Grand total",                        expected: MI_COUNT+RD_COUNT+SP_TOTAL, actual: totalUsers,      pass: totalUsers === MI_COUNT+RD_COUNT+SP_TOTAL },
+    { label: "Wallets",                            expected: MI_COUNT+RD_COUNT+SP_TOTAL, actual: walletCount,     pass: walletCount === MI_COUNT+RD_COUNT+SP_TOTAL },
+    { label: "Investments (must be 0)",            expected: 0,                     actual: investCount,          pass: investCount === 0 },
+    { label: "Deposits (must be 0)",               expected: 0,                     actual: depositCount,         pass: depositCount === 0 },
+    { label: "Withdrawals (must be 0)",            expected: 0,                     actual: withdrawCount,        pass: withdrawCount === 0 },
+    { label: "Duplicate usernames",                expected: 0,                     actual: dupUsername.length,   pass: dupUsername.length === 0 },
+    { label: "Duplicate emails",                   expected: 0,                     actual: dupEmail.length,      pass: dupEmail.length === 0 },
+    { label: "Binary integrity (no orphans)",      expected: 0,                     actual: missingBinaryParent,  pass: missingBinaryParent === 0 },
+    { label: "Master binary children (must be 2)", expected: 2,                     actual: masterChildCount,     pass: masterChildCount === 2 },
+    { label: "Referral integrity (all have sponsor)", expected: 0,                  actual: missingSponsors,      pass: missingSponsors === 0 },
+    { label: "RD directReferralCount = 100",       expected: 0,                     actual: rdBadReferralCount,   pass: rdBadReferralCount === 0 },
+    { label: "SP sponsor = owning RD",             expected: 0,                     actual: spBadSponsor,         pass: spBadSponsor === 0 },
+    { label: "Referral history records",           expected: MI_COUNT+RD_COUNT+SP_TOTAL, actual: refHistoryCount, pass: refHistoryCount === MI_COUNT+RD_COUNT+SP_TOTAL },
   ];
 
   let allPass = true;
@@ -513,7 +536,7 @@ async function generateExcel(): Promise<void> {
   // Sheet 1: Infrastructure (MI)
   const infraSheet = miUsers.map(u => {
     const idx   = parseInt(u.username.slice(2), 10);
-    const level = Math.floor(Math.log2(idx)) + 1;
+    const level = Math.floor(Math.log2(idx + 1)); // level from master: mi0001/mi0002 = 1, etc.
     return {
       Username:           u.username.toUpperCase(),
       Password:           PASSWORD,

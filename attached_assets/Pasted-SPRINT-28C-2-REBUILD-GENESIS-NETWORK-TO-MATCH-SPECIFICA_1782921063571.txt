@@ -1,0 +1,171 @@
+SPRINT 28C.2 — REBUILD GENESIS NETWORK TO MATCH SPECIFICATION
+
+IMPORTANT
+
+STOP.
+
+Do NOT patch the Tree Explorer.
+
+Do NOT modify rendering.
+
+Do NOT modify layout.
+
+The visualization is correctly displaying the current database.
+
+The issue is the generated topology.
+
+==========================================================
+OBJECTIVE
+==========================================================
+
+Rebuild the genesis network so that it matches the original specification.
+
+This is an architectural correction.
+
+==========================================================
+CURRENT STRUCTURE (INCORRECT)
+==========================================================
+
+MASTER
+
+├── LEFT  -> MI0001
+
+└── RIGHT -> empty
+
+Entire infrastructure hangs below MI0001.
+
+This is NOT the intended company launch network.
+
+==========================================================
+REQUIRED STRUCTURE
+==========================================================
+
+MASTER
+
+├── LEFT  -> MI0001
+
+└── RIGHT -> MI0002
+
+From there, continue generating the complete infrastructure symmetrically.
+
+Example
+
+                MASTER
+
+            /             \
+
+        MI0001          MI0002
+
+        /     \         /      \
+
+    MI0003 MI0004  MI0005 MI0006
+
+...
+
+Continue BFS until:
+
+63 MI accounts
+
+Then attach
+
+64 RD accounts
+
+Then generate
+
+100 SP accounts beneath every RD.
+
+==========================================================
+REQUIREMENTS
+==========================================================
+
+The final structure must be balanced beginning at MASTER.
+
+The master account must have BOTH binary children populated.
+
+No infrastructure should hang entirely beneath one side.
+
+==========================================================
+DO NOT CHANGE
+==========================================================
+
+Registration service
+
+Wallet creation
+
+Deposit engine
+
+Funding engine
+
+Referral engine
+
+Income engine
+
+Binary placement logic
+
+Tree visualization
+
+==========================================================
+ONLY CHANGE
+==========================================================
+
+The generation order and parent selection.
+
+==========================================================
+AFTER REBUILD VERIFY
+==========================================================
+
+MASTER
+
+2 direct binary children
+
+LEFT subtree count
+
+RIGHT subtree count
+
+Difference should be no more than one node.
+
+Verify
+
+63 MI
+
+64 RD
+
+6400 SP
+
+6528 total users
+
+128 funded endpoints
+
+Deposit wallets
+
+$2,560,000
+
+Binary integrity PASS
+
+Referral integrity PASS
+
+Funding integrity PASS
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return
+
+1. Files modified
+
+2. New generation algorithm
+
+3. Master subtree counts
+
+4. Binary verification
+
+5. Referral verification
+
+6. Funding verification
+
+7. Updated screenshots of Tree Explorer
+
+8. Regression report
+
+9. Confirmation that the genesis network now starts balanced from MASTER.
