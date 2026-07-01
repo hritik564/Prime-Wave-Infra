@@ -25,6 +25,5 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.production]
-RESET_FOR_LAUNCH = "true"
 
 [userenv.development]
