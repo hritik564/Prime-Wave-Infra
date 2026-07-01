@@ -8,6 +8,7 @@ import { validateCompanyWallets } from "./company-wallet-validator";
 import { prisma } from "./config/prisma";
 import { maybeResetForLaunch } from "./admin/scripts/resetForLaunch";
 import { runGenerator } from "./admin/scripts/networkGenerator";
+import { runFunder }    from "./admin/scripts/networkFunder";
 import { runSeed23B }                                      from "./dev/seed23b.fn";
 import { runPhase1HealthCheck, runPhase4Reconciliation, logPhase5Report } from "./dev/reconcile23b";
 
@@ -54,15 +55,24 @@ async function maybeResetAdminPassword() {
   }
 }
 
-// ── One-time network generation (Sprint 28C) ──────────────────────────────────
+// ── One-time network generation + funding (Sprint 28C / 28F) ─────────────────
 // Non-blocking: server starts and passes health checks while generation runs.
-// Remove GENERATE_NETWORK env var after confirming generation complete via logs.
+// Set GENERATE_NETWORK=true to run the generator on startup.
+// Set FUND_NETWORK=true alongside GENERATE_NETWORK to auto-fund after generation.
+// Remove both env vars after confirming completion via deployment logs.
 function maybeGenerateNetwork(): void {
   if (!process.env["GENERATE_NETWORK"]) return;
-  logger.info("GENERATE_NETWORK detected — starting network generator in background (Sprint 28C)");
+  logger.info("GENERATE_NETWORK detected — starting network generator in background (Sprint 28F)");
   runGenerator()
-    .then(() => logger.info("GENERATE_NETWORK: network generation complete — remove env var"))
-    .catch((err: unknown) => logger.error({ err }, "GENERATE_NETWORK: network generation FAILED"))
+    .then(() => {
+      logger.info("GENERATE_NETWORK: network generation complete");
+      if (!process.env["FUND_NETWORK"]) return;
+      logger.info("FUND_NETWORK detected — starting network funder (Sprint 28F)");
+      return runFunder().then(() =>
+        logger.info("FUND_NETWORK: funding complete — remove GENERATE_NETWORK and FUND_NETWORK env vars"),
+      );
+    })
+    .catch((err: unknown) => logger.error({ err }, "GENERATE_NETWORK/FUND_NETWORK: FAILED"))
     .finally(() => prisma.$disconnect());
 }
 

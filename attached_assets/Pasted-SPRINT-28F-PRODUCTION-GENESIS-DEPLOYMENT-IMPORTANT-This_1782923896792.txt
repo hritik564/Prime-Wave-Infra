@@ -1,0 +1,319 @@
+SPRINT 28F — PRODUCTION GENESIS DEPLOYMENT
+
+IMPORTANT
+
+This sprint deploys the verified Genesis Network to the PRODUCTION database.
+
+This is a PRODUCTION OPERATION.
+
+Proceed carefully.
+
+==========================================================
+OBJECTIVE
+==========================================================
+
+Deploy the verified Genesis Network from development to the production database.
+
+DO NOT regenerate development.
+
+DO NOT modify development.
+
+Everything below applies ONLY to production.
+
+==========================================================
+STEP 1 — PRE-FLIGHT VERIFICATION
+==========================================================
+
+Before doing anything, verify production.
+
+Report:
+
+Users
+
+Wallets
+
+Deposit Requests
+
+Deposit Verifications
+
+Wallet Transactions
+
+Notifications
+
+Investments
+
+Income tables
+
+Referral history
+
+Binary records
+
+Company wallets
+
+System settings
+
+If production contains ANY unexpected business data, STOP.
+
+Do NOT continue.
+
+Print a full report.
+
+==========================================================
+STEP 2 — BACKUP
+==========================================================
+
+Create a production database backup before making any changes.
+
+Verify backup completed successfully.
+
+Only continue after backup succeeds.
+
+==========================================================
+STEP 3 — SCHEMA
+==========================================================
+
+Verify production schema matches development.
+
+Verify:
+
+All migrations applied
+
+No schema drift
+
+Sprint 27F changes present
+
+Sprint 28 generator schema present
+
+If any mismatch exists,
+
+STOP.
+
+==========================================================
+STEP 4 — HEALTH CHECK
+==========================================================
+
+Verify production server.
+
+GET /api
+
+GET /api/healthz
+
+Must both return 200.
+
+==========================================================
+STEP 5 — RUN NETWORK GENERATOR
+==========================================================
+
+Run ONLY against production.
+
+Generate:
+
+1 MASTER
+
+63 MI
+
+64 RD
+
+6400 SP
+
+6528 total users
+
+Generator must remain idempotent.
+
+If interrupted,
+
+resume.
+
+Do NOT duplicate.
+
+==========================================================
+STEP 6 — VERIFY NETWORK
+==========================================================
+
+Verify:
+
+Master
+
+1
+
+MI
+
+63
+
+RD
+
+64
+
+SP
+
+6400
+
+Total
+
+6528
+
+Binary integrity
+
+PASS
+
+Referral integrity
+
+PASS
+
+Duplicate usernames
+
+0
+
+Duplicate emails
+
+0
+
+Wallets
+
+6528
+
+==========================================================
+STEP 7 — RUN FUNDING ENGINE
+==========================================================
+
+Run ONLY after Step 6 passes.
+
+Fund ONLY
+
+128 endpoint SP accounts.
+
+Funding amount
+
+$20,000
+
+Deposit Wallet only.
+
+Investment Wallet remains zero.
+
+Reuse existing deposit approval business logic.
+
+No direct wallet updates.
+
+==========================================================
+STEP 8 — VERIFY FUNDING
+==========================================================
+
+Verify
+
+Funded endpoints
+
+128
+
+Deposit Wallet Total
+
+$2,560,000
+
+Investment Wallet Total
+
+$0
+
+Investments
+
+0
+
+Deposit Requests
+
+128
+
+Wallet Transactions
+
+128
+
+Duplicate deposit requests
+
+0
+
+Duplicate wallet transactions
+
+0
+
+Duplicate credits
+
+0
+
+==========================================================
+STEP 9 — REGENERATE EXCEL FILES
+==========================================================
+
+Generate directly from the PRODUCTION database.
+
+PrimeWave_All_Accounts.xlsx
+
+PrimeWave_RD_Accounts.xlsx
+
+PrimeWave_Funded_Accounts.xlsx
+
+Verify row counts:
+
+6528
+
+64
+
+128
+
+==========================================================
+STEP 10 — FINAL HEALTH CHECK
+==========================================================
+
+Verify:
+
+Application healthy
+
+Deposit verification worker running
+
+Schedulers running
+
+API healthy
+
+No startup errors
+
+==========================================================
+STEP 11 — REMOVE ONE-TIME FLAGS
+==========================================================
+
+If GENERATE_NETWORK or any one-time production environment variable was used,
+
+remove it only AFTER
+
+all verification passes.
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return:
+
+1. Production backup status
+
+2. Schema verification
+
+3. Network generation summary
+
+4. Funding summary
+
+5. Wallet totals
+
+6. Binary verification
+
+7. Referral verification
+
+8. Excel files generated
+
+9. Production health
+
+10. Confirmation that production exactly matches the verified Genesis Network.
+
+Do NOT skip any verification step.
+
+If any step fails,
+
+STOP immediately,
+
+report the exact reason,
+
+and do not continue to the next step.
