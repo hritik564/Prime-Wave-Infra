@@ -125,7 +125,11 @@ const server = app.listen(port, () => {
   logger.info({ port }, "Server listening");
 
   maybeResetAdminPassword().catch((e) => logger.error({ e }, "maybeResetAdminPassword failed"));
-  maybeResetForLaunch().catch((e) => logger.error({ e }, "maybeResetForLaunch failed"));
+  maybeResetForLaunch().catch((e) => {
+    boot("FATAL-reset-for-launch", `maybeResetForLaunch failed — calling process.exit(1): ${e instanceof Error ? e.stack : String(e)}`);
+    logger.error({ e }, "FATAL: maybeResetForLaunch failed — server is exiting to prevent a partially-reset database from serving traffic");
+    process.exit(1);
+  });
   maybeSeedOnStart().catch((e) => logger.error({ e }, "maybeSeedOnStart failed"));
 
   startScheduler();

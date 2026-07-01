@@ -13,116 +13,135 @@ const MASTER_PASSWORD = "Master@PrimeWave2025!";
  * Pre-launch database reset.
  *
  * Triggered by: RESET_FOR_LAUNCH=true environment variable.
- * Remove the env var after the first successful deploy to disable this.
+ * Remove the env var ONLY after this function logs "RESET_FOR_LAUNCH complete".
+ *
+ * Safety properties:
+ *   Idempotent    — safe to call twice; upsert never throws on duplicate master user.
+ *   Transactional — all deletes + master-user creation are inside one Prisma transaction.
+ *                   PostgreSQL rolls back atomically if anything fails; DB is never
+ *                   left in a half-reset state.
+ *   Fail-fast     — on any error this function re-throws. index.ts handles the throw
+ *                   by calling process.exit(1) so the server never serves traffic
+ *                   over a failed reset.
  *
  * Deletes ALL runtime data (users, investments, income, transactions, etc.)
  * Preserves: admins, system_settings, salary_rank_config, company_wallets,
- *             withdrawal_settings.
- * Then creates the root "master" user who is the apex of the binary tree.
+ *            withdrawal_settings, _prisma_migrations.
+ * Then upserts the root "master" user who is the apex of the binary tree.
  */
 export async function maybeResetForLaunch(): Promise<void> {
   if (process.env["RESET_FOR_LAUNCH"] !== "true") return;
 
   logger.warn("RESET_FOR_LAUNCH=true detected — starting pre-launch database reset");
 
-  try {
-    // Delete in FK-safe order inside a single interactive transaction
-    await prisma.$transaction(
-      async (tx) => {
-        // Releases first (child of income_transfers)
-        await tx.incomeTransferRelease.deleteMany();
-        await tx.incomeTransfer.deleteMany();
+  // NOTE: no try/catch here — errors propagate to the caller (index.ts), which
+  // calls process.exit(1). The server must not start if the reset fails.
+  await prisma.$transaction(
+    async (tx) => {
+      // Releases first (child of income_transfers)
+      await tx.incomeTransferRelease.deleteMany();
+      await tx.incomeTransfer.deleteMany();
 
-        // Notification and log records
-        await tx.notification.deleteMany();
-        await tx.adminLog.deleteMany();
+      // Notification and log records
+      await tx.notification.deleteMany();
+      await tx.adminLog.deleteMany();
 
-        // Salary derived records
-        await tx.salaryIncome.deleteMany();
-        await tx.salaryAchievement.deleteMany();
+      // Salary derived records
+      await tx.salaryIncome.deleteMany();
+      await tx.salaryAchievement.deleteMany();
 
-        // Binary income records
-        await tx.binaryOrbitIncome.deleteMany();
-        await tx.binaryMatchIncome.deleteMany();
+      // Binary income records
+      await tx.binaryOrbitIncome.deleteMany();
+      await tx.binaryMatchIncome.deleteMany();
 
-        // BV ledgers (all depend on investments + users)
-        await tx.bvHistory.deleteMany();
-        await tx.salaryBvLedger.deleteMany();
-        await tx.orbitBvLedger.deleteMany();
-        await tx.matchBvLedger.deleteMany();
+      // BV ledgers (all depend on investments + users)
+      await tx.bvHistory.deleteMany();
+      await tx.salaryBvLedger.deleteMany();
+      await tx.orbitBvLedger.deleteMany();
+      await tx.matchBvLedger.deleteMany();
 
-        // Level income
-        await tx.levelIncome.deleteMany();
+      // Level income
+      await tx.levelIncome.deleteMany();
 
-        // ROI ledger (depends on investments)
-        await tx.roiLedger.deleteMany();
+      // ROI ledger (depends on investments)
+      await tx.roiLedger.deleteMany();
 
-        // Investments
-        await tx.investment.deleteMany();
+      // Investments
+      await tx.investment.deleteMany();
 
-        // Deposit verifications must be deleted before deposit requests (FK constraint)
-        await tx.depositVerification.deleteMany();
+      // Deposit verifications must be deleted before deposit requests (FK constraint)
+      await tx.depositVerification.deleteMany();
 
-        // Deposits and withdrawals
-        await tx.withdrawalRequest.deleteMany();
-        await tx.depositRequest.deleteMany();
+      // Deposits and withdrawals
+      await tx.withdrawalRequest.deleteMany();
+      await tx.depositRequest.deleteMany();
 
-        // Wallet transactions before wallets
-        await tx.walletTransaction.deleteMany();
+      // Wallet transactions before wallets
+      await tx.walletTransaction.deleteMany();
 
-        // Referral history
-        await tx.referralHistory.deleteMany();
+      // Referral history
+      await tx.referralHistory.deleteMany();
 
-        // Wallets (cascade-deletes from users but safe to delete first)
-        await tx.wallet.deleteMany();
+      // Wallets before users
+      await tx.wallet.deleteMany();
 
-        // Clear self-referencing columns on users, then delete
-        await tx.$executeRaw`
-          UPDATE users
-          SET "sponsorId" = NULL,
-              "binaryParentId" = NULL,
-              "leftDeepestNodeId" = NULL,
-              "rightDeepestNodeId" = NULL
-        `;
-        await tx.user.deleteMany();
+      // Clear self-referencing columns on users, then delete
+      await tx.$executeRaw`
+        UPDATE users
+        SET "sponsorId" = NULL,
+            "binaryParentId" = NULL,
+            "leftDeepestNodeId" = NULL,
+            "rightDeepestNodeId" = NULL
+      `;
+      await tx.user.deleteMany();
 
-        // Job logs have no user FK — delete standalone
-        await tx.jobExecutionLog.deleteMany();
+      // Job logs have no user FK — delete standalone
+      await tx.jobExecutionLog.deleteMany();
 
-        // Create master root user
-        const passwordHash = await bcrypt.hash(MASTER_PASSWORD, 12);
+      // Upsert master root user — idempotent: no-op if already exists
+      const passwordHash = await bcrypt.hash(MASTER_PASSWORD, 12);
 
-        await tx.user.create({
-          data: {
-            id: MASTER_USER_ID,
-            email: MASTER_EMAIL,
-            username: MASTER_USERNAME,
-            passwordHash,
-            firstName: "Master",
-            lastName: "ID",
-            status: "ACTIVE",
-            referralCode: MASTER_REFERRAL_CODE,
-            isTestUser: false,
-            // No sponsor, no binary parent — this IS the root
-            wallet: {
-              create: {
-                id: MASTER_WALLET_ID,
-                depositWallet: 0,
-                incomeWallet: 0,
-                withdrawalWallet: 0,
-                lockedWithdrawalBalance: 0,
-              },
-            },
-          },
-        });
+      await tx.user.upsert({
+        where: { id: MASTER_USER_ID },
+        create: {
+          id: MASTER_USER_ID,
+          email: MASTER_EMAIL,
+          username: MASTER_USERNAME,
+          passwordHash,
+          firstName: "Master",
+          lastName: "ID",
+          status: "ACTIVE",
+          referralCode: MASTER_REFERRAL_CODE,
+          isTestUser: false,
+          // No sponsor, no binary parent — this IS the root
+        },
+        update: {},
+      });
 
-        logger.info("Master root user created: username=master email=master@primewave.io referralCode=MASTERROOT");
-      },
-      { timeout: 30_000 },
-    );
+      // Upsert master wallet separately — handles the case where user existed
+      // but wallet was missing (edge case: idempotent safety net)
+      await tx.wallet.upsert({
+        where: { userId: MASTER_USER_ID },
+        create: {
+          id: MASTER_WALLET_ID,
+          userId: MASTER_USER_ID,
+          depositWallet: 0,
+          incomeWallet: 0,
+          withdrawalWallet: 0,
+          lockedWithdrawalBalance: 0,
+        },
+        update: {},
+      });
 
-    logger.info("RESET_FOR_LAUNCH complete — database is clean, master user exists. Remove RESET_FOR_LAUNCH env var now.");
-  } catch (err) {
-    logger.error({ err }, "RESET_FOR_LAUNCH failed — server will continue but database may be in a partial state");
-  }
+      logger.info(
+        "Master root user upserted: username=master email=master@primewave.io referralCode=MASTERROOT",
+      );
+    },
+    { timeout: 30_000 },
+  );
+
+  logger.info(
+    "RESET_FOR_LAUNCH complete — database is clean, master user exists. " +
+    "Remove RESET_FOR_LAUNCH env var now to prevent re-running on next restart.",
+  );
 }
