@@ -1,0 +1,381 @@
+SPRINT 28C — PRIME WAVE NETWORK GENERATOR (PHASE 1)
+
+IMPORTANT
+
+This sprint builds the complete launch network.
+
+This is NOT a generic seed script.
+
+It is a deterministic network generator that must be safe, resumable, idempotent, and fully audited.
+
+==========================================================
+OBJECTIVE
+==========================================================
+
+Generate the complete Prime Wave launch network.
+
+Do NOT modify any existing business logic.
+
+Do NOT bypass services.
+
+Use the same registration, binary placement, wallet creation and referral logic used by production.
+
+==========================================================
+NETWORK STRUCTURE
+==========================================================
+
+Infrastructure (Master Network)
+
+Level 1 = 1 account
+
+Level 2 = 2 accounts
+
+Level 3 = 4 accounts
+
+Level 4 = 8 accounts
+
+Level 5 = 16 accounts
+
+Level 6 = 32 accounts
+
+Level 7 (RD Level) = 64 accounts
+
+Infrastructure total:
+
+127 accounts
+
+==========================================================
+USERNAME FORMAT
+==========================================================
+
+Infrastructure accounts
+
+MI0001
+
+MI0002
+
+...
+
+MI0127
+
+Exactly 127 MI accounts.
+
+Expansion accounts
+
+RD000001
+
+RD000002
+
+...
+
+RD006400
+
+Exactly 6400 RD accounts.
+
+No duplicates.
+
+==========================================================
+PASSWORD
+==========================================================
+
+Every generated account uses
+
+Master@PrimeWave2025!
+
+==========================================================
+RD EXPANSION
+==========================================================
+
+Every RD account receives
+
+50 LEFT chain accounts
+
+50 RIGHT chain accounts
+
+Chains are linear.
+
+Example
+
+RD
+
+↓
+
+LEFT
+
+↓
+
+LEFT
+
+↓
+
+LEFT
+
+...
+
+50 deep
+
+and
+
+RD
+
+↓
+
+RIGHT
+
+↓
+
+RIGHT
+
+↓
+
+RIGHT
+
+...
+
+50 deep
+
+No alternating placement.
+
+==========================================================
+TOTAL USERS
+==========================================================
+
+Infrastructure
+
+127
+
+Expansion
+
+6400
+
+Grand Total
+
+6527 users
+
+==========================================================
+WALLETS
+==========================================================
+
+Every account
+
+Deposit Wallet = 0
+
+Investment Wallet = 0
+
+No investments.
+
+No deposits.
+
+No withdrawals.
+
+==========================================================
+STATUS
+==========================================================
+
+Every account remains INACTIVE.
+
+==========================================================
+REFERRAL STRUCTURE
+==========================================================
+
+Sequential referral chain.
+
+Each account refers the next account in its own chain.
+
+Do NOT make every RD sponsor 100 direct referrals.
+
+==========================================================
+BINARY STRUCTURE
+==========================================================
+
+Must exactly mirror the designed network.
+
+No orphan nodes.
+
+No duplicate placements.
+
+Binary cache must remain correct.
+
+==========================================================
+IDEMPOTENCY
+==========================================================
+
+The generator must be resumable.
+
+If interrupted,
+
+running it again must continue safely.
+
+Already-created users must never be duplicated.
+
+==========================================================
+PROGRESS
+==========================================================
+
+Store generation progress.
+
+Example
+
+Infrastructure complete
+
+RD01 complete
+
+RD02 complete
+
+...
+
+RD64 complete
+
+If interrupted at RD37,
+
+resume from RD37.
+
+==========================================================
+EXCEL OUTPUT
+==========================================================
+
+Generate TWO XLSX files.
+
+===================================
+
+Workbook 1
+
+PrimeWave_Network.xlsx
+
+===================================
+
+Sheet 1
+
+Infrastructure Accounts
+
+Username
+
+Password
+
+Level
+
+Binary Parent
+
+Referral Sponsor
+
+Status
+
+Sheet 2
+
+RD Accounts
+
+Username
+
+Password
+
+RD Number
+
+Sheet 3
+
+Statistics
+
+Infrastructure Count
+
+RD Count
+
+Expansion Count
+
+Grand Total
+
+==========================================================
+
+Workbook 2
+
+PrimeWave_Credentials.xlsx
+
+==========================================================
+
+Contains ALL 6527 accounts.
+
+Columns
+
+Username
+
+Password
+
+Account Type
+
+Level
+
+Referral Sponsor
+
+Binary Parent
+
+Deposit Wallet
+
+Investment Wallet
+
+Status
+
+==========================================================
+VERIFICATION
+==========================================================
+
+Verify
+
+Total Users = 6527
+
+MI Accounts = 127
+
+RD Accounts = 6400
+
+Duplicate usernames = 0
+
+Duplicate emails = 0
+
+Wallets = 6527
+
+Investments = 0
+
+Deposits = 0
+
+Withdrawals = 0
+
+Binary Integrity = PASS
+
+Referral Integrity = PASS
+
+Binary Cache = PASS
+
+==========================================================
+DO NOT FUND ANY ACCOUNT
+==========================================================
+
+No deposit wallet balances.
+
+No investment balances.
+
+No automatic deposits.
+
+Funding will be Sprint 28D.
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return
+
+1. Files created
+
+2. Generator architecture
+
+3. User counts
+
+4. Binary verification
+
+5. Referral verification
+
+6. Wallet verification
+
+7. Excel files generated
+
+8. Runtime
+
+9. Regression report
+
+10. Confirmation the platform is ready for Sprint 28D (Funding Engine).

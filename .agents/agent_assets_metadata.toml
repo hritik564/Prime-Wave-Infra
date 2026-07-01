@@ -12,3 +12,15 @@ id = "90ypdghey_Jn9o8lvq8tH"
 uri = "file://seed-users-127.xlsx"
 type = "table"
 title = "seed-users-127.xlsx — All 127 Seed Accounts"
+
+[[outputs]]
+id = "E6XCe3qeDZMTLMX-_gmmd"
+uri = "file://generated/PrimeWave_Network.xlsx"
+type = "table"
+title = "PrimeWave_Network.xlsx — Infrastructure + RD + Statistics"
+
+[[outputs]]
+id = "LOl9-Hfndf24YeG8-uJVk"
+uri = "file://generated/PrimeWave_Credentials.xlsx"
+type = "table"
+title = "PrimeWave_Credentials.xlsx — All 6527 Accounts"

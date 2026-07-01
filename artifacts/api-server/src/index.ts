@@ -7,6 +7,7 @@ import { startDepositVerificationWorker } from "./deposit-verification/deposit-v
 import { validateCompanyWallets } from "./company-wallet-validator";
 import { prisma } from "./config/prisma";
 import { maybeResetForLaunch } from "./admin/scripts/resetForLaunch";
+import { runGenerator } from "./admin/scripts/networkGenerator";
 import { runSeed23B }                                      from "./dev/seed23b.fn";
 import { runPhase1HealthCheck, runPhase4Reconciliation, logPhase5Report } from "./dev/reconcile23b";
 
@@ -51,6 +52,18 @@ async function maybeResetAdminPassword() {
   } catch (err) {
     logger.error({ err }, "Failed to reset admin passwords");
   }
+}
+
+// ── One-time network generation (Sprint 28C) ──────────────────────────────────
+// Non-blocking: server starts and passes health checks while generation runs.
+// Remove GENERATE_NETWORK env var after confirming generation complete via logs.
+function maybeGenerateNetwork(): void {
+  if (!process.env["GENERATE_NETWORK"]) return;
+  logger.info("GENERATE_NETWORK detected — starting network generator in background (Sprint 28C)");
+  runGenerator()
+    .then(() => logger.info("GENERATE_NETWORK: network generation complete — remove env var"))
+    .catch((err: unknown) => logger.error({ err }, "GENERATE_NETWORK: network generation FAILED"))
+    .finally(() => prisma.$disconnect());
 }
 
 // ── One-time startup seed ─────────────────────────────────────────────────────
@@ -124,6 +137,7 @@ const server = app.listen(port, () => {
   logger.info({ port }, "Server listening");
 
   maybeResetAdminPassword().catch((e) => logger.error({ e }, "maybeResetAdminPassword failed"));
+  maybeGenerateNetwork();
   maybeResetForLaunch().catch((e) => {
     boot("FATAL-reset-for-launch", `maybeResetForLaunch failed — calling process.exit(1): ${e instanceof Error ? e.stack : String(e)}`);
     logger.error({ e }, "FATAL: maybeResetForLaunch failed — server is exiting to prevent a partially-reset database from serving traffic");
