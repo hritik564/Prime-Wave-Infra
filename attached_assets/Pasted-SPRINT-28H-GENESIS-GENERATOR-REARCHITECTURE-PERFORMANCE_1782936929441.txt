@@ -1,0 +1,296 @@
+SPRINT 28H — GENESIS GENERATOR REARCHITECTURE & PERFORMANCE FIX
+
+IMPORTANT
+
+This sprint is NOT about making the current implementation "a little faster."
+
+This sprint is about designing the correct architecture for large-scale genesis generation.
+
+The production runtime placement engine and the genesis generator have different responsibilities and should not be forced to share identical execution paths if that introduces unnecessary overhead.
+
+==========================================================
+OBJECTIVE
+==========================================================
+
+Reduce production genesis generation time from hours to minutes while preserving:
+
+• Identical binary tree
+• Identical referral structure
+• Identical usernames
+• Identical wallets
+• Identical funding
+• Identical final database state
+
+The final generated network must be byte-for-byte equivalent from a business perspective.
+
+==========================================================
+DO NOT CHANGE
+==========================================================
+
+Registration flow
+
+placeUserTx() runtime behaviour
+
+Wallet engine
+
+Deposit engine
+
+Funding engine
+
+Referral engine
+
+Income engine
+
+Binary income engine
+
+Existing business rules
+
+Normal user registration
+
+Tree Explorer
+
+==========================================================
+ARCHITECTURAL GOAL
+==========================================================
+
+The genesis generator is a one-time infrastructure tool.
+
+The runtime placement engine is a permanent production component.
+
+Avoid adding generator-only parameters such as:
+
+forcedPlacementTargetId
+
+skipCacheUpdate
+
+or other generator-specific flags into production runtime APIs unless there is absolutely no cleaner solution.
+
+First evaluate whether the generator can use its own optimized placement path.
+
+==========================================================
+STEP 1
+==========================================================
+
+Design a dedicated Genesis Placement path.
+
+The generator already knows:
+
+username
+
+parent
+
+placement side
+
+referral sponsor
+
+tree topology
+
+chain order
+
+Use this information.
+
+Avoid runtime cache lookups whenever possible.
+
+==========================================================
+STEP 2
+==========================================================
+
+Determine whether generation can proceed using:
+
+binaryParentId
+
+position
+
+as the only placement source of truth.
+
+Generate the complete topology.
+
+Persist it.
+
+Repair caches afterwards.
+
+==========================================================
+STEP 3
+==========================================================
+
+Evaluate replacing per-account cache maintenance with:
+
+ONE bulk cache rebuild
+
+performed only after all users have been created.
+
+Use binaryParentId + position as the authoritative source.
+
+==========================================================
+STEP 4
+==========================================================
+
+If a dedicated Genesis Placement path is not feasible,
+
+provide technical proof explaining why.
+
+Only then consider introducing minimal generator-specific options.
+
+==========================================================
+STEP 5
+==========================================================
+
+Implement the cleanest architecture.
+
+Priority:
+
+1.
+
+Maintainability
+
+2.
+
+Correctness
+
+3.
+
+Determinism
+
+4.
+
+Performance
+
+==========================================================
+STEP 6
+==========================================================
+
+Benchmark
+
+Current implementation
+
+vs
+
+New implementation
+
+Measure:
+
+Generation time
+
+Users/sec
+
+DB calls
+
+Transaction count
+
+Average transaction duration
+
+Cache rebuild duration
+
+==========================================================
+STEP 7
+==========================================================
+
+Verify
+
+6528 users
+
+63 MI
+
+64 RD
+
+6400 SP
+
+128 funded endpoints
+
+$2,560,000 Deposit Wallet
+
+Zero investments
+
+Binary integrity PASS
+
+Referral integrity PASS
+
+Funding integrity PASS
+
+Tree identical to previous verified topology
+
+==========================================================
+STEP 8
+==========================================================
+
+Regression
+
+Verify absolutely no behavioural change for:
+
+Normal registration
+
+Normal binary placement
+
+Tree traversal
+
+Binary matching
+
+Referral processing
+
+Deposit processing
+
+Wallet processing
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return:
+
+1.
+
+Architecture comparison
+
+Old
+
+↓
+
+New
+
+2.
+
+Files modified
+
+3.
+
+Why the chosen design is superior
+
+4.
+
+Benchmark comparison
+
+5.
+
+DB call reduction
+
+6.
+
+Runtime reduction
+
+7.
+
+Binary verification
+
+8.
+
+Referral verification
+
+9.
+
+Funding verification
+
+10.
+
+Regression summary
+
+11.
+
+Confirmation that runtime placement behaviour for real users remains completely unchanged.
+
+IMPORTANT
+
+Do NOT optimize by introducing technical debt.
+
+The runtime placement engine should remain clean and focused on real user registrations.
+
+The genesis generator may use its own optimized implementation if that results in a cleaner long-term architecture.

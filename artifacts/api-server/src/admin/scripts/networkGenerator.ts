@@ -1,5 +1,5 @@
 /**
- * Prime Wave Network Generator — Sprint 28C.2 (topology corrected)
+ * Prime Wave Network Generator — Sprint 28H (Genesis path rearchitecture)
  *
  * Three-tier launch network with MASTER as the binary tree root:
  *
@@ -11,25 +11,29 @@
  *   RD (Root Distributors) — 64 accounts, BFS nodes 64–127 below master
  *   SP (Spill) — 100 accounts per RD (50 LEFT + 50 RIGHT linear chains)
  *
- * BFS formula (master = index 0, nodes are 1-indexed):
- *   Parent of node i = floor((i-1) / 2)   [0 = master, 1–63 = MI, 64–127 = RD]
- *   Position:          odd i → LEFT,  even i → RIGHT
+ * ── Architecture (Sprint 28H) ──────────────────────────────────────────────
  *
- * Transition nodes:
- *   mi0031 (node 31): LEFT → mi0063, RIGHT → rd0001
- *   mi0063 (node 63): LEFT → rd0064, RIGHT → (empty)
+ * OLD path (Sprint 28C–28G):
+ *   registerUser → placeUserTx (6 DB calls, FOR UPDATE locks, cache read) →
+ *   updateBinaryCache (2×N DB calls, N grows 1→54 per half-chain)
+ *   Total: (10 + 2N) calls per account → ~398,000 calls for 6,527 accounts
  *
- * Referral structure:
- *   Every SP account is sponsored DIRECTLY by its owning RD.
- *   → Each RD ends with directReferralCount = 100.
+ * NEW path (Sprint 28H):
+ *   genesisInsertUser (3 DB calls, binaryParentId pre-computed in memory) →
+ *   repairAllBinaryCache (2 SQL statements total after all accounts)
+ *   Total: 4 calls per account + 2 SQL statements → ~26,100 calls
+ *   Reduction: 93.4%
  *
- * Binary structure:
- *   RD → SP1(L) → SP2(L) → … → SP50(L)   (left linear chain)
- *   RD → SP51(R) → SP52(R) → … → SP100(R) (right linear chain)
+ * Key insight: the generator knows the exact binary parent for every account
+ * before creating it (deterministic BFS for infra, sequential chain tracking
+ * for SP).  The runtime placement engine exists to resolve this dynamically
+ * from the cache — an overhead the generator does not need.
+ *
+ * Production APIs (placeUserTx, updateBinaryCache, registerUser) are
+ * completely unchanged.
  *
  * Counts:
  *   MI = 63  |  RD = 64  |  SP = 6400  |  Grand Total = 6527
- *   Master LEFT subtree: 3264  |  Master RIGHT subtree: 3263
  *
  * Usage:
  *   pnpm --filter @workspace/api-server run generate-network
@@ -43,7 +47,7 @@ import * as XLSX from "xlsx";
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
 import { prisma } from "../../config/prisma.js";
-import { placeUserTx, updateBinaryCache } from "../../binary/binary.service.js";
+import { genesisInsertUser, repairAllBinaryCache } from "./genesisPlacement.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 //
@@ -76,7 +80,7 @@ interface Progress {
   lastUpdatedAt:    string;
 }
 
-interface CreatedUser {
+interface MinimalUser {
   id:           string;
   username:     string;
   referralCode: string;
@@ -128,46 +132,56 @@ async function saveProgress(p: Progress): Promise<void> {
   });
 }
 
-// ── Core: single account registration ────────────────────────────────────────
+// ── Per-chain timing accumulator ──────────────────────────────────────────────
 //
-// Mirrors registerUser() exactly:
-//   user + wallet created atomically, sponsor counters incremented,
-//   referral history recorded, placeUserTx called for binary placement.
-//
-// Password hash is pre-computed once (same for all accounts).
-// Idempotent: if username already exists, returns existing record immediately.
+// Tracks only newly-created accounts (skipped existing accounts are not
+// included in txMs / totalMs averages so the numbers reflect true creation
+// cost, not idempotency check cost).
 
-// ── Per-account timing accumulator (resets each chain) ───────────────────────
-let _timingAccum = {
-  n: 0,
-  existMs: 0, txMs: 0, cacheMs: 0, totalMs: 0, cacheIter: 0,
-};
+interface TimingAccum {
+  created:  number;   // newly created accounts
+  skipped:  number;   // already-existing accounts (idempotency hits)
+  existMs:  number;   // cumulative idempotency check time (new only)
+  txMs:     number;   // cumulative transaction time (new only)
+  totalMs:  number;   // cumulative total time (new only)
+}
+
+let _ta: TimingAccum = { created: 0, skipped: 0, existMs: 0, txMs: 0, totalMs: 0 };
 
 function _resetTiming() {
-  _timingAccum = { n: 0, existMs: 0, txMs: 0, cacheMs: 0, totalMs: 0, cacheIter: 0 };
+  _ta = { created: 0, skipped: 0, existMs: 0, txMs: 0, totalMs: 0 };
 }
 
 function _logTiming(label: string) {
-  const a = _timingAccum;
-  if (a.n === 0) return;
-  const avg = (v: number) => (v / a.n).toFixed(0);
+  if (_ta.created === 0 && _ta.skipped === 0) return;
+  const avg = (v: number) => (_ta.created > 0 ? (v / _ta.created).toFixed(0) : "—");
   log(
-    `  [TIMING ${label}] n=${a.n}  ` +
-    `total=${avg(a.totalMs)}ms  tx=${avg(a.txMs)}ms  ` +
-    `cache=${avg(a.cacheMs)}ms (${(a.cacheIter / a.n).toFixed(1)} iters)  ` +
-    `existCheck=${avg(a.existMs)}ms`,
+    `  [TIMING ${label}] created=${_ta.created}  skipped=${_ta.skipped}  ` +
+    `total=${avg(_ta.totalMs)}ms  tx=${avg(_ta.txMs)}ms  existCheck=${avg(_ta.existMs)}ms`,
   );
 }
 
-async function registerNetworkUser(
-  username:     string,
-  email:        string,
-  passwordHash: string,
-  firstName:    string,
-  lastName:     string,
-  sponsorCode:  string,       // referral code of the direct sponsor
-  leg:          "L" | "R",
-): Promise<CreatedUser> {
+// ── Core: single account creation (new genesis path) ─────────────────────────
+//
+// Idempotent: if username already exists, returns existing record without
+// touching the DB beyond the initial findUnique.
+//
+// When the account is new: calls genesisInsertUser (3 DB calls in a single
+// transaction — no FOR UPDATE locks, no cache reads, no cache writes).
+//
+// The binary parent is passed in directly by the caller; this function has
+// no knowledge of tree structure.
+
+async function genesisInsertOrSkip(
+  username:       string,
+  email:          string,
+  passwordHash:   string,
+  firstName:      string,
+  lastName:       string,
+  sponsorId:      string,
+  binaryParentId: string,
+  position:       "LEFT" | "RIGHT",
+): Promise<MinimalUser> {
 
   const t0 = Date.now();
 
@@ -178,82 +192,36 @@ async function registerNetworkUser(
     select: { id: true, username: true, referralCode: true },
   });
   const existMs = Date.now() - t_exist0;
-  if (existing) return existing;
 
-  const position: "LEFT" | "RIGHT" = leg === "L" ? "LEFT" : "RIGHT";
-  const referralCode = generateReferralCode();
+  if (existing) {
+    _ta.skipped++;
+    return existing;
+  }
 
-  // ── Phase 1: short transaction ───────────────────────────────────────────────
-  let placementResult!: { placementTargetId: string };
-
+  // ── Create via dedicated genesis path (3 DB calls) ───────────────────────────
   const t_tx0 = Date.now();
-  const user = await prisma.$transaction(async (tx) => {
-    const sponsor = await tx.user.findUnique({
-      where:  { referralCode: sponsorCode },
-      select: { id: true },
-    });
-    if (!sponsor) throw new Error(`Sponsor not found: referralCode=${sponsorCode} for user=${username}`);
-    const sponsorId = sponsor.id;
-
-    const newUser = await tx.user.create({
-      data: {
-        email,
-        username,
-        passwordHash,
-        firstName,
-        lastName,
-        status:       "INACTIVE",
-        referralCode,
-        referredBy: sponsorId,
-        sponsorId,
-        wallet: {
-          create: { depositWallet: 0, incomeWallet: 0, withdrawalWallet: 0 },
-        },
-      },
-      select: { id: true, username: true, referralCode: true },
-    });
-
-    await tx.user.update({
-      where: { id: sponsorId },
-      data: {
-        directReferralCount: { increment: 1 },
-        ...(position === "LEFT"
-          ? { directLeftCount:  { increment: 1 } }
-          : { directRightCount: { increment: 1 } }),
-      },
-    });
-
-    await tx.referralHistory.create({
-      data: { sponsorId, userId: newUser.id, leg: position },
-    });
-
-    placementResult = await placeUserTx(tx, sponsorId, newUser.id, position, { skipCacheUpdate: true });
-
-    return newUser;
-  }, { timeout: 30_000 });
-  const txMs = Date.now() - t_tx0;
-
-  // ── Phase 2: cache update outside transaction ────────────────────────────────
-  const t_cache0 = Date.now();
-  const cacheIter = await updateBinaryCache(placementResult.placementTargetId, position, user.id);
-  const cacheMs = Date.now() - t_cache0;
-
+  const user = await genesisInsertUser({
+    username,
+    email,
+    passwordHash,
+    firstName,
+    lastName,
+    referralCode:   generateReferralCode(),
+    sponsorId,
+    binaryParentId,
+    position,
+  });
+  const txMs    = Date.now() - t_tx0;
   const totalMs = Date.now() - t0;
 
-  // Accumulate for chain-level summary
-  _timingAccum.n++;
-  _timingAccum.existMs  += existMs;
-  _timingAccum.txMs     += txMs;
-  _timingAccum.cacheMs  += cacheMs;
-  _timingAccum.totalMs  += totalMs;
-  _timingAccum.cacheIter += cacheIter;
+  _ta.created++;
+  _ta.existMs  += existMs;
+  _ta.txMs     += txMs;
+  _ta.totalMs  += totalMs;
 
-  // Log first 3 accounts in each chain individually for detail
-  if (_timingAccum.n <= 3) {
-    log(
-      `    [ACCT ${username}] total=${totalMs}ms  tx=${txMs}ms  ` +
-      `cache=${cacheMs}ms/${cacheIter}iters  existCheck=${existMs}ms`,
-    );
+  // Log first 3 new accounts per chain for spot-check visibility
+  if (_ta.created <= 3) {
+    log(`    [ACCT ${username}] total=${totalMs}ms  tx=${txMs}ms  existCheck=${existMs}ms`);
   }
 
   return user;
@@ -264,160 +232,177 @@ async function registerNetworkUser(
 // BFS-ordered binary tree — master is the root (index 0), nodes are 1-indexed:
 //   Parent of node i = floor((i-1) / 2)   [0 = master, 1–63 = MI, 64–127 = RD]
 //   Position:          odd  i → LEFT,  even i → RIGHT
-//   Level from master: floor(log2(i+1))
 //
-//   Nodes 1–63   → MI accounts (mi0001…mi0063)  levels 1–6 below master
-//   Nodes 64–127 → RD accounts (rd0001…rd0064)  level 7 below master
+//   For every infrastructure account:
+//     sponsorId = binaryParentId = the BFS parent's user ID
 //
-//   Master:  LEFT → mi0001 (node 1),  RIGHT → mi0002 (node 2)
-//   mi0031 (node 31): LEFT → mi0063 (node 63),  RIGHT → rd0001 (node 64)
-//   mi0063 (node 63): LEFT → rd0064 (node 127),  RIGHT → (empty)
+//   This matches the existing topology: each MI/RD account was sponsored by
+//   and binary-placed under the same parent.
 //
-// Both tiers are generated in a single BFS pass.
+// The generator tracks user IDs (not referral codes) to pass sponsorId and
+// binaryParentId directly to genesisInsertUser.
 
 async function generateInfrastructure(
   passwordHash: string,
-): Promise<{ miCodeMap: Map<number, string>; rdCodeMap: Map<number, string> }> {
+  masterId:     string,
+): Promise<{ miIdMap: Map<number, string>; rdIdMap: Map<number, string> }> {
   log("─── Phase 1: Infrastructure (127 accounts: 63 MI + 64 RD) ───────────────");
 
-  const miCodeMap = new Map<number, string>(); // node 1–63 → referralCode
-  const rdCodeMap = new Map<number, string>(); // node 64–127 → referralCode (by RD index 1–64)
+  const miIdMap = new Map<number, string>(); // node 1–63 → user ID
+  const rdIdMap = new Map<number, string>(); // RD index 1–64 → user ID
 
   // Pre-load existing accounts
   const existingMI = await prisma.user.findMany({
     where:  { username: { startsWith: "mi0" } },
-    select: { username: true, referralCode: true },
+    select: { username: true, id: true },
   });
   for (const u of existingMI) {
-    miCodeMap.set(parseInt(u.username.slice(2), 10), u.referralCode);
+    miIdMap.set(parseInt(u.username.slice(2), 10), u.id);
   }
   const existingRD = await prisma.user.findMany({
     where:  { username: { startsWith: "rd0" } },
-    select: { username: true, referralCode: true },
+    select: { username: true, id: true },
   });
   for (const u of existingRD) {
     const j = parseInt(u.username.slice(2), 10); // rd0001 → 1
-    rdCodeMap.set(j, u.referralCode);
+    rdIdMap.set(j, u.id);
   }
-  log(`  Resuming: ${miCodeMap.size} MI + ${rdCodeMap.size} RD already exist.`);
+  log(`  Resuming: ${miIdMap.size} MI + ${rdIdMap.size} RD already exist.`);
 
   const INFRA_TOTAL = MI_COUNT + RD_COUNT; // 127
 
   for (let node = 1; node <= INFRA_TOTAL; node++) {
-    const isMI  = node <= MI_COUNT;          // nodes 1–63
-    const rdIdx = node - MI_COUNT;            // 1–64 for RD nodes
+    const isMI  = node <= MI_COUNT;        // nodes 1–63
+    const rdIdx = node - MI_COUNT;         // 1–64 for RD nodes
 
-    // Check if already created
-    if (isMI && miCodeMap.has(node))          continue;
-    if (!isMI && rdCodeMap.has(rdIdx))        continue;
+    // Skip if already created
+    if (isMI && miIdMap.has(node))   continue;
+    if (!isMI && rdIdMap.has(rdIdx)) continue;
 
-    // Determine sponsor + leg using new BFS formula:
+    // Determine binary parent ID using BFS formula:
     //   parent index = floor((node-1)/2)  [0=master, 1-63=MI, 64-127=RD]
     //   position: odd node → LEFT, even node → RIGHT
-    let sponsorCode: string;
     const parentIdx = Math.floor((node - 1) / 2);
-    const leg: "L" | "R" = (node % 2 === 1) ? "L" : "R";
+    const position: "LEFT" | "RIGHT" = (node % 2 === 1) ? "LEFT" : "RIGHT";
 
+    let parentId: string;
     if (parentIdx === 0) {
-      // Direct child of master: node 1 = mi0001 (LEFT), node 2 = mi0002 (RIGHT)
-      sponsorCode = MASTER_REFERRAL;
+      parentId = masterId;
     } else if (parentIdx <= MI_COUNT) {
-      // Parent is a MI account
-      sponsorCode = miCodeMap.get(parentIdx)!;
+      parentId = miIdMap.get(parentIdx)!;
     } else {
-      // Parent is a RD account
-      sponsorCode = rdCodeMap.get(parentIdx - MI_COUNT)!;
+      parentId = rdIdMap.get(parentIdx - MI_COUNT)!;
     }
 
+    // sponsorId = binaryParentId: infrastructure accounts are sponsored by
+    // and placed under the same node (their BFS parent).
     const username = isMI ? miUsername(node) : rdUsername(rdIdx);
     const email    = isMI ? miEmail(node)    : rdEmail(rdIdx);
 
-    const user = await registerNetworkUser(
+    const user = await genesisInsertOrSkip(
       username,
       email,
       passwordHash,
       isMI ? "MI" : "RD",
       isMI ? `Account ${String(node).padStart(4, "0")}` : `Distributor ${String(rdIdx).padStart(4, "0")}`,
-      sponsorCode,
-      leg,
+      parentId,   // sponsorId
+      parentId,   // binaryParentId (same as sponsor for infra)
+      position,
     );
 
-    if (isMI) {
-      miCodeMap.set(node, user.referralCode);
-    } else {
-      rdCodeMap.set(rdIdx, user.referralCode);
-    }
+    if (isMI) miIdMap.set(node, user.id);
+    else      rdIdMap.set(rdIdx, user.id);
 
     if (node % 16 === 0 || node === INFRA_TOTAL) {
       log(`  Infra: ${node}/${INFRA_TOTAL}`);
     }
   }
 
-  log(`  Phase 1 complete — ${miCodeMap.size} MI + ${rdCodeMap.size} RD.`);
-  return { miCodeMap, rdCodeMap };
+  log(`  Phase 1 complete — ${miIdMap.size} MI + ${rdIdMap.size} RD.`);
+  return { miIdMap, rdIdMap };
 }
 
 // ── Phase 2: SP chains (6400 accounts, 100 per RD) ───────────────────────────
 //
-// For RD chain j (1–64), binary root = RD account j (rd0001…rd0064).
+// For each RD (rdId), generate 50 LEFT then 50 RIGHT SP accounts.
 //
-// Referral structure (corrected):
-//   ALL 100 SP accounts under an RD have sponsorId = RD.id
-//   → directReferralCount of every RD = 100 after this phase.
+// Sponsor structure:
+//   All 100 SP accounts under an RD have sponsorId = rdId.
 //
-// Binary structure (unchanged — greedy deepest):
-//   LEFT chain:  sp[offset+1]…sp[offset+50]   each placed at DEEPEST LEFT of RD
-//   RIGHT chain: sp[offset+51]…sp[offset+100]  each placed at DEEPEST RIGHT of RD
+// Binary structure:
+//   LEFT chain: SP[offset+1] is placed directly under RD (position=LEFT).
+//               SP[offset+2] is placed under SP[offset+1], and so on.
+//               Each SP is the LEFT child of the previous SP.
+//   RIGHT chain: same, RIGHT direction.
 //
-//   Because all SPs share the same sponsorId (= RD), placeUserTx starts from
-//   RD's leftDeepestNodeId / rightDeepestNodeId on each call, which always
-//   points to the deepest available slot → produces a perfect linear chain.
+// The generator tracks the deepest node in-memory for each direction:
+//   leftDeepest  — starts at rdId, advances to each newly-created LEFT SP
+//   rightDeepest — starts at rdId, advances to each newly-created RIGHT SP
+//
+// Resumption: if some accounts in the chain already exist (partial run),
+//   genesisInsertOrSkip returns the existing account's ID, naturally
+//   advancing the deepest tracker through all existing accounts before
+//   creating the first new one.  No DB query needed to reconstruct state.
+//
+// No per-account cache updates.  repairAllBinaryCache() rebuilds the
+// complete cache in two SQL statements after all chains are done.
 
 async function generateSpChain(
   chainIndex:   number,    // 1–64
-  rdCode:       string,    // referralCode of the owning RD account
+  rdId:         string,    // user ID of the owning RD account
   passwordHash: string,
 ): Promise<void> {
   const spOffset = (chainIndex - 1) * SP_PER_RD;  // 0, 100, 200, …
 
+  // In-memory deepest-node trackers.
+  // For a fresh chain: both start at rdId (first SP goes directly under RD).
+  // For a partial chain: the first existing accounts advance the tracker
+  //   through the already-created portion before any new creation happens.
+  let leftDeepest  = rdId;
+  let rightDeepest = rdId;
+
   _resetTiming();
 
-  // LEFT chain: SP[offset+1]…SP[offset+50], all sponsored by RD, placed LEFT
+  // LEFT chain: SP[offset+1]…SP[offset+50]
   for (let k = 1; k <= SP_LEFT; k++) {
     const spIdx = spOffset + k;
-    await registerNetworkUser(
+    const user = await genesisInsertOrSkip(
       spUsername(spIdx),
       spEmail(spIdx),
       passwordHash,
       "SP",
       `Spill ${String(spIdx).padStart(6, "0")}`,
-      rdCode,   // ← DIRECT sponsor = owning RD (not previous SP)
-      "L",
+      rdId,          // sponsorId = owning RD (all 100 SPs share the same sponsor)
+      leftDeepest,   // binaryParentId = current deepest LEFT slot
+      "LEFT",
     );
+    leftDeepest = user.id;  // advance tracker to the account just created/skipped
   }
 
-  _logTiming(`chain${String(chainIndex).padStart(2,"0")}-LEFT`);
+  _logTiming(`chain${String(chainIndex).padStart(2, "0")}-LEFT`);
   _resetTiming();
 
-  // RIGHT chain: SP[offset+51]…SP[offset+100], all sponsored by RD, placed RIGHT
+  // RIGHT chain: SP[offset+51]…SP[offset+100]
   for (let k = 1; k <= SP_RIGHT; k++) {
     const spIdx = spOffset + SP_LEFT + k;
-    await registerNetworkUser(
+    const user = await genesisInsertOrSkip(
       spUsername(spIdx),
       spEmail(spIdx),
       passwordHash,
       "SP",
       `Spill ${String(spIdx).padStart(6, "0")}`,
-      rdCode,   // ← DIRECT sponsor = owning RD (not previous SP)
-      "R",
+      rdId,          // sponsorId = owning RD
+      rightDeepest,  // binaryParentId = current deepest RIGHT slot
+      "RIGHT",
     );
+    rightDeepest = user.id;
   }
 
-  _logTiming(`chain${String(chainIndex).padStart(2,"0")}-RIGHT`);
+  _logTiming(`chain${String(chainIndex).padStart(2, "0")}-RIGHT`);
 
   const lo = spUsername(spOffset + 1).toUpperCase();
-  const hi = spUsername(spOffset + 100).toUpperCase();
-  log(`  SP chain ${String(chainIndex).padStart(2, "0")}/64 done  [${lo}–${hi}]  RD sponsor: rd${String(chainIndex).padStart(4, "0")}`);
+  const hi = spUsername(spOffset + SP_PER_RD).toUpperCase();
+  log(`  SP chain ${String(chainIndex).padStart(2, "0")}/64 done  [${lo}–${hi}]  RD: ${rdId.slice(0, 8)}…`);
 }
 
 // ── Verification ──────────────────────────────────────────────────────────────
@@ -467,8 +452,6 @@ async function runVerification(): Promise<boolean> {
   });
 
   // Binary integrity: ALL generated accounts must have binaryParentId.
-  // In the new topology both mi0001 (LEFT of master) and mi0002 (RIGHT of master)
-  // have master as their binaryParentId — no exceptions.
   const missingBinaryParent = await prisma.user.count({
     where: {
       OR: [
@@ -518,33 +501,96 @@ async function runVerification(): Promise<boolean> {
   });
 
   // Referral history count
-  const refHistoryCount = await prisma.referralHistory.count({
+  const genUserIds = await prisma.user.findMany({
     where: {
       OR: [
-        { userId: { in: await prisma.user.findMany({ where: { username: { startsWith: "mi0" } }, select: { id: true } }).then(us => us.map(u => u.id)) } },
-        { userId: { in: await prisma.user.findMany({ where: { username: { startsWith: "rd0" } }, select: { id: true } }).then(us => us.map(u => u.id)) } },
-        { userId: { in: await prisma.user.findMany({ where: { username: { startsWith: "sp0" } }, select: { id: true } }).then(us => us.map(u => u.id)) } },
+        { username: { startsWith: "mi0" } },
+        { username: { startsWith: "rd0" } },
+        { username: { startsWith: "sp0" } },
       ],
     },
+    select: { id: true },
+  });
+  const genIds = genUserIds.map(u => u.id);
+  const refHistoryCount = await prisma.referralHistory.count({
+    where: { userId: { in: genIds } },
   });
 
+  // ── Cache integrity checks (Sprint 28H) ─────────────────────────────────────
+  //
+  // After repairAllBinaryCache():
+  //   1. Every node with a LEFT child must have a non-null leftDeepestNodeId.
+  //   2. Every node with a RIGHT child must have a non-null rightDeepestNodeId.
+  //   3. The leftDeepestNodeId target must have no LEFT child (it IS the leaf).
+  //   4. The rightDeepestNodeId target must have no RIGHT child.
+
+  type CountRow = { count: bigint };
+
+  const [
+    cacheLeftMissing,
+    cacheRightMissing,
+    cacheLeftStale,
+    cacheRightStale,
+  ] = await Promise.all([
+    // Nodes with a LEFT child but leftDeepestNodeId = NULL
+    prisma.$queryRaw<CountRow[]>`
+      SELECT COUNT(*)::bigint AS count
+      FROM   users u
+      WHERE  EXISTS (SELECT 1 FROM users c WHERE c."binaryParentId" = u.id AND c.position = 'LEFT')
+        AND  u."leftDeepestNodeId" IS NULL
+    `,
+    // Nodes with a RIGHT child but rightDeepestNodeId = NULL
+    prisma.$queryRaw<CountRow[]>`
+      SELECT COUNT(*)::bigint AS count
+      FROM   users u
+      WHERE  EXISTS (SELECT 1 FROM users c WHERE c."binaryParentId" = u.id AND c.position = 'RIGHT')
+        AND  u."rightDeepestNodeId" IS NULL
+    `,
+    // leftDeepestNodeId targets that still have a LEFT child (stale pointer)
+    prisma.$queryRaw<CountRow[]>`
+      SELECT COUNT(*)::bigint AS count
+      FROM   users u
+      WHERE  u."leftDeepestNodeId" IS NOT NULL
+        AND  EXISTS (
+          SELECT 1 FROM users c
+          WHERE  c."binaryParentId" = u."leftDeepestNodeId" AND c.position = 'LEFT'
+        )
+    `,
+    // rightDeepestNodeId targets that still have a RIGHT child (stale pointer)
+    prisma.$queryRaw<CountRow[]>`
+      SELECT COUNT(*)::bigint AS count
+      FROM   users u
+      WHERE  u."rightDeepestNodeId" IS NOT NULL
+        AND  EXISTS (
+          SELECT 1 FROM users c
+          WHERE  c."binaryParentId" = u."rightDeepestNodeId" AND c.position = 'RIGHT'
+        )
+    `,
+  ]);
+
+  const n = (rows: CountRow[]) => Number(rows[0].count);
+
   const checks = [
-    { label: "MI accounts",                        expected: MI_COUNT,              actual: miCount,              pass: miCount === MI_COUNT },
-    { label: "RD accounts",                        expected: RD_COUNT,              actual: rdCount,              pass: rdCount === RD_COUNT },
-    { label: "SP accounts",                        expected: SP_TOTAL,              actual: spCount,              pass: spCount === SP_TOTAL },
-    { label: "Grand total",                        expected: MI_COUNT+RD_COUNT+SP_TOTAL, actual: totalUsers,      pass: totalUsers === MI_COUNT+RD_COUNT+SP_TOTAL },
-    { label: "Wallets",                            expected: MI_COUNT+RD_COUNT+SP_TOTAL, actual: walletCount,     pass: walletCount === MI_COUNT+RD_COUNT+SP_TOTAL },
-    { label: "Investments (must be 0)",            expected: 0,                     actual: investCount,          pass: investCount === 0 },
-    { label: "Deposits (must be 0)",               expected: 0,                     actual: depositCount,         pass: depositCount === 0 },
-    { label: "Withdrawals (must be 0)",            expected: 0,                     actual: withdrawCount,        pass: withdrawCount === 0 },
-    { label: "Duplicate usernames",                expected: 0,                     actual: dupUsername.length,   pass: dupUsername.length === 0 },
-    { label: "Duplicate emails",                   expected: 0,                     actual: dupEmail.length,      pass: dupEmail.length === 0 },
-    { label: "Binary integrity (no orphans)",      expected: 0,                     actual: missingBinaryParent,  pass: missingBinaryParent === 0 },
-    { label: "Master binary children (must be 2)", expected: 2,                     actual: masterChildCount,     pass: masterChildCount === 2 },
-    { label: "Referral integrity (all have sponsor)", expected: 0,                  actual: missingSponsors,      pass: missingSponsors === 0 },
-    { label: "RD directReferralCount = 100",       expected: 0,                     actual: rdBadReferralCount,   pass: rdBadReferralCount === 0 },
-    { label: "SP sponsor = owning RD",             expected: 0,                     actual: spBadSponsor,         pass: spBadSponsor === 0 },
-    { label: "Referral history records",           expected: MI_COUNT+RD_COUNT+SP_TOTAL, actual: refHistoryCount, pass: refHistoryCount === MI_COUNT+RD_COUNT+SP_TOTAL },
+    { label: "MI accounts",                             expected: MI_COUNT,                   actual: miCount,               pass: miCount === MI_COUNT },
+    { label: "RD accounts",                             expected: RD_COUNT,                   actual: rdCount,               pass: rdCount === RD_COUNT },
+    { label: "SP accounts",                             expected: SP_TOTAL,                   actual: spCount,               pass: spCount === SP_TOTAL },
+    { label: "Grand total",                             expected: MI_COUNT+RD_COUNT+SP_TOTAL, actual: totalUsers,            pass: totalUsers === MI_COUNT+RD_COUNT+SP_TOTAL },
+    { label: "Wallets",                                 expected: MI_COUNT+RD_COUNT+SP_TOTAL, actual: walletCount,           pass: walletCount === MI_COUNT+RD_COUNT+SP_TOTAL },
+    { label: "Investments (must be 0)",                 expected: 0,                          actual: investCount,           pass: investCount === 0 },
+    { label: "Deposits (must be 0)",                    expected: 0,                          actual: depositCount,          pass: depositCount === 0 },
+    { label: "Withdrawals (must be 0)",                 expected: 0,                          actual: withdrawCount,         pass: withdrawCount === 0 },
+    { label: "Duplicate usernames",                     expected: 0,                          actual: dupUsername.length,    pass: dupUsername.length === 0 },
+    { label: "Duplicate emails",                        expected: 0,                          actual: dupEmail.length,       pass: dupEmail.length === 0 },
+    { label: "Binary integrity (no orphans)",           expected: 0,                          actual: missingBinaryParent,   pass: missingBinaryParent === 0 },
+    { label: "Master binary children (must be 2)",      expected: 2,                          actual: masterChildCount,      pass: masterChildCount === 2 },
+    { label: "Referral integrity (all have sponsor)",   expected: 0,                          actual: missingSponsors,       pass: missingSponsors === 0 },
+    { label: "RD directReferralCount = 100",            expected: 0,                          actual: rdBadReferralCount,    pass: rdBadReferralCount === 0 },
+    { label: "SP sponsor = owning RD",                  expected: 0,                          actual: spBadSponsor,          pass: spBadSponsor === 0 },
+    { label: "Referral history records",                expected: MI_COUNT+RD_COUNT+SP_TOTAL, actual: refHistoryCount,       pass: refHistoryCount === MI_COUNT+RD_COUNT+SP_TOTAL },
+    { label: "Cache: left missing (should be 0)",       expected: 0,                          actual: n(cacheLeftMissing),   pass: n(cacheLeftMissing) === 0 },
+    { label: "Cache: right missing (should be 0)",      expected: 0,                          actual: n(cacheRightMissing),  pass: n(cacheRightMissing) === 0 },
+    { label: "Cache: left stale pointers (should be 0)",expected: 0,                          actual: n(cacheLeftStale),     pass: n(cacheLeftStale) === 0 },
+    { label: "Cache: right stale pointers (should be 0)",expected: 0,                         actual: n(cacheRightStale),    pass: n(cacheRightStale) === 0 },
   ];
 
   let allPass = true;
@@ -563,7 +609,6 @@ async function generateExcel(): Promise<void> {
   log("─── Generating Excel files ──────────────────────────────────────────────");
   await mkdir(OUTPUT_DIR, { recursive: true });
 
-  // Fetch all generated users with relations
   type UserRow = {
     username:      string;
     status:        string;
@@ -598,10 +643,9 @@ async function generateExcel(): Promise<void> {
 
   const wb1 = XLSX.utils.book_new();
 
-  // Sheet 1: Infrastructure (MI)
   const infraSheet = miUsers.map(u => {
     const idx   = parseInt(u.username.slice(2), 10);
-    const level = Math.floor(Math.log2(idx + 1)); // level from master: mi0001/mi0002 = 1, etc.
+    const level = Math.floor(Math.log2(idx + 1));
     return {
       Username:           u.username.toUpperCase(),
       Password:           PASSWORD,
@@ -613,7 +657,6 @@ async function generateExcel(): Promise<void> {
   });
   XLSX.utils.book_append_sheet(wb1, XLSX.utils.json_to_sheet(infraSheet), "Infrastructure Accounts");
 
-  // Sheet 2: RD Accounts (64 root distributors)
   const rdSheet = rdUsers.map(u => ({
     Username:           u.username.toUpperCase(),
     Password:           PASSWORD,
@@ -623,19 +666,18 @@ async function generateExcel(): Promise<void> {
   }));
   XLSX.utils.book_append_sheet(wb1, XLSX.utils.json_to_sheet(rdSheet), "RD Accounts");
 
-  // Sheet 3: Spill Accounts (6400 SP accounts)
   const spSheet = spUsers.map(u => {
-    const rdParent = u.sponsor?.username?.toUpperCase() ?? "—";
-    // Derive chain index and side from SP index
-    const spIdx    = parseInt(u.username.slice(2), 10); // sp000001 → 1
-    const chainIdx = Math.ceil(spIdx / SP_PER_RD);      // 1–64
-    const posInChain = ((spIdx - 1) % SP_PER_RD) + 1;  // 1–100
-    const side     = posInChain <= SP_LEFT ? "LEFT" : "RIGHT";
-    const depth    = posInChain <= SP_LEFT ? posInChain : posInChain - SP_LEFT;
+    const rdParent   = u.sponsor?.username?.toUpperCase() ?? "—";
+    const spIdx      = parseInt(u.username.slice(2), 10);
+    const chainIdx   = Math.ceil(spIdx / SP_PER_RD);
+    const posInChain = ((spIdx - 1) % SP_PER_RD) + 1;
+    const side       = posInChain <= SP_LEFT ? "LEFT" : "RIGHT";
+    const depth      = posInChain <= SP_LEFT ? posInChain : posInChain - SP_LEFT;
     return {
       Username:           u.username.toUpperCase(),
       Password:           PASSWORD,
       "RD Parent":        rdParent,
+      "Chain":            chainIdx,
       Side:               side,
       Depth:              depth,
       "Binary Parent":    u.binaryParent?.username?.toUpperCase() ?? "—",
@@ -645,12 +687,11 @@ async function generateExcel(): Promise<void> {
   });
   XLSX.utils.book_append_sheet(wb1, XLSX.utils.json_to_sheet(spSheet), "Spill Accounts");
 
-  // Sheet 4: Statistics
   const stats = [
-    { Metric: "MI Accounts (Infrastructure)",  Value: MI_COUNT },
+    { Metric: "MI Accounts (Infrastructure)",   Value: MI_COUNT },
     { Metric: "RD Accounts (Root Distributors)", Value: RD_COUNT },
-    { Metric: "SP Accounts (Spill)",             Value: SP_TOTAL },
-    { Metric: "Grand Total",                     Value: MI_COUNT + RD_COUNT + SP_TOTAL },
+    { Metric: "SP Accounts (Spill)",              Value: SP_TOTAL },
+    { Metric: "Grand Total",                      Value: MI_COUNT + RD_COUNT + SP_TOTAL },
   ];
   XLSX.utils.book_append_sheet(wb1, XLSX.utils.json_to_sheet(stats), "Statistics");
 
@@ -661,7 +702,6 @@ async function generateExcel(): Promise<void> {
   // ── Workbook 2: PrimeWave_Credentials.xlsx ──────────────────────────────────
 
   const wb2 = XLSX.utils.book_new();
-
   const credentials = allUsers.map(u => {
     const type =
       u.username.startsWith("mi") ? "MI (Infrastructure)"   :
@@ -694,52 +734,75 @@ export async function runGenerator(): Promise<void> {
 async function main(): Promise<void> {
   const startTime = Date.now();
   log("══════════════════════════════════════════════════════════════════════════");
-  log("  Prime Wave Network Generator — Sprint 28C.1");
+  log("  Prime Wave Network Generator — Sprint 28H");
   log(`  Target: ${MI_COUNT} MI + ${RD_COUNT} RD + ${SP_TOTAL} SP = ${MI_COUNT + RD_COUNT + SP_TOTAL} total`);
+  log("  Architecture: genesis path (genesisInsertUser + repairAllBinaryCache)");
   log("══════════════════════════════════════════════════════════════════════════");
 
   log("Hashing password (once)…");
   const passwordHash = await bcrypt.hash(PASSWORD, 12);
   log("Password hash ready.");
 
+  // Resolve master account ID (required for infra phase parent resolution)
+  const masterUser = await prisma.user.findUnique({
+    where:  { referralCode: MASTER_REFERRAL },
+    select: { id: true },
+  });
+  if (!masterUser) throw new Error(`Master account not found (referralCode=${MASTER_REFERRAL})`);
+  const masterId = masterUser.id;
+
   const progress = await loadProgress();
   log(`Progress: infraComplete=${progress.infraComplete}  spChainsComplete=${progress.rdChainsComplete}/64`);
 
   // ── Phase 1: Infrastructure ────────────────────────────────────────────────
-  let rdCodeMap: Map<number, string>;
+
+  let rdIdMap: Map<number, string>; // RD index 1–64 → user ID
 
   if (!progress.infraComplete) {
-    const result = await generateInfrastructure(passwordHash);
-    rdCodeMap = result.rdCodeMap;
+    const result = await generateInfrastructure(passwordHash, masterId);
+    rdIdMap = result.rdIdMap;
     progress.infraComplete = true;
     await saveProgress(progress);
   } else {
-    log("Phase 1 already complete — loading RD codes from DB.");
-    rdCodeMap = new Map<number, string>();
+    log("Phase 1 already complete — loading RD IDs from DB.");
+    rdIdMap = new Map<number, string>();
     const rdUsers = await prisma.user.findMany({
-      where:  { username: { startsWith: "rd0" } },
-      select: { username: true, referralCode: true },
+      where:   { username: { startsWith: "rd0" } },
+      select:  { username: true, id: true },
       orderBy: { username: "asc" },
     });
     for (const u of rdUsers) {
-      rdCodeMap.set(parseInt(u.username.slice(2), 10), u.referralCode);
+      rdIdMap.set(parseInt(u.username.slice(2), 10), u.id);
     }
-    log(`  Loaded ${rdCodeMap.size} RD account codes.`);
+    log(`  Loaded ${rdIdMap.size} RD account IDs.`);
   }
 
   // ── Phase 2: SP chains (64 × 100 accounts) ────────────────────────────────
   log("─── Phase 2: SP chains (64 chains × 100 accounts) ──────────────────────");
 
   for (let chain = progress.rdChainsComplete + 1; chain <= RD_COUNT; chain++) {
-    const rdCode = rdCodeMap.get(chain);
-    if (!rdCode) throw new Error(`RD code missing for chain ${chain} (rd${String(chain).padStart(4, "0")})`);
+    const rdId = rdIdMap.get(chain);
+    if (!rdId) throw new Error(`RD ID missing for chain ${chain} (rd${String(chain).padStart(4, "0")})`);
 
-    await generateSpChain(chain, rdCode, passwordHash);
+    await generateSpChain(chain, rdId, passwordHash);
     progress.rdChainsComplete = chain;
     await saveProgress(progress);
   }
 
   log("Phase 2 complete.");
+
+  // ── Phase 2.5: Bulk binary cache repair ───────────────────────────────────
+  //
+  // All 6,528 accounts now have correct binaryParentId + position.
+  // Two recursive SQL CTEs compute and write every node's deepest-node
+  // pointers in a single pass each — replacing ~326,000 individual DB calls.
+  log("─── Phase 2.5: Bulk binary cache repair ─────────────────────────────────");
+  const t_repair = Date.now();
+  const { leftUpdated, rightUpdated } = await repairAllBinaryCache();
+  const repairMs = Date.now() - t_repair;
+  log(`  leftDeepestNodeId  updated: ${leftUpdated} nodes`);
+  log(`  rightDeepestNodeId updated: ${rightUpdated} nodes`);
+  log(`  Cache repair time: ${repairMs}ms`);
 
   // ── Verification ──────────────────────────────────────────────────────────
   const allPass = await runVerification();
@@ -752,19 +815,19 @@ async function main(): Promise<void> {
   const seconds = elapsed % 60;
 
   log("══════════════════════════════════════════════════════════════════════════");
-  log("  SPRINT 28C.1 COMPLETE");
+  log("  SPRINT 28H COMPLETE");
   log(`  MI (Infrastructure) : ${MI_COUNT}   (mi0001–mi0063, levels 1–6)`);
   log(`  RD (Root Distrib.)  : ${RD_COUNT}   (rd0001–rd0064, level 7)`);
   log(`  SP (Spill)          : ${SP_TOTAL}  (sp000001–sp006400, 100 per RD)`);
   log(`  Grand Total         : ${MI_COUNT + RD_COUNT + SP_TOTAL}`);
   log(`  Referral structure  : all SP accounts sponsored directly by owning RD`);
-  log(`  Binary structure    : 50L + 50R linear chains per RD (unchanged)`);
+  log(`  Binary structure    : 50L + 50R linear chains per RD`);
   log(`  Each RD             : directReferralCount = 100`);
   log(`  Wallets             : ${MI_COUNT + RD_COUNT + SP_TOTAL} created (all balances = 0)`);
+  log(`  Cache repair        : ${leftUpdated}L + ${rightUpdated}R nodes in ${repairMs}ms`);
   log(`  Excel files         : ${OUTPUT_DIR}`);
   log(`  Runtime             : ${minutes}m ${seconds}s`);
   log(`  Verification        : ${allPass ? "✅ ALL PASS" : "❌ SOME FAILED — review above"}`);
-  log(`  Ready for           : Sprint 28D (Funding Engine)`);
   log("══════════════════════════════════════════════════════════════════════════");
 
   if (!allPass) process.exit(1);
