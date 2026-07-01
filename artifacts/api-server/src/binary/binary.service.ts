@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
@@ -164,32 +164,56 @@ async function propagateCacheUp(
   side: "LEFT" | "RIGHT",
   newUserId: string,
 ): Promise<void> {
-  const field = side === "LEFT" ? "leftDeepestNodeId" : "rightDeepestNodeId";
+  let currentId  = fromId;
+  const field    = side === "LEFT" ? "leftDeepestNodeId" : "rightDeepestNodeId";
 
-  // Single recursive CTE: walk up the same-direction ancestor chain and
-  // bulk-update all their deepest-node pointers in one round-trip.
-  //
-  // Seed  : always include fromId.
-  // Step  : add the parent of the current node only while the current node's
-  //         position matches `side` (stop the moment we cross the boundary).
-  await tx.$executeRaw`
-    WITH RECURSIVE chain AS (
-      SELECT id, "binaryParentId", position::text AS pos
-      FROM   users
-      WHERE  id = ${fromId}::uuid
+  for (;;) {
+    await tx.user.update({
+      where: { id: currentId },
+      data:  { [field]: newUserId },
+    });
 
-      UNION ALL
+    const cur = await tx.user.findUnique({
+      where:  { id: currentId },
+      select: { binaryParentId: true, position: true },
+    });
 
-      SELECT u.id, u."binaryParentId", u.position::text
-      FROM   users u
-      JOIN   chain  c ON u.id = c."binaryParentId"
-      WHERE  c.pos = ${side}
-        AND  c."binaryParentId" IS NOT NULL
-    )
-    UPDATE users
-    SET    ${Prisma.raw(`"${field}"`)} = ${newUserId}::uuid
-    WHERE  id IN (SELECT id FROM chain)
-  `;
+    if (!cur?.binaryParentId) break;   // reached tree root
+    if (cur.position !== side)  break; // crossed direction boundary
+
+    currentId = cur.binaryParentId;
+  }
+}
+
+/**
+ * Same walk as propagateCacheUp but runs outside any transaction, using the
+ * main prisma client.  Safe to call after a transaction commits — there is no
+ * open lock to conflict with live traffic.
+ */
+export async function updateBinaryCache(
+  fromId: string,
+  side: "LEFT" | "RIGHT",
+  newUserId: string,
+): Promise<void> {
+  let currentId  = fromId;
+  const field    = side === "LEFT" ? "leftDeepestNodeId" : "rightDeepestNodeId";
+
+  for (;;) {
+    await prisma.user.update({
+      where: { id: currentId },
+      data:  { [field]: newUserId },
+    });
+
+    const cur = await prisma.user.findUnique({
+      where:  { id: currentId },
+      select: { binaryParentId: true, position: true },
+    });
+
+    if (!cur?.binaryParentId) break;
+    if (cur.position !== side)  break;
+
+    currentId = cur.binaryParentId;
+  }
 }
 
 // ── Placement ─────────────────────────────────────────────────────────────────
@@ -215,7 +239,8 @@ export async function placeUserTx(
   sponsorId: string,
   userId: string,
   position: "LEFT" | "RIGHT",
-): Promise<void> {
+  options?: { skipCacheUpdate?: boolean },
+): Promise<{ placementTargetId: string }> {
 
   // ── 1. Validate target user ────────────────────────────────────────────────
   const target = await tx.user.findUnique({
@@ -325,11 +350,17 @@ export async function placeUserTx(
 
   // ── 6. Propagate cache up all ancestors in the same-direction chain ────────
   //
-  // Replaces the old two-node update (placement target + immediate sponsor).
-  // Now every ancestor whose {side} greedy chain passes through placementTarget
-  // gets its pointer updated to the newly placed user, keeping the O(1)
-  // invariant intact for all future registrations at every level of the tree.
-  await propagateCacheUp(tx, placementTargetId, position, userId);
+  // When skipCacheUpdate is true the caller takes responsibility for running
+  // updateBinaryCache() after the transaction commits — this keeps the
+  // transaction short and avoids lock conflicts with live traffic on the
+  // ancestor rows.  The regular user-facing placeUser() always runs the
+  // cache update inside the transaction so the O(1) invariant is preserved
+  // atomically for concurrent registrations.
+  if (!options?.skipCacheUpdate) {
+    await propagateCacheUp(tx, placementTargetId, position, userId);
+  }
+
+  return { placementTargetId };
 }
 
 export async function placeUser(sponsorId: string, input: PlaceUserInput): Promise<void> {

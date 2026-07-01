@@ -43,7 +43,7 @@ import * as XLSX from "xlsx";
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
 import { prisma } from "../../config/prisma.js";
-import { placeUserTx } from "../../binary/binary.service.js";
+import { placeUserTx, updateBinaryCache } from "../../binary/binary.service.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 //
@@ -156,7 +156,12 @@ async function registerNetworkUser(
   const position: "LEFT" | "RIGHT" = leg === "L" ? "LEFT" : "RIGHT";
   const referralCode = generateReferralCode();
 
-  return prisma.$transaction(async (tx) => {
+  // Phase 1: short transaction — user create + binary placement only.
+  // Cache update (propagateCacheUp) runs AFTER the transaction commits so it
+  // never holds a lock on ancestor rows while live traffic reads them.
+  let placementResult!: { placementTargetId: string };
+
+  const user = await prisma.$transaction(async (tx) => {
     const sponsor = await tx.user.findUnique({
       where:  { referralCode: sponsorCode },
       select: { id: true },
@@ -164,14 +169,14 @@ async function registerNetworkUser(
     if (!sponsor) throw new Error(`Sponsor not found: referralCode=${sponsorCode} for user=${username}`);
     const sponsorId = sponsor.id;
 
-    const user = await tx.user.create({
+    const newUser = await tx.user.create({
       data: {
         email,
         username,
         passwordHash,
         firstName,
         lastName,
-        status:       "INACTIVE",   // Genesis accounts start INACTIVE; activation is a separate business process
+        status:       "INACTIVE",
         referralCode,
         referredBy: sponsorId,
         sponsorId,
@@ -193,13 +198,18 @@ async function registerNetworkUser(
     });
 
     await tx.referralHistory.create({
-      data: { sponsorId, userId: user.id, leg: position },
+      data: { sponsorId, userId: newUser.id, leg: position },
     });
 
-    await placeUserTx(tx, sponsorId, user.id, position);
+    placementResult = await placeUserTx(tx, sponsorId, newUser.id, position, { skipCacheUpdate: true });
 
-    return user;
-  }, { timeout: 120_000 });
+    return newUser;
+  }, { timeout: 30_000 });
+
+  // Phase 2: cache update outside transaction — no lock conflicts with live traffic.
+  await updateBinaryCache(placementResult.placementTargetId, position, user.id);
+
+  return user;
 }
 
 // ── Phase 1: Infrastructure (MI + RD tier accounts, 127 total) ───────────────
