@@ -199,7 +199,7 @@ async function registerNetworkUser(
     await placeUserTx(tx, sponsorId, user.id, position);
 
     return user;
-  }, { timeout: 30_000 });
+  }, { timeout: 120_000 });
 }
 
 // ── Phase 1: Infrastructure (MI + RD tier accounts, 127 total) ───────────────
