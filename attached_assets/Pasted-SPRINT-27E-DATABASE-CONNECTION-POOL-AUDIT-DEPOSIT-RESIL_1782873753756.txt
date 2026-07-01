@@ -1,0 +1,199 @@
+SPRINT 27E — DATABASE CONNECTION POOL AUDIT & DEPOSIT RESILIENCE
+
+We have confirmed a production issue.
+
+A legitimate deposit reached CONFIRMED but failed to complete because Prisma threw:
+
+Timed out fetching a new connection from the connection pool.
+Connection limit: 5
+Pool timeout: 10s
+
+The transaction later succeeded after Re-Validate.
+
+This indicates an infrastructure/database bottleneck rather than a blockchain issue.
+
+==========================================================
+OBJECTIVE
+==========================================================
+
+Perform a complete audit of database connection usage during deposit verification.
+
+Do not guess.
+
+Trace the exact lifecycle of a successful deposit.
+
+==========================================================
+INVESTIGATE
+==========================================================
+
+1.
+
+How many Prisma clients are instantiated?
+
+Confirm there is exactly ONE PrismaClient singleton for the entire application.
+
+2.
+
+Inspect every worker.
+
+Check whether any worker creates its own PrismaClient.
+
+3.
+
+Inspect:
+
+Deposit worker
+
+Transfer worker
+
+Income scheduler
+
+Notification worker
+
+Cron jobs
+
+Background jobs
+
+Queue processors
+
+Confirm they all share the same singleton.
+
+4.
+
+Inspect every transaction.
+
+Look for transactions remaining open while:
+
+calling BSC RPC
+
+calling external APIs
+
+waiting on timers
+
+sleep()
+
+event bus
+
+notifications
+
+Transactions must contain ONLY database work.
+
+5.
+
+Inspect approveDeposit().
+
+Determine:
+
+How many queries are executed.
+
+How long the transaction remains open.
+
+Whether any unnecessary DB round-trips exist.
+
+6.
+
+Measure:
+
+Average DB transaction duration.
+
+Longest DB transaction.
+
+Maximum concurrent transactions.
+
+7.
+
+Inspect DATABASE_URL.
+
+Determine current pool configuration.
+
+Report:
+
+connection_limit
+
+pool_timeout
+
+pgBouncer compatibility
+
+Prisma Accelerate usage (if any)
+
+==========================================================
+RESILIENCE IMPROVEMENTS
+==========================================================
+
+If Prisma temporarily cannot obtain a connection:
+
+DO NOT permanently fail the verification.
+
+Instead:
+
+Retry the database operation using exponential backoff.
+
+Example:
+
+250ms
+
+500ms
+
+1s
+
+2s
+
+Maximum 5 retries.
+
+If retries still fail:
+
+Return the verification to VERIFYING.
+
+Set nextCheckAt = now + 30 seconds.
+
+Allow the worker to retry naturally.
+
+Never lose a valid blockchain verification because of a temporary DB connection shortage.
+
+==========================================================
+USER EXPERIENCE
+==========================================================
+
+Users must NEVER see raw Prisma exceptions.
+
+Instead display:
+
+"We've confirmed your transaction on the blockchain.
+Final wallet credit is taking slightly longer than expected.
+No action is required."
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Provide:
+
+1.
+
+Root cause.
+
+2.
+
+Connection pool audit.
+
+3.
+
+Current Prisma configuration.
+
+4.
+
+Maximum safe concurrent deposits.
+
+5.
+
+Recommended production pool size.
+
+6.
+
+Any code changes made.
+
+7.
+
+Regression report.
+
+Do not modify financial business logic.

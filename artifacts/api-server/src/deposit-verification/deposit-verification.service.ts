@@ -732,8 +732,7 @@ async function processOne(
       return "failed";
     }
     logger.info({ verificationId: v.id }, "DepositVerification: crash recovery — resuming CONFIRMED credit");
-    await creditVerifiedDeposit(v, v.blockchainAmount, v.confirmations, v.confirmedAt ?? now);
-    return "completed";
+    return creditWithRetry(v, v.blockchainAmount, v.confirmations, v.confirmedAt ?? now);
   }
 
   // ── H1: Optimistic lock on first pickup (TX_SUBMITTED → VERIFYING) ────────
@@ -945,8 +944,7 @@ async function processOne(
 
   logger.info({ verificationId: v.id, txHash: v.txHash }, "DepositVerification: CONFIRMED — crediting wallet");
 
-  await creditVerifiedDeposit(v, details.amount, details.confirmations, confirmedAt);
-  return "completed";
+  return creditWithRetry(v, details.amount, details.confirmations, confirmedAt);
 }
 
 // ── Credit wallet — reuses approveDeposit() pipeline ─────────────────────────
@@ -1083,4 +1081,88 @@ async function creditVerifiedDeposit(
       metadata: { verificationId: v.id, txHash: v.txHash } as Prisma.InputJsonValue,
     });
   }
+}
+
+// ── Pool-timeout resilience ────────────────────────────────────────────────────
+
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+/**
+ * Returns true if the error is a Prisma connection-pool timeout.
+ * Pool timeouts are transient infrastructure faults — not permanent failures.
+ */
+function isPoolTimeoutError(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    err.message.includes("Timed out fetching a new connection from the connection pool")
+  );
+}
+
+/**
+ * Wraps creditVerifiedDeposit with exponential-backoff retries for connection-
+ * pool timeouts.
+ *
+ * Retry schedule: 250 ms → 500 ms → 1 s → 2 s → 4 s (5 total attempts).
+ *
+ * If all retries are exhausted the verification is reset to VERIFYING with
+ * nextCheckAt = now + 30 s so the worker retries naturally on the next tick.
+ * The user receives a non-alarming "taking slightly longer" notification.
+ *
+ * Any non-pool-timeout error is re-thrown immediately (handled by the caller's
+ * existing catch block which transitions to FAILED).
+ */
+async function creditWithRetry(
+  v:             VerificationRow,
+  amount:        Prisma.Decimal,
+  confirmations: number,
+  confirmedAt:   Date,
+): Promise<ProcessResult> {
+  const BACKOFF_MS = [250, 500, 1_000, 2_000, 4_000] as const;
+
+  for (let attempt = 0; attempt < BACKOFF_MS.length; attempt++) {
+    try {
+      await creditVerifiedDeposit(v, amount, confirmations, confirmedAt);
+      return "completed";
+    } catch (err) {
+      if (!isPoolTimeoutError(err)) throw err; // non-transient — re-throw for caller
+
+      const delayMs = BACKOFF_MS[attempt]!;
+      logger.warn(
+        { verificationId: v.id, attempt: attempt + 1, maxAttempts: BACKOFF_MS.length, nextRetryMs: delayMs },
+        "DepositVerification: DB pool timeout during credit — retrying after backoff",
+      );
+      await sleep(delayMs);
+    }
+  }
+
+  // All retries exhausted — reset to VERIFYING so the worker retries organically.
+  // This is never a permanent failure: the blockchain confirmation is already stored
+  // and crash recovery (M3) will also resume if the process restarts.
+  logger.error(
+    { verificationId: v.id },
+    "DepositVerification: DB pool timeout — all retries exhausted; resetting CONFIRMED→VERIFYING for next tick",
+  );
+
+  // Non-alarming user notification — funds are safe, credit is only delayed
+  void notificationService.create({
+    userId:  v.userId,
+    type:    "DEPOSIT_APPROVED",
+    title:   "Deposit Credit Delayed",
+    message: "We've confirmed your transaction on the blockchain. Final wallet credit is taking slightly longer than expected. No action is required.",
+    metadata: { verificationId: v.id, txHash: v.txHash, reason: "pool_timeout_retry" } as Prisma.InputJsonValue,
+  });
+
+  // Best-effort reset — if this also fails, M3 crash recovery handles CONFIRMED on the next tick
+  try {
+    await repo.transition(v.id, "VERIFYING", {
+      nextCheckAt: new Date(Date.now() + 30_000),
+    });
+  } catch (resetErr) {
+    logger.error(
+      { resetErr, verificationId: v.id },
+      "DepositVerification: failed to reset CONFIRMED→VERIFYING after pool exhaustion — M3 will recover on next tick",
+    );
+  }
+
+  return "active";
 }
