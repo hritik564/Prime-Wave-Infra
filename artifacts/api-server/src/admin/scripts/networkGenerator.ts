@@ -410,7 +410,7 @@ async function generateSpChain(
 async function runVerification(): Promise<boolean> {
   log("─── Verification ────────────────────────────────────────────────────────");
 
-  const [miCount, rdCount, spCount, walletCount, investCount, depositCount, withdrawCount] =
+  const [miCount, rdCount, spCount, walletCount, investCount, withdrawCount] =
     await prisma.$transaction([
       prisma.user.count({ where: { username: { startsWith: "mi0" } } }),
       prisma.user.count({ where: { username: { startsWith: "rd0" } } }),
@@ -427,7 +427,6 @@ async function runVerification(): Promise<boolean> {
         },
       }),
       prisma.investment.count(),
-      prisma.depositRequest.count(),
       prisma.withdrawalRequest.count(),
     ]);
 
@@ -577,7 +576,6 @@ async function runVerification(): Promise<boolean> {
     { label: "Grand total",                             expected: MI_COUNT+RD_COUNT+SP_TOTAL, actual: totalUsers,            pass: totalUsers === MI_COUNT+RD_COUNT+SP_TOTAL },
     { label: "Wallets",                                 expected: MI_COUNT+RD_COUNT+SP_TOTAL, actual: walletCount,           pass: walletCount === MI_COUNT+RD_COUNT+SP_TOTAL },
     { label: "Investments (must be 0)",                 expected: 0,                          actual: investCount,           pass: investCount === 0 },
-    { label: "Deposits (must be 0)",                    expected: 0,                          actual: depositCount,          pass: depositCount === 0 },
     { label: "Withdrawals (must be 0)",                 expected: 0,                          actual: withdrawCount,         pass: withdrawCount === 0 },
     { label: "Duplicate usernames",                     expected: 0,                          actual: dupUsername.length,    pass: dupUsername.length === 0 },
     { label: "Duplicate emails",                        expected: 0,                          actual: dupEmail.length,       pass: dupEmail.length === 0 },

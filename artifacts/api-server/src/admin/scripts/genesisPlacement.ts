@@ -120,7 +120,7 @@ export async function genesisInsertUser(
     });
 
     return newUser;
-  });
+  }, { timeout: 30000 });
 }
 
 // ── Bulk cache repair ─────────────────────────────────────────────────────────
