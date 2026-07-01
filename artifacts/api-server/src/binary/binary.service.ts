@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
@@ -164,25 +164,32 @@ async function propagateCacheUp(
   side: "LEFT" | "RIGHT",
   newUserId: string,
 ): Promise<void> {
-  let currentId  = fromId;
-  const field    = side === "LEFT" ? "leftDeepestNodeId" : "rightDeepestNodeId";
+  const field = side === "LEFT" ? "leftDeepestNodeId" : "rightDeepestNodeId";
 
-  for (;;) {
-    await tx.user.update({
-      where: { id: currentId },
-      data:  { [field]: newUserId },
-    });
+  // Single recursive CTE: walk up the same-direction ancestor chain and
+  // bulk-update all their deepest-node pointers in one round-trip.
+  //
+  // Seed  : always include fromId.
+  // Step  : add the parent of the current node only while the current node's
+  //         position matches `side` (stop the moment we cross the boundary).
+  await tx.$executeRaw`
+    WITH RECURSIVE chain AS (
+      SELECT id, "binaryParentId", position::text AS pos
+      FROM   users
+      WHERE  id = ${fromId}::uuid
 
-    const cur = await tx.user.findUnique({
-      where:  { id: currentId },
-      select: { binaryParentId: true, position: true },
-    });
+      UNION ALL
 
-    if (!cur?.binaryParentId) break;   // reached tree root
-    if (cur.position !== side)  break; // crossed direction boundary
-
-    currentId = cur.binaryParentId;
-  }
+      SELECT u.id, u."binaryParentId", u.position::text
+      FROM   users u
+      JOIN   chain  c ON u.id = c."binaryParentId"
+      WHERE  c.pos = ${side}
+        AND  c."binaryParentId" IS NOT NULL
+    )
+    UPDATE users
+    SET    ${Prisma.raw(`"${field}"`)} = ${newUserId}::uuid
+    WHERE  id IN (SELECT id FROM chain)
+  `;
 }
 
 // ── Placement ─────────────────────────────────────────────────────────────────
