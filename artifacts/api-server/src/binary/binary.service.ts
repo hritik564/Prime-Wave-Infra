@@ -200,44 +200,39 @@ export async function updateBinaryCache(
   // per-row loop (16+ round-trips) with one DB call regardless of tree depth.
   // Two explicit branches avoid the need for dynamic column names in the
   // tagged-template form of $executeRaw (Prisma.raw() is not supported there).
+  // Step 1 — SELECT: collect ancestor IDs via recursive CTE (text-cast throughout
+  // to avoid UUID vs text operator mismatch in recursive CTE column inference).
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    WITH RECURSIVE chain AS (
+      SELECT id::text, "binaryParentId"::text, position::text AS pos
+      FROM   users
+      WHERE  id = ${fromId}::uuid
+
+      UNION ALL
+
+      SELECT u.id::text, u."binaryParentId"::text, u.position::text
+      FROM   users u
+      JOIN   chain  c ON u.id::text = c."binaryParentId"
+      WHERE  c.pos  = ${side}
+        AND  c."binaryParentId" IS NOT NULL
+    )
+    SELECT id FROM chain
+  `;
+
+  // Step 2 — UPDATE: one batch write for all collected IDs.
+  const ids = rows.map((r) => r.id);
+  if (ids.length === 0) return;
+
   if (side === "LEFT") {
-    await prisma.$executeRaw`
-      WITH RECURSIVE chain AS (
-        SELECT id, "binaryParentId", position::text AS pos
-        FROM   users
-        WHERE  id = ${fromId}::uuid
-
-        UNION ALL
-
-        SELECT u.id, u."binaryParentId", u.position::text
-        FROM   users u
-        JOIN   chain  c ON u.id = c."binaryParentId"
-        WHERE  c.pos = 'LEFT'
-          AND  c."binaryParentId" IS NOT NULL
-      )
-      UPDATE users
-      SET    "leftDeepestNodeId" = ${newUserId}::uuid
-      WHERE  id IN (SELECT id FROM chain)
-    `;
+    await prisma.user.updateMany({
+      where: { id: { in: ids } },
+      data:  { leftDeepestNodeId: newUserId },
+    });
   } else {
-    await prisma.$executeRaw`
-      WITH RECURSIVE chain AS (
-        SELECT id, "binaryParentId", position::text AS pos
-        FROM   users
-        WHERE  id = ${fromId}::uuid
-
-        UNION ALL
-
-        SELECT u.id, u."binaryParentId", u.position::text
-        FROM   users u
-        JOIN   chain  c ON u.id = c."binaryParentId"
-        WHERE  c.pos = 'RIGHT'
-          AND  c."binaryParentId" IS NOT NULL
-      )
-      UPDATE users
-      SET    "rightDeepestNodeId" = ${newUserId}::uuid
-      WHERE  id IN (SELECT id FROM chain)
-    `;
+    await prisma.user.updateMany({
+      where: { id: { in: ids } },
+      data:  { rightDeepestNodeId: newUserId },
+    });
   }
 }
 
