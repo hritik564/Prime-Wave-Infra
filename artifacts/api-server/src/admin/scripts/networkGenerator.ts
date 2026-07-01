@@ -137,6 +137,28 @@ async function saveProgress(p: Progress): Promise<void> {
 // Password hash is pre-computed once (same for all accounts).
 // Idempotent: if username already exists, returns existing record immediately.
 
+// ── Per-account timing accumulator (resets each chain) ───────────────────────
+let _timingAccum = {
+  n: 0,
+  existMs: 0, txMs: 0, cacheMs: 0, totalMs: 0, cacheIter: 0,
+};
+
+function _resetTiming() {
+  _timingAccum = { n: 0, existMs: 0, txMs: 0, cacheMs: 0, totalMs: 0, cacheIter: 0 };
+}
+
+function _logTiming(label: string) {
+  const a = _timingAccum;
+  if (a.n === 0) return;
+  const avg = (v: number) => (v / a.n).toFixed(0);
+  log(
+    `  [TIMING ${label}] n=${a.n}  ` +
+    `total=${avg(a.totalMs)}ms  tx=${avg(a.txMs)}ms  ` +
+    `cache=${avg(a.cacheMs)}ms (${(a.cacheIter / a.n).toFixed(1)} iters)  ` +
+    `existCheck=${avg(a.existMs)}ms`,
+  );
+}
+
 async function registerNetworkUser(
   username:     string,
   email:        string,
@@ -147,20 +169,24 @@ async function registerNetworkUser(
   leg:          "L" | "R",
 ): Promise<CreatedUser> {
 
+  const t0 = Date.now();
+
+  // ── Idempotency check ────────────────────────────────────────────────────────
+  const t_exist0 = Date.now();
   const existing = await prisma.user.findUnique({
     where:  { username },
     select: { id: true, username: true, referralCode: true },
   });
+  const existMs = Date.now() - t_exist0;
   if (existing) return existing;
 
   const position: "LEFT" | "RIGHT" = leg === "L" ? "LEFT" : "RIGHT";
   const referralCode = generateReferralCode();
 
-  // Phase 1: short transaction — user create + binary placement only.
-  // Cache update (propagateCacheUp) runs AFTER the transaction commits so it
-  // never holds a lock on ancestor rows while live traffic reads them.
+  // ── Phase 1: short transaction ───────────────────────────────────────────────
   let placementResult!: { placementTargetId: string };
 
+  const t_tx0 = Date.now();
   const user = await prisma.$transaction(async (tx) => {
     const sponsor = await tx.user.findUnique({
       where:  { referralCode: sponsorCode },
@@ -205,9 +231,30 @@ async function registerNetworkUser(
 
     return newUser;
   }, { timeout: 30_000 });
+  const txMs = Date.now() - t_tx0;
 
-  // Phase 2: cache update outside transaction — no lock conflicts with live traffic.
-  await updateBinaryCache(placementResult.placementTargetId, position, user.id);
+  // ── Phase 2: cache update outside transaction ────────────────────────────────
+  const t_cache0 = Date.now();
+  const cacheIter = await updateBinaryCache(placementResult.placementTargetId, position, user.id);
+  const cacheMs = Date.now() - t_cache0;
+
+  const totalMs = Date.now() - t0;
+
+  // Accumulate for chain-level summary
+  _timingAccum.n++;
+  _timingAccum.existMs  += existMs;
+  _timingAccum.txMs     += txMs;
+  _timingAccum.cacheMs  += cacheMs;
+  _timingAccum.totalMs  += totalMs;
+  _timingAccum.cacheIter += cacheIter;
+
+  // Log first 3 accounts in each chain individually for detail
+  if (_timingAccum.n <= 3) {
+    log(
+      `    [ACCT ${username}] total=${totalMs}ms  tx=${txMs}ms  ` +
+      `cache=${cacheMs}ms/${cacheIter}iters  existCheck=${existMs}ms`,
+    );
+  }
 
   return user;
 }
@@ -333,6 +380,8 @@ async function generateSpChain(
 ): Promise<void> {
   const spOffset = (chainIndex - 1) * SP_PER_RD;  // 0, 100, 200, …
 
+  _resetTiming();
+
   // LEFT chain: SP[offset+1]…SP[offset+50], all sponsored by RD, placed LEFT
   for (let k = 1; k <= SP_LEFT; k++) {
     const spIdx = spOffset + k;
@@ -347,6 +396,9 @@ async function generateSpChain(
     );
   }
 
+  _logTiming(`chain${String(chainIndex).padStart(2,"0")}-LEFT`);
+  _resetTiming();
+
   // RIGHT chain: SP[offset+51]…SP[offset+100], all sponsored by RD, placed RIGHT
   for (let k = 1; k <= SP_RIGHT; k++) {
     const spIdx = spOffset + SP_LEFT + k;
@@ -360,6 +412,8 @@ async function generateSpChain(
       "R",
     );
   }
+
+  _logTiming(`chain${String(chainIndex).padStart(2,"0")}-RIGHT`);
 
   const lo = spUsername(spOffset + 1).toUpperCase();
   const hi = spUsername(spOffset + 100).toUpperCase();

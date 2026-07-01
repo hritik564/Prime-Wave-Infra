@@ -1,0 +1,315 @@
+SPRINT 28G — PRODUCTION GENERATOR PERFORMANCE AUDIT
+
+IMPORTANT
+
+DO NOT attempt random optimizations.
+
+DO NOT change business logic.
+
+DO NOT change referral logic.
+
+DO NOT change binary placement.
+
+DO NOT change funding logic.
+
+DO NOT increase Prisma connection limits.
+
+DO NOT increase concurrency blindly.
+
+This sprint is about finding the REAL bottleneck with evidence.
+
+==========================================================
+BACKGROUND
+==========================================================
+
+Development database:
+
+Genesis generation completes successfully.
+
+6,528 users created.
+
+Funding completes successfully.
+
+Runtime is acceptable.
+
+Production database:
+
+Generator starts correctly.
+
+Approximately 900 users are generated.
+
+Generation becomes extremely slow and eventually appears stuck.
+
+This is NOT acceptable.
+
+The goal is to determine exactly WHY.
+
+==========================================================
+STEP 1 — PROFILE THE ENTIRE GENERATOR
+==========================================================
+
+Instrument every major stage.
+
+For every generated account measure:
+
+1.
+
+Time spent in:
+
+registerNetworkUser()
+
+2.
+
+Time spent in:
+
+tx.user.create()
+
+3.
+
+Time spent in:
+
+wallet.create()
+
+4.
+
+Time spent updating sponsor counters.
+
+5.
+
+Time spent writing referral history.
+
+6.
+
+Time spent in placeUserTx().
+
+7.
+
+Time spent updating binary caches.
+
+8.
+
+Time spent saving checkpoint progress.
+
+9.
+
+Total time per account.
+
+Return average, minimum and maximum.
+
+==========================================================
+STEP 2 — DATABASE PROFILE
+==========================================================
+
+Determine:
+
+Average SQL queries executed per generated account.
+
+Average transaction duration.
+
+Average transaction wait time.
+
+Connection acquisition time.
+
+Connection pool utilisation.
+
+Lock waits.
+
+Deadlocks.
+
+Slow queries.
+
+Any query exceeding 100ms.
+
+Return the ten slowest queries.
+
+==========================================================
+STEP 3 — PROGRESS ANALYSIS
+==========================================================
+
+Determine exactly where generation slows.
+
+Examples:
+
+User #1–100
+
+average X ms
+
+101–500
+
+average X ms
+
+501–900
+
+average X ms
+
+901+
+
+average X ms
+
+Does slowdown begin gradually
+
+or
+
+at one specific account?
+
+==========================================================
+STEP 4 — CHECKPOINT ANALYSIS
+==========================================================
+
+Determine how often progress is written.
+
+Current frequency.
+
+Database cost.
+
+Whether checkpoint writes become the bottleneck.
+
+Recommend optimal checkpoint frequency.
+
+==========================================================
+STEP 5 — LOCK ANALYSIS
+==========================================================
+
+Determine whether the generator is waiting on:
+
+Users
+
+Wallets
+
+ReferralHistory
+
+Binary tables
+
+SystemSettings
+
+AdminLogs
+
+or another table.
+
+Show lock durations.
+
+==========================================================
+STEP 6 — RESOURCE ANALYSIS
+==========================================================
+
+Measure:
+
+CPU
+
+Memory
+
+Database latency
+
+Prisma pool usage
+
+Node event loop delay
+
+Garbage collection pauses
+
+Determine whether this is:
+
+CPU bound
+
+Database bound
+
+Network bound
+
+Lock bound
+
+Memory bound
+
+==========================================================
+STEP 7 — ROOT CAUSE
+==========================================================
+
+Provide evidence.
+
+Do NOT speculate.
+
+Identify the exact bottleneck.
+
+Examples:
+
+Database round trips
+
+Excessive transactions
+
+Checkpoint writes
+
+Repeated SELECTs
+
+Lock contention
+
+Binary placement
+
+Referral updates
+
+Progress persistence
+
+Connection starvation
+
+Other
+
+==========================================================
+STEP 8 — OPTIMIZATION PLAN
+==========================================================
+
+Only AFTER root cause is proven.
+
+Recommend optimizations ranked by impact.
+
+For every recommendation include:
+
+Estimated speed improvement.
+
+Risk level.
+
+Whether idempotency remains intact.
+
+Whether binary integrity remains intact.
+
+Whether referral integrity remains intact.
+
+Whether funding integrity remains intact.
+
+==========================================================
+STEP 9 — DO NOT IMPLEMENT YET
+==========================================================
+
+Do NOT optimize in this sprint.
+
+This sprint ends with diagnosis only.
+
+We will review the evidence before making any code changes.
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return:
+
+1. Runtime profile.
+
+2. SQL profile.
+
+3. Slow query report.
+
+4. Lock analysis.
+
+5. Transaction analysis.
+
+6. Resource analysis.
+
+7. Root cause.
+
+8. Recommended optimizations ranked by expected impact.
+
+9. Estimated runtime after optimization.
+
+10. Confidence level for each recommendation.
+
+IMPORTANT
+
+I want evidence, not guesses.
+
+Every conclusion must be backed by measured timings or query statistics.

@@ -189,51 +189,37 @@ async function propagateCacheUp(
  * Same walk as propagateCacheUp but runs outside any transaction, using the
  * main prisma client.  Safe to call after a transaction commits — there is no
  * open lock to conflict with live traffic.
+ *
+ * Returns the number of ancestor nodes updated (for timing diagnostics).
  */
 export async function updateBinaryCache(
   fromId: string,
   side: "LEFT" | "RIGHT",
   newUserId: string,
-): Promise<void> {
-  // Single recursive CTE — runs OUTSIDE any transaction so there are no open
-  // row locks that could conflict with live traffic.  This replaces the old
-  // per-row loop (16+ round-trips) with one DB call regardless of tree depth.
-  // Two explicit branches avoid the need for dynamic column names in the
-  // tagged-template form of $executeRaw (Prisma.raw() is not supported there).
-  // Step 1 — SELECT: collect ancestor IDs via recursive CTE (text-cast throughout
-  // to avoid UUID vs text operator mismatch in recursive CTE column inference).
-  const rows = await prisma.$queryRaw<{ id: string }[]>`
-    WITH RECURSIVE chain AS (
-      SELECT id::text, "binaryParentId"::text, position::text AS pos
-      FROM   users
-      WHERE  id = ${fromId}::uuid
+): Promise<number> {
+  let currentId = fromId;
+  const field   = side === "LEFT" ? "leftDeepestNodeId" : "rightDeepestNodeId";
+  let iterations = 0;
 
-      UNION ALL
-
-      SELECT u.id::text, u."binaryParentId"::text, u.position::text
-      FROM   users u
-      JOIN   chain  c ON u.id::text = c."binaryParentId"
-      WHERE  c.pos  = ${side}
-        AND  c."binaryParentId" IS NOT NULL
-    )
-    SELECT id FROM chain
-  `;
-
-  // Step 2 — UPDATE: one batch write for all collected IDs.
-  const ids = rows.map((r) => r.id);
-  if (ids.length === 0) return;
-
-  if (side === "LEFT") {
-    await prisma.user.updateMany({
-      where: { id: { in: ids } },
-      data:  { leftDeepestNodeId: newUserId },
+  for (;;) {
+    await prisma.user.update({
+      where: { id: currentId },
+      data:  { [field]: newUserId },
     });
-  } else {
-    await prisma.user.updateMany({
-      where: { id: { in: ids } },
-      data:  { rightDeepestNodeId: newUserId },
+    iterations++;
+
+    const cur = await prisma.user.findUnique({
+      where:  { id: currentId },
+      select: { binaryParentId: true, position: true },
     });
+
+    if (!cur?.binaryParentId) break;
+    if (cur.position !== side)  break;
+
+    currentId = cur.binaryParentId;
   }
+
+  return iterations;
 }
 
 // ── Placement ─────────────────────────────────────────────────────────────────
