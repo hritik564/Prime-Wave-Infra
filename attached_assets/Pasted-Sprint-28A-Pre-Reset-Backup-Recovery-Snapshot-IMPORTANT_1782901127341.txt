@@ -1,0 +1,183 @@
+Sprint 28A — Pre-Reset Backup & Recovery Snapshot
+
+IMPORTANT
+
+DO NOT DELETE ANY DATA.
+DO NOT MODIFY ANY DATA.
+DO NOT RUN ANY MIGRATIONS.
+DO NOT TOUCH THE DATABASE CONTENTS.
+
+This sprint is BACKUP ONLY.
+
+We are preparing for a complete production reset, but before deleting anything I want a verified recovery point.
+
+Objectives
+
+========================
+PART 1 — Production Database Backup
+========================
+
+Create a full production PostgreSQL backup.
+
+Requirements:
+
+- Complete database dump
+- Schema
+- Data
+- Indexes
+- Constraints
+- Sequences
+- Triggers
+- Prisma migration history
+
+Verify the dump completed successfully.
+
+Report:
+
+- Backup filename
+- Backup size
+- Timestamp
+- Success/failure
+
+========================
+PART 2 — Environment Audit
+========================
+
+Generate a report of the production environment.
+
+Include:
+
+- Current deployed commit/build
+- Prisma version
+- Node version
+- PostgreSQL version
+- Current migration version
+- Applied migrations
+- Active environment
+- RPC configuration status
+- Company wallet configuration
+- System settings count
+
+DO NOT expose secrets.
+
+Only confirm they exist.
+
+Example:
+
+BSC_RPC_PRIMARY
+✓ Present
+
+DATABASE_URL
+✓ Present
+
+========================
+PART 3 — Record Counts
+========================
+
+Generate exact counts for every important table.
+
+Example:
+
+Users
+Wallets
+WalletTransactions
+DepositRequests
+DepositVerifications
+WithdrawRequests
+Notifications
+ReferralHistory
+BinaryTree
+AdminLogs
+TransferHistory
+SystemSettings
+CompanyWallets
+
+Everything that will help us verify the reset later.
+
+========================
+PART 4 — Integrity Report
+========================
+
+Run an integrity audit.
+
+Report:
+
+✓ duplicate usernames
+
+✓ duplicate emails
+
+✓ duplicate wallet transactions
+
+✓ duplicate deposit credits
+
+✓ orphan wallets
+
+✓ orphan referral records
+
+✓ orphan binary records
+
+✓ binary cache consistency
+
+✓ company wallet validity
+
+✓ system setting validity
+
+========================
+PART 5 — Recovery Plan
+========================
+
+Write a rollback plan.
+
+If tomorrow we restore this backup,
+
+what exact commands/files would be needed?
+
+Include:
+
+Step 1
+Step 2
+Step 3
+...
+
+========================
+PART 6 — RESET READINESS
+========================
+
+After all audits finish,
+
+return one report only.
+
+Example:
+
+DATABASE BACKUP
+
+Status:
+PASS
+
+Backup verified:
+YES
+
+Integrity:
+PASS
+
+Rollback verified:
+YES
+
+Ready for production reset:
+YES / NO
+
+========================
+RULES
+========================
+
+DO NOT
+
+- delete anything
+- truncate anything
+- reseed anything
+- modify anything
+- update anything
+
+This sprint is READ ONLY.
+
+Return a detailed audit report at the end.
