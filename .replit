@@ -25,7 +25,5 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.production]
-GENERATE_NETWORK = "true"
-FUND_NETWORK = "true"
 
 [userenv.development]

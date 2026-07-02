@@ -1,0 +1,199 @@
+SPRINT 28I — LEVEL INCOME RULE AUDIT
+
+IMPORTANT
+
+DO NOT modify any code.
+
+DO NOT change any business logic.
+
+This sprint is an implementation audit only.
+
+==========================================================
+OBJECTIVE
+==========================================================
+
+Determine exactly how the current Level Income engine works.
+
+I want the ACTUAL implementation, not assumptions.
+
+==========================================================
+STEP 1 — TRACE THE COMPLETE FLOW
+==========================================================
+
+Trace the entire Level Income pipeline.
+
+Starting from:
+
+A user makes an investment
+
+↓
+
+Referral chain lookup
+
+↓
+
+Level income calculation
+
+↓
+
+Wallet credit
+
+↓
+
+Ledger
+
+↓
+
+Notification
+
+Show every function involved.
+
+==========================================================
+STEP 2 — IDENTIFY ALL ELIGIBILITY RULES
+==========================================================
+
+List every condition that must currently be true before a sponsor receives Level Income.
+
+Examples:
+
+Must be ACTIVE?
+
+Must have an investment?
+
+Must have an ACTIVE investment?
+
+Must have binary qualification?
+
+Must have left and right referrals?
+
+Must have one referral on each leg?
+
+Must have minimum BV?
+
+Must have KYC?
+
+Must have account status ACTIVE?
+
+Maximum payout limits?
+
+Any daily cap?
+
+Any hidden condition?
+
+Return every condition found in code.
+
+==========================================================
+STEP 3 — VERIFY LEVEL DEPTH
+==========================================================
+
+Determine exactly how many referral levels currently receive income.
+
+Example:
+
+Level 1
+
+Level 2
+
+...
+
+Maximum level
+
+Return the exact implementation.
+
+==========================================================
+STEP 4 — VERIFY LEFT / RIGHT DEPENDENCY
+==========================================================
+
+Determine whether Level Income depends on binary placement.
+
+Example:
+
+If I directly refer someone on ONLY my LEFT side,
+
+do I still receive my Level Income?
+
+YES or NO
+
+Show the exact code path.
+
+==========================================================
+STEP 5 — VERIFY AGAINST REQUIRED BUSINESS RULE
+==========================================================
+
+Desired business rule:
+
+A sponsor receives Level Income regardless of:
+
+ACTIVE / INACTIVE account
+
+Investment status
+
+Binary qualification
+
+Left / Right balance
+
+Direct referrals on both legs
+
+The ONLY requirements should be:
+
+1.
+
+The sponsor directly referred the user.
+
+2.
+
+The referral made a qualifying investment.
+
+3.
+
+Level Income is distributed only through the first FIVE referral levels.
+
+No further conditions.
+
+Compare the current implementation against this rule.
+
+==========================================================
+STEP 6 — REPORT
+==========================================================
+
+Return:
+
+1.
+
+Current Level Income flow.
+
+2.
+
+Every eligibility condition.
+
+3.
+
+Current maximum level.
+
+4.
+
+Whether binary affects Level Income.
+
+5.
+
+Whether account ACTIVE/INACTIVE affects Level Income.
+
+6.
+
+Whether investment status affects Level Income.
+
+7.
+
+Whether the implementation already matches the required business rule.
+
+If it does,
+
+say:
+
+"No changes required."
+
+If it does not,
+
+identify the exact files and conditions that must change.
+
+DO NOT change any code in this sprint.
