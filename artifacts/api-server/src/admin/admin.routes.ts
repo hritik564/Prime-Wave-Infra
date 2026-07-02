@@ -44,6 +44,7 @@ import {
   blockUserHandler,
   suspendUserHandler,
   activateUserHandler,
+  updateUserHandler,
 } from "./admin-users.controller";
 import { walletAdjustmentHandler } from "./admin-wallet-adjustments.controller";
 import {
@@ -315,6 +316,13 @@ router.get(
   adminLimiter,
   supportAdminGuard,
   getUserDetailHandler,
+);
+
+router.patch(
+  "/users/:id",
+  adminLimiter,
+  superAdminGuard,
+  updateUserHandler,
 );
 
 router.post(

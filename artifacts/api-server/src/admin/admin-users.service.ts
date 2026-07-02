@@ -262,3 +262,76 @@ export async function setUserStatus(
 
   return { userId, username: user.username, previousStatus: user.status, newStatus: targetStatus };
 }
+
+// ── User profile edit (admin) ─────────────────────────────────────────────────
+
+export const adminUpdateUserSchema = {
+  username:  { type: "string", optional: true },
+  email:     { type: "string", optional: true },
+  phone:     { type: "string", optional: true },
+  firstName: { type: "string", optional: true },
+  lastName:  { type: "string", optional: true },
+} as const;
+
+export interface AdminUpdateUserInput {
+  username?:  string;
+  email?:     string;
+  phone?:     string;
+  firstName?: string;
+  lastName?:  string;
+}
+
+export async function adminUpdateUser(
+  adminId: string,
+  userId:  string,
+  data:    AdminUpdateUserInput,
+) {
+  const user = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: { id: true, username: true, email: true, phone: true, firstName: true, lastName: true },
+  });
+
+  if (!user) {
+    throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
+  }
+
+  if (data.username && data.username !== user.username) {
+    const conflict = await prisma.user.findUnique({ where: { username: data.username } });
+    if (conflict) throw new AppError("Username already taken", HTTP_STATUS.CONFLICT, "USERNAME_TAKEN");
+  }
+
+  if (data.email && data.email !== user.email) {
+    const conflict = await prisma.user.findUnique({ where: { email: data.email } });
+    if (conflict) throw new AppError("Email already in use", HTTP_STATUS.CONFLICT, "EMAIL_TAKEN");
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.user.update({
+      where: { id: userId },
+      data: {
+        ...(data.username  !== undefined && { username:  data.username  }),
+        ...(data.email     !== undefined && { email:     data.email     }),
+        ...(data.phone     !== undefined && { phone:     data.phone     }),
+        ...(data.firstName !== undefined && { firstName: data.firstName }),
+        ...(data.lastName  !== undefined && { lastName:  data.lastName  }),
+      },
+      select: { id: true, username: true, email: true, phone: true, firstName: true, lastName: true },
+    });
+
+    await tx.adminLog.create({
+      data: {
+        adminId,
+        action:       "USER_PROFILE_UPDATED",
+        targetUserId: userId,
+        details: {
+          before: { username: user.username, email: user.email, phone: user.phone, firstName: user.firstName, lastName: user.lastName },
+          after:  { username: result.username, email: result.email, phone: result.phone, firstName: result.firstName, lastName: result.lastName },
+        },
+      },
+    });
+
+    return result;
+  });
+
+  return updated;
+}
