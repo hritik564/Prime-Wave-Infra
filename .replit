@@ -27,6 +27,5 @@ channel = "stable-25_05"
 [userenv.production]
 GENERATE_NETWORK = "true"
 FUND_NETWORK = "true"
-ADMIN_RESET_PASSWORD = "Admin@PrimeWave2025!"
 
 [userenv.development]
