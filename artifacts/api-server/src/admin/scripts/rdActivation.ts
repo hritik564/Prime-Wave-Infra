@@ -144,6 +144,16 @@ async function main() {
       log(`    ✓ Investment $${INVEST_AMOUNT} (${PLAN_TYPE}) created`);
       totalInvested = totalInvested.plus(INVEST_AMOUNT);
 
+      // Step 3: Promote from placeholder → live member.
+      // Only flip INACTIVE → ACTIVE. Never overwrite SUSPENDED or BLOCKED.
+      if (rd.status === "INACTIVE") {
+        await prisma.user.update({
+          where: { id: rd.id },
+          data:  { status: "ACTIVE" },
+        });
+        log(`    ✓ users.status INACTIVE → ACTIVE`);
+      }
+
       activated++;
       results.push({ username: rd.username, action: "ACTIVATED" });
     } catch (err) {

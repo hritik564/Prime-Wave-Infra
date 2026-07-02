@@ -1,0 +1,199 @@
+SPRINT 28M — RD ACCOUNT STATUS CONSISTENCY
+
+OBJECTIVE
+
+The production investigation is complete.
+
+Root cause has been proven:
+
+- All 64 RD accounts have one ACTIVE investment.
+- All 64 RD accounts remain users.status = INACTIVE.
+- The Admin UI is correct.
+- The Dashboard is correct.
+- The inconsistency exists only because rdActivation.ts never updated users.status.
+
+This sprint fixes that inconsistency.
+
+==========================================================
+BUSINESS RULE
+==========================================================
+
+A genesis placeholder account (users.status = INACTIVE) becomes a live platform member immediately after its FIRST successful qualifying investment.
+
+For Sprint 28M we are applying this ONLY to the RD activation flow.
+
+No other business behaviour changes.
+
+==========================================================
+IMPLEMENTATION
+==========================================================
+
+Modify:
+
+artifacts/api-server/src/admin/scripts/rdActivation.ts
+
+Current flow:
+
+1.
+createManualAdminDeposit()
+
+2.
+createInvestment()
+
+Add immediately after createInvestment() succeeds:
+
+- Update users.status = ACTIVE
+
+Requirements:
+
+- Only update if current status == INACTIVE.
+- Do not overwrite SUSPENDED.
+- Do not overwrite BLOCKED.
+- Do not perform the update if investment creation failed.
+- The status update must happen only after successful investment creation.
+
+==========================================================
+IDEMPOTENCY
+==========================================================
+
+The script must remain completely idempotent.
+
+Running it again must:
+
+- Skip already activated RD accounts.
+- Not create duplicate deposits.
+- Not create duplicate investments.
+- Not rewrite ACTIVE users unnecessarily.
+- Produce zero side effects.
+
+==========================================================
+PRODUCTION REPAIR
+==========================================================
+
+After the code change, repair the existing production data.
+
+For every RD account:
+
+IF
+
+users.status = INACTIVE
+
+AND
+
+there exists at least one ACTIVE investment
+
+THEN
+
+users.status = ACTIVE
+
+Do NOT modify:
+
+SP accounts
+
+MI accounts
+
+Master account
+
+Any user without an ACTIVE investment
+
+Use one transactional repair.
+
+Return:
+
+Rows scanned
+
+Rows updated
+
+Rows skipped
+
+==========================================================
+VERIFICATION
+==========================================================
+
+Verify all of the following:
+
+RD accounts........................64
+
+RD ACTIVE investments..............64
+
+RD users.status ACTIVE............64
+
+RD users.status INACTIVE...........0
+
+Dashboard Active Members count
+(before)
+
+Dashboard Active Members count
+(after)
+
+Members page now shows every RD as ACTIVE.
+
+==========================================================
+REGRESSION
+==========================================================
+
+Verify no behavioural changes to:
+
+Registration
+
+Login
+
+Deposits
+
+Withdrawals
+
+Investments
+
+ROI
+
+Level Income
+
+Binary
+
+Salary
+
+Orbit
+
+Admin suspend
+
+Admin block
+
+Admin activate
+
+==========================================================
+IMPORTANT
+==========================================================
+
+Do NOT redesign users.status.
+
+Do NOT change middleware.
+
+Do NOT derive users.status from investments.
+
+Do NOT change UI logic.
+
+Do NOT change dashboard logic.
+
+This sprint is ONLY making the seeded RD accounts consistent with their activated state.
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return:
+
+1. Files modified.
+
+2. Production repair summary.
+
+3. Number of RD accounts updated.
+
+4. Dashboard counts before and after.
+
+5. Members page verification.
+
+6. Idempotency verification.
+
+7. Regression verification.
+
+8. Confirmation that the only change was synchronizing RD users.status with their already-existing ACTIVE investment.
