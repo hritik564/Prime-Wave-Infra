@@ -1,0 +1,105 @@
+SPRINT 28L — RD ACTIVATION VERIFICATION (PRODUCTION)
+
+We have an inconsistency between the Sprint 28K report and the production UI.
+
+Observed in production:
+
+- Total Members = 6,529
+- Active Members = 2
+- All RD accounts display Status = INACTIVE
+- RD accounts show no visible investment in the Members table
+
+Sprint 28K reported:
+
+- 64 RD accounts activated
+- 64 ACTIVE investments
+- 64 Binary Qualified
+- Deposit Wallet = $0
+- Total invested = $6,400
+
+I want evidence, not assumptions.
+
+==========================================================
+STEP 1
+==========================================================
+
+Query the production database directly.
+
+Return:
+
+1. Total RD accounts.
+
+2. How many RD accounts have an ACTIVE investment.
+
+3. List the usernames of any RD accounts without an ACTIVE investment.
+
+==========================================================
+STEP 2
+==========================================================
+
+For rd0001, return:
+
+- user id
+- account status
+- total investments
+- ACTIVE investments
+- investment amount
+- deposit wallet
+- withdrawal wallet
+- binary qualification result
+
+==========================================================
+STEP 3
+==========================================================
+
+Determine how the Admin Members page calculates the Status badge.
+
+Does it read:
+
+- users.status
+- investment status
+- another computed field
+- a cached value
+
+Show the exact code path.
+
+==========================================================
+STEP 4
+==========================================================
+
+Determine how the "Active Members" dashboard card is calculated.
+
+Return:
+
+- SQL / Prisma query
+- source field
+- why it currently returns 2
+
+==========================================================
+STEP 5
+==========================================================
+
+Compare:
+
+Database reality
+
+vs
+
+UI rendering.
+
+Identify which one is wrong.
+
+==========================================================
+FINAL REPORT
+
+Return:
+
+1. Database truth.
+
+2. UI truth.
+
+3. Root cause.
+
+4. Exact file requiring change (if any).
+
+DO NOT modify code until the root cause is proven.
