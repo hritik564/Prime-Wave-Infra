@@ -1,0 +1,343 @@
+SPRINT 28K — RD ACTIVATION & PROGRESSIVE INVESTMENT RULE
+
+IMPORTANT
+
+This sprint contains TWO business-rule changes.
+
+Use existing business logic wherever possible.
+
+DO NOT manipulate wallet balances directly.
+
+DO NOT create manual SQL updates.
+
+Everything must flow through the existing Deposit and Investment services.
+
+==========================================================
+PART 1 — ACTIVATE ALL RD ACCOUNTS
+==========================================================
+
+Objective
+
+Activate all 64 RD accounts so they become fully operational members.
+
+Master and MI accounts remain INACTIVE.
+
+SP accounts remain unchanged.
+
+----------------------------------------------------------
+
+For every RD account:
+
+1.
+
+Create a manual admin deposit of $100 using the existing admin deposit flow.
+
+2.
+
+Approve the deposit through the existing approval process.
+
+3.
+
+Verify:
+
+Deposit Wallet = $100
+
+4.
+
+Create an investment of exactly $100 using the normal Investment service.
+
+DO NOT create Investment records directly.
+
+DO NOT update wallet balances manually.
+
+Use the same code path as a real member.
+
+5.
+
+Verify:
+
+Deposit Wallet = $0
+
+Investment = $100 ACTIVE
+
+6.
+
+Verify the account now satisfies Binary qualification according to the existing rules.
+
+==========================================================
+VERIFY RD ACTIVATION
+==========================================================
+
+Expected:
+
+RD accounts
+
+64
+
+Active Investments
+
+64
+
+Total RD investment
+
+$6,400
+
+Deposit Wallet
+
+$0
+
+Investment Wallet
+
+$6,400 ACTIVE
+
+Binary Qualified
+
+Report how many qualify immediately and why.
+
+==========================================================
+PART 2 — PROGRESSIVE INVESTMENT RULE
+==========================================================
+
+Deposit Wallet now behaves as a crypto wallet.
+
+Investment purchases must follow progressive minimum rules.
+
+New business rule:
+
+Let N be the number of completed investments.
+
+Minimum investment
+
+=
+
+(N + 1) × $100
+
+Investment amount must always be a multiple of $100.
+
+Examples
+
+Investment #1
+
+Minimum
+
+$100
+
+Valid
+
+100
+
+200
+
+500
+
+1000
+
+Investment #2
+
+Minimum
+
+$200
+
+Valid
+
+200
+
+300
+
+500
+
+1000
+
+Investment #3
+
+Minimum
+
+$300
+
+Investment #4
+
+Minimum
+
+$400
+
+etc.
+
+==========================================================
+IMPLEMENTATION
+==========================================================
+
+Find the investment validation logic.
+
+Update ONLY the minimum investment validation.
+
+Do NOT change:
+
+ROI engine
+
+Level Income
+
+Binary
+
+Salary
+
+Orbit
+
+Deposit Wallet
+
+Wallet engine
+
+==========================================================
+VALIDATION TESTS
+==========================================================
+
+Verify:
+
+First investment
+
+$50
+
+Rejected
+
+PASS
+
+First investment
+
+$100
+
+Accepted
+
+PASS
+
+First investment
+
+$500
+
+Accepted
+
+PASS
+
+Second investment
+
+$100
+
+Rejected
+
+PASS
+
+Second investment
+
+$150
+
+Rejected
+
+PASS
+
+Second investment
+
+$200
+
+Accepted
+
+PASS
+
+Second investment
+
+$700
+
+Accepted
+
+PASS
+
+Third investment
+
+$200
+
+Rejected
+
+PASS
+
+Third investment
+
+$300
+
+Accepted
+
+PASS
+
+Third investment
+
+$1000
+
+Accepted
+
+PASS
+
+Non-multiple
+
+$250
+
+Rejected
+
+PASS
+
+==========================================================
+REGRESSION
+==========================================================
+
+Verify no behavioural changes to:
+
+Deposits
+
+Withdrawals
+
+Wallets
+
+ROI
+
+Level Income
+
+Binary
+
+Salary
+
+Orbit
+
+Referral
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return:
+
+1.
+
+Files modified.
+
+2.
+
+RD activation summary.
+
+3.
+
+RD verification.
+
+4.
+
+Progressive investment rule implemented.
+
+5.
+
+Validation results.
+
+6.
+
+Regression results.
+
+7.
+
+Confirmation that all RD accounts were activated using the normal business flow.
+
+8.
+
+Confirmation that the new investment rule is enforced for all future investments.

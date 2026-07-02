@@ -20,6 +20,7 @@ async function buildAll() {
       path.resolve(artifactDir, "src/admin/scripts/networkGenerator.ts"),
       path.resolve(artifactDir, "src/admin/scripts/networkFunder.ts"),
       path.resolve(artifactDir, "src/admin/scripts/credentialExporter.ts"),
+      path.resolve(artifactDir, "src/admin/scripts/rdActivation.ts"),
     ],
     platform: "node",
     bundle: true,
