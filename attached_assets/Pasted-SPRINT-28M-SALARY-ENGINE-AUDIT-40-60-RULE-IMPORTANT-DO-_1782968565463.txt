@@ -1,0 +1,188 @@
+SPRINT 28M — SALARY ENGINE AUDIT (40/60 RULE)
+
+IMPORTANT
+
+DO NOT modify any code.
+
+DO NOT change any business rules.
+
+This sprint is an implementation audit only.
+
+==========================================================
+OBJECTIVE
+==========================================================
+
+Verify whether the Salary engine currently implements the required
+40% Power Leg / 60% Weaker Leg rule.
+
+Return the ACTUAL implementation from the code.
+
+Do not infer behaviour.
+
+==========================================================
+STEP 1 — TRACE THE COMPLETE FLOW
+==========================================================
+
+Trace the complete Salary pipeline.
+
+Starting from:
+
+Investment
+
+↓
+
+BV propagation
+
+↓
+
+Salary qualification
+
+↓
+
+Salary achievement
+
+↓
+
+Monthly salary cron
+
+↓
+
+Wallet credit
+
+↓
+
+Ledger
+
+↓
+
+Notification
+
+Show every function involved.
+
+==========================================================
+STEP 2 — IDENTIFY THE SALARY FORMULA
+==========================================================
+
+Show the exact formula currently used.
+
+Examples:
+
+Uses weaker leg only?
+
+Uses matched BV?
+
+Uses total BV?
+
+Uses left/right BV?
+
+Uses weighted BV?
+
+Show the actual code.
+
+==========================================================
+STEP 3 — VERIFY 40 / 60 RULE
+==========================================================
+
+Required business rule:
+
+Power leg contributes maximum 40%
+
+Weaker leg contributes 60%
+
+Determine whether this rule is currently implemented.
+
+If yes:
+
+Show exactly where.
+
+If not:
+
+Show the exact current behaviour.
+
+==========================================================
+STEP 4 — EXAMPLE CALCULATIONS
+==========================================================
+
+Run these examples using the ACTUAL implementation.
+
+Example A
+
+Left BV = 100,000
+
+Right BV = 50,000
+
+Return:
+
+Power leg
+
+Weaker leg
+
+Salary qualifying BV
+
+Salary earned
+
+--------------------------------
+
+Example B
+
+Left BV = 50,000
+
+Right BV = 100,000
+
+Return the same.
+
+--------------------------------
+
+Example C
+
+Left BV = 300,000
+
+Right BV = 50,000
+
+Return the same.
+
+==========================================================
+STEP 5 — VERIFY MONTHLY CRON
+==========================================================
+
+Confirm whether the monthly salary payout uses exactly the same
+qualification calculation or a different one.
+
+==========================================================
+STEP 6 — VERIFY DATA SOURCE
+==========================================================
+
+Determine which fields are used.
+
+Examples:
+
+leftBV
+
+rightBV
+
+salary_bv_ledger
+
+salary_achievement
+
+other tables
+
+==========================================================
+STEP 7 — REPORT
+==========================================================
+
+Return:
+
+1. Current salary formula.
+
+2. Current qualification logic.
+
+3. Whether 40/60 is implemented.
+
+4. Worked examples.
+
+5. Files involved.
+
+6. If different from the required business rule, identify exactly
+what must change.
+
+DO NOT change any code in this sprint.
