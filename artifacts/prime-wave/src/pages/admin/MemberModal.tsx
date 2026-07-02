@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { X, Eye, EyeOff, RefreshCw } from "lucide-react";
-import { registerUser } from "@/lib/api";
+import { registerUser, adminUpdateUser } from "@/lib/api";
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 const GOLD   = "#D4AF37";
@@ -21,9 +21,11 @@ export interface MemberFormData {
 
 interface MemberModalProps {
   mode: "create" | "edit";
+  userId?: string;
   initial?: Partial<MemberFormData>;
   onClose: () => void;
   onCreated?: () => void;
+  onSaved?: (updated: { username: string; email: string; phone: string | null; firstName: string; lastName: string }) => void;
 }
 
 // ─── Countries ────────────────────────────────────────────────────────────────
@@ -61,7 +63,7 @@ function generatePassword() {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export default function MemberModal({ mode, initial = {}, onClose, onCreated }: MemberModalProps) {
+export default function MemberModal({ mode, userId, initial = {}, onClose, onCreated, onSaved }: MemberModalProps) {
   const isEdit = mode === "edit";
 
   const [form, setForm] = useState<MemberFormData>({
@@ -106,22 +108,34 @@ export default function MemberModal({ mode, initial = {}, onClose, onCreated }: 
   const handleSubmit = async () => {
     if (!validate()) return;
     setSubmitError(null);
-    if (isEdit) { onClose(); return; }
     setSubmitting(true);
     try {
-      await registerUser({
-        email:          form.email,
-        username:       form.username,
-        password:       form.password,
-        firstName:      form.firstName,
-        lastName:       form.lastName,
-        phone:          form.phone || undefined,
-        referralCode:   form.sponsor || undefined,
-        binaryPlacement: (form.placement as "LEFT" | "RIGHT") || undefined,
-      });
-      onCreated?.();
+      if (isEdit) {
+        if (!userId) { onClose(); return; }
+        const updated = await adminUpdateUser(userId, {
+          username:  form.username  || undefined,
+          email:     form.email     || undefined,
+          phone:     form.phone     || undefined,
+          firstName: form.firstName || undefined,
+          lastName:  form.lastName  || undefined,
+        });
+        onSaved?.(updated);
+        onClose();
+      } else {
+        await registerUser({
+          email:           form.email,
+          username:        form.username,
+          password:        form.password,
+          firstName:       form.firstName,
+          lastName:        form.lastName,
+          phone:           form.phone || undefined,
+          referralCode:    form.sponsor || undefined,
+          binaryPlacement: (form.placement as "LEFT" | "RIGHT") || undefined,
+        });
+        onCreated?.();
+      }
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to create member");
+      setSubmitError(err instanceof Error ? err.message : isEdit ? "Failed to update member" : "Failed to create member");
     } finally {
       setSubmitting(false);
     }

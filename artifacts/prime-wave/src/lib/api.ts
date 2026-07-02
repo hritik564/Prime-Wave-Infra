@@ -971,6 +971,21 @@ export function adminBlockUser(id: string) {
   return request<{ id: string; status: string }>(`/api/admin/users/${id}/block`, { method: "POST" });
 }
 
+export interface AdminUpdateUserPayload {
+  username?:  string;
+  email?:     string;
+  phone?:     string;
+  firstName?: string;
+  lastName?:  string;
+}
+
+export function adminUpdateUser(id: string, data: AdminUpdateUserPayload) {
+  return request<{ id: string; username: string; email: string; phone: string | null; firstName: string; lastName: string }>(
+    `/api/admin/users/${id}`,
+    { method: "PATCH", body: JSON.stringify(data), headers: { "Content-Type": "application/json" } },
+  );
+}
+
 export interface RegisterPayload {
   email: string; username: string; password: string;
   firstName: string; lastName: string;

@@ -14,6 +14,7 @@ import {
   adminSearchUsers, getAdminDashboard, getAdminUserDetail,
   adminSuspendUser, adminActivateUser,
   type AdminUserListItem, type AdminUserDetail,
+  type AdminUpdateUserPayload,
 } from "@/lib/api";
 import {
   Search, Download, Plus, ChevronLeft, ChevronRight,
@@ -502,6 +503,7 @@ export default function MembersPage() {
   }, []);
 
   const [createOpen,     setCreateOpen]     = useState(false);
+  const [editTarget,     setEditTarget]     = useState<Member | null>(null);
   const [suspendTarget,  setSuspendTarget]  = useState<Member | null>(null);
   const [activateTarget, setActivateTarget] = useState<Member | null>(null);
   const [deleteTarget,   setDeleteTarget]   = useState<Member | null>(null);
@@ -510,8 +512,8 @@ export default function MembersPage() {
   const [loginAsTarget,  setLoginAsTarget]  = useState<Member | null>(null);
 
   const handleRowAction = useCallback((m: Member, label: string) => {
-    if (label === "View Profile")    { openDrawer(m);          return; }
-    if (label === "Edit Member")     { toast("Edit member — coming soon", "info");    return; }
+    if (label === "View Profile")    { openDrawer(m);        return; }
+    if (label === "Edit Member")     { setEditTarget(m);     return; }
     if (label === "Approve KYC")     { toast("KYC management — coming soon", "info"); return; }
     if (label === "Suspend Member")  { setSuspendTarget(m);    return; }
     if (label === "Activate Member") { setActivateTarget(m);   return; }
@@ -682,6 +684,37 @@ export default function MembersPage() {
           mode="create"
           onClose={() => setCreateOpen(false)}
           onCreated={() => { setCreateOpen(false); void fetchMembers(); toast("Member created successfully", "success"); }}
+        />
+      )}
+
+      {editTarget && (
+        <MemberModal
+          mode="edit"
+          userId={editTarget.id}
+          initial={{
+            firstName: editTarget.firstName ?? "",
+            lastName:  editTarget.lastName  ?? "",
+            username:  editTarget.username  ?? "",
+            email:     editTarget.email     ?? "",
+            phone:     editTarget.phone     ?? "",
+            status:    editTarget.status    ?? "INACTIVE",
+          }}
+          onClose={() => setEditTarget(null)}
+          onSaved={(updated) => {
+            setMembers(p => p.map(m => m.id === editTarget.id ? {
+              ...m,
+              username:  updated.username,
+              email:     updated.email,
+              phone:     updated.phone ?? "",
+              firstName: updated.firstName,
+              lastName:  updated.lastName,
+            } : m));
+            if (drawer?.id === editTarget.id) {
+              setDrawer(d => d ? { ...d, username: updated.username, email: updated.email, phone: updated.phone ?? "", firstName: updated.firstName, lastName: updated.lastName } : d);
+            }
+            setEditTarget(null);
+            toast(`@${updated.username} updated successfully`, "success");
+          }}
         />
       )}
 
