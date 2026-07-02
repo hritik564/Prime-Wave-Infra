@@ -41,7 +41,7 @@ const MAX_LEVEL_INCOME_LEVELS    = 5;    // hardcoded in level-income.service.ts
  *   ─────────────────────────────────────────
  *   Naïve total                        = 578
  *
- * Qualification gate correction (isMemberActive requires ≥1 left AND ≥1 right
+ * Qualification gate correction (pre-Sprint-28J: isBinaryQualified requires ≥1 left AND ≥1 right
  * direct referral + active investment):
  *   BFS seeding processes LEFT children before RIGHT children. When the LEFT
  *   child invests, the parent has directRightCount = 0 → INACTIVE → level-1

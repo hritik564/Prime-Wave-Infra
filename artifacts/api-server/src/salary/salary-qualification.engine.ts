@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
-import { isMemberActive } from "../eligibility/eligibility.service";
+import { isBinaryQualified } from "../eligibility/eligibility.service";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -46,7 +46,7 @@ export interface RankQualification {
 export async function getHighestQualifyingRank(
   userId: string,
 ): Promise<RankQualification | null> {
-  const active = await isMemberActive(userId);
+  const active = await isBinaryQualified(userId);
   if (!active) return null;
 
   const [user, ranks] = await prisma.$transaction([
@@ -101,7 +101,7 @@ export async function getHighestQualifyingRank(
 export async function checkUserQualifications(
   userId: string,
 ): Promise<RankQualification[]> {
-  const active = await isMemberActive(userId);
+  const active = await isBinaryQualified(userId);
 
   const [user, ranks] = await prisma.$transaction([
     prisma.user.findUniqueOrThrow({

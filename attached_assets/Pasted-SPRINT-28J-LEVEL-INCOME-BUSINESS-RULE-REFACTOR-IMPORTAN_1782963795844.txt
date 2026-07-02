@@ -1,0 +1,307 @@
+SPRINT 28J — LEVEL INCOME BUSINESS RULE REFACTOR
+
+IMPORTANT
+
+This sprint changes ONLY the Level Income eligibility rule.
+
+The Binary, Orbit, Salary, Matching, ROI, Deposit, Wallet and Referral engines must remain completely unchanged.
+
+==========================================================
+OBJECTIVE
+==========================================================
+
+Level Income becomes a PURE REFERRAL COMMISSION.
+
+Binary qualification must NEVER affect Level Income.
+
+The business rule is now:
+
+1. A referred user makes a qualifying investment.
+
+2. Walk up the sponsor chain.
+
+3. Pay every sponsor for the first FIVE levels.
+
+4. Each level receives 1%.
+
+5. No additional eligibility conditions.
+
+==========================================================
+NEW BUSINESS RULE
+==========================================================
+
+A sponsor receives Level Income if:
+
+✓ They are in the referral chain.
+
+✓ The investment qualifies.
+
+✓ They are within the first five referral levels.
+
+NOT required:
+
+❌ Binary qualification
+
+❌ Left referral
+
+❌ Right referral
+
+❌ Active investment
+
+❌ Minimum BV
+
+❌ Rank
+
+❌ User ACTIVE status
+
+❌ KYC
+
+❌ Binary balance
+
+Level Income and Binary Income are now completely independent systems.
+
+==========================================================
+IMPLEMENTATION
+==========================================================
+
+Remove the qualification gate from:
+
+artifacts/api-server/src/levelIncome/level-income.service.ts
+
+Current code:
+
+const ancestorActive = await isMemberActive(ancestorId, tx);
+
+if (!ancestorActive) {
+    currentUserId = ancestorId;
+    continue;
+}
+
+Remove this gate completely.
+
+Every ancestor within five referral levels should receive Level Income.
+
+==========================================================
+CODE CLEANUP
+==========================================================
+
+The helper currently named:
+
+isMemberActive()
+
+does NOT determine whether a member is active.
+
+It determines Binary qualification.
+
+Rename it to something accurate.
+
+Suggested:
+
+isBinaryQualified()
+
+or
+
+hasBinaryQualification()
+
+Update every reference.
+
+This is a refactor only.
+
+Behaviour must remain identical everywhere except Level Income.
+
+==========================================================
+DOCUMENT THE BUSINESS RULE
+==========================================================
+
+Inside level-income.service.ts add a permanent comment explaining why there is intentionally NO qualification gate.
+
+Example:
+
+/*
+ Level Income Business Rule
+
+ Pure referral commission.
+
+ Binary qualification does NOT apply.
+
+ Trigger:
+   qualifying investment
+
+ Distribution:
+   first 5 referral levels
+
+ Every eligible sponsor receives 1%.
+
+ Binary qualification belongs exclusively to
+ Binary Matching, Orbit and Salary engines.
+*/
+
+Future developers must immediately understand this design decision.
+
+==========================================================
+REGRESSION TESTS
+==========================================================
+
+Add automated tests proving:
+
+Scenario 1
+
+Sponsor has ZERO investments
+
+↓
+
+Receives Level Income
+
+PASS
+
+--------------------------------
+
+Scenario 2
+
+Sponsor has only LEFT referrals
+
+↓
+
+Receives Level Income
+
+PASS
+
+--------------------------------
+
+Scenario 3
+
+Sponsor has only RIGHT referrals
+
+↓
+
+Receives Level Income
+
+PASS
+
+--------------------------------
+
+Scenario 4
+
+Sponsor fails Binary qualification
+
+↓
+
+Receives Level Income
+
+PASS
+
+--------------------------------
+
+Scenario 5
+
+Level 6 ancestor
+
+↓
+
+Receives NOTHING
+
+PASS
+
+--------------------------------
+
+Scenario 6
+
+Binary engine
+
+↓
+
+Still requires Binary qualification
+
+PASS
+
+--------------------------------
+
+Scenario 7
+
+Salary engine
+
+↓
+
+Unchanged
+
+PASS
+
+--------------------------------
+
+Scenario 8
+
+Orbit engine
+
+↓
+
+Unchanged
+
+PASS
+
+==========================================================
+VERIFY
+==========================================================
+
+Trace one complete investment.
+
+Investment
+
+↓
+
+Sponsor chain
+
+↓
+
+Level 1
+
+↓
+
+Level 2
+
+↓
+
+Level 3
+
+↓
+
+Level 4
+
+↓
+
+Level 5
+
+Confirm:
+
+Exactly five payouts.
+
+Exactly 1% each.
+
+No skipped sponsors.
+
+No Binary qualification checks.
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return:
+
+1. Files modified.
+
+2. Root cause.
+
+3. Business rule implemented.
+
+4. Functions renamed.
+
+5. Regression results.
+
+6. Before/after flow.
+
+7. Confirmation that:
+
+✓ Level Income is now a pure referral commission.
+
+✓ Binary qualification only affects Binary, Orbit and Salary engines.
+
+✓ No other financial engine behaviour changed.

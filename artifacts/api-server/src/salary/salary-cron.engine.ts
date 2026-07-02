@@ -1,7 +1,7 @@
 import { prisma } from "../config/prisma";
 import { logger } from "../lib/logger";
 import { notificationService } from "../notifications/notifications.service";
-import { isMemberActive } from "../eligibility/eligibility.service";
+import { isBinaryQualified } from "../eligibility/eligibility.service";
 
 // ── Monthly salary payout engine ──────────────────────────────────────────────
 
@@ -105,7 +105,7 @@ export async function runSalaryCycle(now?: Date): Promise<void> {
     }
 
     // ── 4. Active member check ────────────────────────────────────────────────
-    const memberActive = await isMemberActive(ach.userId);
+    const memberActive = await isBinaryQualified(ach.userId);
     if (!memberActive) {
       skipped++;
       logger.info(

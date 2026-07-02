@@ -1,7 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { logger } from "../lib/logger";
-import { isMemberActive } from "../eligibility/eligibility.service";
 
 // ── Plan constants ─────────────────────────────────────────────────────────────
 
@@ -49,10 +48,10 @@ export interface RepairReport {
  *   For every investment, walk the sponsor chain (up to MAX_LEVELS=5).
  *   For each ancestor level, check whether a LevelIncome record already exists
  *   for (investmentId, receiverUserId, level). If it exists → skip (idempotent).
- *   If it is missing AND the ancestor satisfies the Active Member rule → create
- *   the record, credit withdrawalWallet, and write the WalletTransaction audit entry.
+ *   If it is missing → create the record, credit withdrawalWallet, and write the
+ *   WalletTransaction audit entry.
  *   Uses the SAME business rules as processLevelIncome (1% per level, up to 5 levels,
- *   isMemberActive gate on the receiving ancestor).
+ *   pure referral chain — no binary qualification gate, Sprint 28J).
  *
  * Safe to run multiple times. Creates no duplicates.
  */
@@ -164,14 +163,6 @@ export async function repairSeedInvestments(): Promise<RepairReport> {
 
         if (duplicate) {
           report.levelIncordsSkippedDuplicate++;
-          currentUserId = ancestorId;
-          continue;
-        }
-
-        // Active Member check on the receiving ancestor
-        const ancestorActive = await isMemberActive(ancestorId);
-        if (!ancestorActive) {
-          report.inactiveAncestors++;
           currentUserId = ancestorId;
           continue;
         }

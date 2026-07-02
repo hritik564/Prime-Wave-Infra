@@ -28,7 +28,7 @@ import { createInvestment } from "../investments/investments.service";
 //
 // Processing order: root → leaves (node 1 → 127) so that when rd2l's
 // level-income runs, master already has an ACTIVE investment and satisfies
-// the isMemberActive gate.
+// the binary qualification gate (isBinaryQualified — pre-Sprint-28J level income rule).
 //
 // The endpoint is idempotent: if master already exists the seed is skipped.
 

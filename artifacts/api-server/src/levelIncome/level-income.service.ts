@@ -2,7 +2,6 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
-import { isMemberActive } from "../eligibility/eligibility.service";
 import type { LevelIncomeHistoryQuery } from "./level-income.schema";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -20,6 +19,23 @@ const MAX_LEVELS = 5;
 
 // ── Level income propagation ──────────────────────────────────────────────────
 
+/*
+ * Level Income Business Rule — Sprint 28J
+ *
+ * Pure referral commission. Binary qualification does NOT apply.
+ *
+ * Trigger:    A referred user makes a qualifying investment.
+ * Recipients: First 5 levels of the sponsor (referral) chain.
+ * Amount:     1% of investment per level.
+ *
+ * Every sponsor within the first five referral levels receives income
+ * unconditionally — no investment requirement, no binary left/right
+ * referral requirement, no rank or KYC check.
+ *
+ * Binary qualification belongs exclusively to the Binary Matching,
+ * Orbit, and Salary engines (isBinaryQualified in eligibility.service).
+ */
+
 /**
  * Walk up the sponsor chain and pay level income to each ancestor.
  *
@@ -31,7 +47,7 @@ const MAX_LEVELS = 5;
  *   - For each ancestor that exists, apply the level % to investmentAmount.
  *   - Credit withdrawalWallet, create LevelIncome + WalletTransaction records.
  *   - If the chain ends before MAX_LEVELS (no sponsor), stop early.
- *   - No qualification gate — pay every ancestor that exists.
+ *   - No qualification gate — every ancestor within 5 levels is paid.
  */
 export interface LevelIncomeTarget {
   receiverUserId: string;
@@ -59,14 +75,6 @@ export async function processLevelIncome(
 
     const ancestorId = current?.sponsorId;
     if (!ancestorId) break; // Chain ends — no more levels to pay
-
-    // Active Member Qualification — inactive ancestors are skipped (not stopped)
-    const ancestorActive = await isMemberActive(ancestorId, tx);
-    if (!ancestorActive) {
-      // Move up the chain without paying this level
-      currentUserId = ancestorId;
-      continue;
-    }
 
     const pct     = LEVEL_RULES[level]!;
     const percentage    = new Prisma.Decimal(pct);

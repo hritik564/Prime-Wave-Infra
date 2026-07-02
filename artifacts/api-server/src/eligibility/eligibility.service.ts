@@ -4,18 +4,17 @@ import { prisma } from "../config/prisma";
 const MIN_INVESTMENT_AMOUNT = new Prisma.Decimal("100");
 
 /**
- * Prime Wave — Active Member Qualification (LOCKED)
+ * Prime Wave — Binary Qualification Gate
  *
- * A member is ACTIVE only if BOTH conditions are met:
+ * A member is Binary-Qualified only if ALL THREE conditions are met:
  *   1. Has at least one ACTIVE investment with amount >= $100
- *   2. Has ≥1 direct referral on the LEFT leg
- *      AND ≥1 direct referral on the RIGHT leg
+ *   2. Has ≥1 direct referral on the LEFT binary leg
+ *   3. Has ≥1 direct referral on the RIGHT binary leg
  *
- * Inactive members receive ONLY ROI and Principal Return.
- * All other income engines (Binary, Orbit, Salary, Level) must call
- * this service before crediting any income.
+ * Used exclusively by: Binary Matching, Orbit, and Salary engines.
+ * NOT used by Level Income (pure referral commission — Sprint 28J).
  */
-export async function isMemberActive(
+export async function isBinaryQualified(
   userId: string,
   tx?: Prisma.TransactionClient,
 ): Promise<boolean> {
@@ -46,9 +45,13 @@ export async function isMemberActive(
   );
 }
 
+/** @deprecated Use isBinaryQualified. Alias kept for one-release migration safety — remove after Sprint 28K. */
+export const isMemberActive = isBinaryQualified;
+
 /**
- * Returns full breakdown of why a user is active/inactive.
- * Used by the active-status API endpoint and dashboard display.
+ * Returns the full binary qualification breakdown for a user.
+ * Exposed via GET /api/users/active-status.
+ * The "isActive" field in the response reflects binary qualification status.
  */
 export async function getMemberStatus(userId: string) {
   const user = await prisma.user.findUnique({
