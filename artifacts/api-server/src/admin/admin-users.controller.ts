@@ -2,7 +2,7 @@ import { type Request, type Response, type NextFunction } from "express";
 import { type AuthenticatedRequest } from "../shared/types";
 import { sendSuccess } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
-import { searchUsers, getAdminUserDetail, setUserStatus, adminUpdateUser, type AdminUpdateUserInput } from "./admin-users.service";
+import { searchUsers, getAdminUserDetail, setUserStatus, adminUpdateUser, adminResetUserPassword, type AdminUpdateUserInput } from "./admin-users.service";
 import type { UserSearchQuery } from "./admin-dashboard.schema";
 
 export async function searchUsersHandler(
@@ -67,5 +67,21 @@ export async function updateUserHandler(
     const body     = req.body as AdminUpdateUserInput;
     const result   = await adminUpdateUser(user.sub, userId, body);
     sendSuccess(res, result, "User profile updated");
+  } catch (err) { next(err); }
+}
+
+export async function resetUserPasswordHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const userId   = String(req.params["id"] ?? "");
+    const { password } = req.body as { password: string };
+    if (!password || password.length < 8) {
+      res.status(400).json({ success: false, message: "Password must be at least 8 characters", code: "INVALID_PASSWORD" });
+      return;
+    }
+    const result = await adminResetUserPassword(user.sub, userId, password);
+    sendSuccess(res, result, "Password reset successfully");
   } catch (err) { next(err); }
 }

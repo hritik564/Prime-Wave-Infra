@@ -335,3 +335,39 @@ export async function adminUpdateUser(
 
   return updated;
 }
+
+// ── Password reset (admin) ────────────────────────────────────────────────────
+
+export async function adminResetUserPassword(
+  adminId:  string,
+  userId:   string,
+  newPassword: string,
+) {
+  const bcrypt = await import("bcryptjs");
+
+  const user = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: { id: true, username: true },
+  });
+
+  if (!user) {
+    throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: userId }, data: { passwordHash } });
+
+    await tx.adminLog.create({
+      data: {
+        adminId,
+        action:       "USER_PASSWORD_RESET",
+        targetUserId: userId,
+        details:      { username: user.username, resetBy: adminId },
+      },
+    });
+  });
+
+  return { userId, username: user.username };
+}

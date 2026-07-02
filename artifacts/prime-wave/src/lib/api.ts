@@ -986,6 +986,13 @@ export function adminUpdateUser(id: string, data: AdminUpdateUserPayload) {
   );
 }
 
+export function adminResetUserPassword(id: string, password: string) {
+  return request<{ userId: string; username: string }>(
+    `/api/admin/users/${id}/reset-password`,
+    { method: "POST", body: JSON.stringify({ password }), headers: { "Content-Type": "application/json" } },
+  );
+}
+
 export interface RegisterPayload {
   email: string; username: string; password: string;
   firstName: string; lastName: string;

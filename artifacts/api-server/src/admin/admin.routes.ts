@@ -45,6 +45,7 @@ import {
   suspendUserHandler,
   activateUserHandler,
   updateUserHandler,
+  resetUserPasswordHandler,
 } from "./admin-users.controller";
 import { walletAdjustmentHandler } from "./admin-wallet-adjustments.controller";
 import {
@@ -323,6 +324,13 @@ router.patch(
   adminLimiter,
   superAdminGuard,
   updateUserHandler,
+);
+
+router.post(
+  "/users/:id/reset-password",
+  adminLimiter,
+  superAdminGuard,
+  resetUserPasswordHandler,
 );
 
 router.post(

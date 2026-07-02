@@ -12,7 +12,7 @@ import {
 } from "./MemberDialogs";
 import {
   adminSearchUsers, getAdminDashboard, getAdminUserDetail,
-  adminSuspendUser, adminActivateUser,
+  adminSuspendUser, adminActivateUser, adminResetUserPassword,
   type AdminUserListItem, type AdminUserDetail,
   type AdminUpdateUserPayload,
 } from "@/lib/api";
@@ -517,7 +517,7 @@ export default function MembersPage() {
     if (label === "Approve KYC")     { toast("KYC management — coming soon", "info"); return; }
     if (label === "Suspend Member")  { setSuspendTarget(m);    return; }
     if (label === "Activate Member") { setActivateTarget(m);   return; }
-    if (label === "Reset Password")  { toast("Password reset — coming soon", "info"); return; }
+    if (label === "Reset Password")  { setResetTarget(m); return; }
     if (label === "Login As User")   { toast("Impersonation — coming soon", "info");  return; }
     if (label === "Delete Member")   { toast("Delete member — coming soon", "info");  return; }
   }, [openDrawer, toast]);
@@ -750,7 +750,14 @@ export default function MembersPage() {
       )}
       {resetTarget && (
         <ResetPasswordDialog member={resetTarget} onClose={() => setResetTarget(null)}
-          onConfirm={(_pass) => toast("Password reset — coming soon", "info")} />
+          onConfirm={async (pass) => {
+            try {
+              await adminResetUserPassword(resetTarget.id, pass);
+              toast(`Password reset for @${resetTarget.username}`, "success");
+            } catch {
+              toast("Failed to reset password", "error");
+            }
+          }} />
       )}
       {kycTarget && (
         <ApproveKYCDialog member={kycTarget} onClose={() => setKycTarget(null)}
