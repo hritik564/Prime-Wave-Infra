@@ -1,0 +1,197 @@
+SPRINT 28N — PRODUCTION DEPLOYMENT & GENESIS VERIFICATION
+
+IMPORTANT
+
+This sprint is a PRODUCTION deployment and verification sprint.
+
+Do not modify business logic.
+
+Do not introduce any new features.
+
+The objective is to deploy the current verified build to production and prove that production matches development.
+
+==========================================================
+PRE-PUBLISH CHECKLIST
+==========================================================
+
+Before publishing, verify the DEVELOPMENT database:
+
+✓ Users = 6,528
+
+✓ Master = 1
+
+✓ MI accounts = 63
+
+✓ RD accounts = 64
+
+✓ SP accounts = 6,400
+
+✓ Active RD investments = 64
+
+✓ RD total investment = $6,400
+
+✓ Funded endpoint accounts = 128
+
+✓ Endpoint Deposit Wallet total = $2,560,000
+
+✓ Counter reconciliation = 0 mismatches
+
+✓ Binary integrity = PASS
+
+✓ Referral integrity = PASS
+
+✓ API health = PASS
+
+If any check fails, STOP and report it before publishing.
+
+==========================================================
+PUBLISH
+==========================================================
+
+Deploy the current build to production.
+
+Monitor deployment logs continuously.
+
+Verify:
+
+• Build completed successfully.
+
+• Server started successfully.
+
+• Health checks passed.
+
+• Deposit worker started.
+
+• Salary cron started.
+
+• Transfer engine started.
+
+• No startup exceptions.
+
+==========================================================
+PRODUCTION VERIFICATION
+==========================================================
+
+After deployment, verify the PRODUCTION database using actual queries.
+
+Do NOT assume success.
+
+Verify:
+
+Users = 6,528
+
+Master = 1
+
+MI accounts = 63
+
+RD accounts = 64
+
+SP accounts = 6,400
+
+Wallets = 6,528
+
+RD Active Investments = 64
+
+RD Total Investment = $6,400
+
+Funded Endpoint Accounts = 128
+
+Endpoint Deposit Wallet Total = $2,560,000
+
+Deposit Requests = expected count
+
+Wallet Transactions = expected count
+
+Binary Integrity = PASS
+
+Referral Integrity = PASS
+
+Counter Reconciliation = 0 mismatches
+
+Health Endpoint = HTTP 200
+
+==========================================================
+POST-DEPLOY AUDIT
+==========================================================
+
+Run the existing reconciliation tools in AUDIT mode only.
+
+DO NOT modify production unless a mismatch is detected.
+
+Verify:
+
+Binary counters
+
+Referral counters
+
+Placement cache
+
+BV consistency
+
+Network integrity
+
+All should report PASS.
+
+==========================================================
+SMOKE TEST
+==========================================================
+
+Execute a complete production smoke test.
+
+Verify:
+
+✓ Login
+
+✓ Registration endpoint
+
+✓ Admin login
+
+✓ Tree Explorer loads
+
+✓ Network Intelligence loads
+
+✓ Wallet APIs
+
+✓ Investment APIs
+
+✓ Deposit APIs
+
+✓ Admin dashboards
+
+✓ Salary dashboard
+
+✓ Health endpoint
+
+No errors.
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return a production verification report containing:
+
+1. Deployment status.
+
+2. Development counts before publish.
+
+3. Production counts after publish.
+
+4. RD activation verification.
+
+5. Funding verification.
+
+6. Binary verification.
+
+7. Referral verification.
+
+8. Counter reconciliation results.
+
+9. Health check results.
+
+10. Smoke test results.
+
+11. Final conclusion.
+
+The deployment is considered SUCCESSFUL only if development and production match on all critical business data and all verification checks pass.
+
+Do not declare success until every verification has been completed with evidence from the production database.
