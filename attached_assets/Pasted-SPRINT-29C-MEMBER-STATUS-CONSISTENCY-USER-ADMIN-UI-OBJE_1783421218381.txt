@@ -1,0 +1,236 @@
+SPRINT 29C — MEMBER STATUS CONSISTENCY (USER + ADMIN UI)
+
+OBJECTIVE
+
+The platform currently displays inconsistent member status information.
+
+This sprint is NOT a redesign.
+
+It is ONLY to make the UI correctly reflect the current business rules.
+
+==========================================================
+CURRENT BUSINESS RULE
+==========================================================
+
+A member is ACTIVE only if ALL of the following are true:
+
+1. Has an ACTIVE investment (minimum qualifying investment).
+2. Has at least one direct LEFT referral.
+3. Has at least one direct RIGHT referral.
+
+Otherwise the member is INACTIVE.
+
+This is the current business rule and must NOT change.
+
+==========================================================
+PROBLEM #1
+==========================================================
+
+Network Intelligence member cards currently display:
+
+"No plan"
+"Active"
+
+This is confusing.
+
+The card should display TWO independent pieces of information.
+
+1. Member Status
+
+ACTIVE
+or
+INACTIVE
+
+(based on the current business rule above)
+
+2. Investment
+
+If member has an ACTIVE investment:
+
+$100
+$300
+$700
+etc.
+
+(show total ACTIVE invested amount)
+
+If member has no ACTIVE investment:
+
+No Plan
+
+Examples
+
+Example A
+
+Status
+ACTIVE
+
+Investment
+$100
+
+----------------------------
+
+Example B
+
+Status
+INACTIVE
+
+Investment
+$100
+
+(user invested but is not binary qualified)
+
+----------------------------
+
+Example C
+
+Status
+INACTIVE
+
+Investment
+No Plan
+
+==========================================================
+PROBLEM #2
+==========================================================
+
+The Admin Members page is also showing incorrect ACTIVE / INACTIVE values.
+
+It currently reads users.status.
+
+That is no longer the correct indicator for operational member status.
+
+The Admin Members page should display ACTIVE / INACTIVE using the SAME business rule as above.
+
+Both the user-facing UI and the admin UI must use ONE shared source of truth.
+
+==========================================================
+IMPLEMENTATION
+==========================================================
+
+Create ONE shared helper/service.
+
+Example:
+
+getMemberOperationalStatus(userId)
+
+(or a better name)
+
+It should return:
+
+ACTIVE
+
+when
+
+- qualifying investment exists
+- directLeftCount >= 1
+- directRightCount >= 1
+
+otherwise
+
+INACTIVE
+
+Do NOT duplicate this logic in multiple places.
+
+Both:
+
+- Network Intelligence
+- Admin Members page
+
+must use the same function.
+
+==========================================================
+INVESTMENT DISPLAY
+==========================================================
+
+Return the user's ACTIVE investment total.
+
+Examples
+
+No investment
+
+↓
+
+No Plan
+
+Investment $100
+
+↓
+
+$100
+
+Investment $700
+
+↓
+
+$700
+
+==========================================================
+DO NOT CHANGE
+==========================================================
+
+Do NOT modify:
+
+users.status
+
+Binary engine
+
+Salary engine
+
+Orbit engine
+
+Level Income
+
+ROI
+
+Deposits
+
+Investments
+
+Qualification logic
+
+Business rules
+
+This sprint is DISPLAY ONLY.
+
+==========================================================
+VERIFICATION
+==========================================================
+
+Verify using:
+
+1. Master
+
+2. MI account
+
+3. RD account
+
+4. SP account
+
+5. Normal user with no investment
+
+6. Normal invested user with only LEFT referral
+
+7. Normal invested user with LEFT + RIGHT referral
+
+Confirm every displayed status is correct.
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return:
+
+1. Files modified.
+
+2. Shared helper created.
+
+3. User UI verification.
+
+4. Admin UI verification.
+
+5. Investment display verification.
+
+6. Regression verification.
+
+7. Confirmation that both UIs now display identical ACTIVE / INACTIVE status based on the same business rule.

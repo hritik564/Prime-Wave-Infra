@@ -315,7 +315,7 @@ function InsightCard({ insight }: { insight: NetworkInsight }) {
 
 // ── MemberCard ────────────────────────────────────────────────────────────────
 function MemberCard({ m, onClick }: { m: NetworkMember; onClick: () => void }) {
-  const isActive = m.status === "ACTIVE";
+  const isActive = m.operationalStatus === "ACTIVE";
   return (
     <div onClick={onClick}
       className="flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-white/[0.025]">
@@ -347,11 +347,11 @@ function MemberCard({ m, onClick }: { m: NetworkMember; onClick: () => void }) {
         </p>
       </div>
       <div className="text-right shrink-0">
-        <p className="text-xs font-bold" style={{ color: m.activeInvestments > 0 ? GOLD : MUTED }}>
-          {m.activeInvestments > 0 ? fmtUSD(m.investedAmount) : "No plan"}
-        </p>
-        <p className="text-[10px]" style={{ color: isActive ? "#34d399" : MUTED }}>
+        <p className="text-[10px] font-bold" style={{ color: isActive ? "#34d399" : MUTED }}>
           {isActive ? "Active" : "Inactive"}
+        </p>
+        <p className="text-xs" style={{ color: m.activeInvestments > 0 ? GOLD : MUTED }}>
+          {m.activeInvestments > 0 ? fmtUSD(m.investedAmount) : "No plan"}
         </p>
       </div>
     </div>
@@ -451,7 +451,7 @@ function DrawerRow({ label, value, valueColor, icon }: { label: string; value: s
 function MemberDrawer({
   member, onClose, onJourney,
 }: { member: NetworkMember; onClose: () => void; onJourney: () => void }) {
-  const isActive    = member.status === "ACTIVE";
+  const isActive    = member.operationalStatus === "ACTIVE";
   const bvGenerated = Math.floor(Number(member.investedAmount) / 100);
   const armColor    = member.position === "LEFT" ? "#60a5fa" : "#a78bfa";
   const estROI      = bvGenerated > 0 ? `~${fmtUSD(Math.min(bvGenerated, 50) * 5)}/cycle` : "—";
@@ -729,7 +729,8 @@ export default function NetworkIntelligencePage() {
     setSelectedMember({
       id: data.id, username: data.username,
       firstName: data.firstName, lastName: data.lastName,
-      status: data.status, position: data.position,
+      status: data.status, operationalStatus: "INACTIVE",
+      position: data.position,
       joinedAt: new Date().toISOString(),
       directReferrals: data.directReferralCount,
       activeInvestments: 0, investedAmount: "0",

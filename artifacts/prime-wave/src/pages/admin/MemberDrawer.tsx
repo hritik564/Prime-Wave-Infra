@@ -29,6 +29,7 @@ type KYC      = "VERIFIED" | "PENDING" | "REJECTED" | "UNSUBMITTED";
 export interface DrawerMember {
   id: string; username: string; firstName: string; lastName: string;
   email: string; phone: string; country: string; status: Status;
+  operationalStatus: "ACTIVE" | "INACTIVE";
   plan: Plan | null; investment: number; position: Position | null;
   rank: Rank | null; sponsor: string | null; joinedAt: Date;
   referralCode: string; kyc: KYC; directReferrals: number;
@@ -871,7 +872,7 @@ export default function MemberDrawer({ member, detail, onClose, onAction }: { me
 
   const pc = member?.plan ? PLAN_CFG[member.plan] : null;
   const kc = member ? KYC_CFG[member.kyc] : null;
-  const sc = member ? STATUS_CFG[member.status] : null;
+  const sc = member ? STATUS_CFG[member.operationalStatus] : null;
 
   return (
     <>
@@ -907,7 +908,7 @@ export default function MemberDrawer({ member, detail, onClose, onAction }: { me
 
               {/* Badges row */}
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 }}>
-                <Pill label={member.status} color={sc.color} bg={sc.bg} />
+                <Pill label={member.operationalStatus} color={sc.color} bg={sc.bg} />
                 {member.plan && pc && <Pill label={member.plan} color={pc.color} bg={pc.bg} />}
                 {member.rank && <Pill label={member.rank} color={GOLD} bg="rgba(212,175,55,0.1)" />}
                 <Pill label={kc.label} color={kc.color} bg={kc.bg} />

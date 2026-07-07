@@ -49,6 +49,27 @@ export async function isBinaryQualified(
 export const isMemberActive = isBinaryQualified;
 
 /**
+ * Pure synchronous helper — computes operational status from already-fetched data.
+ *
+ * A member is operationally ACTIVE only when ALL THREE conditions are met:
+ *   1. Has at least one ACTIVE investment ≥ $100
+ *   2. directLeftCount >= 1
+ *   3. directRightCount >= 1
+ *
+ * Use this inside list/search queries to avoid per-user DB round-trips.
+ * Both Network Intelligence and Admin Members must use this single function.
+ */
+export function computeOperationalStatus(opts: {
+  hasActiveInvestment: boolean;
+  directLeftCount: number;
+  directRightCount: number;
+}): "ACTIVE" | "INACTIVE" {
+  return opts.hasActiveInvestment && opts.directLeftCount >= 1 && opts.directRightCount >= 1
+    ? "ACTIVE"
+    : "INACTIVE";
+}
+
+/**
  * Returns the full binary qualification breakdown for a user.
  * Exposed via GET /api/users/active-status.
  * The "isActive" field in the response reflects binary qualification status.

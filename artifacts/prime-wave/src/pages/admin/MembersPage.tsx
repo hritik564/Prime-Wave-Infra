@@ -62,30 +62,31 @@ function mapApiUser(u: AdminUserListItem): Member {
   const inc = parseFloat(String(u.wallet?.incomeWallet    ?? 0)) || 0;
   const wit = parseFloat(String(u.wallet?.withdrawalWallet ?? 0)) || 0;
   return {
-    id:               u.id,
-    username:         u.username,
-    firstName:        u.firstName ?? "",
-    lastName:         u.lastName  ?? "",
-    email:            u.email,
-    phone:            u.phone ?? "",
-    country:          "—",
-    status:           u.status as Status,
-    plan:             null,
-    investment:       dep,
-    position:         null,
-    rank:             null,
-    sponsor:          null,
-    joinedAt:         new Date(u.createdAt),
-    referralCode:     u.referralCode ?? "",
-    kyc:              "UNSUBMITTED" as KYC,
-    directReferrals:  u.directReferralCount ?? 0,
-    totalTeam:        0,
-    leftBV:           0,
-    rightBV:          0,
-    carryForward:     0,
-    depositWallet:    dep,
-    incomeWallet:     inc,
-    withdrawalWallet: wit,
+    id:                u.id,
+    username:          u.username,
+    firstName:         u.firstName ?? "",
+    lastName:          u.lastName  ?? "",
+    email:             u.email,
+    phone:             u.phone ?? "",
+    country:           "—",
+    status:            u.status as Status,
+    operationalStatus: u.operationalStatus ?? "INACTIVE",
+    plan:              null,
+    investment:        dep,
+    position:          null,
+    rank:              null,
+    sponsor:           null,
+    joinedAt:          new Date(u.createdAt),
+    referralCode:      u.referralCode ?? "",
+    kyc:               "UNSUBMITTED" as KYC,
+    directReferrals:   u.directReferralCount ?? 0,
+    totalTeam:         0,
+    leftBV:            0,
+    rightBV:           0,
+    carryForward:      0,
+    depositWallet:     dep,
+    incomeWallet:      inc,
+    withdrawalWallet:  wit,
   };
 }
 
@@ -267,7 +268,7 @@ export const MemberRow = memo(function MemberRow({ m, selected, onSelect, onOpen
       <td style={TD}>{m.sponsor ? <span style={{ fontSize: 11, color: "#60a5fa" }}>@{m.sponsor}</span> : <span style={{ color: MUTED }}>—</span>}</td>
       <td style={TD}>{m.position ? <span style={{ fontSize: 10, fontWeight: 700, color: m.position === "LEFT" ? "#60a5fa" : "#a78bfa", background: m.position === "LEFT" ? "rgba(96,165,250,0.1)" : "rgba(167,139,250,0.1)", padding: "2px 7px", borderRadius: 4 }}>{m.position}</span> : <span style={{ color: MUTED, fontSize: 11 }}>—</span>}</td>
       <td style={{ ...TD, fontSize: 12, fontWeight: 600 }}>{m.directReferrals}</td>
-      <td style={TD}><StatusBadge status={m.status} /></td>
+      <td style={TD}><StatusBadge status={m.operationalStatus as Status} /></td>
       <td style={TD}><KYCBadge kyc={m.kyc} /></td>
       <td style={{ ...TD, fontSize: 11, color: MUTED, whiteSpace: "nowrap" }}>{dt(m.joinedAt)}</td>
       <td style={{ ...TD, width: 44 }} onClick={e => e.stopPropagation()}>
@@ -369,7 +370,7 @@ function MobileMemberCard({ m, onOpen, onAction }: {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>@{m.username}</span>
-          <StatusBadge status={m.status} />
+          <StatusBadge status={m.operationalStatus as Status} />
         </div>
         <div style={{ fontSize: 11, color: MUTED, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 4 }}>{m.email}</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

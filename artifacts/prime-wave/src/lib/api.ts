@@ -844,6 +844,7 @@ export interface AdminUserListItem {
   firstName: string;
   lastName: string;
   status: string;
+  operationalStatus: "ACTIVE" | "INACTIVE";
   referralCode: string;
   directReferralCount: number;
   createdAt: string;
@@ -1310,18 +1311,19 @@ export interface NetworkInsight {
 }
 
 export interface NetworkMember {
-  id:               string;
-  username:         string;
-  firstName:        string;
-  lastName:         string;
-  status:           string;
-  position:         "LEFT" | "RIGHT" | null;
-  joinedAt:         string;
-  directReferrals:  number;
+  id:                string;
+  username:          string;
+  firstName:         string;
+  lastName:          string;
+  status:            string;
+  operationalStatus: "ACTIVE" | "INACTIVE";
+  position:          "LEFT" | "RIGHT" | null;
+  joinedAt:          string;
+  directReferrals:   number;
   activeInvestments: number;
-  investedAmount:   string;
-  plans:            string[];
-  isSponsored:      boolean;
+  investedAmount:    string;
+  plans:             string[];
+  isSponsored:       boolean;
 }
 
 export interface TopPerformer {

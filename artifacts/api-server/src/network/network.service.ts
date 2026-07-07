@@ -3,6 +3,7 @@ import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { MembersQuery } from "./network.schema";
+import { computeOperationalStatus } from "../eligibility/eligibility.service";
 
 // ── Recursive binary downline IDs via CTE ─────────────────────────────────────
 
@@ -257,6 +258,8 @@ export async function getNetworkMembers(userId: string, opts: MembersQuery) {
         sponsorId:           true,
         createdAt:           true,
         directReferralCount: true,
+        directLeftCount:     true,
+        directRightCount:    true,
         investments: {
           where:  { status: "ACTIVE" },
           select: { id: true, amount: true, planType: true },
@@ -275,6 +278,11 @@ export async function getNetworkMembers(userId: string, opts: MembersQuery) {
       firstName:        m.firstName,
       lastName:         m.lastName,
       status:           m.status,
+      operationalStatus: computeOperationalStatus({
+        hasActiveInvestment: m.investments.length > 0,
+        directLeftCount:     m.directLeftCount,
+        directRightCount:    m.directRightCount,
+      }),
       position:         m.position,
       joinedAt:         m.createdAt.toISOString(),
       directReferrals:  m.directReferralCount,

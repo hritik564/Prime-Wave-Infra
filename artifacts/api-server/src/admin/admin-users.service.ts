@@ -4,6 +4,7 @@ import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { UserSearchQuery } from "./admin-dashboard.schema";
 import { notificationService } from "../notifications/notifications.service";
+import { computeOperationalStatus } from "../eligibility/eligibility.service";
 
 // ── User search ───────────────────────────────────────────────────────────────
 
@@ -17,6 +18,8 @@ const userListSelect = {
   status:             true,
   referralCode:       true,
   directReferralCount: true,
+  directLeftCount:    true,
+  directRightCount:   true,
   createdAt:          true,
   wallet: {
     select: {
@@ -25,6 +28,11 @@ const userListSelect = {
       withdrawalWallet:       true,
       lockedWithdrawalBalance: true,
     },
+  },
+  investments: {
+    where:  { status: "ACTIVE" as const },
+    select: { id: true },
+    take:   1,
   },
 } as const;
 
@@ -54,7 +62,14 @@ export async function searchUsers(query: UserSearchQuery) {
   const totalPages = Math.ceil(total / limit);
 
   return {
-    data: records,
+    data: records.map((r) => ({
+      ...r,
+      operationalStatus: computeOperationalStatus({
+        hasActiveInvestment: r.investments.length > 0,
+        directLeftCount:     r.directLeftCount,
+        directRightCount:    r.directRightCount,
+      }),
+    })),
     meta: { total, page, limit, totalPages, hasNextPage: page < totalPages, hasPrevPage: page > 1 },
   };
 }
