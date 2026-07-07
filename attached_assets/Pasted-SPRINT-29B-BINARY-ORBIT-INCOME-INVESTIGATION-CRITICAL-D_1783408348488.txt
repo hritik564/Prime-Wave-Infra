@@ -1,0 +1,245 @@
+SPRINT 29B — BINARY & ORBIT INCOME INVESTIGATION
+
+CRITICAL
+
+Do NOT modify any code.
+
+Do NOT make assumptions.
+
+This sprint is INVESTIGATION ONLY.
+
+==========================================================
+ISSUE
+==========================================================
+
+Production account:
+
+rd0002
+
+is expected to qualify for BOTH:
+
+- Binary Matching Income
+- Binary Orbit Income
+
+However, no income is being credited.
+
+We need to determine exactly why.
+
+==========================================================
+STEP 1
+==========================================================
+
+Load the complete profile for rd0002.
+
+Return:
+
+- User ID
+- Username
+- users.status
+- Binary Qualified? (true/false)
+- Active investment?
+- Investment amount
+- Investment status
+- Left BV
+- Right BV
+- Carry Forward Left
+- Carry Forward Right
+- Direct Left Count
+- Direct Right Count
+
+==========================================================
+STEP 2
+==========================================================
+
+Binary Qualification
+
+Trace the exact call to:
+
+isBinaryQualified()
+
+Return:
+
+Every condition
+
+PASS / FAIL
+
+and the reason.
+
+==========================================================
+STEP 3
+==========================================================
+
+Binary Matching Engine
+
+Trace the complete execution.
+
+Answer:
+
+Did the Binary engine process rd0002?
+
+YES / NO
+
+If NO
+
+Why?
+
+If YES
+
+Return:
+
+Raw calculation
+
+Left BV
+
+Right BV
+
+Matched BV
+
+Carry Forward before
+
+Carry Forward after
+
+Income calculated
+
+Wallet update
+
+Ledger insert
+
+Notification
+
+==========================================================
+STEP 4
+==========================================================
+
+Binary Orbit Engine
+
+Trace the same process.
+
+Return:
+
+Did Orbit process rd0002?
+
+YES / NO
+
+If skipped
+
+Return the exact reason.
+
+==========================================================
+STEP 5
+==========================================================
+
+Cron Investigation
+
+Verify:
+
+Binary cron
+
+Orbit cron
+
+Scheduler
+
+Execution logs
+
+Last successful run
+
+Next scheduled run
+
+Any runtime errors
+
+==========================================================
+STEP 6
+==========================================================
+
+Ledger Investigation
+
+Check:
+
+binary_match_income
+
+binary_orbit_income
+
+salary_bv_ledger
+
+match_bv_ledger
+
+orbit_bv_ledger
+
+Return:
+
+Records for rd0002
+
+Explain why income was or was not generated.
+
+==========================================================
+STEP 7
+==========================================================
+
+Wallet Investigation
+
+Check:
+
+Wallet Transactions
+
+Income Wallet
+
+Withdrawal Wallet
+
+Binary Income
+
+Orbit Income
+
+Was any transaction attempted?
+
+Was any transaction rolled back?
+
+==========================================================
+STEP 8
+==========================================================
+
+Root Cause
+
+Return ONE definitive reason.
+
+Not possibilities.
+
+Evidence-backed conclusion.
+
+==========================================================
+IF A BUG EXISTS
+==========================================================
+
+Identify:
+
+- Exact file
+- Exact function
+- Exact line(s)
+
+Explain why it fails.
+
+Do NOT fix it yet.
+
+==========================================================
+FINAL REPORT
+
+Return:
+
+1. Qualification result.
+
+2. Binary engine result.
+
+3. Orbit engine result.
+
+4. Scheduler result.
+
+5. Ledger result.
+
+6. Wallet result.
+
+7. Root cause.
+
+8. Whether this affects ONLY rd0002 or every qualified user.
+
+9. Estimated severity.
+
+No code changes in this sprint.
