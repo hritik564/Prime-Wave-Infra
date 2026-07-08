@@ -1,0 +1,160 @@
+SPRINT 29E — MI ACTIVATION (IDEMPOTENT)
+
+OBJECTIVE
+
+Activate the remaining MI (Master Infrastructure) accounts using the normal business flow.
+
+The activation must be completely idempotent and must preserve existing financial data.
+
+==================================================
+SCOPE
+==================================================
+
+Only MI accounts:
+
+mi0001
+...
+mi0063
+
+Do NOT touch:
+
+Master
+
+RD
+
+SP
+
+Normal users
+
+==================================================
+BUSINESS RULE
+==================================================
+
+Process each MI account individually.
+
+STEP 1
+
+If the account already has an ACTIVE investment:
+
+- Do NOT create another deposit.
+- Do NOT create another investment.
+- If users.status = INACTIVE, update it to ACTIVE.
+- Continue.
+
+--------------------------------------------------
+
+STEP 2
+
+If the account has NO ACTIVE investment:
+
+Check Deposit Wallet.
+
+IF Deposit Wallet >= $100
+
+→ Use the existing Deposit Wallet balance.
+
+→ Create ONE $100 investment in the 360-day plan using the normal createInvestment() service.
+
+→ Update users.status to ACTIVE.
+
+--------------------------------------------------
+
+STEP 3
+
+Only if Deposit Wallet < $100
+
+→ Create ONE manual admin deposit of $100 using createManualAdminDeposit().
+
+→ Create ONE $100 investment in the 360-day plan.
+
+→ Update users.status to ACTIVE.
+
+==================================================
+IMPORTANT
+==================================================
+
+Do NOT manipulate wallet balances directly.
+
+Do NOT insert Investment rows directly.
+
+Use existing services only:
+
+- createManualAdminDeposit()
+
+- createInvestment()
+
+- existing admin status update
+
+This ensures:
+
+- Wallet transactions
+
+- Deposit requests
+
+- Investment records
+
+- Admin logs
+
+- ROI
+
+- Level Income
+
+- BV propagation
+
+all execute through the normal business flow.
+
+==================================================
+IDEMPOTENCY
+==================================================
+
+Running this script twice must produce:
+
+- No duplicate deposits
+
+- No duplicate investments
+
+- No duplicate wallet transactions
+
+- No duplicate admin logs
+
+Already-activated accounts must be skipped safely.
+
+==================================================
+VERIFICATION
+==================================================
+
+Return:
+
+MI accounts total
+
+Already invested
+
+Invested this run
+
+Manual deposits created
+
+Status updates
+
+Skipped
+
+Errors
+
+==================================================
+FINAL REPORT
+==================================================
+
+Include:
+
+1. Files modified.
+
+2. Number of MI accounts activated.
+
+3. Number of deposits created.
+
+4. Number of investments created.
+
+5. Number of status updates.
+
+6. Total MI accounts now operationally ACTIVE.
+
+7. Confirmation that all actions used the standard business services and that the script is fully idempotent.

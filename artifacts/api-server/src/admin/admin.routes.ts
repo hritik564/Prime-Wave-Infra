@@ -154,6 +154,7 @@ import {
 } from "./admin-company-wallets.controller";
 import {
   rdActivationHandler,
+  miActivationHandler,
   reconcileCountersHandler,
 } from "./admin-scripts.controller";
 import {
@@ -597,6 +598,7 @@ router.use("/deposit-verifications", adminLimiter, financeAdminGuard, adminDepos
 
 // ── Genesis Scripts — SUPER_ADMIN only ───────────────────────────────────────
 router.post("/scripts/rd-activation",      adminLimiter, superAdminGuard, rdActivationHandler);
+router.post("/scripts/mi-activation",      adminLimiter, superAdminGuard, miActivationHandler);
 router.post("/scripts/reconcile-counters", adminLimiter, superAdminGuard, reconcileCountersHandler);
 
 export default router;

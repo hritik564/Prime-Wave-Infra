@@ -21,6 +21,7 @@ async function buildAll() {
       path.resolve(artifactDir, "src/admin/scripts/networkFunder.ts"),
       path.resolve(artifactDir, "src/admin/scripts/credentialExporter.ts"),
       path.resolve(artifactDir, "src/admin/scripts/rdActivation.ts"),
+      path.resolve(artifactDir, "src/admin/scripts/miActivation.ts"),
       path.resolve(artifactDir, "src/admin/scripts/reconcileCounters.ts"),
     ],
     platform: "node",

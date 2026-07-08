@@ -1,11 +1,12 @@
 /**
- * Admin Script Endpoints — Sprint 28N
+ * Admin Script Endpoints — Sprint 28N / 29E
  *
  * Exposes the one-time genesis scripts as authenticated HTTP endpoints so they
  * can be triggered against the production database without direct shell access.
  *
- * Both endpoints are idempotent:
+ * All endpoints are idempotent:
  *   • rd-activation   — skips any RD that already has an ACTIVE investment.
+ *   • mi-activation   — 3-step idempotent MI activation (Sprint 29E).
  *   • reconcile-fix   — only UPDATEs rows where stored value ≠ actual count.
  *
  * Access: SUPER_ADMIN only (enforced by route guard in admin.routes.ts).
@@ -111,6 +112,139 @@ export async function rdActivationHandler(req: AuthenticatedRequest, res: Respon
       totalInvested:     verifyTotal._sum.amount?.toFixed(2) ?? "0.00",
     },
   }, "RD activation complete");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MI Activation — Sprint 29E
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MI_ACTIVATION_REASON = "MI Activation — Sprint 29E: First qualifying investment";
+const MI_PATTERN = /^mi\d+$/;
+
+export async function miActivationHandler(req: AuthenticatedRequest, res: Response) {
+  const adminId = req.user.sub;
+
+  const miUsers = await prisma.user.findMany({
+    where:   { username: { startsWith: "mi" } },
+    select:  {
+      id:       true,
+      username: true,
+      status:   true,
+      directLeftCount:  true,
+      directRightCount: true,
+      wallet: { select: { depositWallet: true } },
+      investments: {
+        where:  { status: "ACTIVE" },
+        select: { id: true },
+        take:   1,
+      },
+    },
+    orderBy: { username: "asc" },
+  });
+
+  const mis = miUsers.filter(u => MI_PATTERN.test(u.username));
+
+  let alreadyInvested   = 0;
+  let investedThisRun   = 0;
+  let depositsCreated   = 0;
+  let statusUpdates     = 0;
+  let skipped           = 0;
+  const errors: Array<{ username: string; error: string }> = [];
+
+  for (const mi of mis) {
+    const hasActiveInv   = mi.investments.length > 0;
+    const depositBalance = mi.wallet?.depositWallet ?? new Prisma.Decimal(0);
+    const needsDeposit   = depositBalance.lessThan(new Prisma.Decimal(DEPOSIT_AMOUNT));
+
+    // Step 1 — Already has ACTIVE investment: only update status if needed
+    if (hasActiveInv) {
+      alreadyInvested++;
+      if (mi.status === "INACTIVE") {
+        try {
+          await prisma.user.update({ where: { id: mi.id }, data: { status: "ACTIVE" } });
+          statusUpdates++;
+        } catch (err) {
+          errors.push({ username: mi.username, error: err instanceof Error ? err.message : String(err) });
+        }
+      } else {
+        skipped++;
+      }
+      continue;
+    }
+
+    // Step 3 — Deposit wallet < $100: create manual admin deposit first
+    if (needsDeposit) {
+      try {
+        await createManualAdminDeposit(adminId, {
+          userId:  mi.id,
+          amount:  DEPOSIT_AMOUNT,
+          network: "BEP20",
+          reason:  MI_ACTIVATION_REASON,
+          notes:   "Automated MI activation — Sprint 29E",
+        });
+        depositsCreated++;
+      } catch (err) {
+        errors.push({ username: mi.username, error: `deposit: ${err instanceof Error ? err.message : String(err)}` });
+        continue;
+      }
+    }
+
+    // Step 2 / post-Step 3 — Create investment from deposit wallet
+    try {
+      await createInvestment(mi.id, {
+        amount:       INVEST_AMOUNT,
+        planType:     PLAN_TYPE,
+        autoCompound: false,
+      });
+      investedThisRun++;
+    } catch (err) {
+      errors.push({ username: mi.username, error: `investment: ${err instanceof Error ? err.message : String(err)}` });
+      continue;
+    }
+
+    // Update status
+    if (mi.status === "INACTIVE") {
+      try {
+        await prisma.user.update({ where: { id: mi.id }, data: { status: "ACTIVE" } });
+        statusUpdates++;
+      } catch (err) {
+        errors.push({ username: mi.username, error: `status: ${err instanceof Error ? err.message : String(err)}` });
+      }
+    }
+  }
+
+  // Post-activation verification
+  const nowActive = await prisma.user.count({
+    where: { username: { startsWith: "mi" }, status: "ACTIVE" },
+  });
+  const nowWithInv = await prisma.investment.count({
+    where: { user: { username: { startsWith: "mi" } }, status: "ACTIVE" },
+  });
+  const nowOperational = await prisma.user.count({
+    where: {
+      username:         { startsWith: "mi" },
+      status:           "ACTIVE",
+      directLeftCount:  { gte: 1 },
+      directRightCount: { gte: 1 },
+      investments:      { some: { status: "ACTIVE" } },
+    },
+  });
+
+  sendSuccess(res, {
+    miTotal:              mis.length,
+    alreadyHadInvestment: alreadyInvested,
+    investedThisRun,
+    manualDepositsCreated: depositsCreated,
+    statusUpdates,
+    skipped,
+    errors:               errors.length,
+    errorDetail:          errors,
+    postVerification: {
+      nowUsersStatusActive:     nowActive,
+      nowWithActiveInvestment:  nowWithInv,
+      nowOperationallyActive:   nowOperational,
+    },
+  }, "MI activation complete");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
