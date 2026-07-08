@@ -1,0 +1,145 @@
+SPRINT 29D — MI ACCOUNT ACTIVATION AUDIT
+
+OBJECTIVE
+
+Do NOT modify any data.
+
+This sprint is AUDIT ONLY.
+
+We need to determine the exact activation state of all 63 MI accounts before activating any remaining accounts.
+
+==================================================
+SCOPE
+==================================================
+
+Audit every MI account only.
+
+Username prefix:
+
+mi0001
+...
+mi0063
+
+Do NOT include:
+
+Master
+RD
+SP
+Normal users
+
+==================================================
+RETURN FOR EACH MI ACCOUNT
+==================================================
+
+Username
+
+users.status
+
+Operational Status
+
+Has ACTIVE investment? (YES / NO)
+
+ACTIVE investment amount
+
+Deposit Wallet balance
+
+Income Wallet balance
+
+Withdrawal Wallet balance
+
+Direct Left Count
+
+Direct Right Count
+
+Direct Referral Count
+
+Binary Qualified (YES / NO)
+
+Current Left BV
+
+Current Right BV
+
+ROI running? (YES / NO)
+
+==================================================
+SUMMARY
+==================================================
+
+Return totals.
+
+MI accounts................63
+
+Already ACTIVE.............
+
+Already Operational........
+
+ACTIVE investments.........
+
+No investment..............
+
+Need investment............
+
+Need left referral.........
+
+Need right referral........
+
+==================================================
+CLASSIFY
+==================================================
+
+Group every MI into:
+
+GROUP A
+
+Already ACTIVE
+No action required
+
+GROUP B
+
+Has investment
+Needs qualification
+
+GROUP C
+
+No investment
+Needs activation
+
+==================================================
+OUTPUT
+==================================================
+
+Generate an Excel file:
+
+PrimeWave_MI_Audit.xlsx
+
+Include every field above.
+
+==================================================
+IMPORTANT
+==================================================
+
+NO DATA MODIFICATIONS.
+
+NO STATUS CHANGES.
+
+NO INVESTMENTS.
+
+NO DEPOSITS.
+
+NO ACTIVATION.
+
+AUDIT ONLY.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Return:
+
+1. Summary.
+
+2. Group counts.
+
+3. Excel generated.
+
+4. Confirmation that nothing was modified.

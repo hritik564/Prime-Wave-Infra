@@ -42,3 +42,9 @@ id = "L3dR7_wvOrzrqLPw7JJJb"
 uri = "file://generated/PrimeWave_Funded_Accounts.xlsx"
 type = "table"
 title = "PrimeWave_Funded_Accounts.xlsx — 128 rows"
+
+[[outputs]]
+id = "V_cHHqn9LvZqS_M7dBzkT"
+uri = "file://PrimeWave_MI_Audit.xlsx"
+type = "table"
+title = "PrimeWave_MI_Audit.xlsx"
