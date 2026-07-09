@@ -206,42 +206,46 @@ export default function MemberModal({ mode, userId, initial = {}, onClose, onCre
             </Field>
           </div>
 
-          {/* Sponsor */}
-          <SectionHead title="SPONSOR INFORMATION" />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-            <Field label="Sponsor Username">
-              {inp("sponsor", "sponsor_username")}
-            </Field>
-            <Field label="Binary Placement">
-              <div style={{ display: "flex", gap: 8 }}>
-                {(["LEFT","RIGHT"] as const).map(p => (
-                  <label key={p} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${form.placement === p ? GOLD : BORDER}`, background: form.placement === p ? "rgba(212,175,55,0.08)" : "transparent", transition: "all 0.15s" }}>
-                    <input type="radio" name="placement" value={p} checked={form.placement === p} onChange={() => set("placement", p)} style={{ accentColor: GOLD }} />
-                    <span style={{ fontSize: 12, color: form.placement === p ? GOLD_L : MUTED }}>{p}</span>
-                  </label>
-                ))}
+          {!isEdit && (
+            <>
+              {/* Sponsor */}
+              <SectionHead title="SPONSOR INFORMATION" />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                <Field label="Sponsor Username">
+                  {inp("sponsor", "sponsor_username")}
+                </Field>
+                <Field label="Binary Placement">
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {(["LEFT","RIGHT"] as const).map(p => (
+                      <label key={p} style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${form.placement === p ? GOLD : BORDER}`, background: form.placement === p ? "rgba(212,175,55,0.08)" : "transparent", transition: "all 0.15s" }}>
+                        <input type="radio" name="placement" value={p} checked={form.placement === p} onChange={() => set("placement", p)} style={{ accentColor: GOLD }} />
+                        <span style={{ fontSize: 12, color: form.placement === p ? GOLD_L : MUTED }}>{p}</span>
+                      </label>
+                    ))}
+                  </div>
+                </Field>
               </div>
-            </Field>
-          </div>
+            </>
+          )}
 
-          {/* Account */}
-          <SectionHead title="ACCOUNT" />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-            <Field label="Account Status">
-              <select value={form.status} onChange={e => set("status", e.target.value)} style={selectStyle}>
-                <option value="ACTIVE">Active</option>
-                <option value="INACTIVE">Inactive</option>
-                <option value="SUSPENDED">Suspended</option>
-              </select>
-            </Field>
-            <Field label="Email Verified">
-              <label style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer", padding: "8px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, background: "rgba(255,255,255,0.02)" }}>
-                <input type="checkbox" checked={form.emailVerified} onChange={e => set("emailVerified", e.target.checked)} style={{ accentColor: GOLD, width: 14, height: 14 }} />
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>Email verified</span>
-              </label>
-            </Field>
-            {!isEdit && (
-              <>
+          {!isEdit && (
+            <>
+              {/* Account */}
+              <SectionHead title="ACCOUNT" />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                <Field label="Account Status">
+                  <select value={form.status} onChange={e => set("status", e.target.value)} style={selectStyle}>
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                    <option value="SUSPENDED">Suspended</option>
+                  </select>
+                </Field>
+                <Field label="Email Verified">
+                  <label style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer", padding: "8px 12px", borderRadius: 8, border: `1px solid ${BORDER}`, background: "rgba(255,255,255,0.02)" }}>
+                    <input type="checkbox" checked={form.emailVerified} onChange={e => set("emailVerified", e.target.checked)} style={{ accentColor: GOLD, width: 14, height: 14 }} />
+                    <span style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>Email verified</span>
+                  </label>
+                </Field>
                 <Field label="Password" required>
                   <div style={{ position: "relative" }}>
                     <input type={showPass ? "text" : "password"} value={form.password} onChange={e => set("password", e.target.value)} placeholder="••••••••••••" style={{ ...inputStyle, paddingRight: 38, borderColor: errors.password ? "rgba(248,113,113,0.5)" : BORDER }} />
@@ -255,29 +259,33 @@ export default function MemberModal({ mode, userId, initial = {}, onClose, onCre
                   <input type={showPass ? "text" : "password"} value={form.confirmPassword} onChange={e => set("confirmPassword", e.target.value)} placeholder="••••••••••••" style={{ ...inputStyle, borderColor: errors.confirmPassword ? "rgba(248,113,113,0.5)" : BORDER }} />
                   {err("confirmPassword")}
                 </Field>
-              </>
-            )}
-          </div>
-
-          {/* Plan */}
-          <SectionHead title="INVESTMENT PLAN" />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <Field label="Select Plan">
-              <select value={form.plan} onChange={e => set("plan", e.target.value)} style={selectStyle}>
-                <option value="">No Plan</option>
-                <option value="STARTER">Starter — 8% ROI</option>
-                <option value="ALPHA">Alpha — 12% ROI</option>
-                <option value="PREMIUM">Premium — 18% ROI</option>
-                <option value="VIP">VIP — 24% ROI</option>
-              </select>
-            </Field>
-            <Field label="Initial Investment">
-              <div style={{ position: "relative" }}>
-                <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: MUTED }}>$</span>
-                <input type="number" value={form.investment} onChange={e => set("investment", e.target.value)} placeholder="0.00" style={{ ...inputStyle, paddingLeft: 26 }} />
               </div>
-            </Field>
-          </div>
+            </>
+          )}
+
+          {!isEdit && (
+            <>
+              {/* Plan */}
+              <SectionHead title="INVESTMENT PLAN" />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <Field label="Select Plan">
+                  <select value={form.plan} onChange={e => set("plan", e.target.value)} style={selectStyle}>
+                    <option value="">No Plan</option>
+                    <option value="STARTER">Starter — 8% ROI</option>
+                    <option value="ALPHA">Alpha — 12% ROI</option>
+                    <option value="PREMIUM">Premium — 18% ROI</option>
+                    <option value="VIP">VIP — 24% ROI</option>
+                  </select>
+                </Field>
+                <Field label="Initial Investment">
+                  <div style={{ position: "relative" }}>
+                    <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: MUTED }}>$</span>
+                    <input type="number" value={form.investment} onChange={e => set("investment", e.target.value)} placeholder="0.00" style={{ ...inputStyle, paddingLeft: 26 }} />
+                  </div>
+                </Field>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Footer */}
