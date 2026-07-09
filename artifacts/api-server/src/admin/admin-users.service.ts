@@ -310,13 +310,26 @@ export async function adminUpdateUser(
     throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
   }
 
-  if (data.username && data.username !== user.username) {
-    const conflict = await prisma.user.findUnique({ where: { username: data.username } });
+  const normalizedUsername = data.username !== undefined ? data.username.trim().toLowerCase() : undefined;
+  const normalizedEmail    = data.email    !== undefined ? data.email.trim().toLowerCase()    : undefined;
+  const normalizedPhone    = data.phone    !== undefined ? data.phone.trim()                   : undefined;
+  const normalizedFirst    = data.firstName !== undefined ? data.firstName.trim()              : undefined;
+  const normalizedLast     = data.lastName  !== undefined ? data.lastName.trim()               : undefined;
+
+  if (normalizedUsername !== undefined && !normalizedUsername) {
+    throw new AppError("Username cannot be empty", HTTP_STATUS.BAD_REQUEST, "INVALID_USERNAME");
+  }
+  if (normalizedEmail !== undefined && !normalizedEmail) {
+    throw new AppError("Email cannot be empty", HTTP_STATUS.BAD_REQUEST, "INVALID_EMAIL");
+  }
+
+  if (normalizedUsername !== undefined && normalizedUsername !== user.username) {
+    const conflict = await prisma.user.findUnique({ where: { username: normalizedUsername } });
     if (conflict) throw new AppError("Username already taken", HTTP_STATUS.CONFLICT, "USERNAME_TAKEN");
   }
 
-  if (data.email && data.email !== user.email) {
-    const conflict = await prisma.user.findUnique({ where: { email: data.email } });
+  if (normalizedEmail !== undefined && normalizedEmail !== user.email) {
+    const conflict = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (conflict) throw new AppError("Email already in use", HTTP_STATUS.CONFLICT, "EMAIL_TAKEN");
   }
 
@@ -324,11 +337,11 @@ export async function adminUpdateUser(
     const result = await tx.user.update({
       where: { id: userId },
       data: {
-        ...(data.username  !== undefined && { username:  data.username  }),
-        ...(data.email     !== undefined && { email:     data.email     }),
-        ...(data.phone     !== undefined && { phone:     data.phone     }),
-        ...(data.firstName !== undefined && { firstName: data.firstName }),
-        ...(data.lastName  !== undefined && { lastName:  data.lastName  }),
+        ...(normalizedUsername !== undefined && { username:  normalizedUsername }),
+        ...(normalizedEmail    !== undefined && { email:     normalizedEmail    }),
+        ...(normalizedPhone    !== undefined && { phone:     normalizedPhone    }),
+        ...(normalizedFirst    !== undefined && { firstName: normalizedFirst    }),
+        ...(normalizedLast     !== undefined && { lastName:  normalizedLast     }),
       },
       select: { id: true, username: true, email: true, phone: true, firstName: true, lastName: true },
     });
