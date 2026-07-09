@@ -31,7 +31,7 @@ export type DirectReferralsQuery = z.infer<typeof directReferralsQuerySchema>;
 export const updateProfileSchema = z.object({
   firstName:     z.string().min(2, "Must be at least 2 characters").optional(),
   lastName:      z.string().min(2, "Must be at least 2 characters").optional(),
-  phone:         z.string().min(7, "Enter a valid phone number").optional(),
+  phone:         z.union([z.literal(""), z.string().min(7, "Enter a valid phone number")]).optional(),
   walletAddress: z.string().max(200).optional(),
 });
 
