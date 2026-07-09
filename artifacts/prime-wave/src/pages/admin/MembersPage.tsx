@@ -302,6 +302,7 @@ export default function MembersPage() {
   const [resetTarget,    setResetTarget]    = useState<DrawerMember | null>(null);
   const [kycTarget,      setKycTarget]      = useState<DrawerMember | null>(null);
   const [loginAsTarget,  setLoginAsTarget]  = useState<DrawerMember | null>(null);
+  const [editTarget,     setEditTarget]     = useState<DrawerMember | null>(null);
 
   const { toasts, toast, dismiss } = useToast();
 
@@ -401,6 +402,7 @@ export default function MembersPage() {
     if (label === "Approve KYC")     { setKycTarget(drawer);      return; }
     if (label === "Login As User")   { setLoginAsTarget(drawer);  return; }
     if (label === "Delete Member")   { setDeleteTarget(drawer);   return; }
+    if (label === "Edit Member")     { setEditTarget(drawer);     return; }
   }, [drawer]);
 
   const updateRowStatus = useCallback((id: string, status: Status) => {
@@ -717,6 +719,38 @@ export default function MembersPage() {
           mode="create"
           onClose={() => setCreateOpen(false)}
           onCreated={() => { setCreateOpen(false); void fetchReport(applied, page); toast("Member created successfully", "success"); }}
+        />
+      )}
+
+      {/* ── Edit member modal ── */}
+      {editTarget && (
+        <MemberModal
+          mode="edit"
+          userId={editTarget.id}
+          initial={{
+            firstName: editTarget.firstName,
+            lastName:  editTarget.lastName,
+            username:  editTarget.username,
+            email:     editTarget.email,
+            phone:     editTarget.phone,
+          }}
+          onClose={() => setEditTarget(null)}
+          onSaved={(updated) => {
+            setEditTarget(null);
+            setData(prev => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                data: prev.data.map(r => r.id === editTarget.id
+                  ? { ...r, name: `${updated.firstName} ${updated.lastName}`.trim(), username: updated.username, email: updated.email, phone: updated.phone ?? "" }
+                  : r),
+              };
+            });
+            setDrawer(prev => prev?.id === editTarget.id
+              ? { ...prev, firstName: updated.firstName, lastName: updated.lastName, username: updated.username, email: updated.email, phone: updated.phone ?? "" }
+              : prev);
+            toast("Member updated successfully", "success");
+          }}
         />
       )}
 
