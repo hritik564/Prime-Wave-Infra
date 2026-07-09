@@ -46,13 +46,11 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { icon: GitBranch, label: "Binary Network", path: "/admin/binary" },
       { icon: Zap,       label: "Income Engine",  path: "/admin/income" },
-      { icon: Package,   label: "Plans",          path: "/admin/plans"  },
     ],
   },
   {
     label: "PLATFORM",
     items: [
-      { icon: BarChart2, label: "Reports",        path: "/admin/reports"         },
       { icon: Settings,  label: "Company Wallets",path: "/admin/company-wallets" },
     ],
   },
