@@ -901,54 +901,28 @@ export default function NetworkIntelligencePage() {
           </div>
         </div>
 
-        {/* ── BINARY HEALTH ─────────────────────────────────────────────────── */}
-        <Section title="Binary Health" icon={<TrendingUp style={{ width: 15, height: 15, color: GOLD }} />}>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            {(["LEFT", "RIGHT"] as const).map((side) => {
-              const isLeft  = side === "LEFT";
-              const color   = isLeft ? "#60a5fa" : "#a78bfa";
-              const bv      = isLeft ? leftBV : rightBV;
-              const business = Number(isLeft ? (legBreakdown?.leftBusiness ?? 0) : (legBreakdown?.rightBusiness ?? 0));
-              const investedMembers = isLeft ? (legBreakdown?.leftInvestedMembers ?? "—") : (legBreakdown?.rightInvestedMembers ?? "—");
-              const members = isLeft ? (legBreakdown?.leftMembers ?? stats?.leftTeam ?? 0) : (legBreakdown?.rightMembers ?? stats?.rightTeam ?? 0);
-              const investments = isLeft ? (legBreakdown?.leftInvestments ?? "—") : (legBreakdown?.rightInvestments ?? "—");
-              const weeklyNew   = isLeft ? (legBreakdown?.leftWeeklyNew ?? 0) : (legBreakdown?.rightWeeklyNew ?? 0);
-              const activeCount = isLeft ? (legBreakdown?.leftActiveCount ?? "—") : (legBreakdown?.rightActiveCount ?? "—");
-              const isPower = legBreakdown?.businessStrongLeg === side;
-              const isWeak  = legBreakdown?.businessWeakLeg  === side;
-              return (
-                <div key={side} className="rounded-2xl p-4"
-                  style={{ background: `${color}08`, border: `1px solid ${color}28` }}>
-                  <div className="flex items-center justify-between mb-3">
-                    <span style={{ fontSize: 12, fontWeight: 800, color, letterSpacing: "0.06em" }}>
-                      {isLeft ? "← " : ""}LEFT{!isLeft ? " →" : ""}
-                      {!isLeft ? " →" : ""}
-                    </span>
-                    {!loading && (isPower
-                      ? <span style={{ fontSize: 9, fontWeight: 700, color: "#34d399", background: "rgba(52,211,153,0.1)", padding: "2px 6px", borderRadius: 4 }}>POWER</span>
-                      : isWeak
-                      ? <span style={{ fontSize: 9, fontWeight: 700, color: "#fb923c", background: "rgba(251,146,60,0.1)", padding: "2px 6px", borderRadius: 4 }}>WEAK</span>
-                      : null
-                    )}
-                  </div>
-                  {loading
-                    ? <div className="space-y-2 animate-pulse">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-4 rounded" style={{ background: "rgba(255,255,255,0.05)" }} />)}</div>
-                    : <>
-                        <LegRow label="Members"   value={members}          color={color} />
-                        <LegRow label="Business"  value={fmtUSD(business)} color={GOLD_L} />
-                        <LegRow label="Invested Members" value={investedMembers} />
-                        <LegRow label="New Wk"    value={`+${weeklyNew}`} />
-                        <LegRow label="Active"    value={activeCount}      color="#34d399" />
-                        <LegRow label="BV (secondary)" value={`${bv.toFixed(0)} BV`} />
-                        <LegRow label="Invested"  value={investments} />
-                      </>
-                  }
-                </div>
-              );
-            })}
-          </div>
-          <div className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-            <div className="mb-3">
+        {/* ── NETWORK BUSINESS OVERVIEW ────────────────────────────────────── */}
+        <Section title="Network Business Overview" icon={<DollarSign style={{ width: 15, height: 15, color: GOLD }} />}>
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{
+              background: "linear-gradient(135deg,rgba(10,22,40,1) 0%,rgba(14,27,55,1) 55%,rgba(10,22,40,1) 100%)",
+              border: "1px solid rgba(212,175,55,0.22)",
+            }}
+          >
+            {/* Hero total */}
+            <div className="px-5 pt-5 pb-4 text-center" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(212,175,55,0.7)" }}>
+                Total Team Business
+              </p>
+              <p style={{ fontSize: 34, fontWeight: 900, color: GOLD_L, lineHeight: 1.1, marginTop: 8 }}>
+                {loading ? "—" : fmtUSD(Number(legBreakdown?.totalBusiness ?? 0))}
+              </p>
+              <p style={{ fontSize: 10, color: MUTED, marginTop: 4 }}>Sum of active investments across your entire network</p>
+            </div>
+
+            {/* Distribution bar */}
+            <div className="px-5 pt-4">
               <div style={{ height: 8, borderRadius: 4, overflow: "hidden", display: "flex", background: "rgba(255,255,255,0.05)" }}>
                 <div style={{ width: `${leftPct}%`,  background: "linear-gradient(90deg,#3b82f6,#60a5fa)", transition: "width 0.8s ease" }} />
                 <div style={{ width: `${rightPct}%`, background: "linear-gradient(90deg,#a78bfa,#7c3aed)", transition: "width 0.8s ease" }} />
@@ -958,66 +932,77 @@ export default function NetworkIntelligencePage() {
                 <span style={{ fontSize: 10, color: "#a78bfa", fontWeight: 700 }}>RIGHT TEAM {rightPct.toFixed(0)}%</span>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              {[
-                { label: "Strong Leg", value: loading ? "—" : (legBreakdown?.businessStrongLeg ?? (leftBV >= rightBV ? "LEFT" : "RIGHT")), color: "#34d399" },
-                { label: "Carry Fwd",  value: loading ? "—" : (() => { const t = Number(legBreakdown?.carryForwardLeft ?? 0) + Number(legBreakdown?.carryForwardRight ?? 0); return t > 0 ? `${t.toFixed(0)} BV` : "—"; })(), color: GOLD },
-                { label: "Focus",      value: loading ? "—" : (legBreakdown?.businessWeakLeg ?? (leftBV <= rightBV ? "LEFT" : "RIGHT")), color: "#fb923c" },
-              ].map((s) => (
-                <div key={s.label}>
-                  <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>{s.label}</p>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: s.color, marginTop: 3 }}>{s.value}</p>
-                </div>
-              ))}
+
+            {/* Leg panels */}
+            <div className="grid grid-cols-2 gap-3 px-5 pt-4">
+              {(["LEFT", "RIGHT"] as const).map((side) => {
+                const isLeft  = side === "LEFT";
+                const color   = isLeft ? "#60a5fa" : "#a78bfa";
+                const business = Number(isLeft ? (legBreakdown?.leftBusiness ?? 0) : (legBreakdown?.rightBusiness ?? 0));
+                const members  = isLeft ? (legBreakdown?.leftMembers ?? stats?.leftTeam ?? 0) : (legBreakdown?.rightMembers ?? stats?.rightTeam ?? 0);
+                const activeCount = Number(isLeft ? (legBreakdown?.leftActiveCount ?? 0) : (legBreakdown?.rightActiveCount ?? 0));
+                const inactiveCount = Math.max(0, Number(members) - activeCount);
+                const carryFwd = Number(isLeft ? (legBreakdown?.carryForwardLeft ?? 0) : (legBreakdown?.carryForwardRight ?? 0));
+                const isStrong = legBreakdown?.businessStrongLeg === side;
+                const isWeak   = legBreakdown?.businessWeakLeg  === side;
+                return (
+                  <div key={side} className="rounded-2xl p-4" style={{ background: `${color}08`, border: `1px solid ${color}28` }}>
+                    <div className="flex items-center justify-between mb-3">
+                      <span style={{ fontSize: 12, fontWeight: 800, color, letterSpacing: "0.06em" }}>
+                        {isLeft ? "← LEFT" : "RIGHT →"}
+                      </span>
+                      {!loading && (isStrong
+                        ? <span style={{ fontSize: 9, fontWeight: 700, color: "#34d399", background: "rgba(52,211,153,0.1)", padding: "2px 6px", borderRadius: 4 }}>STRONG</span>
+                        : isWeak
+                        ? <span style={{ fontSize: 9, fontWeight: 700, color: "#fb923c", background: "rgba(251,146,60,0.1)", padding: "2px 6px", borderRadius: 4 }}>WEAK</span>
+                        : null
+                      )}
+                    </div>
+                    {loading
+                      ? <div className="space-y-2 animate-pulse">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-4 rounded" style={{ background: "rgba(255,255,255,0.05)" }} />)}</div>
+                      : <>
+                          <LegRow label="Business"  value={fmtUSD(business)} color={GOLD_L} />
+                          <LegRow label="Members"   value={members}          color={color} />
+                          <LegRow label="Active Members"   value={activeCount}   color="#34d399" />
+                          <LegRow label="Inactive Members" value={inactiveCount} color={MUTED} />
+                          <LegRow label="Carry Fwd (BV)"   value={carryFwd.toFixed(0)} />
+                        </>
+                    }
+                  </div>
+                );
+              })}
             </div>
-            <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+
+            {/* Strong / Weak leg summary */}
+            <div className="grid grid-cols-2 gap-2 text-center px-5 py-4">
+              <div className="rounded-xl py-3" style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.2)" }}>
+                <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>Strong Leg</p>
+                <p style={{ fontSize: 15, fontWeight: 800, color: "#34d399", marginTop: 3 }}>
+                  {loading ? "—" : (legBreakdown?.businessStrongLeg ?? "—")}
+                </p>
+              </div>
+              <div className="rounded-xl py-3" style={{ background: "rgba(251,146,60,0.06)", border: "1px solid rgba(251,146,60,0.2)" }}>
+                <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>Weak Leg</p>
+                <p style={{ fontSize: 15, fontWeight: 800, color: "#fb923c", marginTop: 3 }}>
+                  {loading ? "—" : (legBreakdown?.businessWeakLeg ?? "—")}
+                </p>
+              </div>
+            </div>
+
+            <div className="px-5 pb-5 pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
               {qualified ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 pt-3">
                   <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#34d399", flexShrink: 0 }} />
                   <span style={{ fontSize: 11, color: "#34d399", fontWeight: 600 }}>✓ Binary Qualified — earning matching payouts</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 pt-3">
                   <div style={{ width: 7, height: 7, borderRadius: "50%", background: "rgba(251,146,60,0.6)", flexShrink: 0 }} />
                   <span style={{ fontSize: 11, color: "#fb923c" }}>
                     {`You need ${2 - (bvSummary?.directReferrals ?? 0)} more direct referral${(2 - (bvSummary?.directReferrals ?? 0)) === 1 ? "" : "s"} to unlock binary matching income`}
                   </span>
                 </div>
               )}
-            </div>
-          </div>
-        </Section>
-
-        {/* ── BUSINESS SUMMARY ─────────────────────────────────────────────── */}
-        <Section title="Business Summary" icon={<DollarSign style={{ width: 15, height: 15, color: GOLD }} />}>
-          <div className="rounded-2xl p-4 mb-3" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-            <p style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: MUTED }}>Total Team Business</p>
-            <p style={{ fontSize: 28, fontWeight: 900, color: GOLD_L, lineHeight: 1, marginTop: 6 }}>
-              {loading ? "—" : fmtUSD(Number(legBreakdown?.totalBusiness ?? 0))}
-            </p>
-            <p style={{ fontSize: 10, color: MUTED, marginTop: 4 }}>Sum of active investments across your entire network</p>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {[
-              { label: "Left Business",  value: loading ? "—" : fmtUSD(Number(legBreakdown?.leftBusiness  ?? 0)), color: "#60a5fa" },
-              { label: "Right Business", value: loading ? "—" : fmtUSD(Number(legBreakdown?.rightBusiness ?? 0)), color: "#a78bfa" },
-              { label: "Strong Leg",     value: loading ? "—" : (legBreakdown?.businessStrongLeg ?? "—"), color: "#34d399" },
-              { label: "Weak Leg",       value: loading ? "—" : (legBreakdown?.businessWeakLeg   ?? "—"), color: "#fb923c" },
-            ].map((s) => (
-              <div key={s.label} className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-                <p style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: MUTED }}>{s.label}</p>
-                <p style={{ fontSize: 18, fontWeight: 800, color: s.color, lineHeight: 1, marginTop: 6 }}>{s.value}</p>
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 gap-2.5 mt-2.5">
-            <div className="rounded-2xl p-3 text-center" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-              <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>Carry Fwd Left (BV)</p>
-              <p style={{ fontSize: 14, fontWeight: 700, color: "#60a5fa", marginTop: 3 }}>{loading ? "—" : Number(legBreakdown?.carryForwardLeft ?? 0).toFixed(0)}</p>
-            </div>
-            <div className="rounded-2xl p-3 text-center" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
-              <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>Carry Fwd Right (BV)</p>
-              <p style={{ fontSize: 14, fontWeight: 700, color: "#a78bfa", marginTop: 3 }}>{loading ? "—" : Number(legBreakdown?.carryForwardRight ?? 0).toFixed(0)}</p>
             </div>
           </div>
         </Section>
