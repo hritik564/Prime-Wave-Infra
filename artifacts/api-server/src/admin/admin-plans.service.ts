@@ -87,7 +87,7 @@ const CONFIG_DEFS: ConfigDef[] = [
   { section:"wallet", key:"wal.hourly_releases",   value:"1",     unit:"/hour",  type:"number", label:"Releases Per Hour",         description:"Number of release tranches sent every hour during the release window." },
   { section:"wallet", key:"wal.total_releases",    value:"72",    unit:"releases",type:"number",label:"Total Releases Per Transfer","description":"Total release tranches for each Income Wallet transfer (= Release Window × Releases/Hour)." },
   // ── Platform Limits ────────────────────────────────────────────────────────
-  { section:"limits", key:"lim.min_withdraw",      value:"20",    unit:"$",      type:"number", label:"Minimum Withdrawal",        description:"Minimum withdrawal request amount." },
+  { section:"limits", key:"lim.min_withdraw",      value:"1",     unit:"$",      type:"number", label:"Minimum Withdrawal",        description:"Minimum withdrawal request amount." },
   { section:"limits", key:"lim.max_withdraw",      value:"100000",unit:"$",      type:"number", label:"Maximum Withdrawal",        description:"Maximum single withdrawal amount." },
   { section:"limits", key:"lim.max_daily_withdraw",value:"50000", unit:"$",      type:"number", label:"Maximum Daily Withdrawal",  description:"Maximum total withdrawal per member per day." },
   { section:"limits", key:"lim.max_binary",        value:"10000", unit:"$/day",  type:"number", label:"Maximum Binary Income",     description:"Daily binary matching income ceiling per member." },

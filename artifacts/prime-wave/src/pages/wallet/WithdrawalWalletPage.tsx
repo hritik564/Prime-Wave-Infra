@@ -89,7 +89,7 @@ function WithdrawalModal({ available, walletAddress, onClose, onSuccess }: Withd
   const [error, setError]           = useState<string | null>(null);
 
   const num     = parseFloat(amount) || 0;
-  const minWith = 50;
+  const minWith = 1;
   const maxWith = Math.min(500, available);
   const isValid = num >= minWith && num <= maxWith && !submitting;
 
