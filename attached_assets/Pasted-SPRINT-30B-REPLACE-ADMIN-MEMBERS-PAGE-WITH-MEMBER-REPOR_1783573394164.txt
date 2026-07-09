@@ -1,0 +1,198 @@
+SPRINT 30B — REPLACE ADMIN MEMBERS PAGE WITH MEMBER REPORTS
+
+OBJECTIVE
+
+The new Member Reports module is significantly better than the existing Members page.
+
+Replace the existing Members section with the new Member Reports interface.
+
+Do NOT keep two separate pages with nearly identical functionality.
+
+==========================================================
+REPLACEMENT PLAN
+==========================================================
+
+Replace the current:
+
+Admin
+→ Members
+
+with
+
+Admin
+→ Members
+
+that loads the new Member Reports page.
+
+The navigation label remains:
+
+Members
+
+No new sidebar entry called "Reports".
+
+Members becomes the reporting interface.
+
+==========================================================
+REMOVE OLD UI
+==========================================================
+
+Remove the old Members page UI completely.
+
+Replace it with:
+
+- Filter toolbar
+- Summary cards
+- Live preview table
+- Search
+- Export Excel
+- Export CSV
+- Pagination
+
+The new page becomes the default member management screen.
+
+==========================================================
+KEEP EXISTING FUNCTIONALITY
+==========================================================
+
+Do NOT lose any existing functionality.
+
+The following features must remain fully available:
+
+• View Member Details
+• Member Drawer
+• Suspend Member
+• Activate Member
+• Block Member
+• Search Members
+• Pagination
+• Status Badges
+• Wallet Information
+• Investment Information
+• Referral Information
+
+If any action buttons are missing from the new table, add an "Actions" column containing:
+
+- View
+- Activate
+- Suspend
+- Block
+
+The member drawer should continue working exactly as before.
+
+==========================================================
+EXPORT
+==========================================================
+
+Keep:
+
+Export Excel
+
+Export CSV
+
+using the existing report system.
+
+==========================================================
+FILTERS
+==========================================================
+
+Keep every filter implemented in Sprint 30A.
+
+Do NOT remove any.
+
+==========================================================
+API
+==========================================================
+
+Reuse the new reporting endpoints where appropriate.
+
+Do NOT maintain duplicate query logic.
+
+If possible, retire the old Members list endpoint and have the Members page use the new shared report query builder.
+
+One source of truth.
+
+==========================================================
+URL
+==========================================================
+
+Keep the existing route.
+
+Do NOT break bookmarks.
+
+Example:
+
+/admin/members
+
+should now render the new interface.
+
+==========================================================
+BACKWARD COMPATIBILITY
+==========================================================
+
+Do NOT break:
+
+Member drawer
+
+Member actions
+
+Permissions
+
+Admin routes
+
+Audit logging
+
+==========================================================
+CLEANUP
+==========================================================
+
+Remove unused components, hooks, API calls and helper functions that belonged exclusively to the old Members page.
+
+Avoid dead code.
+
+==========================================================
+VERIFICATION
+==========================================================
+
+Verify:
+
+✓ Search
+
+✓ Filters
+
+✓ Pagination
+
+✓ View Member
+
+✓ Activate
+
+✓ Suspend
+
+✓ Block
+
+✓ Export Excel
+
+✓ Export CSV
+
+✓ Responsive layout
+
+✓ Existing URLs still work
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return:
+
+1. Files modified.
+
+2. Files removed.
+
+3. Components reused.
+
+4. Components retired.
+
+5. API endpoints reused.
+
+6. Regression verification.
+
+7. Confirmation that the old Members page has been fully replaced with the new unified Member Reports interface without any loss of functionality.
