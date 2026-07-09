@@ -6,6 +6,7 @@ import {
   GitBranch, Zap, Package, BarChart2, FileText, Headphones,
   Settings, LogOut, Bell, Search, Activity, Menu, X, Shield,
   ArrowRight, ArrowDownToLine, FlaskConical, Wifi, BadgeDollarSign,
+  FileSpreadsheet, ChevronDown, ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 import { adminSearchUsers, type AdminUserListItem } from "@/lib/api";
 import { SkeletonStyle, Skeleton } from "@/components/admin/Skeleton";
@@ -17,7 +18,11 @@ const MUTED  = "rgba(170,179,197,0.48)";
 const BORDER = "rgba(255,255,255,0.07)";
 const BG_SIDEBAR = "hsl(222 62% 5%)";
 
-const NAV_GROUPS = [
+interface NavChild  { icon: React.ElementType; label: string; path: string }
+interface NavItem   { icon: React.ElementType; label: string; path: string; children?: NavChild[] }
+interface NavGroup  { label: string; items: NavItem[] }
+
+const NAV_GROUPS: NavGroup[] = [
   {
     label: "OVERVIEW",
     items: [
@@ -29,11 +34,11 @@ const NAV_GROUPS = [
     items: [
       { icon: Users,           label: "Members",        path: "/admin/members" },
       { icon: TrendingUp,      label: "Investments",    path: "/admin/investments" },
-      { icon: ArrowDownToLine,  label: "Deposits",        path: "/admin/deposits" },
-      { icon: Wifi,             label: "Auto Deposits",   path: "/admin/auto-deposits" },
-      { icon: BadgeDollarSign,  label: "Manual Credit",   path: "/admin/manual-credit" },
-      { icon: ArrowDownLeft,    label: "Withdrawals",     path: "/admin/withdrawals" },
-      { icon: Wallet,           label: "Wallets",         path: "/admin/wallets" },
+      { icon: ArrowDownToLine, label: "Deposits",       path: "/admin/deposits" },
+      { icon: Wifi,            label: "Auto Deposits",  path: "/admin/auto-deposits" },
+      { icon: BadgeDollarSign, label: "Manual Credit",  path: "/admin/manual-credit" },
+      { icon: ArrowDownLeft,   label: "Withdrawals",    path: "/admin/withdrawals" },
+      { icon: Wallet,          label: "Wallets",        path: "/admin/wallets" },
     ],
   },
   {
@@ -41,16 +46,19 @@ const NAV_GROUPS = [
     items: [
       { icon: GitBranch, label: "Binary Network", path: "/admin/binary" },
       { icon: Zap,       label: "Income Engine",  path: "/admin/income" },
-      { icon: Package,   label: "Plans",           path: "/admin/plans" },
+      { icon: Package,   label: "Plans",          path: "/admin/plans"  },
     ],
   },
   {
     label: "PLATFORM",
     items: [
-      { icon: BarChart2,     label: "Reports",         path: "/admin/reports"          },
-      { icon: Settings,      label: "Company Wallets",  path: "/admin/company-wallets"  },
-      // { icon: FileText,      label: "CMS",             path: "/admin/cms"              },
-      // { icon: Headphones,    label: "Support",         path: "/admin/support"          },
+      {
+        icon: BarChart2, label: "Reports", path: "/admin/reports",
+        children: [
+          { icon: FileSpreadsheet, label: "Member Reports", path: "/admin/reports/members" },
+        ],
+      },
+      { icon: Settings, label: "Company Wallets", path: "/admin/company-wallets" },
     ],
   },
   {
@@ -117,6 +125,117 @@ export const SidebarItem = memo(function SidebarItem({
         <span style={{ fontSize: 12.5, fontWeight: active ? 600 : 400, letterSpacing: "0.01em" }}>
           {label}
         </span>
+      )}
+    </div>
+  );
+});
+
+/* ── Expandable sidebar item (with children) ────────────────────────────────── */
+
+const SidebarExpandableItem = memo(function SidebarExpandableItem({
+  icon: Icon, label, path, children, location, collapsed, onNavigate,
+}: {
+  icon: React.ElementType; label: string; path: string;
+  children: { icon: React.ElementType; label: string; path: string }[];
+  location: string; collapsed: boolean; onNavigate?: () => void;
+}) {
+  const [, setLocation] = useLocation();
+  const isParentActive  = location.startsWith(path);
+  const [open, setOpen] = useState(isParentActive);
+
+  const toggleOpen = useCallback(() => {
+    if (!collapsed) setOpen(o => !o);
+  }, [collapsed]);
+
+  return (
+    <div>
+      {/* Parent row */}
+      <div
+        onClick={toggleOpen}
+        role="menuitem"
+        tabIndex={0}
+        title={collapsed ? label : undefined}
+        onKeyDown={e => { if (e.key === "Enter" || e.key === " ") toggleOpen(); }}
+        style={{
+          display: "flex", alignItems: "center",
+          gap: collapsed ? 0 : 9,
+          padding: collapsed ? "9px 0" : "9px 12px",
+          justifyContent: collapsed ? "center" : "flex-start",
+          borderRadius: 7, cursor: "pointer", marginBottom: 1,
+          background: isParentActive ? "rgba(212,175,55,0.09)" : "transparent",
+          borderLeft: isParentActive ? `2px solid ${GOLD}` : "2px solid transparent",
+          color: isParentActive ? GOLD_L : MUTED,
+          transition: "background 0.15s,color 0.15s",
+          outline: "none",
+        }}
+        onMouseEnter={e => {
+          if (!isParentActive) {
+            (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.04)";
+            (e.currentTarget as HTMLDivElement).style.color = "rgba(255,255,255,0.7)";
+          }
+        }}
+        onMouseLeave={e => {
+          if (!isParentActive) {
+            (e.currentTarget as HTMLDivElement).style.background = "transparent";
+            (e.currentTarget as HTMLDivElement).style.color = MUTED;
+          }
+        }}
+      >
+        <Icon size={14} style={{ flexShrink: 0 }} aria-hidden="true" />
+        {!collapsed && (
+          <>
+            <span style={{ fontSize: 12.5, fontWeight: isParentActive ? 600 : 400, letterSpacing: "0.01em", flex: 1 }}>
+              {label}
+            </span>
+            {open
+              ? <ChevronDown size={11} style={{ flexShrink: 0, opacity: 0.6 }} />
+              : <ChevronRightIcon size={11} style={{ flexShrink: 0, opacity: 0.6 }} />
+            }
+          </>
+        )}
+      </div>
+
+      {/* Children */}
+      {!collapsed && open && (
+        <div style={{ paddingLeft: 20, marginBottom: 2 }}>
+          {children.map(child => {
+            const childActive = location === child.path;
+            return (
+              <div
+                key={child.path}
+                role="menuitem"
+                tabIndex={0}
+                onClick={() => { setLocation(child.path); onNavigate?.(); }}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { setLocation(child.path); onNavigate?.(); } }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 7,
+                  padding: "7px 10px", borderRadius: 6, cursor: "pointer", marginBottom: 1,
+                  background: childActive ? "rgba(212,175,55,0.07)" : "transparent",
+                  borderLeft: childActive ? `2px solid rgba(212,175,55,0.5)` : "2px solid rgba(255,255,255,0.06)",
+                  color: childActive ? GOLD_L : MUTED,
+                  fontSize: 12, fontWeight: childActive ? 600 : 400,
+                  transition: "background 0.15s,color 0.15s",
+                  outline: "none",
+                }}
+                onMouseEnter={e => {
+                  if (!childActive) {
+                    (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.04)";
+                    (e.currentTarget as HTMLDivElement).style.color = "rgba(255,255,255,0.65)";
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!childActive) {
+                    (e.currentTarget as HTMLDivElement).style.background = "transparent";
+                    (e.currentTarget as HTMLDivElement).style.color = MUTED;
+                  }
+                }}
+              >
+                <child.icon size={12} style={{ flexShrink: 0 }} aria-hidden="true" />
+                <span style={{ fontSize: 11.5 }}>{child.label}</span>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -478,17 +597,30 @@ function SidebarContent({
                 color: "rgba(170,179,197,0.28)", padding: "6px 12px 4px",
               }}>{group.label}</div>
             )}
-            {group.items.map(item => (
-              <SidebarItem
-                key={item.path}
-                icon={item.icon}
-                label={item.label}
-                path={item.path}
-                active={location === item.path}
-                collapsed={collapsed}
-                onNavigate={onNavigate}
-              />
-            ))}
+            {group.items.map(item =>
+              item.children && item.children.length > 0 ? (
+                <SidebarExpandableItem
+                  key={item.path}
+                  icon={item.icon}
+                  label={item.label}
+                  path={item.path}
+                  children={item.children}
+                  location={location}
+                  collapsed={collapsed}
+                  onNavigate={onNavigate}
+                />
+              ) : (
+                <SidebarItem
+                  key={item.path}
+                  icon={item.icon}
+                  label={item.label}
+                  path={item.path}
+                  active={location === item.path}
+                  collapsed={collapsed}
+                  onNavigate={onNavigate}
+                />
+              )
+            )}
           </div>
         ))}
       </div>

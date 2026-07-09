@@ -1,0 +1,342 @@
+SPRINT 30A — MEMBER REPORTS & EXPORT CENTER
+
+OBJECTIVE
+
+Build a professional Member Reports module inside the Admin Panel.
+
+This is NOT just an Excel export.
+
+This is a reusable reporting system capable of filtering, previewing, and exporting member data.
+
+==========================================================
+NEW SIDEBAR MENU
+==========================================================
+
+Add a new Admin menu:
+
+📊 Reports
+
+Inside Reports:
+
+👥 Member Reports
+
+Future report types will be added later.
+
+==========================================================
+MEMBER REPORTS PAGE
+==========================================================
+
+The page should contain three sections:
+
+1.
+
+Filters
+
+2.
+
+Live Preview Table
+
+3.
+
+Export Actions
+
+==========================================================
+FILTERS
+==========================================================
+
+Date Range
+
+- Today
+- Yesterday
+- Last 7 Days
+- Last 30 Days
+- This Month
+- Last Month
+- Custom Date Range
+
+----------------------------------------------------------
+
+Account Status
+
+- All
+- ACTIVE
+- INACTIVE
+- SUSPENDED
+- BLOCKED
+
+----------------------------------------------------------
+
+Operational Status
+
+- All
+- ACTIVE
+- INACTIVE
+
+----------------------------------------------------------
+
+Investment
+
+- All
+- Has Investment
+- No Plan
+
+----------------------------------------------------------
+
+Placement
+
+- All
+- LEFT
+- RIGHT
+
+----------------------------------------------------------
+
+Account Type
+
+- All
+- Master
+- MI
+- RD
+- SP
+- Normal Users
+
+----------------------------------------------------------
+
+Search
+
+Search by:
+
+- Name
+- Username
+- Email
+
+==========================================================
+LIVE SUMMARY
+==========================================================
+
+Above the table show:
+
+Total Members
+
+Joined Today
+
+Joined Yesterday
+
+Joined This Week
+
+Joined This Month
+
+==========================================================
+LIVE PREVIEW TABLE
+==========================================================
+
+Show paginated results.
+
+Columns:
+
+Name
+
+Username
+
+Email
+
+Phone
+
+Country
+
+Joined Date
+
+Account Type
+
+Sponsor
+
+Binary Parent
+
+Placement (L/R)
+
+Account Status
+
+Operational Status
+
+Investment
+
+Deposit Wallet
+
+Income Wallet
+
+Withdrawal Wallet
+
+Direct Referrals
+
+Left BV
+
+Right BV
+
+==========================================================
+EXPORT
+==========================================================
+
+Buttons:
+
+Preview
+
+Export Excel
+
+Export CSV
+
+Export ONLY the records currently matching the selected filters.
+
+==========================================================
+EXCEL FORMAT
+==========================================================
+
+Generate a clean professional workbook.
+
+Worksheet name:
+
+Members Report
+
+Row 1:
+
+PrimeWave Member Report
+
+Row 2:
+
+Generated Date & Time
+
+Row 3:
+
+Applied Filters
+
+Freeze header row.
+
+Auto-size columns.
+
+Bold headers.
+
+Use existing Excel generation utilities if available.
+
+==========================================================
+PERFORMANCE
+==========================================================
+
+Do NOT load every member into memory.
+
+Filtering must happen in the database.
+
+Pagination must happen in SQL/Prisma.
+
+Export should stream results if possible.
+
+==========================================================
+API
+==========================================================
+
+Create reusable reporting endpoints.
+
+GET
+
+/api/admin/reports/members
+
+Supports all filters.
+
+GET
+
+/api/admin/reports/members/export
+
+Returns Excel.
+
+GET
+
+/api/admin/reports/members/export-csv
+
+Returns CSV.
+
+Use ONE shared query builder.
+
+Do NOT duplicate filter logic.
+
+==========================================================
+SECURITY
+==========================================================
+
+SUPER_ADMIN only.
+
+Log every export in Admin Logs.
+
+Include:
+
+Admin ID
+
+Report Type
+
+Applied Filters
+
+Number of Rows Exported
+
+Timestamp
+
+==========================================================
+VERIFICATION
+==========================================================
+
+Verify:
+
+Today
+
+Yesterday
+
+Last 7 Days
+
+Custom Date Range
+
+ACTIVE only
+
+INACTIVE only
+
+Has Investment
+
+No Plan
+
+LEFT
+
+RIGHT
+
+Master
+
+MI
+
+RD
+
+SP
+
+Normal Users
+
+Excel export
+
+CSV export
+
+Large dataset pagination
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return:
+
+1. Files modified.
+
+2. New API endpoints.
+
+3. Report filters implemented.
+
+4. Excel export verification.
+
+5. CSV export verification.
+
+6. Performance verification.
+
+7. Security verification.
+
+8. Screenshots of the Reports page.
+
+9. Confirmation that future report types can reuse the same reporting framework.

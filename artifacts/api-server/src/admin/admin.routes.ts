@@ -118,6 +118,15 @@ import {
   exportSalaryIncomeHandler,
   exportBinaryIncomeHandler,
 } from "./reports/csv-export.controller";
+import {
+  memberReportHandler,
+  memberExportExcelHandler,
+  memberExportCsvHandler,
+} from "./reports/member-reports.controller";
+import {
+  memberReportQuerySchema,
+  memberExportQuerySchema,
+} from "./reports/member-reports.schema";
 import { depositAuditHandler } from "./reports/deposit-audit.controller";
 import { validate } from "../middleware/validate.middleware";
 import { requireAdminAuth, requireAdminRoles } from "../middleware/auth.middleware";
@@ -291,6 +300,28 @@ router.get(
 );
 router.get("/reports/pending",              adminLimiter, superAdminGuard, pendingOperationsHandler);
 router.get("/reports/risk",                 adminLimiter, superAdminGuard, riskReportHandler);
+
+// ── Member Reports — SUPER_ADMIN only ────────────────────────────────────────
+router.get(
+  "/reports/members",
+  adminLimiter, superAdminGuard,
+  validate(memberReportQuerySchema, "query"),
+  memberReportHandler,
+);
+
+router.get(
+  "/reports/members/export",
+  adminLimiter, superAdminGuard,
+  validate(memberExportQuerySchema, "query"),
+  memberExportExcelHandler,
+);
+
+router.get(
+  "/reports/members/export-csv",
+  adminLimiter, superAdminGuard,
+  validate(memberExportQuerySchema, "query"),
+  memberExportCsvHandler,
+);
 
 // ── Deposit idempotency audit — SUPER_ADMIN only ─────────────────────────────
 router.get("/reports/deposit-audit",        adminLimiter, superAdminGuard, depositAuditHandler);
