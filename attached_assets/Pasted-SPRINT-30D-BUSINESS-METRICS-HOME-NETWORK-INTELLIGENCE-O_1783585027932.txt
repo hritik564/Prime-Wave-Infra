@@ -1,0 +1,173 @@
+SPRINT 30D — BUSINESS METRICS (HOME + NETWORK INTELLIGENCE)
+
+OBJECTIVE
+
+Improve the member experience by displaying actual BUSINESS values (USD) instead of relying primarily on BV.
+
+BV remains in the system for calculations but BUSINESS becomes the primary metric shown to users.
+
+==========================================================
+
+HOME DASHBOARD
+
+==========================================================
+
+Add a new Business Overview card.
+
+Display:
+
+• Total Team Business
+
+• Left Business
+
+• Right Business
+
+• Carry Forward Left (BV)
+
+• Carry Forward Right (BV)
+
+==========================================================
+
+NETWORK INTELLIGENCE
+
+==========================================================
+
+Update both LEFT and RIGHT panels.
+
+Replace the current emphasis on BV.
+
+Display:
+
+Members
+
+Business ($)
+
+Carry Forward (BV)
+
+Invested Members
+
+Active Members
+
+Keep BV visible but secondary.
+
+==========================================================
+
+NEW BUSINESS SUMMARY SECTION
+
+==========================================================
+
+Add a Business Overview section above the Binary Tree.
+
+Display:
+
+Total Team Business
+
+Left Business
+
+Right Business
+
+Weak Leg
+
+Strong Leg
+
+Carry Forward Left
+
+Carry Forward Right
+
+==========================================================
+
+BUSINESS CALCULATION
+
+==========================================================
+
+Business means the SUM of ACTIVE investments within that leg.
+
+NOT wallet balances.
+
+NOT ROI.
+
+NOT income.
+
+Only ACTIVE investment amounts.
+
+Example:
+
+User A invested $100
+
+User B invested $300
+
+Business = $400
+
+==========================================================
+
+API
+
+==========================================================
+
+Extend the existing Network Intelligence endpoint.
+
+Do NOT create multiple APIs.
+
+Return:
+
+totalBusiness
+
+leftBusiness
+
+rightBusiness
+
+leftCarryForwardBV
+
+rightCarryForwardBV
+
+leftInvestedMembers
+
+rightInvestedMembers
+
+==========================================================
+
+PERFORMANCE
+
+==========================================================
+
+Do NOT recursively calculate the tree on every page load.
+
+Use the existing binary hierarchy and efficient SQL aggregation.
+
+Avoid N+1 queries.
+
+==========================================================
+
+VERIFICATION
+
+==========================================================
+
+Verify using:
+
+Master
+
+MI
+
+RD
+
+SP
+
+Normal user
+
+Confirm business totals match the actual investment records.
+
+==========================================================
+
+FINAL REPORT
+
+Return:
+
+1. Files modified.
+
+2. API changes.
+
+3. Business calculation verification.
+
+4. UI screenshots.
+
+5. Performance verification.

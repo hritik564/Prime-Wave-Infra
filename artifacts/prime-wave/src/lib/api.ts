@@ -1364,6 +1364,14 @@ export interface LegBreakdown {
   carryForwardLeft:  string;
   carryForwardRight: string;
   directReferrals:  number;
+  // Business ($) — sum of ACTIVE investment amounts per leg (Sprint 30D)
+  totalBusiness:        string;
+  leftBusiness:         string;
+  rightBusiness:        string;
+  leftInvestedMembers:  number;
+  rightInvestedMembers: number;
+  businessStrongLeg: "LEFT" | "RIGHT";
+  businessWeakLeg:   "LEFT" | "RIGHT";
 }
 
 export interface TeamActivityItem {

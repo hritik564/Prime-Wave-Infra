@@ -17,9 +17,9 @@ import { Link } from "wouter";
 import { useAuth } from "@/providers/AuthProvider";
 import {
   getProfile, listInvestments, getWalletHistory, getActiveStatus,
-  getSalaryQualifications, getSalarySummary,
+  getSalaryQualifications, getSalarySummary, getLegBreakdown,
   type ProfileData, type ApiInvestment, type Transaction, type ActiveStatus,
-  type SalaryQualificationSummary, type SalarySummaryData,
+  type SalaryQualificationSummary, type SalarySummaryData, type LegBreakdown,
 } from "@/lib/api";
 
 /* ── Inline toast ── */
@@ -83,6 +83,7 @@ export default function DashboardPage() {
   const [activeStatus, setActiveStatus] = useState<ActiveStatus | null>(null);
   const [salaryQual, setSalaryQual] = useState<SalaryQualificationSummary | null>(null);
   const [salarySummary, setSalarySummary] = useState<SalarySummaryData | null>(null);
+  const [legBreakdown, setLegBreakdown] = useState<LegBreakdown | null>(null);
   const [loading, setLoading] = useState(true);
   const [portfolioTxs, setPortfolioTxs] = useState<Transaction[]>([]);
   const [earningsTxs, setEarningsTxs]   = useState<Transaction[]>([]);
@@ -90,7 +91,7 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [profileData, invResult, historyResult, statusResult, qualResult, summaryResult] =
+        const [profileData, invResult, historyResult, statusResult, qualResult, summaryResult, legResult] =
           await Promise.all([
             getProfile(),
             listInvestments({ limit: 100 }),
@@ -98,6 +99,7 @@ export default function DashboardPage() {
             getActiveStatus(),
             getSalaryQualifications(),
             getSalarySummary(),
+            getLegBreakdown(),
           ]);
         setProfile(profileData);
         setInvestments(invResult.data);
@@ -105,6 +107,7 @@ export default function DashboardPage() {
         setActiveStatus(statusResult);
         setSalaryQual(qualResult);
         setSalarySummary(summaryResult);
+        setLegBreakdown(legResult);
       } catch {
         // silently fail — show zeros
       } finally {
@@ -279,6 +282,9 @@ export default function DashboardPage() {
               nextSalaryProgress={salaryProgressPct}
               progressLabel={progressLabel}
             />
+
+            {/* ── Business Overview ── */}
+            <BusinessOverviewCard legBreakdown={legBreakdown} loading={loading} />
 
             {/* ── Referral Cards ── */}
             <ReferralCards referralCode={profile?.referralCode ?? null} />
@@ -519,6 +525,64 @@ function ReferralCards({ referralCode }: { referralCode: string | null }) {
         })}
       </div>
     </>
+  );
+}
+
+function BusinessOverviewCard({ legBreakdown, loading }: { legBreakdown: LegBreakdown | null; loading: boolean }) {
+  const leftBusiness  = Number(legBreakdown?.leftBusiness  ?? 0);
+  const rightBusiness = Number(legBreakdown?.rightBusiness ?? 0);
+  const totalBusiness = Number(legBreakdown?.totalBusiness ?? 0);
+  const carryLeft  = Number(legBreakdown?.carryForwardLeft  ?? 0);
+  const carryRight = Number(legBreakdown?.carryForwardRight ?? 0);
+  const totalMax = Math.max(leftBusiness, rightBusiness, 1);
+
+  return (
+    <div
+      className="relative w-full rounded-2xl overflow-hidden mb-5 lg:mb-8 p-5 lg:p-6"
+      style={{
+        background: "hsl(var(--card))",
+        border: "1px solid hsl(var(--border))",
+      }}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-widest" style={{ color: "rgba(212,175,55,0.7)" }}>
+            Team Business
+          </p>
+          <p className="font-heading font-bold text-3xl lg:text-4xl mt-1" style={{ color: "#F3D37A" }}>
+            {loading ? "—" : fmt(totalBusiness)}
+          </p>
+        </div>
+        <DollarSign className="h-8 w-8 shrink-0" style={{ color: "rgba(212,175,55,0.5)" }} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl p-3" style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.18)" }}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "#60a5fa" }}>Left Business</p>
+          <p className="text-lg font-bold font-heading mt-1 text-foreground">{loading ? "—" : fmt(leftBusiness)}</p>
+          <div className="h-1.5 w-full rounded-full overflow-hidden mt-2" style={{ background: "rgba(255,255,255,0.08)" }}>
+            <div className="h-full rounded-full" style={{ width: `${(leftBusiness / totalMax) * 100}%`, background: "linear-gradient(90deg,#3b82f6,#60a5fa)" }} />
+          </div>
+          <p className="text-[10px] mt-1.5" style={{ color: "hsl(var(--muted-foreground))" }}>
+            Carry Fwd (BV): {loading ? "—" : carryLeft.toFixed(0)}
+          </p>
+        </div>
+        <div className="rounded-xl p-3" style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.18)" }}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "#a78bfa" }}>Right Business</p>
+          <p className="text-lg font-bold font-heading mt-1 text-foreground">{loading ? "—" : fmt(rightBusiness)}</p>
+          <div className="h-1.5 w-full rounded-full overflow-hidden mt-2" style={{ background: "rgba(255,255,255,0.08)" }}>
+            <div className="h-full rounded-full" style={{ width: `${(rightBusiness / totalMax) * 100}%`, background: "linear-gradient(90deg,#a78bfa,#7c3aed)" }} />
+          </div>
+          <p className="text-[10px] mt-1.5" style={{ color: "hsl(var(--muted-foreground))" }}>
+            Carry Fwd (BV): {loading ? "—" : carryRight.toFixed(0)}
+          </p>
+        </div>
+      </div>
+
+      <p className="text-[10px] mt-3" style={{ color: "hsl(var(--muted-foreground))" }}>
+        Business reflects the sum of active investments in each leg. BV shown separately for matching income calculations.
+      </p>
+    </div>
   );
 }
 

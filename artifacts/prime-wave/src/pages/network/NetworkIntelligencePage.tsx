@@ -15,7 +15,7 @@ import {
   Search, Award, Activity, Brain, GitBranch, UserPlus,
   X, ChevronLeft, ChevronRight, Link2, Target, Zap,
   ArrowRight, Star, ShieldCheck, Flame, Clock, BarChart2,
-  CircleDot, Wallet, ZoomIn, ZoomOut, Maximize2, Calendar, Share2, Hash,
+  CircleDot, Wallet, ZoomIn, ZoomOut, Maximize2, Calendar, Share2, Hash, DollarSign,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
@@ -908,12 +908,14 @@ export default function NetworkIntelligencePage() {
               const isLeft  = side === "LEFT";
               const color   = isLeft ? "#60a5fa" : "#a78bfa";
               const bv      = isLeft ? leftBV : rightBV;
+              const business = Number(isLeft ? (legBreakdown?.leftBusiness ?? 0) : (legBreakdown?.rightBusiness ?? 0));
+              const investedMembers = isLeft ? (legBreakdown?.leftInvestedMembers ?? "—") : (legBreakdown?.rightInvestedMembers ?? "—");
               const members = isLeft ? (legBreakdown?.leftMembers ?? stats?.leftTeam ?? 0) : (legBreakdown?.rightMembers ?? stats?.rightTeam ?? 0);
               const investments = isLeft ? (legBreakdown?.leftInvestments ?? "—") : (legBreakdown?.rightInvestments ?? "—");
               const weeklyNew   = isLeft ? (legBreakdown?.leftWeeklyNew ?? 0) : (legBreakdown?.rightWeeklyNew ?? 0);
               const activeCount = isLeft ? (legBreakdown?.leftActiveCount ?? "—") : (legBreakdown?.rightActiveCount ?? "—");
-              const isPower = legBreakdown?.powerLeg === side;
-              const isWeak  = legBreakdown?.weakLeg  === side;
+              const isPower = legBreakdown?.businessStrongLeg === side;
+              const isWeak  = legBreakdown?.businessWeakLeg  === side;
               return (
                 <div key={side} className="rounded-2xl p-4"
                   style={{ background: `${color}08`, border: `1px solid ${color}28` }}>
@@ -933,10 +935,12 @@ export default function NetworkIntelligencePage() {
                     ? <div className="space-y-2 animate-pulse">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-4 rounded" style={{ background: "rgba(255,255,255,0.05)" }} />)}</div>
                     : <>
                         <LegRow label="Members"   value={members}          color={color} />
-                        <LegRow label="BV"        value={`${bv.toFixed(0)} BV`} color={color} />
-                        <LegRow label="Invested"  value={investments} />
+                        <LegRow label="Business"  value={fmtUSD(business)} color={GOLD_L} />
+                        <LegRow label="Invested Members" value={investedMembers} />
                         <LegRow label="New Wk"    value={`+${weeklyNew}`} />
                         <LegRow label="Active"    value={activeCount}      color="#34d399" />
+                        <LegRow label="BV (secondary)" value={`${bv.toFixed(0)} BV`} />
+                        <LegRow label="Invested"  value={investments} />
                       </>
                   }
                 </div>
@@ -956,9 +960,9 @@ export default function NetworkIntelligencePage() {
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
               {[
-                { label: "Power Leg",  value: loading ? "—" : (legBreakdown?.powerLeg ?? (leftBV >= rightBV ? "LEFT" : "RIGHT")), color: "#34d399" },
+                { label: "Strong Leg", value: loading ? "—" : (legBreakdown?.businessStrongLeg ?? (leftBV >= rightBV ? "LEFT" : "RIGHT")), color: "#34d399" },
                 { label: "Carry Fwd",  value: loading ? "—" : (() => { const t = Number(legBreakdown?.carryForwardLeft ?? 0) + Number(legBreakdown?.carryForwardRight ?? 0); return t > 0 ? `${t.toFixed(0)} BV` : "—"; })(), color: GOLD },
-                { label: "Focus",      value: loading ? "—" : (legBreakdown?.weakLeg ?? (leftBV <= rightBV ? "LEFT" : "RIGHT")), color: "#fb923c" },
+                { label: "Focus",      value: loading ? "—" : (legBreakdown?.businessWeakLeg ?? (leftBV <= rightBV ? "LEFT" : "RIGHT")), color: "#fb923c" },
               ].map((s) => (
                 <div key={s.label}>
                   <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>{s.label}</p>
@@ -980,6 +984,40 @@ export default function NetworkIntelligencePage() {
                   </span>
                 </div>
               )}
+            </div>
+          </div>
+        </Section>
+
+        {/* ── BUSINESS SUMMARY ─────────────────────────────────────────────── */}
+        <Section title="Business Summary" icon={<DollarSign style={{ width: 15, height: 15, color: GOLD }} />}>
+          <div className="rounded-2xl p-4 mb-3" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+            <p style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: MUTED }}>Total Team Business</p>
+            <p style={{ fontSize: 28, fontWeight: 900, color: GOLD_L, lineHeight: 1, marginTop: 6 }}>
+              {loading ? "—" : fmtUSD(Number(legBreakdown?.totalBusiness ?? 0))}
+            </p>
+            <p style={{ fontSize: 10, color: MUTED, marginTop: 4 }}>Sum of active investments across your entire network</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {[
+              { label: "Left Business",  value: loading ? "—" : fmtUSD(Number(legBreakdown?.leftBusiness  ?? 0)), color: "#60a5fa" },
+              { label: "Right Business", value: loading ? "—" : fmtUSD(Number(legBreakdown?.rightBusiness ?? 0)), color: "#a78bfa" },
+              { label: "Strong Leg",     value: loading ? "—" : (legBreakdown?.businessStrongLeg ?? "—"), color: "#34d399" },
+              { label: "Weak Leg",       value: loading ? "—" : (legBreakdown?.businessWeakLeg   ?? "—"), color: "#fb923c" },
+            ].map((s) => (
+              <div key={s.label} className="rounded-2xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+                <p style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: MUTED }}>{s.label}</p>
+                <p style={{ fontSize: 18, fontWeight: 800, color: s.color, lineHeight: 1, marginTop: 6 }}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 mt-2.5">
+            <div className="rounded-2xl p-3 text-center" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+              <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>Carry Fwd Left (BV)</p>
+              <p style={{ fontSize: 14, fontWeight: 700, color: "#60a5fa", marginTop: 3 }}>{loading ? "—" : Number(legBreakdown?.carryForwardLeft ?? 0).toFixed(0)}</p>
+            </div>
+            <div className="rounded-2xl p-3 text-center" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}>
+              <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>Carry Fwd Right (BV)</p>
+              <p style={{ fontSize: 14, fontWeight: 700, color: "#a78bfa", marginTop: 3 }}>{loading ? "—" : Number(legBreakdown?.carryForwardRight ?? 0).toFixed(0)}</p>
             </div>
           </div>
         </Section>

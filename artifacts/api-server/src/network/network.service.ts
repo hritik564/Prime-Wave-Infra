@@ -112,6 +112,8 @@ export async function getLegBreakdown(userId: string) {
     leftInvestments, rightInvestments,
     leftWeeklyNew,   rightWeeklyNew,
     lastMatch,
+    leftBusinessAgg, rightBusinessAgg,
+    leftInvestedMembers, rightInvestedMembers,
   ] = await Promise.all([
     leftIds.length  > 0 ? prisma.user.count({ where: { id: { in: leftIds  }, status: "ACTIVE" } }) : Promise.resolve(0),
     rightIds.length > 0 ? prisma.user.count({ where: { id: { in: rightIds }, status: "ACTIVE" } }) : Promise.resolve(0),
@@ -124,10 +126,28 @@ export async function getLegBreakdown(userId: string) {
       orderBy: { createdAt: "desc" },
       select:  { carryForwardLeft: true, carryForwardRight: true },
     }),
+    // Business = SUM of ACTIVE investment amounts within the leg (not wallet balance, not ROI, not income).
+    leftIds.length  > 0
+      ? prisma.investment.aggregate({ where: { userId: { in: leftIds  }, status: "ACTIVE" }, _sum: { amount: true } })
+      : Promise.resolve({ _sum: { amount: null } }),
+    rightIds.length > 0
+      ? prisma.investment.aggregate({ where: { userId: { in: rightIds }, status: "ACTIVE" }, _sum: { amount: true } })
+      : Promise.resolve({ _sum: { amount: null } }),
+    // Invested members = distinct members within the leg with at least one ACTIVE investment.
+    leftIds.length  > 0
+      ? prisma.user.count({ where: { id: { in: leftIds  }, investments: { some: { status: "ACTIVE" } } } })
+      : Promise.resolve(0),
+    rightIds.length > 0
+      ? prisma.user.count({ where: { id: { in: rightIds }, investments: { some: { status: "ACTIVE" } } } })
+      : Promise.resolve(0),
   ]);
 
   const leftBV  = Number(user.leftBV);
   const rightBV = Number(user.rightBV);
+
+  const leftBusiness  = Number(leftBusinessAgg._sum.amount  ?? 0);
+  const rightBusiness = Number(rightBusinessAgg._sum.amount ?? 0);
+  const totalBusiness = leftBusiness + rightBusiness;
 
   return {
     leftMembers:     leftIds.length,
@@ -145,6 +165,14 @@ export async function getLegBreakdown(userId: string) {
     carryForwardLeft:  Number(lastMatch?.carryForwardLeft  ?? 0).toFixed(2),
     carryForwardRight: Number(lastMatch?.carryForwardRight ?? 0).toFixed(2),
     directReferrals: user.directReferralCount,
+    // ── Business ($) — SUM of ACTIVE investment amounts, per Sprint 30D ────────
+    totalBusiness:        totalBusiness.toFixed(2),
+    leftBusiness:         leftBusiness.toFixed(2),
+    rightBusiness:        rightBusiness.toFixed(2),
+    leftInvestedMembers,
+    rightInvestedMembers,
+    businessStrongLeg: leftBusiness >= rightBusiness ? "LEFT" : "RIGHT",
+    businessWeakLeg:   leftBusiness <  rightBusiness ? "LEFT" : "RIGHT",
   };
 }
 
