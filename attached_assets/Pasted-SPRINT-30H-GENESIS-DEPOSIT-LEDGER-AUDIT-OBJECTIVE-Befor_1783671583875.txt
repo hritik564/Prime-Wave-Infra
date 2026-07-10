@@ -1,0 +1,194 @@
+SPRINT 30H — GENESIS DEPOSIT LEDGER AUDIT
+
+OBJECTIVE
+
+Before implementing the new Team Business engine, verify that the genesis funding exists in the proper financial ledger.
+
+DO NOT MODIFY ANY CODE.
+
+DO NOT MODIFY ANY DATA.
+
+AUDIT ONLY.
+
+==========================================================
+BACKGROUND
+==========================================================
+
+The new Team Business rule will be:
+
+Team Business =
+the cumulative APPROVED deposit volume of every member in the binary downline.
+
+This metric will be completely independent from:
+
+• BV
+• Investments
+• ROI
+• Binary Matching
+• Binary Orbit
+• Salary
+• Level Income
+
+Before implementation we must confirm the genesis funding was recorded correctly.
+
+==========================================================
+VERIFY GENESIS FUNDING
+==========================================================
+
+The last-layer SP endpoints were funded with $20,000 each during genesis.
+
+Verify exactly how that funding was recorded.
+
+For those funded SP accounts determine:
+
+Did the script create:
+
+✓ DepositRequest
+
+✓ WalletTransaction (type = DEPOSIT)
+
+✓ AdminLog
+
+✓ Deposit Wallet credit
+
+or
+
+Was the Deposit Wallet balance updated directly?
+
+==========================================================
+CHECK TABLES
+==========================================================
+
+Inspect:
+
+DepositRequest
+
+WalletTransaction
+
+Wallet
+
+AdminLog
+
+Return the exact records created for one sample funded account.
+
+Example:
+
+sp000050
+
+(or another funded endpoint if numbering differs)
+
+==========================================================
+COUNT VERIFICATION
+==========================================================
+
+Return:
+
+Expected funded endpoints
+
+Actual funded endpoints
+
+DepositRequest rows
+
+WalletTransaction(DEPOSIT) rows
+
+DepositWallet credits
+
+AdminLog rows
+
+==========================================================
+CONSISTENCY CHECK
+==========================================================
+
+Answer:
+
+Does every funded SP account have:
+
+DepositRequest
+
+YES / NO
+
+WalletTransaction
+
+YES / NO
+
+AdminLog
+
+YES / NO
+
+==========================================================
+IF ANYTHING IS MISSING
+==========================================================
+
+Do NOT fix it.
+
+Instead explain:
+
+Exactly what is missing.
+
+Exactly why Team Business would become incorrect.
+
+Exactly what one-time reconciliation would be required.
+
+==========================================================
+IMPLEMENTATION RECOMMENDATION
+==========================================================
+
+Based on the findings recommend the correct source of truth for Team Business.
+
+Choose ONE only:
+
+A)
+
+DepositRequest (APPROVED)
+
+B)
+
+WalletTransaction (DEPOSIT)
+
+C)
+
+Wallet.depositWallet
+
+Recommend the safest long-term architecture and explain why.
+
+==========================================================
+IMPORTANT
+==========================================================
+
+Remember:
+
+Team Business is a REPORTING metric.
+
+It must NEVER influence:
+
+• Binary Matching
+
+• Binary Orbit
+
+• Salary
+
+• ROI
+
+• Level Income
+
+• Direct Income
+
+• Carry Forward
+
+• Binary Qualification
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return:
+
+1. Genesis funding audit.
+
+2. Ledger audit.
+
+3. Missing records (if any).
+
+4. Recommended source of truth.
+
+5. Confirmation whether Sprint 30I (Team Business implementation) is safe to begin.
