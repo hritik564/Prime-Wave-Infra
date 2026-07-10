@@ -1,0 +1,105 @@
+SPRINT 30G — TEAM BUSINESS IMPACT ANALYSIS
+
+OBJECTIVE
+
+Before implementing Team Business using historical deposit volume, perform a complete dependency audit.
+
+DO NOT MODIFY ANY CODE.
+
+==================================================
+BUSINESS RULE
+==================================================
+
+New definition:
+
+Team Business = cumulative APPROVED deposit volume of every member in the binary downline.
+
+This is a REPORTING metric only.
+
+It must NEVER affect compensation logic.
+
+==================================================
+AUDIT
+==================================================
+
+Find every place in the codebase where the following are used:
+
+- investments.amount
+- users.leftBV
+- users.rightBV
+- depositWallet
+- DepositRequest
+- WalletTransaction (DEPOSIT)
+
+For every occurrence, classify it as:
+
+1. Reporting/UI
+2. Financial Engine
+3. Qualification
+4. Admin
+5. Analytics
+
+==================================================
+VERIFY
+==================================================
+
+Confirm whether implementing Team Business from deposit history would affect:
+
+□ Binary Matching
+□ Binary Orbit
+□ Salary
+□ ROI
+□ Level Income
+□ Direct Income
+□ BV propagation
+□ Carry Forward
+□ Operational Status
+□ Binary Qualification
+□ Withdrawals
+□ Investment validation
+□ Network Intelligence
+□ Admin Reports
+□ Dashboard
+
+For each item answer:
+
+Affected?
+YES / NO
+
+If YES
+
+Explain exactly why.
+
+==================================================
+IMPLEMENTATION PLAN
+==================================================
+
+Recommend the safest architecture.
+
+Preferred approach:
+
+Create a completely separate Team Business service.
+
+Do NOT reuse BV.
+
+Do NOT reuse investment aggregation.
+
+Do NOT reuse depositWallet balances.
+
+Use historical approved deposit volume only.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Return:
+
+1. Every affected file.
+
+2. Every unaffected financial engine.
+
+3. Recommended implementation.
+
+4. Regression risk.
+
+5. Confirmation that Team Business can be introduced without changing any compensation calculations.
