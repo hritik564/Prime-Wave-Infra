@@ -36,6 +36,44 @@ export async function getWithdrawalSettingsPublic(network: "BEP20") {
   };
 }
 
+/**
+ * Admin-only update to withdrawal settings for a network.
+ * Partial update — only provided fields are changed.
+ */
+export async function updateWithdrawalSettings(
+  network: "BEP20",
+  input:   { minimumAmount?: number; maximumAmount?: number; isEnabled?: boolean },
+) {
+  const current = await getWithdrawalSettings(network);
+
+  const nextMin = input.minimumAmount !== undefined ? new Prisma.Decimal(input.minimumAmount) : current.minimumAmount;
+  const nextMax = input.maximumAmount !== undefined ? new Prisma.Decimal(input.maximumAmount) : current.maximumAmount;
+
+  if (nextMin.gt(nextMax)) {
+    throw new AppError(
+      "Minimum amount must not exceed maximum amount",
+      HTTP_STATUS.BAD_REQUEST,
+      "INVALID_WITHDRAWAL_SETTINGS",
+    );
+  }
+
+  const updated = await prisma.withdrawalSettings.update({
+    where: { network },
+    data: {
+      ...(input.minimumAmount !== undefined ? { minimumAmount: nextMin } : {}),
+      ...(input.maximumAmount !== undefined ? { maximumAmount: nextMax } : {}),
+      ...(input.isEnabled     !== undefined ? { isEnabled: input.isEnabled } : {}),
+    },
+  });
+
+  return {
+    network:       updated.network,
+    minimumAmount: updated.minimumAmount.toFixed(2),
+    maximumAmount: updated.maximumAmount.toFixed(2),
+    isEnabled:     updated.isEnabled,
+  };
+}
+
 // ── Create withdrawal request ─────────────────────────────────────────────────
 
 /**

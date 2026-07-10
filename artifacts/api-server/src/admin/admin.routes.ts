@@ -33,6 +33,8 @@ import {
   approveWithdrawalHandler,
   completeWithdrawalHandler,
   rejectWithdrawalHandler,
+  getAdminWithdrawalSettingsHandler,
+  updateAdminWithdrawalSettingsHandler,
 } from "./admin-withdrawals.controller";
 import {
   getDashboardHandler,
@@ -145,6 +147,7 @@ import {
   rejectWithdrawalSchema,
   holdWithdrawalSchema,
   updateWithdrawalNotesSchema,
+  updateWithdrawalSettingsSchema,
 } from "../withdrawals/withdrawals.schema";
 import {
   userSearchQuerySchema,
@@ -485,6 +488,21 @@ router.get(
 
 // ── Withdrawal admin — SUPER_ADMIN and FINANCE_ADMIN only ─────────────────────
 const withdrawalAdminGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN");
+
+router.get(
+  "/withdrawals/settings",
+  adminLimiter,
+  withdrawalAdminGuard,
+  getAdminWithdrawalSettingsHandler,
+);
+
+router.put(
+  "/withdrawals/settings",
+  adminLimiter,
+  superAdminGuard,
+  validate(updateWithdrawalSettingsSchema),
+  updateAdminWithdrawalSettingsHandler,
+);
 
 router.get(
   "/withdrawals",

@@ -17,6 +17,15 @@ export const withdrawalHistoryQuerySchema = z.object({
   limit:   z.coerce.number().int().min(1).max(100).default(20),
 });
 
+export const updateWithdrawalSettingsSchema = z.object({
+  minimumAmount: z.coerce.number().positive("Minimum amount must be positive").optional(),
+  maximumAmount: z.coerce.number().positive("Maximum amount must be positive").optional(),
+  isEnabled:     z.boolean().optional(),
+}).refine(
+  (v) => v.minimumAmount === undefined || v.maximumAmount === undefined || v.minimumAmount <= v.maximumAmount,
+  { message: "Minimum amount must not exceed maximum amount" },
+);
+
 // ── Admin schemas ─────────────────────────────────────────────────────────────
 
 export const adminWithdrawalListQuerySchema = z.object({
@@ -57,6 +66,7 @@ export const updateWithdrawalNotesSchema = z.object({
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export type UpdateWithdrawalSettingsInput = z.infer<typeof updateWithdrawalSettingsSchema>;
 export type CreateWithdrawalInput       = z.infer<typeof createWithdrawalSchema>;
 export type WithdrawalHistoryQuery      = z.infer<typeof withdrawalHistoryQuerySchema>;
 export type AdminWithdrawalListQuery    = z.infer<typeof adminWithdrawalListQuerySchema>;

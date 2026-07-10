@@ -12,6 +12,7 @@ import {
   completeWithdrawal,
   rejectWithdrawal,
 } from "./admin-withdrawals.service";
+import { getWithdrawalSettingsPublic, updateWithdrawalSettings } from "../withdrawals/withdrawals.service";
 import type {
   AdminWithdrawalListQuery,
   ApproveWithdrawalInput,
@@ -19,7 +20,27 @@ import type {
   RejectWithdrawalInput,
   HoldWithdrawalInput,
   UpdateWithdrawalNotesInput,
+  UpdateWithdrawalSettingsInput,
 } from "../withdrawals/withdrawals.schema";
+
+export async function getAdminWithdrawalSettingsHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const result = await getWithdrawalSettingsPublic("BEP20");
+    sendSuccess(res, result, "Withdrawal settings retrieved");
+  } catch (err) { next(err); }
+}
+
+export async function updateAdminWithdrawalSettingsHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const input  = req.body as UpdateWithdrawalSettingsInput;
+    const result = await updateWithdrawalSettings("BEP20", input);
+    sendSuccess(res, result, "Withdrawal settings updated");
+  } catch (err) { next(err); }
+}
 
 export async function getAdminWithdrawalsHandler(
   req: Request, res: Response, next: NextFunction,
