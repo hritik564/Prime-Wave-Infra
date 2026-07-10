@@ -477,6 +477,17 @@ export interface WithdrawalRequest {
   createdAt: string;
 }
 
+export interface WithdrawalSettings {
+  network: string;
+  minimumAmount: string;
+  maximumAmount: string;
+  isEnabled: boolean;
+}
+
+export function getWithdrawalSettings() {
+  return request<WithdrawalSettings>("/api/withdrawals/settings");
+}
+
 export function createWithdrawal(data: { amount: number; walletAddress: string; network: string }) {
   return request<WithdrawalRequest>("/api/withdrawals", {
     method: "POST",

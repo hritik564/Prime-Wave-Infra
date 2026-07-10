@@ -7,8 +7,18 @@ import {
   cancelWithdrawal,
   getWithdrawalHistory,
   getWithdrawalById,
+  getWithdrawalSettingsPublic,
 } from "./withdrawals.service";
 import type { CreateWithdrawalInput, WithdrawalHistoryQuery } from "./withdrawals.schema";
+
+export async function getWithdrawalSettingsHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const result = await getWithdrawalSettingsPublic("BEP20");
+    sendSuccess(res, result, "Withdrawal settings retrieved");
+  } catch (err) { next(err); }
+}
 
 export async function createWithdrawalHandler(
   req: Request, res: Response, next: NextFunction,

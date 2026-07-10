@@ -22,6 +22,20 @@ export async function getWithdrawalSettings(network: "BEP20") {
   return settings;
 }
 
+/**
+ * Public-facing withdrawal settings for the authenticated user's client UI.
+ * Exposes only what's needed to render min/max validation — no internal fields.
+ */
+export async function getWithdrawalSettingsPublic(network: "BEP20") {
+  const settings = await getWithdrawalSettings(network);
+  return {
+    network:       settings.network,
+    minimumAmount: settings.minimumAmount.toFixed(2),
+    maximumAmount: settings.maximumAmount.toFixed(2),
+    isEnabled:     settings.isEnabled,
+  };
+}
+
 // ── Create withdrawal request ─────────────────────────────────────────────────
 
 /**

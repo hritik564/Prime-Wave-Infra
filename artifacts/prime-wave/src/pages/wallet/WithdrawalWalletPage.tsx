@@ -15,6 +15,7 @@ import {
   getWithdrawalHistory,
   getProfile,
   createWithdrawal,
+  getWithdrawalSettings,
   type Transaction,
   type WithdrawalRequest,
 } from "@/lib/api";
@@ -87,10 +88,20 @@ function WithdrawalModal({ available, walletAddress, onClose, onSuccess }: Withd
   const [amount, setAmount]         = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState<string | null>(null);
+  const [minWith, setMinWith]       = useState(1);
+  const [settingsMax, setSettingsMax] = useState(500);
+
+  useEffect(() => {
+    getWithdrawalSettings()
+      .then((s) => {
+        setMinWith(parseFloat(s.minimumAmount));
+        setSettingsMax(parseFloat(s.maximumAmount));
+      })
+      .catch(() => { /* keep fallback defaults */ });
+  }, []);
 
   const num     = parseFloat(amount) || 0;
-  const minWith = 1;
-  const maxWith = Math.min(500, available);
+  const maxWith = Math.min(settingsMax, available);
   const isValid = num >= minWith && num <= maxWith && !submitting;
 
   const handleSubmit = async () => {

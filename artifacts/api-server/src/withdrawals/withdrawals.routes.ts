@@ -4,6 +4,7 @@ import {
   cancelWithdrawalHandler,
   getWithdrawalHistoryHandler,
   getWithdrawalByIdHandler,
+  getWithdrawalSettingsHandler,
 } from "./withdrawals.controller";
 import { validate } from "../middleware/validate.middleware";
 import { requireAuth } from "../middleware/auth.middleware";
@@ -13,6 +14,11 @@ const router = Router();
 
 // All withdrawal routes require authentication
 router.use(requireAuth);
+
+router.get(
+  "/settings",
+  getWithdrawalSettingsHandler,
+);
 
 router.post(
   "/",
