@@ -22,12 +22,12 @@ import PageContainer from "@/components/shared/PageContainer";
 import {
   getProfile, getNetworkStats, getNetworkInsights,
   getBinaryTree, getBvSummary, getNetworkMembers,
-  getTopPerformers, getTeamActivity, getNetworkPulse, getLegBreakdown,
+  getTopPerformers, getTeamActivity, getNetworkPulse, getLegBreakdown, getTeamBusiness,
 } from "@/lib/api";
 import type {
   ProfileData, NetworkStats, NetworkInsight, BinaryTreeNode,
   BvSummary, NetworkMember, TopPerformer, TeamActivityItem,
-  NetworkPulse, LegBreakdown,
+  NetworkPulse, LegBreakdown, TeamBusiness,
 } from "@/lib/api";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -670,6 +670,7 @@ export default function NetworkIntelligencePage() {
   const [activity, setActivity]         = useState<TeamActivityItem[]>([]);
   const [pulse, setPulse]               = useState<NetworkPulse | null>(null);
   const [legBreakdown, setLegBreakdown] = useState<LegBreakdown | null>(null);
+  const [teamBusiness, setTeamBusiness] = useState<TeamBusiness | null>(null);
   const [search, setSearch]             = useState("");
   const [filter, setFilter]             = useState<MemberFilter>("all");
   const [treeDepth, setTreeDepth]       = useState(3);
@@ -682,10 +683,10 @@ export default function NetworkIntelligencePage() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const [r0, r1, r2, r3, r4, r5, r6, r7, r8] = await Promise.allSettled([
+      const [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9] = await Promise.allSettled([
         getProfile(), getNetworkStats(), getNetworkInsights(),
         getBvSummary(), getBinaryTree(3), getTopPerformers(),
-        getTeamActivity(), getNetworkPulse(), getLegBreakdown(),
+        getTeamActivity(), getNetworkPulse(), getLegBreakdown(), getTeamBusiness(),
       ]);
       if (r0.status === "fulfilled") setProfile(r0.value);
       if (r1.status === "fulfilled") setStats(r1.value);
@@ -696,6 +697,7 @@ export default function NetworkIntelligencePage() {
       if (r6.status === "fulfilled") setActivity(r6.value.activities);
       if (r7.status === "fulfilled") setPulse(r7.value);
       if (r8.status === "fulfilled") setLegBreakdown(r8.value);
+      if (r9.status === "fulfilled") setTeamBusiness(r9.value);
       setLoading(false);
     }
     void load();
@@ -773,6 +775,13 @@ export default function NetworkIntelligencePage() {
   const totalBV     = leftBV + rightBV;
   const leftPct     = totalBV > 0 ? (leftBV  / totalBV) * 100 : 50;
   const rightPct    = totalBV > 0 ? (rightBV / totalBV) * 100 : 50;
+  // Team Business (Sprint 30I) — cumulative APPROVED deposit volume, independent of BV/investment data.
+  const leftBusinessTotal  = Number(teamBusiness?.leftBusiness  ?? 0);
+  const rightBusinessTotal = Number(teamBusiness?.rightBusiness ?? 0);
+  const totalBusinessTotal = Number(teamBusiness?.totalBusiness ?? 0);
+  const totalBusinessSum   = leftBusinessTotal + rightBusinessTotal;
+  const leftBusinessPct    = totalBusinessSum > 0 ? (leftBusinessTotal  / totalBusinessSum) * 100 : 50;
+  const rightBusinessPct   = totalBusinessSum > 0 ? (rightBusinessTotal / totalBusinessSum) * 100 : 50;
   const qualified   = bvSummary?.binaryQualified ?? false;
   const weakLeg     = leftBV <= rightBV ? "LEFT" : "RIGHT";
   const weakLegBV   = Math.min(leftBV, rightBV);
@@ -916,20 +925,20 @@ export default function NetworkIntelligencePage() {
                 Total Team Business
               </p>
               <p style={{ fontSize: 34, fontWeight: 900, color: GOLD_L, lineHeight: 1.1, marginTop: 8 }}>
-                {loading ? "—" : fmtUSD(Number(legBreakdown?.totalBusiness ?? 0))}
+                {loading ? "—" : fmtUSD(totalBusinessTotal)}
               </p>
-              <p style={{ fontSize: 10, color: MUTED, marginTop: 4 }}>Sum of active investments across your entire network</p>
+              <p style={{ fontSize: 10, color: MUTED, marginTop: 4 }}>Cumulative approved deposit volume across your entire network</p>
             </div>
 
             {/* Distribution bar */}
             <div className="px-5 pt-4">
               <div style={{ height: 8, borderRadius: 4, overflow: "hidden", display: "flex", background: "rgba(255,255,255,0.05)" }}>
-                <div style={{ width: `${leftPct}%`,  background: "linear-gradient(90deg,#3b82f6,#60a5fa)", transition: "width 0.8s ease" }} />
-                <div style={{ width: `${rightPct}%`, background: "linear-gradient(90deg,#a78bfa,#7c3aed)", transition: "width 0.8s ease" }} />
+                <div style={{ width: `${leftBusinessPct}%`,  background: "linear-gradient(90deg,#3b82f6,#60a5fa)", transition: "width 0.8s ease" }} />
+                <div style={{ width: `${rightBusinessPct}%`, background: "linear-gradient(90deg,#a78bfa,#7c3aed)", transition: "width 0.8s ease" }} />
               </div>
               <div className="flex justify-between mt-1.5">
-                <span style={{ fontSize: 10, color: "#60a5fa", fontWeight: 700 }}>LEFT TEAM {leftPct.toFixed(0)}%</span>
-                <span style={{ fontSize: 10, color: "#a78bfa", fontWeight: 700 }}>RIGHT TEAM {rightPct.toFixed(0)}%</span>
+                <span style={{ fontSize: 10, color: "#60a5fa", fontWeight: 700 }}>LEFT TEAM {leftBusinessPct.toFixed(0)}%</span>
+                <span style={{ fontSize: 10, color: "#a78bfa", fontWeight: 700 }}>RIGHT TEAM {rightBusinessPct.toFixed(0)}%</span>
               </div>
             </div>
 
@@ -938,13 +947,13 @@ export default function NetworkIntelligencePage() {
               {(["LEFT", "RIGHT"] as const).map((side) => {
                 const isLeft  = side === "LEFT";
                 const color   = isLeft ? "#60a5fa" : "#a78bfa";
-                const business = Number(isLeft ? (legBreakdown?.leftBusiness ?? 0) : (legBreakdown?.rightBusiness ?? 0));
+                const business = isLeft ? leftBusinessTotal : rightBusinessTotal;
                 const members  = isLeft ? (legBreakdown?.leftMembers ?? stats?.leftTeam ?? 0) : (legBreakdown?.rightMembers ?? stats?.rightTeam ?? 0);
                 const activeCount = Number(isLeft ? (legBreakdown?.leftActiveCount ?? 0) : (legBreakdown?.rightActiveCount ?? 0));
                 const inactiveCount = Math.max(0, Number(members) - activeCount);
                 const carryFwd = Number(isLeft ? (legBreakdown?.carryForwardLeft ?? 0) : (legBreakdown?.carryForwardRight ?? 0));
-                const isStrong = legBreakdown?.businessStrongLeg === side;
-                const isWeak   = legBreakdown?.businessWeakLeg  === side;
+                const isStrong = leftBusinessTotal !== rightBusinessTotal && business === Math.max(leftBusinessTotal, rightBusinessTotal);
+                const isWeak   = leftBusinessTotal !== rightBusinessTotal && business === Math.min(leftBusinessTotal, rightBusinessTotal);
                 return (
                   <div key={side} className="rounded-2xl p-4" style={{ background: `${color}08`, border: `1px solid ${color}28` }}>
                     <div className="flex items-center justify-between mb-3">
@@ -978,13 +987,13 @@ export default function NetworkIntelligencePage() {
               <div className="rounded-xl py-3" style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.2)" }}>
                 <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>Strong Leg</p>
                 <p style={{ fontSize: 15, fontWeight: 800, color: "#34d399", marginTop: 3 }}>
-                  {loading ? "—" : (legBreakdown?.businessStrongLeg ?? "—")}
+                  {loading ? "—" : (leftBusinessTotal === rightBusinessTotal ? "—" : leftBusinessTotal > rightBusinessTotal ? "LEFT" : "RIGHT")}
                 </p>
               </div>
               <div className="rounded-xl py-3" style={{ background: "rgba(251,146,60,0.06)", border: "1px solid rgba(251,146,60,0.2)" }}>
                 <p style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>Weak Leg</p>
                 <p style={{ fontSize: 15, fontWeight: 800, color: "#fb923c", marginTop: 3 }}>
-                  {loading ? "—" : (legBreakdown?.businessWeakLeg ?? "—")}
+                  {loading ? "—" : (leftBusinessTotal === rightBusinessTotal ? "—" : leftBusinessTotal < rightBusinessTotal ? "LEFT" : "RIGHT")}
                 </p>
               </div>
             </div>

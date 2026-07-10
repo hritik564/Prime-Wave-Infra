@@ -1,0 +1,253 @@
+SPRINT 30I — TEAM BUSINESS ENGINE (READ-ONLY)
+
+OBJECTIVE
+
+Implement Team Business as a reporting feature ONLY.
+
+This sprint must NOT modify any financial engine.
+
+==========================================================
+BUSINESS RULE
+==========================================================
+
+Team Business =
+
+The cumulative APPROVED deposit volume of every member in the binary downline.
+
+This includes:
+
+• Normal user deposits
+• Genesis funding deposits
+
+Genesis funding is REAL business volume for reporting purposes.
+
+It MUST contribute to Team Business.
+
+==========================================================
+IMPORTANT
+==========================================================
+
+Team Business is NOT a compensation metric.
+
+It must NEVER generate:
+
+• Binary Income
+• Binary Orbit Income
+• Salary
+• Direct Income
+• Level Income
+• ROI
+• BV
+• Carry Forward
+
+The Team Business engine is READ-ONLY.
+
+==========================================================
+SOURCE OF TRUTH
+==========================================================
+
+Use ONLY:
+
+DepositRequest
+
+WHERE
+
+status = 'APPROVED'
+
+Do NOT use:
+
+Investment.amount
+
+Wallet.depositWallet
+
+WalletTransaction
+
+leftBV
+
+rightBV
+
+==========================================================
+TREE
+==========================================================
+
+Use ONLY the binary tree.
+
+Traverse using:
+
+binaryParentId
+
+Do NOT use sponsorId.
+
+==========================================================
+CALCULATIONS
+==========================================================
+
+For every logged-in member calculate:
+
+Left Team Business
+
+Right Team Business
+
+Total Team Business
+
+Definitions:
+
+Left Team Business
+
+=
+
+SUM(DepositRequest.amount)
+
+for every APPROVED deposit inside the LEFT binary subtree.
+
+Right Team Business
+
+=
+
+SUM(DepositRequest.amount)
+
+for every APPROVED deposit inside the RIGHT binary subtree.
+
+Total Team Business
+
+=
+
+Left + Right
+
+==========================================================
+GENESIS FUNDING
+==========================================================
+
+The 128 genesis-funded SP accounts already contain valid:
+
+✓ DepositRequest
+✓ WalletTransaction
+✓ AdminLog
+
+Include these DepositRequests exactly like any other approved deposit.
+
+Do NOT activate these SP accounts.
+
+Do NOT create investments.
+
+Do NOT generate BV.
+
+Do NOT generate any income.
+
+They are REPORTING volume only.
+
+==========================================================
+UI
+==========================================================
+
+Replace every Team Business calculation.
+
+Dashboard
+
+Network Intelligence
+
+Business Overview
+
+must all use this new calculation.
+
+BV remains unchanged.
+
+Carry Forward remains unchanged.
+
+==========================================================
+EXPECTED RESULTS
+==========================================================
+
+RD account
+
+Left Business
+
+≈ $20,000
+
+Right Business
+
+≈ $20,000
+
+Total Business
+
+≈ $40,000
+
+Master
+
+Should display the cumulative approved deposit volume of the entire network.
+
+MI accounts
+
+Should display the approved deposit volume inside their own binary subtree.
+
+SP accounts
+
+Should display $0 unless they have members beneath them.
+
+==========================================================
+DO NOT CHANGE
+==========================================================
+
+Binary Matching
+
+Binary Orbit
+
+Salary
+
+ROI
+
+Level Income
+
+Direct Income
+
+Carry Forward
+
+Operational Status
+
+Qualification
+
+Investment validation
+
+Wallet balances
+
+Investment engine
+
+Deposit engine
+
+==========================================================
+REGRESSION
+==========================================================
+
+Verify that after implementation:
+
+• No new wallet transactions are created.
+
+• No income records are created.
+
+• No BV changes occur.
+
+• No carry-forward changes occur.
+
+• No qualification status changes occur.
+
+• Team Business is calculated entirely from historical DepositRequest records.
+
+==========================================================
+FINAL REPORT
+==========================================================
+
+Return:
+
+1. Files modified.
+
+2. Team Business calculation logic.
+
+3. RD verification.
+
+4. MI verification.
+
+5. Master verification.
+
+6. Confirmation that zero financial engines were modified.
+
+7. Confirmation that zero income was generated during this sprint.

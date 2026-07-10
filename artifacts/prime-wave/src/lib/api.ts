@@ -1424,6 +1424,18 @@ export function getLegBreakdown() {
   return request<LegBreakdown>("/api/network/leg-breakdown");
 }
 
+// Team Business (Sprint 30I) — cumulative APPROVED deposit volume per binary leg.
+// Read-only reporting metric, sourced independently of BV/investment/wallet data.
+export interface TeamBusiness {
+  leftBusiness:  string;
+  rightBusiness: string;
+  totalBusiness: string;
+}
+
+export function getTeamBusiness() {
+  return request<TeamBusiness>("/api/network/team-business");
+}
+
 /* ── Admin Investments ─────────────────────────────────────────────────────── */
 
 export type AdminInvStatus = "ACTIVE" | "MATURED" | "COMPLETED";

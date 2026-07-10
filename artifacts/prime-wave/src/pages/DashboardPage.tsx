@@ -17,9 +17,9 @@ import { Link } from "wouter";
 import { useAuth } from "@/providers/AuthProvider";
 import {
   getProfile, listInvestments, getWalletHistory, getActiveStatus,
-  getSalaryQualifications, getSalarySummary, getLegBreakdown,
+  getSalaryQualifications, getSalarySummary, getLegBreakdown, getTeamBusiness,
   type ProfileData, type ApiInvestment, type Transaction, type ActiveStatus,
-  type SalaryQualificationSummary, type SalarySummaryData, type LegBreakdown,
+  type SalaryQualificationSummary, type SalarySummaryData, type LegBreakdown, type TeamBusiness,
 } from "@/lib/api";
 
 /* ── Inline toast ── */
@@ -84,6 +84,7 @@ export default function DashboardPage() {
   const [salaryQual, setSalaryQual] = useState<SalaryQualificationSummary | null>(null);
   const [salarySummary, setSalarySummary] = useState<SalarySummaryData | null>(null);
   const [legBreakdown, setLegBreakdown] = useState<LegBreakdown | null>(null);
+  const [teamBusiness, setTeamBusiness] = useState<TeamBusiness | null>(null);
   const [loading, setLoading] = useState(true);
   const [portfolioTxs, setPortfolioTxs] = useState<Transaction[]>([]);
   const [earningsTxs, setEarningsTxs]   = useState<Transaction[]>([]);
@@ -91,7 +92,7 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [profileData, invResult, historyResult, statusResult, qualResult, summaryResult, legResult] =
+        const [profileData, invResult, historyResult, statusResult, qualResult, summaryResult, legResult, teamBusinessResult] =
           await Promise.all([
             getProfile(),
             listInvestments({ limit: 100 }),
@@ -100,6 +101,7 @@ export default function DashboardPage() {
             getSalaryQualifications(),
             getSalarySummary(),
             getLegBreakdown(),
+            getTeamBusiness(),
           ]);
         setProfile(profileData);
         setInvestments(invResult.data);
@@ -108,6 +110,7 @@ export default function DashboardPage() {
         setSalaryQual(qualResult);
         setSalarySummary(summaryResult);
         setLegBreakdown(legResult);
+        setTeamBusiness(teamBusinessResult);
       } catch {
         // silently fail — show zeros
       } finally {
@@ -284,7 +287,7 @@ export default function DashboardPage() {
             />
 
             {/* ── Business Overview ── */}
-            <BusinessOverviewCard legBreakdown={legBreakdown} loading={loading} />
+            <BusinessOverviewCard legBreakdown={legBreakdown} teamBusiness={teamBusiness} loading={loading} />
 
             {/* ── Referral Cards ── */}
             <ReferralCards referralCode={profile?.referralCode ?? null} />
@@ -528,10 +531,11 @@ function ReferralCards({ referralCode }: { referralCode: string | null }) {
   );
 }
 
-function BusinessOverviewCard({ legBreakdown, loading }: { legBreakdown: LegBreakdown | null; loading: boolean }) {
-  const leftBusiness  = Number(legBreakdown?.leftBusiness  ?? 0);
-  const rightBusiness = Number(legBreakdown?.rightBusiness ?? 0);
-  const totalBusiness = Number(legBreakdown?.totalBusiness ?? 0);
+function BusinessOverviewCard({ legBreakdown, teamBusiness, loading }: { legBreakdown: LegBreakdown | null; teamBusiness: TeamBusiness | null; loading: boolean }) {
+  // Team Business (Sprint 30I) — cumulative APPROVED deposit volume, not investment/BV-derived.
+  const leftBusiness  = Number(teamBusiness?.leftBusiness  ?? 0);
+  const rightBusiness = Number(teamBusiness?.rightBusiness ?? 0);
+  const totalBusiness = Number(teamBusiness?.totalBusiness ?? 0);
   const carryLeft  = Number(legBreakdown?.carryForwardLeft  ?? 0);
   const carryRight = Number(legBreakdown?.carryForwardRight ?? 0);
   const totalMax = Math.max(leftBusiness, rightBusiness, 1);

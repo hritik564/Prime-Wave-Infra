@@ -13,6 +13,7 @@ import {
   getTopPerformers,
   getTeamActivity,
 } from "./network.service";
+import { getTeamBusiness } from "./team-business.service";
 
 const router = Router();
 
@@ -34,6 +35,17 @@ router.get("/leg-breakdown", async (req, res, next) => {
   try {
     const { user } = req as AuthenticatedRequest;
     const data = await getLegBreakdown(user.sub);
+    sendSuccess(res, data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/network/team-business
+router.get("/team-business", async (req, res, next) => {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const data = await getTeamBusiness(user.sub);
     sendSuccess(res, data);
   } catch (err) {
     next(err);
