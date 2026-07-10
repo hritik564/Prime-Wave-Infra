@@ -5,6 +5,7 @@ import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
 import { getProfile, updateProfile, changePassword, type ProfileData } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
+import { useTheme } from "@/providers/ThemeProvider";
 import { useLocation } from "wouter";
 
 function Card({ children, title, icon: Icon }: { children: React.ReactNode; title: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }) {
@@ -117,9 +118,8 @@ export default function SettingsPage() {
   };
 
   // Theme
-  const [darkMode, setDarkMode] = useState(() => {
-    try { return localStorage.getItem("pw:theme") !== "light"; } catch { return true; }
-  });
+  const { theme, toggleTheme } = useTheme();
+  const darkMode = theme === "dark";
 
   useEffect(() => {
     async function load() {
@@ -184,9 +184,7 @@ export default function SettingsPage() {
   };
 
   const handleThemeToggle = () => {
-    const next = !darkMode;
-    setDarkMode(next);
-    try { localStorage.setItem("pw:theme", next ? "dark" : "light"); } catch {}
+    toggleTheme();
   };
 
   const handleLogout = () => {
