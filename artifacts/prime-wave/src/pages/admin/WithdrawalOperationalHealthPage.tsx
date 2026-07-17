@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   RefreshCw, Loader2, Activity, Power, PowerOff, Wallet,
   AlertTriangle, CheckCircle, Clock, Zap, GitMerge, ShieldAlert,
-  Radio, PenLine, Filter, BarChart2, ExternalLink, TrendingDown,
+  Radio, PenLine, Filter,
   AlertOctagon, Info, Server, Cpu,
 } from "lucide-react";
 import AdminLayout from "./AdminLayout";
