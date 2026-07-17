@@ -1736,8 +1736,22 @@ export interface WithdrawalQueueItem {
   broadcastAt:           string | null;
   requestedAt:           string;
   processedAt:           string | null;
+  confirmationBlock:     number | null;
+  confirmationCount:     number | null;
+  failureReason:         string | null;
   createdAt:             string;
   user: { id: string; username: string; email: string; firstName: string; lastName: string };
+}
+
+export interface WithdrawalEvent {
+  id:        string;
+  eventType: string;
+  details:   Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export function getWithdrawalEvents(withdrawalId: string) {
+  return request<WithdrawalEvent[]>(`/api/admin/withdrawals/${withdrawalId}/events`);
 }
 
 export interface ProcessQueueResult {

@@ -5,6 +5,7 @@ import { getWithdrawalSettings } from "./withdrawals.service";
 import { getWithdrawalGateway, isGatewayConfigured } from "../services/blockchain/blockchain.factory";
 import { GatewayDryRunError, GatewaySigningError, GatewayBroadcastError } from "../services/blockchain/blockchain.interface";
 import type { PreparedTransfer } from "../services/blockchain/blockchain.types";
+import { logWithdrawalEvent } from "./withdrawal-events.service";
 
 /**
  * Withdrawal Processor Service
@@ -71,6 +72,7 @@ async function runSingleWithdrawal(wr: {
 
   // ── PENDING → VALIDATING ─────────────────────────────────────────────────────
   await prisma.withdrawalRequest.update({ where: { id }, data: { status: "VALIDATING" } });
+  await logWithdrawalEvent(id, "VALIDATED");
   logger.info({ ...logCtx, status: "VALIDATING" }, "withdrawal.processor: validating");
 
   // ── Run validations ──────────────────────────────────────────────────────────
@@ -84,9 +86,11 @@ async function runSingleWithdrawal(wr: {
 
   // ── VALIDATING → QUEUED ──────────────────────────────────────────────────────
   await enqueue(id);
+  await logWithdrawalEvent(id, "QUEUED");
 
   // ── QUEUED → PROCESSING ──────────────────────────────────────────────────────
   await lockForProcessing(id);
+  await logWithdrawalEvent(id, "PROCESSING");
   logger.info({ ...logCtx, status: "PROCESSING" }, "withdrawal.processor: reached PROCESSING");
 
   // ── Prepare transaction ──────────────────────────────────────────────────────
@@ -166,6 +170,8 @@ async function failWithdrawal(
       },
     });
   });
+  await logWithdrawalEvent(id, "FAILED", { failureReason });
+  await logWithdrawalEvent(id, "REFUNDED", { amount: amount.toFixed(8) });
   logger.info({ withdrawalId: id, failureReason }, "withdrawal.processor: withdrawal failed, funds refunded");
 }
 
@@ -307,6 +313,7 @@ async function signAndBroadcastWithdrawal(
     where: { id },
     data:  { status: "SIGNED", signedAt: new Date() },
   });
+  await logWithdrawalEvent(id, "SIGNED");
   logger.info({ ...logCtx, status: "SIGNED" }, "withdrawal.processor: signing started");
 
   try {
@@ -315,6 +322,7 @@ async function signAndBroadcastWithdrawal(
       where: { id },
       data:  { status: "BROADCASTING" },
     });
+    await logWithdrawalEvent(id, "BROADCAST");
     logger.info({ ...logCtx, status: "BROADCASTING" }, "withdrawal.processor: broadcasting");
 
     const result = await gw.signAndBroadcast(preparedTx);
@@ -370,6 +378,8 @@ async function signAndBroadcastWithdrawal(
       },
     });
   });
+
+  await logWithdrawalEvent(id, "CONFIRMING", { txHash, nonce });
 
   logger.info(
     { ...logCtx, txHash, nonce, status: "CONFIRMING" },

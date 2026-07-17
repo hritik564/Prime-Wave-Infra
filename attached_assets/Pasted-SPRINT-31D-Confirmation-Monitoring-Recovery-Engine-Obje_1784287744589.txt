@@ -1,0 +1,181 @@
+SPRINT 31D — Confirmation Monitoring & Recovery Engine
+
+Objective:
+Build a resilient confirmation monitoring and recovery engine for PrimeWave withdrawals. This sprint ensures that every broadcast transaction is tracked until completion and that crashes or blockchain anomalies never result in lost or duplicated withdrawals.
+
+==================================================
+1. Confirmation Poller
+==================================================
+
+Create a background confirmation service.
+
+Responsibilities:
+
+- Monitor all withdrawals with status CONFIRMING.
+- Query the blockchain for each transaction hash.
+- Read transaction receipt.
+- Read transaction block number.
+- Read latest chain block number.
+- Calculate confirmation count.
+
+Do not rely solely on transaction existence.
+
+Completion must require:
+
+confirmations >= BSC_CONFIRMATIONS_REQUIRED
+
+==================================================
+2. Confirmation Workflow
+==================================================
+
+When confirmation requirement is met:
+
+CONFIRMING
+↓
+
+COMPLETED
+
+Update:
+
+- completedAt
+- confirmation block
+- confirmation count
+
+==================================================
+3. Recovery Service
+==================================================
+
+Create a recovery worker.
+
+On server startup:
+
+Scan withdrawals in:
+
+- SIGNED
+- BROADCASTING
+- CONFIRMING
+
+For each withdrawal:
+
+- Verify blockchain state.
+- Resume processing safely.
+- Never create duplicate broadcasts.
+
+==================================================
+4. Detect Replaced or Dropped Transactions
+==================================================
+
+Handle:
+
+- dropped transactions
+- replaced transactions
+- cancelled transactions
+- missing receipts
+- expired mempool entries
+
+Do not automatically rebroadcast.
+
+Move suspicious withdrawals to MANUAL_REVIEW.
+
+==================================================
+5. Add MANUAL_REVIEW Status
+==================================================
+
+Introduce a new withdrawal status:
+
+MANUAL_REVIEW
+
+Use this when:
+
+- blockchain state is ambiguous
+- confirmation timeout occurs
+- receipt is inconsistent
+- transaction appears replaced
+- recovery cannot safely determine outcome
+
+==================================================
+6. Withdrawal Timeline
+==================================================
+
+Create a withdrawal event log.
+
+Record events such as:
+
+- Created
+- Validated
+- Queued
+- Processing
+- Signed
+- Broadcast
+- Confirming
+- Confirmed
+- Completed
+- Failed
+- Refunded
+- Manual Review
+
+Store:
+
+- event type
+- timestamp
+- optional details
+
+Display this timeline in the admin interface.
+
+==================================================
+7. Admin UI
+==================================================
+
+Enhance Withdrawal Queue.
+
+Show:
+
+- Current confirmations
+- Required confirmations
+- Confirmation progress
+- Confirmation block
+- Timeline
+- Manual Review badge when applicable
+
+==================================================
+8. Recovery Safety
+==================================================
+
+Never broadcast another transaction for a withdrawal that already has:
+
+- txHash
+- idempotencyKey
+
+Recovery workers must always inspect the blockchain first.
+
+==================================================
+9. Logging
+==================================================
+
+Log:
+
+- confirmation polling
+- recovery scans
+- confirmation count updates
+- blockchain inconsistencies
+- recovery decisions
+- manual review transitions
+
+==================================================
+10. Restrictions
+==================================================
+
+Do not modify transaction signing or broadcasting.
+
+Do not introduce new blockchain networks.
+
+Do not rebroadcast automatically.
+
+Expected Outcome:
+
+- Every broadcast withdrawal is tracked until completion.
+- Server crashes do not interrupt processing.
+- Duplicate broadcasts are impossible.
+- Confirmation progress is visible.
+- Ambiguous blockchain situations are safely isolated using MANUAL_REVIEW.
+- Administrators have a complete timeline for every withdrawal.

@@ -16,6 +16,7 @@ const ACTIVE_QUEUE_STATUSES = [
   "SIGNED",
   "BROADCASTING",
   "CONFIRMING",
+  "MANUAL_REVIEW",
 ] as const;
 
 export async function getQueueItems() {
@@ -38,6 +39,9 @@ export async function getQueueItems() {
       broadcastAt:           true,
       requestedAt:           true,
       processedAt:           true,
+      confirmationBlock:     true,
+      confirmationCount:     true,
+      failureReason:         true,
       createdAt:             true,
       user: { select: { id: true, username: true, email: true, firstName: true, lastName: true } },
     },

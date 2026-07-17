@@ -5,6 +5,7 @@ import { runOrbitCycle } from "../binary/orbit.engine";
 import { runSalaryCycle } from "../salary";
 import { processTransferReleases } from "./transfer.engine";
 import { APP_TIMEZONE } from "../config/timezone";
+import { startWithdrawalConfirmationPoller } from "../withdrawals/withdrawal-confirmation.service";
 
 const CYCLE_MS = 12 * 60 * 60 * 1000; // 12 hours in ms
 
@@ -52,6 +53,11 @@ export function startScheduler(): void {
   // processing, so duplicate runs within a minute window are harmless.
   void runTransferReleases();
   setInterval(() => void runTransferReleases(), 60 * 60 * 1000);
+
+  // ── Withdrawal confirmation poller ─────────────────────────────────────────
+  // Polls every 30 seconds for CONFIRMING withdrawals and advances them to
+  // COMPLETED once BSC_CONFIRMATIONS_REQUIRED is met.
+  startWithdrawalConfirmationPoller();
 
   // ── Monthly salary cron (1st of month, 00:00 London) ──────────────────────
   //

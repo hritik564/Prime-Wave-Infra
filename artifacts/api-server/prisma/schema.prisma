@@ -62,6 +62,7 @@ enum WithdrawalStatus {
   SIGNED
   BROADCASTING
   CONFIRMING
+  MANUAL_REVIEW
   APPROVED
   COMPLETED
   FAILED
@@ -763,18 +764,44 @@ model WithdrawalRequest {
   cancelledAt             DateTime?
   approvedAt              DateTime?
   completedAt             DateTime?
+  confirmationBlock       Int?
+  confirmationCount       Int?
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @updatedAt
 
   user      User   @relation(fields: [userId],             references: [id], onDelete: Restrict)
   approver  Admin? @relation("WithdrawalApprover",  fields: [approvedByAdminId],  references: [id], onDelete: SetNull)
   completer Admin? @relation("WithdrawalCompleter", fields: [completedByAdminId], references: [id], onDelete: SetNull)
+  events    WithdrawalEvent[]
 
   @@index([userId])
   @@index([status])
   @@index([network])
   @@index([createdAt])
   @@map("withdrawal_requests")
+}
+
+// ── Withdrawal Event Log ───────────────────────────────────────────────────────
+//
+// Append-only timeline of state transitions and notable events for each
+// withdrawal request.  Used by admin UI to show a full audit trail.
+//
+// eventType examples: CREATED, VALIDATED, QUEUED, PROCESSING, SIGNED,
+//   BROADCAST, CONFIRMING, CONFIRMED, COMPLETED, FAILED, REFUNDED,
+//   MANUAL_REVIEW, RECOVERY_SCAN, CONFIRMATION_POLL
+
+model WithdrawalEvent {
+  id           String   @id @default(cuid())
+  withdrawalId String
+  eventType    String
+  details      Json?
+  createdAt    DateTime @default(now())
+
+  withdrawal WithdrawalRequest @relation(fields: [withdrawalId], references: [id], onDelete: Cascade)
+
+  @@index([withdrawalId])
+  @@index([createdAt])
+  @@map("withdrawal_events")
 }
 
 model WalletAddress {

@@ -37,6 +37,7 @@ import {
   updateAdminWithdrawalSettingsHandler,
   getWithdrawalQueueHandler,
   triggerProcessQueueHandler,
+  getWithdrawalEventsHandler,
 } from "./admin-withdrawals.controller";
 import {
   getDashboardHandler,
@@ -587,6 +588,13 @@ router.patch(
   withdrawalAdminGuard,
   validate(updateWithdrawalNotesSchema),
   updateWithdrawalNotesHandler,
+);
+
+router.get(
+  "/withdrawals/:id/events",
+  adminLimiter,
+  withdrawalAdminGuard,
+  getWithdrawalEventsHandler,
 );
 
 // ── Plans & Compensation Configuration ───────────────────────────────────────

@@ -15,6 +15,7 @@ import {
 import { getWithdrawalSettingsPublic, updateWithdrawalSettings } from "../withdrawals/withdrawals.service";
 import { getQueueItems } from "../withdrawals/withdrawal-queue.service";
 import { processPendingWithdrawals } from "../withdrawals/withdrawal-processor.service";
+import { getWithdrawalEvents } from "../withdrawals/withdrawal-events.service";
 import type {
   AdminWithdrawalListQuery,
   ApproveWithdrawalInput,
@@ -148,5 +149,15 @@ export async function triggerProcessQueueHandler(
   try {
     const result = await processPendingWithdrawals();
     sendSuccess(res, result, "Queue processing complete");
+  } catch (err) { next(err); }
+}
+
+export async function getWithdrawalEventsHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const withdrawalId = String(req.params["id"] ?? "");
+    const result       = await getWithdrawalEvents(withdrawalId);
+    sendSuccess(res, result, "Withdrawal events retrieved");
   } catch (err) { next(err); }
 }
