@@ -16,6 +16,11 @@ import { getWithdrawalSettingsPublic, updateWithdrawalSettings } from "../withdr
 import { getQueueItems } from "../withdrawals/withdrawal-queue.service";
 import { processPendingWithdrawals } from "../withdrawals/withdrawal-processor.service";
 import { getWithdrawalEvents } from "../withdrawals/withdrawal-events.service";
+import {
+  getWithdrawalEngineStatus,
+  setWithdrawalEngineEnabled,
+} from "../withdrawals/withdrawal-engine.service";
+import { getOperationalHealth } from "../withdrawals/withdrawal-operational-health.service";
 import type {
   AdminWithdrawalListQuery,
   ApproveWithdrawalInput,
@@ -159,5 +164,39 @@ export async function getWithdrawalEventsHandler(
     const withdrawalId = String(req.params["id"] ?? "");
     const result       = await getWithdrawalEvents(withdrawalId);
     sendSuccess(res, result, "Withdrawal events retrieved");
+  } catch (err) { next(err); }
+}
+
+export async function getWithdrawalEngineStatusHandler(
+  _req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const result = await getWithdrawalEngineStatus();
+    sendSuccess(res, result, "Withdrawal engine status retrieved");
+  } catch (err) { next(err); }
+}
+
+export async function setWithdrawalEngineStatusHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user }  = req as AuthenticatedRequest;
+    const { enabled } = req.body as { enabled: boolean };
+    if (typeof enabled !== "boolean") {
+      res.status(400).json({ success: false, message: "enabled must be a boolean" });
+      return;
+    }
+    await setWithdrawalEngineEnabled(enabled, user.sub);
+    const status = await getWithdrawalEngineStatus();
+    sendSuccess(res, status, `Withdrawal engine ${enabled ? "enabled" : "disabled"}`);
+  } catch (err) { next(err); }
+}
+
+export async function getWithdrawalOperationalHealthHandler(
+  _req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const result = await getOperationalHealth();
+    sendSuccess(res, result, "Operational health retrieved");
   } catch (err) { next(err); }
 }

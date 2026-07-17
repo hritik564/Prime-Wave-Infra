@@ -42,6 +42,7 @@ export async function getQueueItems() {
       confirmationBlock:     true,
       confirmationCount:     true,
       failureReason:         true,
+      explorerUrl:           true,
       createdAt:             true,
       user: { select: { id: true, username: true, email: true, firstName: true, lastName: true } },
     },

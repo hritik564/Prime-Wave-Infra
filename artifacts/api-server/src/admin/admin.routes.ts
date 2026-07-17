@@ -38,6 +38,9 @@ import {
   getWithdrawalQueueHandler,
   triggerProcessQueueHandler,
   getWithdrawalEventsHandler,
+  getWithdrawalEngineStatusHandler,
+  setWithdrawalEngineStatusHandler,
+  getWithdrawalOperationalHealthHandler,
 } from "./admin-withdrawals.controller";
 import {
   getDashboardHandler,
@@ -498,6 +501,27 @@ router.get(
 
 // ── Withdrawal admin — SUPER_ADMIN and FINANCE_ADMIN only ─────────────────────
 const withdrawalAdminGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN");
+
+router.get(
+  "/withdrawals/operational-health",
+  adminLimiter,
+  withdrawalAdminGuard,
+  getWithdrawalOperationalHealthHandler,
+);
+
+router.get(
+  "/withdrawals/engine",
+  adminLimiter,
+  withdrawalAdminGuard,
+  getWithdrawalEngineStatusHandler,
+);
+
+router.post(
+  "/withdrawals/engine",
+  adminLimiter,
+  superAdminGuard,
+  setWithdrawalEngineStatusHandler,
+);
 
 router.get(
   "/withdrawals/settings",

@@ -174,6 +174,8 @@ async function completeWithdrawal(
   txHash:            string,
   logId:             string,
 ): Promise<void> {
+  const explorerUrl = `https://bscscan.com/tx/${txHash}`;
+
   await prisma.withdrawalRequest.update({
     where: { id },
     data: {
@@ -181,6 +183,7 @@ async function completeWithdrawal(
       completedAt:       new Date(),
       confirmationBlock,
       confirmationCount,
+      explorerUrl,
     },
   });
 

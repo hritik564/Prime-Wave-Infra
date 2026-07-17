@@ -1739,6 +1739,7 @@ export interface WithdrawalQueueItem {
   confirmationBlock:     number | null;
   confirmationCount:     number | null;
   failureReason:         string | null;
+  explorerUrl:           string | null;
   createdAt:             string;
   user: { id: string; username: string; email: string; firstName: string; lastName: string };
 }
@@ -1766,6 +1767,71 @@ export function getWithdrawalQueue() {
 
 export function triggerProcessQueue() {
   return request<ProcessQueueResult>("/api/admin/withdrawals/process-queue", { method: "POST" });
+}
+
+/* ── Withdrawal Engine & Operational Health (Sprint 31E) ──────────── */
+
+export interface WithdrawalEngineStatus {
+  enabled:     boolean;
+  description: string;
+}
+
+export function getWithdrawalEngineStatus() {
+  return request<WithdrawalEngineStatus>("/api/admin/withdrawals/engine");
+}
+
+export function setWithdrawalEngineStatus(enabled: boolean) {
+  return request<WithdrawalEngineStatus>("/api/admin/withdrawals/engine", {
+    method: "POST",
+    body: JSON.stringify({ enabled }),
+  });
+}
+
+export interface HotWalletStatus {
+  configured:      boolean;
+  address:         string | null;
+  bnbBalance:      string | null;
+  usdtBalance:     string | null;
+  gasPriceGwei:    string | null;
+  bnbSufficient:   boolean;
+  usdtSufficient:  boolean;
+  isSufficient:    boolean;
+  minBnbRequired:  string;
+  minUsdtRequired: string;
+  alerts:          string[];
+  checkedAt:       string;
+}
+
+export interface WithdrawalQueueStats {
+  waiting:      number;
+  eligible:     number;
+  validating:   number;
+  queued:       number;
+  processing:   number;
+  signed:       number;
+  broadcasting: number;
+  confirming:   number;
+  manualReview: number;
+  total:        number;
+}
+
+export interface OperationalHealthAlert {
+  level:   "error" | "warning" | "info";
+  code:    string;
+  message: string;
+}
+
+export interface OperationalHealth {
+  engine:        WithdrawalEngineStatus;
+  hotWallet:     HotWalletStatus;
+  queue:         WithdrawalQueueStats;
+  lastProcessed: { id: string; withdrawalId: string | null; amount: string; completedAt: string } | null;
+  alerts:        OperationalHealthAlert[];
+  snapshotAt:    string;
+}
+
+export function getOperationalHealth() {
+  return request<OperationalHealth>("/api/admin/withdrawals/operational-health");
 }
 
 /* ── Admin Wallet Control Center ──────────────────────────────────── */

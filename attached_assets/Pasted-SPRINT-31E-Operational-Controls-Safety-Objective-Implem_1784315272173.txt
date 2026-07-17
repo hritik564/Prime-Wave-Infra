@@ -1,0 +1,169 @@
+SPRINT 31E — Operational Controls & Safety
+
+Objective:
+Implement operational safeguards and administrative controls for the PrimeWave withdrawal engine. This sprint focuses on preventing operational failures, protecting the hot wallet, and giving administrators complete control over withdrawal processing.
+
+==================================================
+1. Withdrawal Hold Period
+==================================================
+
+Introduce a configurable processing delay.
+
+Environment Variable:
+
+WITHDRAWAL_HOLD_MINUTES=2
+
+Workflow:
+
+Withdrawal Created
+↓
+
+Waiting Period
+↓
+
+Eligible for Queue Processing
+
+During the hold period:
+
+- User may cancel the withdrawal.
+- Processor must ignore the request.
+
+==================================================
+2. Withdrawal Risk Limits
+==================================================
+
+Create configurable limits.
+
+Environment Variables:
+
+MAX_SINGLE_WITHDRAWAL
+MAX_DAILY_WITHDRAWAL_PER_USER
+MAX_HOURLY_WITHDRAWALS_PER_USER
+
+If any limit is exceeded:
+
+Move withdrawal to:
+
+MANUAL_REVIEW
+
+Do not reject automatically.
+
+==================================================
+3. Hot Wallet Protection
+==================================================
+
+Continuously monitor:
+
+- BNB balance
+- USDT balance
+
+Configuration:
+
+MIN_HOT_WALLET_BNB
+MIN_HOT_WALLET_USDT
+
+If either threshold is crossed:
+
+- Pause automatic processing.
+- Raise administrator alerts.
+- Keep accepting withdrawal requests but do not process them.
+
+==================================================
+4. Global Withdrawal Engine Switch
+==================================================
+
+Add a system configuration:
+
+Withdrawal Engine
+
+ON
+OFF
+
+When OFF:
+
+- New withdrawals may still be submitted.
+- Queue processing is suspended.
+- Confirmation monitoring continues.
+- Recovery services continue.
+
+==================================================
+5. Explorer Integration
+==================================================
+
+For completed withdrawals:
+
+Store:
+
+- Blockchain Explorer URL
+
+Display in admin UI:
+
+- Open transaction on BSCScan
+
+==================================================
+6. Dashboard Enhancements
+==================================================
+
+Create an Operational Health dashboard.
+
+Display:
+
+- Engine Status
+- Queue Size
+- Waiting Withdrawals
+- Processing Withdrawals
+- Confirming Withdrawals
+- Manual Review Count
+- Hot Wallet BNB
+- Hot Wallet USDT
+- Last Processed Withdrawal
+- Current Gas Price
+
+==================================================
+7. Alerting
+==================================================
+
+Generate alerts for:
+
+- Low BNB
+- Low USDT
+- Queue paused
+- Excessive Manual Review items
+- Confirmation delays
+- Processor stopped
+
+Alerts should appear in the admin interface.
+
+==================================================
+8. Logging
+==================================================
+
+Log:
+
+- Queue pause/resume
+- Hold period expiration
+- Risk limit triggers
+- Wallet threshold events
+- Engine state changes
+
+==================================================
+9. Restrictions
+==================================================
+
+Do not modify:
+
+- Blockchain Gateway
+- Signing
+- Broadcasting
+- Confirmation polling
+- Recovery engine
+
+This sprint focuses entirely on operational safety.
+
+Expected Outcome:
+
+- Withdrawal engine can be paused safely.
+- Hot wallet depletion cannot silently break withdrawals.
+- Risky withdrawals are isolated automatically.
+- Operational dashboard provides complete system visibility.
+- Administrators have full control over withdrawal processing without affecting existing blockchain functionality.

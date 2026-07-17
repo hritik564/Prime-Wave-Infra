@@ -34,6 +34,7 @@ const AdminAutoDepositsPage  = lazy(() => import("@/pages/admin/AutoDepositsPage
 const AdminManualCreditPage      = lazy(() => import("@/pages/admin/ManualCreditPage"));
 const AdminCompanyWalletsPage    = lazy(() => import("@/pages/admin/CompanyWalletsPage"));
 const AdminWithdrawalQueuePage   = lazy(() => import("@/pages/admin/WithdrawalQueuePage"));
+const AdminWithdrawalOpsPage     = lazy(() => import("@/pages/admin/WithdrawalOperationalHealthPage"));
 const AdminBlockchainHealthPage  = lazy(() => import("@/pages/admin/BlockchainHealthPage"));
 const AdminBlockchainTesterPage  = lazy(() => import("@/pages/admin/BlockchainTesterPage"));
 import AppLayout from "@/components/layout/AppLayout";
@@ -211,6 +212,9 @@ function AppRoutes() {
       </Route>
       <Route path="/admin/withdrawal-queue">
         <RequireAdmin><Suspense fallback={null}><AdminWithdrawalQueuePage /></Suspense></RequireAdmin>
+      </Route>
+      <Route path="/admin/withdrawal-ops">
+        <RequireAdmin><Suspense fallback={null}><AdminWithdrawalOpsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/wallets">
         <RequireAdmin><Suspense fallback={null}><AdminWalletsPage /></Suspense></RequireAdmin>

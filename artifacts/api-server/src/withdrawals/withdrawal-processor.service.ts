@@ -3,31 +3,68 @@ import { logger } from "../lib/logger";
 import { enqueue, lockForProcessing } from "./withdrawal-queue.service";
 import { getWithdrawalSettings } from "./withdrawals.service";
 import { getWithdrawalGateway, isGatewayConfigured } from "../services/blockchain/blockchain.factory";
-import { GatewayDryRunError, GatewaySigningError, GatewayBroadcastError } from "../services/blockchain/blockchain.interface";
+import { GatewaySigningError, GatewayBroadcastError } from "../services/blockchain/blockchain.interface";
 import type { PreparedTransfer } from "../services/blockchain/blockchain.types";
 import { logWithdrawalEvent } from "./withdrawal-events.service";
+import { moveToManualReview } from "./withdrawal-confirmation.service";
+import { isWithdrawalEngineEnabled } from "./withdrawal-engine.service";
+import { checkHotWalletStatus } from "./withdrawal-hot-wallet.service";
+import { buildExplorerUrl } from "./withdrawal-hot-wallet.service";
 
 /**
- * Withdrawal Processor Service
+ * Withdrawal Processor Service — Sprint 31E
  *
- * Drives the full withdrawal state machine:
- *   PENDING → VALIDATING → QUEUED → PROCESSING → SIGNED → BROADCASTING → CONFIRMING
+ * Added operational controls:
+ *   1. Engine switch  — skip entire batch if engine is disabled
+ *   2. Hot wallet guard — skip batch if BNB or USDT is below minimum thresholds
+ *   3. Hold period    — ignore PENDING withdrawals younger than WITHDRAWAL_HOLD_MINUTES
+ *   4. Risk limits    — large / high-frequency withdrawals → MANUAL_REVIEW (no refund)
  *
- * Balance is deducted permanently only after a valid txHash is received.
- * On any signing or broadcast failure: status → FAILED, funds refunded.
+ * Core state machine remains: PENDING → VALIDATING → QUEUED → PROCESSING →
+ * SIGNED → BROADCASTING → CONFIRMING  (Sprint 31C/D unchanged)
  */
 
 interface ProcessResult {
   processed: number;
   failed:    number;
+  skipped:   number;
   errors:    string[];
+  reason?:   string;
 }
 
 export async function processPendingWithdrawals(): Promise<ProcessResult> {
-  const result: ProcessResult = { processed: 0, failed: 0, errors: [] };
+  const result: ProcessResult = { processed: 0, failed: 0, skipped: 0, errors: [] };
+
+  // ── 1. Engine switch ─────────────────────────────────────────────────────────
+  const engineOn = await isWithdrawalEngineEnabled();
+  if (!engineOn) {
+    logger.info("withdrawal.processor: engine is OFF — batch skipped");
+    return { ...result, skipped: -1, reason: "Withdrawal engine is disabled" };
+  }
+
+  // ── 2. Hot wallet guard ──────────────────────────────────────────────────────
+  const walletStatus = await checkHotWalletStatus();
+  if (walletStatus.configured && !walletStatus.isSufficient) {
+    logger.warn(
+      { alerts: walletStatus.alerts },
+      "withdrawal.processor: hot wallet below threshold — batch paused",
+    );
+    return {
+      ...result,
+      skipped: -1,
+      reason: `Hot wallet insufficient: ${walletStatus.alerts.join("; ")}`,
+    };
+  }
+
+  // ── 3. Hold period filter ────────────────────────────────────────────────────
+  const holdMinutes = parseInt(process.env["WITHDRAWAL_HOLD_MINUTES"] ?? "2", 10);
+  const holdCutoff  = new Date(Date.now() - holdMinutes * 60 * 1_000);
 
   const pending = await prisma.withdrawalRequest.findMany({
-    where:   { status: "PENDING" },
+    where:   {
+      status:      "PENDING",
+      requestedAt: { lte: holdCutoff }, // Only pick up requests past the hold window
+    },
     orderBy: { requestedAt: "asc" },
     select: {
       id:                    true,
@@ -37,10 +74,18 @@ export async function processPendingWithdrawals(): Promise<ProcessResult> {
       amount:                true,
       network:               true,
       walletAddressSnapshot: true,
+      requestedAt:           true,
     },
   });
 
-  logger.info({ count: pending.length }, "withdrawal.processor: starting batch");
+  const waitingCount = await prisma.withdrawalRequest.count({
+    where: { status: "PENDING", requestedAt: { gt: holdCutoff } },
+  });
+
+  logger.info(
+    { count: pending.length, waiting: waitingCount, holdMinutes },
+    "withdrawal.processor: starting batch",
+  );
 
   for (const wr of pending) {
     try {
@@ -54,7 +99,7 @@ export async function processPendingWithdrawals(): Promise<ProcessResult> {
     }
   }
 
-  logger.info(result, "withdrawal.processor: batch complete");
+  logger.info({ ...result, waiting: waitingCount }, "withdrawal.processor: batch complete");
   return result;
 }
 
@@ -66,6 +111,7 @@ async function runSingleWithdrawal(wr: {
   network:               "BEP20";
   walletAddressSnapshot: string;
   idempotencyKey:        string;
+  requestedAt:           Date;
 }): Promise<void> {
   const { id, withdrawalId: wId, idempotencyKey } = wr;
   const logCtx = { withdrawalId: wId ?? id, idempotencyKey };
@@ -76,11 +122,16 @@ async function runSingleWithdrawal(wr: {
   logger.info({ ...logCtx, status: "VALIDATING" }, "withdrawal.processor: validating");
 
   // ── Run validations ──────────────────────────────────────────────────────────
-  const validationError = await validateWithdrawal(wr);
+  const validation = await validateWithdrawal(wr);
 
-  if (validationError) {
-    await failWithdrawal(id, wr.userId, wr.amount as import("@prisma/client").Prisma.Decimal, validationError);
-    logger.warn({ ...logCtx, reason: validationError }, "withdrawal.processor: failed validation");
+  if (validation) {
+    if (validation.action === "manual_review") {
+      await moveToManualReview(id, validation.reason);
+      logger.warn({ ...logCtx, reason: validation.reason }, "withdrawal.processor: risk limit → MANUAL_REVIEW");
+    } else {
+      await failWithdrawal(id, wr.userId, wr.amount as import("@prisma/client").Prisma.Decimal, validation.reason);
+      logger.warn({ ...logCtx, reason: validation.reason }, "withdrawal.processor: failed validation");
+    }
     return;
   }
 
@@ -102,50 +153,130 @@ async function runSingleWithdrawal(wr: {
 
 // ── validateWithdrawal ────────────────────────────────────────────────────────
 
+type ValidationResult =
+  | null
+  | { reason: string; action: "fail" }
+  | { reason: string; action: "manual_review" };
+
 async function validateWithdrawal(wr: {
+  id:                    string;
   userId:                string;
   amount:                object;
   network:               "BEP20";
   walletAddressSnapshot: string;
-}): Promise<string | null> {
+  requestedAt:           Date;
+}): Promise<ValidationResult> {
   const { Prisma } = await import("@prisma/client");
   const amount = wr.amount as import("@prisma/client").Prisma.Decimal;
 
+  // ── User account status ──────────────────────────────────────────────────────
   const user = await prisma.user.findUnique({
     where:  { id: wr.userId },
     select: { status: true },
   });
   if (!user || user.status !== "ACTIVE") {
-    return "User account is not active";
+    return { reason: "User account is not active", action: "fail" };
   }
 
+  // ── Withdrawal settings ──────────────────────────────────────────────────────
   const settings = await getWithdrawalSettings(wr.network);
   if (!settings.isEnabled) {
-    return `Withdrawals are currently disabled for ${wr.network}`;
+    return { reason: `Withdrawals are currently disabled for ${wr.network}`, action: "fail" };
   }
   if (amount.lt(settings.minimumAmount)) {
-    return `Amount is below current minimum of $${settings.minimumAmount.toFixed(2)}`;
+    return {
+      reason: `Amount is below current minimum of $${settings.minimumAmount.toFixed(2)}`,
+      action: "fail",
+    };
   }
   if (amount.gt(settings.maximumAmount)) {
-    return `Amount exceeds current maximum of $${settings.maximumAmount.toFixed(2)}`;
+    return {
+      reason: `Amount exceeds current maximum of $${settings.maximumAmount.toFixed(2)}`,
+      action: "fail",
+    };
   }
 
+  // ── Address verification ─────────────────────────────────────────────────────
   const verifiedAddress = await prisma.walletAddress.findFirst({
     where: { userId: wr.userId, network: wr.network, address: wr.walletAddressSnapshot, isVerified: true },
   });
   if (!verifiedAddress) {
-    return "Wallet address is no longer verified on this account";
+    return { reason: "Wallet address is no longer verified on this account", action: "fail" };
   }
 
+  // ── Locked balance ───────────────────────────────────────────────────────────
   const wallet = await prisma.wallet.findUnique({
     where:  { userId: wr.userId },
     select: { lockedWithdrawalBalance: true },
   });
   if (!wallet || wallet.lockedWithdrawalBalance.lt(amount)) {
-    return "Insufficient locked balance for this withdrawal";
+    return { reason: "Insufficient locked balance for this withdrawal", action: "fail" };
   }
 
-  void Prisma; // satisfy lint
+  // ── Risk limits → MANUAL_REVIEW ─────────────────────────────────────────────
+
+  // 1. Single withdrawal cap
+  const maxSingle = process.env["MAX_SINGLE_WITHDRAWAL"];
+  if (maxSingle) {
+    const cap = parseFloat(maxSingle);
+    if (Number.isFinite(cap) && amount.gt(new Prisma.Decimal(cap))) {
+      return {
+        reason: `Withdrawal amount $${amount.toFixed(2)} exceeds single-withdrawal risk limit of $${cap.toFixed(2)}`,
+        action: "manual_review",
+      };
+    }
+  }
+
+  // 2. Daily per-user cap (last 24 hours, non-terminal statuses)
+  const maxDaily = process.env["MAX_DAILY_WITHDRAWAL_PER_USER"];
+  if (maxDaily) {
+    const cap     = parseFloat(maxDaily);
+    const since24 = new Date(Date.now() - 24 * 60 * 60 * 1_000);
+    if (Number.isFinite(cap)) {
+      const dailyAgg = await prisma.withdrawalRequest.aggregate({
+        where: {
+          userId:     wr.userId,
+          id:         { not: wr.id },  // exclude self
+          createdAt:  { gte: since24 },
+          status:     { notIn: ["FAILED", "REJECTED", "CANCELLED"] },
+        },
+        _sum: { amount: true },
+      });
+      const dailyTotal = parseFloat((dailyAgg._sum.amount ?? "0").toString());
+      const combined   = dailyTotal + parseFloat(amount.toString());
+      if (combined > cap) {
+        return {
+          reason: `Daily withdrawal total $${combined.toFixed(2)} would exceed per-user risk limit of $${cap.toFixed(2)}`,
+          action: "manual_review",
+        };
+      }
+    }
+  }
+
+  // 3. Hourly request count cap
+  const maxHourly = process.env["MAX_HOURLY_WITHDRAWALS_PER_USER"];
+  if (maxHourly) {
+    const cap    = parseInt(maxHourly, 10);
+    const since1 = new Date(Date.now() - 60 * 60 * 1_000);
+    if (Number.isFinite(cap)) {
+      const hourlyCount = await prisma.withdrawalRequest.count({
+        where: {
+          userId:    wr.userId,
+          id:        { not: wr.id },  // exclude self
+          createdAt: { gte: since1 },
+          status:    { notIn: ["FAILED", "REJECTED", "CANCELLED"] },
+        },
+      });
+      if (hourlyCount >= cap) {
+        return {
+          reason: `Hourly withdrawal count (${hourlyCount + 1}) exceeds per-user risk limit of ${cap} per hour`,
+          action: "manual_review",
+        };
+      }
+    }
+  }
+
+  void Prisma;
   return null;
 }
 
@@ -226,13 +357,6 @@ async function prepareBlockchainTransfer(
 }
 
 // ── signAndBroadcastWithdrawal ────────────────────────────────────────────────
-//
-// Concurrency guard: reads the current DB status inside a raw SELECT FOR UPDATE
-// so that two concurrent processor instances cannot both proceed on the same row.
-// Signing happens outside the DB transaction (avoids holding a DB connection
-// open during RPC calls), but the final commit re-checks status before writing.
-//
-// Balance is deducted only if a valid txHash is returned from the gateway.
 
 async function signAndBroadcastWithdrawal(
   id:      string,
@@ -281,7 +405,6 @@ async function signAndBroadcastWithdrawal(
     if (row?.preparedTxData) {
       preparedTx = row.preparedTxData as unknown as PreparedTransfer;
     } else {
-      // Prepare fresh
       const { Prisma } = await import("@prisma/client");
       const amountStr  = (wr.amount as import("@prisma/client").Prisma.Decimal).toFixed(8);
       void Prisma;
@@ -308,7 +431,6 @@ async function signAndBroadcastWithdrawal(
   let broadcastAt: Date;
   let nonce:       number;
 
-  // Mark SIGNED before signing (optimistic — sign starts now)
   await prisma.withdrawalRequest.update({
     where: { id },
     data:  { status: "SIGNED", signedAt: new Date() },
@@ -317,7 +439,6 @@ async function signAndBroadcastWithdrawal(
   logger.info({ ...logCtx, status: "SIGNED" }, "withdrawal.processor: signing started");
 
   try {
-    // Mark BROADCASTING before sending to chain
     await prisma.withdrawalRequest.update({
       where: { id },
       data:  { status: "BROADCASTING" },
@@ -344,11 +465,11 @@ async function signAndBroadcastWithdrawal(
     return;
   }
 
-  // ── txHash received — deduct balance + transition to CONFIRMING ──────────────
-  logger.info({ ...logCtx, txHash, nonce }, "withdrawal.processor: txHash received — committing");
+  // ── txHash received — build explorer URL + deduct balance + CONFIRMING ───────
+  const explorerUrl = buildExplorerUrl(txHash);
+  logger.info({ ...logCtx, txHash, nonce, explorerUrl }, "withdrawal.processor: txHash received — committing");
 
   await prisma.$transaction(async (tx) => {
-    // Final status check before committing (second line of concurrency defence)
     const current = await tx.withdrawalRequest.findUnique({
       where:  { id },
       select: { status: true },
@@ -360,18 +481,17 @@ async function signAndBroadcastWithdrawal(
       );
     }
 
-    // Permanently deduct locked balance (balance was locked at request time)
     await tx.wallet.update({
       where: { userId: wr.userId },
       data:  { lockedWithdrawalBalance: { decrement: amount } },
     });
 
-    // Move to CONFIRMING with txHash + timestamps
     await tx.withdrawalRequest.update({
       where: { id },
       data:  {
         status:      "CONFIRMING",
         txHash,
+        explorerUrl,
         signedAt,
         broadcastAt,
         processedAt: broadcastAt,
@@ -379,10 +499,10 @@ async function signAndBroadcastWithdrawal(
     });
   });
 
-  await logWithdrawalEvent(id, "CONFIRMING", { txHash, nonce });
+  await logWithdrawalEvent(id, "CONFIRMING", { txHash, nonce, explorerUrl });
 
   logger.info(
-    { ...logCtx, txHash, nonce, status: "CONFIRMING" },
+    { ...logCtx, txHash, nonce, status: "CONFIRMING", explorerUrl },
     "withdrawal.processor: withdrawal confirmed — awaiting on-chain confirmations",
   );
 }
