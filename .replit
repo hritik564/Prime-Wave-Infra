@@ -30,3 +30,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 BLOCKCHAIN_DRY_RUN = "true"
+HOT_WALLET_ADDRESS = "0xA9A3c4E171636D167D16B2dBE93029f5C3FF0dC7"
