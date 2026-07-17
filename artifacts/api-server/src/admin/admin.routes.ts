@@ -53,6 +53,13 @@ import {
 } from "./admin-users.controller";
 import { walletAdjustmentHandler } from "./admin-wallet-adjustments.controller";
 import {
+  getBlockchainHealthHandler,
+  validateAddressHandler,
+  checkBalanceHandler,
+  estimateGasHandler,
+  simulateTransferHandler,
+} from "./admin-blockchain.controller";
+import {
   getAdminWalletsHandler,
   getAdminWalletStatsHandler,
   getAdminWalletByIdHandler,
@@ -665,5 +672,12 @@ router.use("/deposit-verifications", adminLimiter, financeAdminGuard, adminDepos
 router.post("/scripts/rd-activation",      adminLimiter, superAdminGuard, rdActivationHandler);
 router.post("/scripts/mi-activation",      adminLimiter, superAdminGuard, miActivationHandler);
 router.post("/scripts/reconcile-counters", adminLimiter, superAdminGuard, reconcileCountersHandler);
+
+// ── Blockchain Gateway — SUPER_ADMIN only ─────────────────────────────────────
+router.get( "/blockchain/health",            adminLimiter, superAdminGuard, getBlockchainHealthHandler);
+router.post("/blockchain/validate-address",  adminLimiter, superAdminGuard, validateAddressHandler);
+router.post("/blockchain/check-balance",     adminLimiter, superAdminGuard, checkBalanceHandler);
+router.post("/blockchain/estimate-gas",      adminLimiter, superAdminGuard, estimateGasHandler);
+router.post("/blockchain/simulate",          adminLimiter, superAdminGuard, simulateTransferHandler);
 
 export default router;

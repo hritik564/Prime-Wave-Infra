@@ -6,7 +6,7 @@ import {
   GitBranch, Zap, Package, BarChart2, FileText, Headphones,
   Settings, LogOut, Bell, Search, Activity, Menu, X, Shield,
   ArrowRight, ArrowDownToLine, FlaskConical, Wifi, BadgeDollarSign,
-  ChevronDown, ChevronRight as ChevronRightIcon,
+  ChevronDown, ChevronRight as ChevronRightIcon, Link, FlaskRound,
 } from "lucide-react";
 import { adminSearchUsers, type AdminUserListItem } from "@/lib/api";
 import { SkeletonStyle, Skeleton } from "@/components/admin/Skeleton";
@@ -53,6 +53,13 @@ const NAV_GROUPS: NavGroup[] = [
     label: "PLATFORM",
     items: [
       { icon: Settings,  label: "Company Wallets",path: "/admin/company-wallets" },
+    ],
+  },
+  {
+    label: "BLOCKCHAIN",
+    items: [
+      { icon: Link,       label: "Chain Health",  path: "/admin/blockchain-health" },
+      { icon: FlaskRound, label: "Chain Tester",  path: "/admin/blockchain-tester" },
     ],
   },
   {

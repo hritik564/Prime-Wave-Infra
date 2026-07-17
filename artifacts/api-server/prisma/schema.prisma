@@ -738,6 +738,7 @@ model WithdrawalRequest {
   id                      String            @id @default(cuid())
   seqId                   Int               @default(autoincrement())
   withdrawalId            String?           @unique
+  idempotencyKey          String            @unique @default(uuid())
   userId                  String
   currency                String            @default("USDT")
   amount                  Decimal           @db.Decimal(18, 8)
@@ -753,6 +754,7 @@ model WithdrawalRequest {
   failureReason           String?
   rejectedReason          String?
   adminNotes              String?
+  preparedTxData          Json?
   requestedAt             DateTime          @default(now())
   processedAt             DateTime?
   cancelledAt             DateTime?

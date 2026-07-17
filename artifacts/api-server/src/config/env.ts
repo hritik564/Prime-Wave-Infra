@@ -7,6 +7,11 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(16),
   JWT_EXPIRES_IN: z.string().default("7d"),
   BCRYPT_ROUNDS: z.string().default("12"),
+
+  // ── Blockchain Gateway (optional — server starts without them) ──────────────
+  HOT_WALLET_ADDRESS:    z.string().optional(),
+  BLOCKCHAIN_DRY_RUN:    z.string().default("true"),
+  // HOT_WALLET_PRIVATE_KEY — Sprint 31C only; intentionally excluded here
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -1,0 +1,194 @@
+SPRINT 31B — Blockchain Gateway & Transaction Engine (Dry Run)
+
+Objective:
+Build the blockchain infrastructure for PrimeWave withdrawals using a modular Blockchain Gateway architecture. This sprint must NOT send real blockchain transactions. The goal is to verify blockchain connectivity, wallet balances, gas estimation, transaction preparation, and system architecture while keeping all withdrawals in Dry Run mode.
+
+Requirements:
+
+==================================================
+1. Blockchain Gateway Architecture
+==================================================
+
+Create a dedicated blockchain module.
+
+Suggested structure:
+
+services/blockchain/
+├── blockchain.interface.ts
+├── blockchain.factory.ts
+├── blockchain.types.ts
+├── blockchain.constants.ts
+└── bsc.service.ts
+
+The withdrawal processor must never communicate directly with ethers.js or any blockchain SDK.
+
+All blockchain operations must pass through the Blockchain Gateway.
+
+==================================================
+2. Blockchain Interface
+==================================================
+
+Create a common interface exposing the following methods:
+
+- validateAddress()
+- getNativeBalance()
+- getTokenBalance()
+- estimateFee()
+- prepareTransfer()
+- broadcastTransfer() (stub only)
+- getTransaction()
+- waitForConfirmations()
+
+The interface should be reusable for future support of TRON, Ethereum, Polygon, etc.
+
+==================================================
+3. BSC Service
+==================================================
+
+Implement Binance Smart Chain support.
+
+Capabilities:
+
+- Connect to configured RPC
+- Validate BEP20 wallet addresses
+- Read hot wallet BNB balance
+- Read hot wallet USDT balance
+- Estimate gas fees
+- Prepare BEP20 USDT transfer
+
+Do NOT broadcast any transactions.
+
+Do NOT sign transactions.
+
+==================================================
+4. Environment Variables
+==================================================
+
+Add:
+
+BSC_RPC_URL=
+HOT_WALLET_ADDRESS=
+HOT_WALLET_PRIVATE_KEY=
+USDT_CONTRACT=
+CHAIN_ID=
+BLOCKCHAIN_DRY_RUN=true
+
+The private key must never be stored in the database or exposed to the frontend.
+
+==================================================
+5. Dry Run Transaction Preparation
+==================================================
+
+When the withdrawal processor reaches PROCESSING:
+
+Call prepareTransfer().
+
+Return data similar to:
+
+{
+  from,
+  to,
+  amount,
+  estimatedGas,
+  gasPrice,
+  estimatedFee,
+  serializedTransaction
+}
+
+No blockchain transaction should be signed or broadcast.
+
+==================================================
+6. Idempotency Key
+==================================================
+
+Add an immutable UUID field named idempotencyKey to every withdrawal request.
+
+Generate it when the withdrawal is created.
+
+Future blockchain broadcasts must always check this key before processing to prevent duplicate payouts.
+
+Do not yet broadcast transactions in this sprint.
+
+==================================================
+7. Blockchain Health API
+==================================================
+
+Create endpoints to expose:
+
+- RPC connection status
+- Current network
+- Latest block number
+- Hot wallet address
+- Hot wallet BNB balance
+- Hot wallet USDT balance
+- Current gas price
+
+==================================================
+8. Admin Blockchain Health Page
+==================================================
+
+Create a new admin page:
+
+Blockchain Health
+
+Display:
+
+- Connected / Disconnected
+- RPC URL (masked if necessary)
+- Network Name
+- Latest Block
+- Hot Wallet Address
+- BNB Balance
+- USDT Balance
+- Average Gas Price
+
+==================================================
+9. Admin Blockchain Tester
+==================================================
+
+Create a testing page allowing administrators to:
+
+- Validate a BEP20 address
+- Check any wallet balance
+- Estimate gas for a transfer
+- Simulate a withdrawal transaction
+
+No transaction should ever be signed or broadcast.
+
+==================================================
+10. Logging
+==================================================
+
+Log every blockchain interaction including:
+
+- RPC latency
+- RPC failures
+- Gas estimation
+- Address validation
+- Wallet balance queries
+- Transaction preparation
+
+==================================================
+11. Important Restrictions
+==================================================
+
+DO NOT:
+
+- Broadcast transactions
+- Sign transactions
+- Deduct user balances permanently
+- Complete withdrawals
+- Send any USDT
+
+This sprint is strictly for building and validating the blockchain infrastructure in Dry Run mode.
+
+Expected Outcome:
+
+- Blockchain Gateway fully implemented.
+- Withdrawal processor integrated with the gateway.
+- BSC connectivity verified.
+- Gas estimation working.
+- Hot wallet monitoring available.
+- Transaction preparation functioning.
+- Dry Run mode successfully simulates complete withdrawals without sending funds.
+- Architecture ready for Sprint 31C, where secure transaction signing and broadcasting will be implemented.

@@ -2589,3 +2589,113 @@ export async function adminUpdateCompanyWallet(id: string, data: { walletAddress
   });
   return res.wallet;
 }
+
+// ── Blockchain Gateway ────────────────────────────────────────────────────────
+
+export interface BlockchainNetworkHealth {
+  connected:        boolean;
+  network:          string;
+  chainId:          number;
+  latestBlock:      number | null;
+  hotWalletAddress: string | null;
+  bnbBalance:       string | null;
+  usdtBalance:      string | null;
+  gasPriceGwei:     string | null;
+  rpcLatencyMs:     number | null;
+  dryRunMode:       boolean;
+  checkedAt:        string;
+  error?:           string;
+}
+
+export interface BlockchainHealth {
+  configured: boolean;
+  message?:   string;
+  networks:   BlockchainNetworkHealth[];
+}
+
+export async function getBlockchainHealth(): Promise<BlockchainHealth> {
+  return request<BlockchainHealth>("/api/admin/blockchain/health");
+}
+
+export interface BlockchainAddressValidation {
+  address:    string;
+  valid:      boolean;
+  checksumOk: boolean;
+  reason?:    string;
+}
+
+export async function blockchainValidateAddress(
+  address: string,
+  network = "BEP20",
+): Promise<BlockchainAddressValidation> {
+  return request<BlockchainAddressValidation>("/api/admin/blockchain/validate-address", {
+    method: "POST",
+    body: JSON.stringify({ address, network }),
+  });
+}
+
+export interface BlockchainTokenBalance { raw: string; formatted: string; symbol: string }
+export interface BlockchainBalanceResult {
+  address: string;
+  network: string;
+  native:  BlockchainTokenBalance;
+  token:   BlockchainTokenBalance;
+}
+
+export async function blockchainCheckBalance(
+  address: string,
+  network = "BEP20",
+): Promise<BlockchainBalanceResult> {
+  return request<BlockchainBalanceResult>("/api/admin/blockchain/check-balance", {
+    method: "POST",
+    body: JSON.stringify({ address, network }),
+  });
+}
+
+export interface BlockchainGasEstimate {
+  to:              string;
+  amount:          string;
+  network:         string;
+  estimatedGas:    string;
+  gasPriceGwei:    string;
+  estimatedFeeBnb: string;
+  estimatedFeeUsd: string;
+}
+
+export async function blockchainEstimateGas(
+  to: string,
+  amount: string,
+  network = "BEP20",
+): Promise<BlockchainGasEstimate> {
+  return request<BlockchainGasEstimate>("/api/admin/blockchain/estimate-gas", {
+    method: "POST",
+    body: JSON.stringify({ to, amount, network }),
+  });
+}
+
+export interface BlockchainSimulateResult {
+  network:         string;
+  from:            string;
+  to:              string;
+  tokenContract:   string;
+  amount:          string;
+  calldata:        string;
+  estimatedGas:    string;
+  gasPriceGwei:    string;
+  estimatedFeeBnb: string;
+  chainId:         number;
+  nonce:           number;
+  dryRun:          true;
+}
+
+export async function blockchainSimulate(
+  to: string,
+  amount: string,
+  withdrawalId?: string,
+  network = "BEP20",
+): Promise<BlockchainSimulateResult> {
+  return request<BlockchainSimulateResult>("/api/admin/blockchain/simulate", {
+    method: "POST",
+    body: JSON.stringify({ to, amount, withdrawalId, network }),
+  });
+}

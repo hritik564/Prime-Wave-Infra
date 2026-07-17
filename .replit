@@ -27,3 +27,6 @@ channel = "stable-25_05"
 [userenv.production]
 
 [userenv.development]
+
+[userenv.shared]
+BLOCKCHAIN_DRY_RUN = "true"
