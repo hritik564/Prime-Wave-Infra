@@ -1,0 +1,107 @@
+SPRINT 31A — Withdrawal Foundation
+
+Objective:
+Build the complete withdrawal infrastructure for PrimeWave without integrating blockchain transactions yet. This sprint establishes the database schema, APIs, services, queue, validation, and admin interface. No USDT should be sent in this sprint.
+
+Requirements:
+
+1. Create a new WithdrawalRequest model with fields:
+- id
+- withdrawalId (human-readable unique ID like PW-WD-000001)
+- userId
+- walletAddress
+- network
+- currency (default USDT)
+- amount
+- fee
+- netAmount
+- status
+- txHash (nullable)
+- failureReason (nullable)
+- requestedAt
+- processedAt (nullable)
+- completedAt (nullable)
+- createdAt
+- updatedAt
+
+2. Implement withdrawal statuses:
+- PENDING
+- VALIDATING
+- QUEUED
+- PROCESSING
+- BROADCASTING
+- CONFIRMING
+- COMPLETED
+- FAILED
+- REJECTED
+- CANCELLED
+
+3. Create a WalletAddress model:
+- id
+- userId
+- network
+- address
+- isVerified
+- isPrimary
+- createdAt
+- updatedAt
+
+Do not store blockchain addresses directly in the User table.
+
+4. Build withdrawal.service.ts responsible for:
+- Creating withdrawal requests
+- Validating requests
+- Checking withdrawal wallet balance
+- Preventing duplicate pending withdrawals
+- Cancelling withdrawals
+- Rejecting withdrawals
+- Completing withdrawals (stub only)
+
+5. Build withdrawal-queue.service.ts:
+- Accept validated requests
+- Move requests to QUEUED
+- Lock jobs for processing
+- No blockchain interaction
+
+6. Build withdrawal-processor.service.ts:
+Current workflow only:
+PENDING → VALIDATING → QUEUED → PROCESSING
+
+Stop after PROCESSING.
+Do not integrate blockchain.
+
+7. APIs:
+POST /withdraw
+GET /withdraw/history
+GET /withdraw/:id
+POST /withdraw/cancel
+
+8. Validation rules:
+- User account must be ACTIVE
+- User must have a verified wallet address
+- Withdrawal wallet balance must be sufficient
+- Minimum withdrawal amount must be respected
+- Prevent multiple pending withdrawals
+- Reject suspended or blocked users
+
+9. Admin:
+Create a Withdrawal Queue page showing:
+- Withdrawal ID
+- Username
+- Amount
+- Fee
+- Net Amount
+- Network
+- Wallet Address
+- Status
+- Created Time
+- Available Actions
+
+10. Logging:
+Log every status transition and validation failure for auditing.
+
+Important:
+- Do not integrate Web3, ethers.js, or blockchain RPC.
+- Do not broadcast transactions.
+- Do not manage private keys.
+- Focus on creating a robust, auditable withdrawal workflow that will later connect to the blockchain layer.

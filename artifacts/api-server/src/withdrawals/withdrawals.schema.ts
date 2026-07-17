@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 export const WITHDRAWAL_NETWORKS = ["BEP20"] as const;
-export const WITHDRAWAL_STATUSES = ["PENDING", "APPROVED", "COMPLETED", "REJECTED", "CANCELLED"] as const;
+export const WITHDRAWAL_STATUSES = [
+  "PENDING", "VALIDATING", "QUEUED", "PROCESSING",
+  "BROADCASTING", "CONFIRMING", "APPROVED", "COMPLETED",
+  "FAILED", "REJECTED", "CANCELLED",
+] as const;
 
 // ── User schemas ──────────────────────────────────────────────────────────────
 

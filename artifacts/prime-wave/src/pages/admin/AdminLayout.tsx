@@ -38,6 +38,7 @@ const NAV_GROUPS: NavGroup[] = [
       { icon: Wifi,            label: "Auto Deposits",  path: "/admin/auto-deposits" },
       { icon: BadgeDollarSign, label: "Manual Credit",  path: "/admin/manual-credit" },
       { icon: ArrowDownLeft,   label: "Withdrawals",    path: "/admin/withdrawals" },
+      { icon: Zap,             label: "W. Queue",       path: "/admin/withdrawal-queue" },
       { icon: Wallet,          label: "Wallets",        path: "/admin/wallets" },
     ],
   },

@@ -56,8 +56,14 @@ enum WithdrawalNetwork {
 
 enum WithdrawalStatus {
   PENDING
+  VALIDATING
+  QUEUED
+  PROCESSING
+  BROADCASTING
+  CONFIRMING
   APPROVED
   COMPLETED
+  FAILED
   REJECTED
   CANCELLED
 }
@@ -179,6 +185,7 @@ model User {
   notifications        Notification[]
   incomeTransfers      IncomeTransfer[]
   depositVerifications DepositVerification[]
+  walletAddresses      WalletAddress[]
 
   @@map("users")
 }
@@ -708,6 +715,7 @@ model WithdrawalSettings {
   network       WithdrawalNetwork @unique
   minimumAmount Decimal           @db.Decimal(18, 8)
   maximumAmount Decimal           @db.Decimal(18, 8)
+  feePercentage Decimal           @default(0) @db.Decimal(5, 4)
   isEnabled     Boolean           @default(true)
   updatedAt     DateTime          @updatedAt
 
@@ -720,14 +728,21 @@ model WithdrawalSettings {
 // Funds are locked immediately (wallets.lockedWithdrawalBalance += amount,
 //   wallets.withdrawalWallet -= amount).
 //
-// Flow:  PENDING → APPROVED → COMPLETED (txHash required)
+// Flow:  PENDING → VALIDATING → QUEUED → PROCESSING → BROADCASTING → CONFIRMING → COMPLETED
 //        PENDING → CANCELLED  (user-initiated, auto-refund)
 //        PENDING/APPROVED → REJECTED  (admin, auto-refund)
+//        Any pre-COMPLETED state → FAILED (system, auto-refund)
+//        APPROVED (legacy admin-approve) → COMPLETED (txHash required)
 
 model WithdrawalRequest {
   id                      String            @id @default(cuid())
+  seqId                   Int               @default(autoincrement())
+  withdrawalId            String?           @unique
   userId                  String
+  currency                String            @default("USDT")
   amount                  Decimal           @db.Decimal(18, 8)
+  fee                     Decimal           @default(0) @db.Decimal(18, 8)
+  netAmount               Decimal           @db.Decimal(18, 8)
   walletAddress           String
   walletAddressSnapshot   String
   network                 WithdrawalNetwork
@@ -735,8 +750,11 @@ model WithdrawalRequest {
   approvedByAdminId       String?
   completedByAdminId      String?
   txHash                  String?           @unique
+  failureReason           String?
   rejectedReason          String?
   adminNotes              String?
+  requestedAt             DateTime          @default(now())
+  processedAt             DateTime?
   cancelledAt             DateTime?
   approvedAt              DateTime?
   completedAt             DateTime?
@@ -752,6 +770,25 @@ model WithdrawalRequest {
   @@index([network])
   @@index([createdAt])
   @@map("withdrawal_requests")
+}
+
+model WalletAddress {
+  id         String            @id @default(cuid())
+  userId     String
+  network    WithdrawalNetwork
+  address    String
+  label      String?
+  isVerified Boolean           @default(true)
+  isPrimary  Boolean           @default(false)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, network, address])
+  @@index([userId])
+  @@index([network])
+  @@map("wallet_addresses")
 }
 
 // ── Job Execution Log ─────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   ArrowUpFromLine, X, Wallet, Loader2, CheckCircle2,
   GitMerge, RefreshCw, Users, DollarSign, ArrowLeftRight,
-  TrendingUp, Layers, ArrowDownToLine, HelpCircle,
+  TrendingUp, Layers, HelpCircle, Plus, Trash2, Star,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
@@ -13,11 +13,15 @@ import {
   getWallets,
   getWalletHistory,
   getWithdrawalHistory,
-  getProfile,
   createWithdrawal,
   getWithdrawalSettings,
+  listWalletAddresses,
+  addWalletAddress,
+  deleteWalletAddress,
+  setPrimaryWalletAddress,
   type Transaction,
   type WithdrawalRequest,
+  type WalletAddress,
 } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -40,12 +44,18 @@ const TYPE_CONFIG: Record<string, {
   WITHDRAWAL:        { label: "Withdrawal",       color: "#f87171", bg: "rgba(248,113,113,0.1)", Icon: ArrowUpFromLine, credit: false },
 };
 
-const STATUS_CONFIG = {
-  PENDING:   { label: "Pending",   variant: "warning"     as const },
-  APPROVED:  { label: "Approved",  variant: "success"     as const },
-  COMPLETED: { label: "Completed", variant: "success"     as const },
-  REJECTED:  { label: "Rejected",  variant: "destructive" as const },
-  CANCELLED: { label: "Cancelled", variant: "secondary"   as const },
+const STATUS_CONFIG: Record<string, { label: string; variant: "warning" | "success" | "destructive" | "secondary" }> = {
+  PENDING:     { label: "Pending",     variant: "warning"     },
+  VALIDATING:  { label: "Validating",  variant: "warning"     },
+  QUEUED:      { label: "Queued",      variant: "warning"     },
+  PROCESSING:  { label: "Processing",  variant: "warning"     },
+  BROADCASTING:{ label: "Broadcasting",variant: "warning"     },
+  CONFIRMING:  { label: "Confirming",  variant: "warning"     },
+  APPROVED:    { label: "Approved",    variant: "success"     },
+  COMPLETED:   { label: "Completed",   variant: "success"     },
+  FAILED:      { label: "Failed",      variant: "destructive" },
+  REJECTED:    { label: "Rejected",    variant: "destructive" },
+  CANCELLED:   { label: "Cancelled",   variant: "secondary"   },
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -78,18 +88,22 @@ interface ToastItem { id: number; message: string; type: "success" | "error" }
 // ── Withdrawal Modal ───────────────────────────────────────────────────────────
 
 interface WithdrawalModalProps {
-  available: number;
-  walletAddress: string;
-  onClose: () => void;
-  onSuccess: (msg: string) => void;
+  available:       number;
+  addresses:       WalletAddress[];
+  onClose:         () => void;
+  onSuccess:       (msg: string) => void;
 }
 
-function WithdrawalModal({ available, walletAddress, onClose, onSuccess }: WithdrawalModalProps) {
-  const [amount, setAmount]         = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError]           = useState<string | null>(null);
-  const [minWith, setMinWith]       = useState(1);
-  const [settingsMax, setSettingsMax] = useState(500);
+function WithdrawalModal({ available, addresses, onClose, onSuccess }: WithdrawalModalProps) {
+  const verified     = addresses.filter((a) => a.isVerified);
+  const primaryAddr  = verified.find((a) => a.isPrimary) ?? verified[0] ?? null;
+
+  const [selectedAddr, setSelectedAddr] = useState<WalletAddress | null>(primaryAddr);
+  const [amount, setAmount]             = useState("");
+  const [submitting, setSubmitting]     = useState(false);
+  const [error, setError]               = useState<string | null>(null);
+  const [minWith, setMinWith]           = useState(1);
+  const [settingsMax, setSettingsMax]   = useState(2500);
 
   useEffect(() => {
     getWithdrawalSettings()
@@ -97,20 +111,20 @@ function WithdrawalModal({ available, walletAddress, onClose, onSuccess }: Withd
         setMinWith(parseFloat(s.minimumAmount));
         setSettingsMax(parseFloat(s.maximumAmount));
       })
-      .catch(() => { /* keep fallback defaults */ });
+      .catch(() => {});
   }, []);
 
   const num     = parseFloat(amount) || 0;
   const maxWith = Math.min(settingsMax, available);
-  const isValid = num >= minWith && num <= maxWith && !submitting;
+  const isValid = num >= minWith && num <= maxWith && !!selectedAddr && !submitting;
 
   const handleSubmit = async () => {
-    if (!isValid) return;
+    if (!isValid || !selectedAddr) return;
     setSubmitting(true);
     setError(null);
     try {
-      await createWithdrawal({ amount: num, walletAddress, network: "BEP20" });
-      onSuccess(`Withdrawal of ${fmt(num)} submitted. Awaiting admin approval.`);
+      await createWithdrawal({ amount: num, walletAddress: selectedAddr.address, network: "BEP20" });
+      onSuccess(`Withdrawal of ${fmt(num)} submitted successfully.`);
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Submission failed. Please try again.");
@@ -135,7 +149,7 @@ function WithdrawalModal({ available, walletAddress, onClose, onSuccess }: Withd
             </div>
             <div>
               <p className="text-base font-semibold font-heading text-foreground">Request Withdrawal</p>
-              <p className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>BEP20 Network</p>
+              <p className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>BEP20 Network · USDT</p>
             </div>
           </div>
           <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ color: "hsl(var(--muted-foreground))" }}>
@@ -146,15 +160,32 @@ function WithdrawalModal({ available, walletAddress, onClose, onSuccess }: Withd
         <div className="p-5 space-y-4">
           <div>
             <label className="text-xs font-semibold uppercase tracking-widest mb-2 block" style={{ color: "hsl(var(--muted-foreground))" }}>
-              BEP20 Wallet Address
+              Send To (BEP20 Address)
             </label>
-            <div className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: "hsl(var(--input))", border: "1px solid hsl(var(--border))" }}>
-              <Wallet className="h-4 w-4 shrink-0" style={{ color: "hsl(var(--muted-foreground))" }} />
-              <p className="flex-1 font-mono text-xs text-foreground truncate">{walletAddress || "No wallet address on file"}</p>
-            </div>
-            <p className="text-xs mt-1.5" style={{ color: "rgba(170,179,197,0.5)" }}>
-              Funds will be sent to your registered wallet. Update it in Settings.
-            </p>
+            {verified.length === 0 ? (
+              <div className="rounded-xl px-4 py-3 text-xs" style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.25)", color: "#ef4444" }}>
+                No verified wallet addresses on file. Add one below before withdrawing.
+              </div>
+            ) : verified.length === 1 ? (
+              <div className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: "hsl(var(--input))", border: "1px solid hsl(var(--border))" }}>
+                <Wallet className="h-4 w-4 shrink-0" style={{ color: "hsl(var(--muted-foreground))" }} />
+                <p className="flex-1 font-mono text-xs text-foreground truncate">{verified[0].address}</p>
+              </div>
+            ) : (
+              <select
+                value={selectedAddr?.id ?? ""}
+                onChange={(e) => setSelectedAddr(verified.find((a) => a.id === e.target.value) ?? null)}
+                className="w-full rounded-xl px-4 py-3 text-sm font-mono text-foreground outline-none"
+                style={{ background: "hsl(var(--input))", border: "1px solid hsl(var(--border))" }}
+              >
+                {verified.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label ? `${a.label} — ` : ""}{a.address.slice(0, 10)}…{a.address.slice(-6)}
+                    {a.isPrimary ? " (Primary)" : ""}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
@@ -222,28 +253,32 @@ function WithdrawalModal({ available, walletAddress, onClose, onSuccess }: Withd
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function WithdrawalWalletPage() {
-  const { user: _user }           = useAuth(); // retained for potential future use
+  const { user: _user }           = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
   const [balance, setBalance]     = useState<number>(0);
   const [txHistory, setTxHistory] = useState<Transaction[]>([]);
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
+  const [walletAddresses, setWalletAddresses]       = useState<WalletAddress[]>([]);
   const [loading, setLoading]     = useState(true);
   const [toasts, setToasts]       = useState<ToastItem[]>([]);
-
-  const [walletAddress, setWalletAddress] = useState("");
+  const [addAddrOpen, setAddAddrOpen]   = useState(false);
+  const [newAddr, setNewAddr]           = useState("");
+  const [newLabel, setNewLabel]         = useState("");
+  const [addingAddr, setAddingAddr]     = useState(false);
+  const [addrError, setAddrError]       = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [walletData, txData, wrData, profileData] = await Promise.all([
+      const [walletData, txData, wrData, addrData] = await Promise.all([
         getWallets(),
         getWalletHistory({ limit: 50, wallet: "WITHDRAWAL_WALLET" }),
         getWithdrawalHistory({ limit: 50 }),
-        getProfile(),
+        listWalletAddresses("BEP20"),
       ]);
       setBalance(parseFloat(walletData.withdrawalWallet));
       setTxHistory(txData.data);
       setWithdrawalRequests(wrData.data);
-      setWalletAddress(profileData.walletAddress ?? "");
+      setWalletAddresses(addrData);
     } catch {
       // keep whatever we have
     } finally {
@@ -264,7 +299,43 @@ export default function WithdrawalWalletPage() {
     void load();
   }, [showToast, load]);
 
-  // walletAddress is loaded from the profile API in load() — always in sync with Settings
+  const handleAddAddress = async () => {
+    if (!newAddr.trim()) return;
+    setAddingAddr(true);
+    setAddrError(null);
+    try {
+      await addWalletAddress({ network: "BEP20", address: newAddr.trim(), label: newLabel.trim() || undefined });
+      showToast("Wallet address added", "success");
+      setNewAddr("");
+      setNewLabel("");
+      setAddAddrOpen(false);
+      await load();
+    } catch (err: unknown) {
+      setAddrError(err instanceof Error ? err.message : "Failed to add address");
+    } finally {
+      setAddingAddr(false);
+    }
+  };
+
+  const handleDeleteAddress = async (id: string) => {
+    try {
+      await deleteWalletAddress(id);
+      showToast("Address removed", "success");
+      await load();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Failed to remove address", "error");
+    }
+  };
+
+  const handleSetPrimary = async (id: string) => {
+    try {
+      await setPrimaryWalletAddress(id);
+      showToast("Primary address updated", "success");
+      await load();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Failed to update primary", "error");
+    }
+  };
 
   return (
     <AppLayout pageTitle="Wallets" notificationCount={3}>
@@ -277,9 +348,136 @@ export default function WithdrawalWalletPage() {
           description="Funds available for withdrawal to your BEP20 wallet"
         />
 
+        {/* ── Wallet Addresses ───────────────────────────────────────────── */}
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-semibold font-heading text-foreground">BEP20 Withdrawal Addresses</h2>
+            <button
+              onClick={() => setAddAddrOpen((v) => !v)}
+              className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all"
+              style={{ background: "rgba(212,175,55,0.1)", color: "#D4AF37", border: "1px solid rgba(212,175,55,0.2)" }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Address
+            </button>
+          </div>
+
+          {addAddrOpen && (
+            <div className="mb-3 rounded-xl p-4 space-y-3" style={{ background: "hsl(var(--card))", border: "1px solid rgba(212,175,55,0.2)" }}>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-widest mb-1.5 block" style={{ color: "hsl(var(--muted-foreground))" }}>
+                  BEP20 (BSC) Address
+                </label>
+                <input
+                  type="text"
+                  value={newAddr}
+                  onChange={(e) => setNewAddr(e.target.value)}
+                  placeholder="0x..."
+                  className="w-full rounded-xl px-4 py-2.5 text-sm font-mono text-foreground outline-none"
+                  style={{ background: "hsl(var(--input))", border: "1px solid hsl(var(--border))" }}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-widest mb-1.5 block" style={{ color: "hsl(var(--muted-foreground))" }}>
+                  Label (optional)
+                </label>
+                <input
+                  type="text"
+                  value={newLabel}
+                  onChange={(e) => setNewLabel(e.target.value)}
+                  placeholder="e.g. My Binance wallet"
+                  className="w-full rounded-xl px-4 py-2.5 text-sm text-foreground outline-none"
+                  style={{ background: "hsl(var(--input))", border: "1px solid hsl(var(--border))" }}
+                />
+              </div>
+              {addrError && (
+                <p className="text-xs" style={{ color: "#ef4444" }}>{addrError}</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => void handleAddAddress()}
+                  disabled={addingAddr || !newAddr.trim()}
+                  className="flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)", color: "#0E1B37" }}
+                >
+                  {addingAddr ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                  Save Address
+                </button>
+                <button
+                  onClick={() => { setAddAddrOpen(false); setAddrError(null); setNewAddr(""); setNewLabel(""); }}
+                  className="rounded-xl px-4 py-2.5 text-sm"
+                  style={{ background: "rgba(255,255,255,0.05)", color: "hsl(var(--muted-foreground))" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="h-12 flex items-center justify-center">
+              <Loader2 className="h-4 w-4 animate-spin" style={{ color: "#D4AF37" }} />
+            </div>
+          ) : walletAddresses.length === 0 ? (
+            <div className="rounded-xl px-4 py-4 text-center text-xs" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", color: "hsl(var(--muted-foreground))" }}>
+              <Wallet className="h-5 w-5 mx-auto mb-2 opacity-40" style={{ color: "#D4AF37" }} />
+              No BEP20 addresses added yet. Add one to enable withdrawals.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {walletAddresses.map((addr) => (
+                <div
+                  key={addr.id}
+                  className="flex items-center gap-3 rounded-xl px-4 py-3"
+                  style={{
+                    background: addr.isPrimary ? "rgba(212,175,55,0.05)" : "hsl(var(--card))",
+                    border: addr.isPrimary ? "1px solid rgba(212,175,55,0.25)" : "1px solid hsl(var(--border))",
+                  }}
+                >
+                  <div className="flex-1 min-w-0">
+                    {addr.label && <p className="text-xs font-semibold text-foreground">{addr.label}</p>}
+                    <p className="font-mono text-xs truncate" style={{ color: "rgba(170,179,197,0.7)" }}>{addr.address}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {addr.isPrimary && (
+                        <span className="text-xs font-semibold" style={{ color: "#D4AF37" }}>Primary</span>
+                      )}
+                      {addr.isVerified ? (
+                        <span className="text-xs" style={{ color: "#34d399" }}>Verified</span>
+                      ) : (
+                        <span className="text-xs" style={{ color: "#fb923c" }}>Pending verification</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {!addr.isPrimary && addr.isVerified && (
+                      <button
+                        onClick={() => void handleSetPrimary(addr.id)}
+                        className="p-1.5 rounded-lg transition-colors"
+                        style={{ color: "rgba(170,179,197,0.4)" }}
+                        title="Set as primary"
+                      >
+                        <Star className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => void handleDeleteAddress(addr.id)}
+                      className="p-1.5 rounded-lg transition-colors"
+                      style={{ color: "rgba(248,113,113,0.5)" }}
+                      title="Remove address"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <button
           onClick={() => setModalOpen(true)}
-          className="w-full flex items-center justify-center gap-2.5 rounded-2xl font-semibold text-sm mb-5 lg:mb-6 min-h-[56px] transition-all duration-200 active:scale-[0.98]"
+          disabled={walletAddresses.filter((a) => a.isVerified).length === 0}
+          className="w-full flex items-center justify-center gap-2.5 rounded-2xl font-semibold text-sm mb-5 lg:mb-6 min-h-[56px] transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)", color: "#0E1B37", boxShadow: "0 4px 20px rgba(212,175,55,0.35)" }}
         >
           <ArrowUpFromLine className="h-4 w-4" />
@@ -410,7 +608,7 @@ export default function WithdrawalWalletPage() {
       {modalOpen && (
         <WithdrawalModal
           available={balance}
-          walletAddress={walletAddress}
+          addresses={walletAddresses}
           onClose={() => setModalOpen(false)}
           onSuccess={handleSuccess}
         />

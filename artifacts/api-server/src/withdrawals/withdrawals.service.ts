@@ -82,11 +82,12 @@ export async function updateWithdrawalSettings(
  * Rules:
  *   1. Withdrawals must be enabled for the requested network.
  *   2. Amount must be within [minimumAmount, maximumAmount].
- *   3. Only one PENDING withdrawal is allowed at a time.
- *   4. User must have sufficient available withdrawalWallet balance.
+ *   3. Only one active (pre-terminal) withdrawal is allowed at a time.
+ *   4. User must have a verified wallet address for the network.
+ *   5. User must have sufficient available withdrawalWallet balance.
  *
  * On success (single Prisma transaction):
- *   - WithdrawalRequest created (PENDING).
+ *   - WithdrawalRequest created (PENDING) with fee, netAmount, withdrawalId.
  *   - withdrawalWallet  decremented by amount.
  *   - lockedWithdrawalBalance incremented by amount.
  */
@@ -123,16 +124,29 @@ export async function createWithdrawal(
     );
   }
 
-  // ── Only one pending withdrawal per user ──────────────────────────────────
+  // ── Verify wallet address is registered and verified ──────────────────────
+  const verifiedAddress = await prisma.walletAddress.findFirst({
+    where: { userId, network: input.network, address: input.walletAddress, isVerified: true },
+  });
+  if (!verifiedAddress) {
+    throw new AppError(
+      "The provided wallet address is not registered on your account. Add it as a verified address first.",
+      HTTP_STATUS.BAD_REQUEST,
+      "WALLET_ADDRESS_NOT_VERIFIED",
+    );
+  }
+
+  // ── Only one active withdrawal per user ───────────────────────────────────
+  const ACTIVE_STATUSES = ["PENDING", "VALIDATING", "QUEUED", "PROCESSING", "BROADCASTING", "CONFIRMING"] as const;
   const existing = await prisma.withdrawalRequest.findFirst({
-    where: { userId, status: "PENDING" },
-    select: { id: true },
+    where:  { userId, status: { in: [...ACTIVE_STATUSES] } },
+    select: { id: true, status: true },
   });
   if (existing) {
     throw new AppError(
-      "You already have a pending withdrawal request. Cancel it before submitting a new one.",
+      "You already have an active withdrawal request. Cancel it or wait for it to complete.",
       HTTP_STATUS.CONFLICT,
-      "WITHDRAWAL_ALREADY_PENDING",
+      "WITHDRAWAL_ALREADY_ACTIVE",
     );
   }
 
@@ -152,6 +166,11 @@ export async function createWithdrawal(
     );
   }
 
+  // ── Compute fee & net amount ──────────────────────────────────────────────
+  const feePercent = settings.feePercentage;
+  const fee        = decimalAmount.mul(feePercent).div(100).toDecimalPlaces(8);
+  const netAmount  = decimalAmount.minus(fee);
+
   // ── Atomic: lock funds + create request ───────────────────────────────────
   const request = await prisma.$transaction(async (tx) => {
     // 1. Lock funds
@@ -163,17 +182,27 @@ export async function createWithdrawal(
       },
     });
 
-    // 2. Create request — snapshot the wallet address at submission time so
-    //    future profile edits cannot change where this payout is sent.
-    return tx.withdrawalRequest.create({
+    // 2. Create request
+    const created = await tx.withdrawalRequest.create({
       data: {
         userId,
-        amount:                 decimalAmount,
-        walletAddress:          input.walletAddress,
-        walletAddressSnapshot:  input.walletAddress,
-        network:                input.network,
-        status:                 "PENDING",
+        amount:                decimalAmount,
+        fee,
+        netAmount,
+        walletAddress:         input.walletAddress,
+        walletAddressSnapshot: input.walletAddress,
+        network:               input.network,
+        currency:              "USDT",
+        status:                "PENDING",
       },
+      select: { ...withdrawalSelect, seqId: true },
+    });
+
+    // 3. Generate human-readable withdrawalId from auto-increment seqId
+    const withdrawalId = `PW-WD-${String(created.seqId).padStart(6, "0")}`;
+    return tx.withdrawalRequest.update({
+      where:  { id: created.id },
+      data:   { withdrawalId },
       select: withdrawalSelect,
     });
   });
@@ -279,16 +308,23 @@ export async function getWithdrawalById(userId: string, withdrawalId: string) {
 
 const withdrawalSelect = {
   id:                    true,
+  withdrawalId:          true,
+  currency:              true,
   amount:                true,
+  fee:                   true,
+  netAmount:             true,
   walletAddress:         true,
   walletAddressSnapshot: true,
   network:               true,
   status:                true,
+  failureReason:         true,
   rejectedReason:        true,
   cancelledAt:           true,
   approvedAt:            true,
+  processedAt:           true,
   completedAt:           true,
   txHash:                true,
+  requestedAt:           true,
   createdAt:             true,
 } as const;
 

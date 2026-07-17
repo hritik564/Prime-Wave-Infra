@@ -35,6 +35,8 @@ import {
   rejectWithdrawalHandler,
   getAdminWithdrawalSettingsHandler,
   updateAdminWithdrawalSettingsHandler,
+  getWithdrawalQueueHandler,
+  triggerProcessQueueHandler,
 } from "./admin-withdrawals.controller";
 import {
   getDashboardHandler,
@@ -502,6 +504,20 @@ router.put(
   superAdminGuard,
   validate(updateWithdrawalSettingsSchema),
   updateAdminWithdrawalSettingsHandler,
+);
+
+router.get(
+  "/withdrawals/queue",
+  adminLimiter,
+  withdrawalAdminGuard,
+  getWithdrawalQueueHandler,
+);
+
+router.post(
+  "/withdrawals/process-queue",
+  adminLimiter,
+  superAdminGuard,
+  triggerProcessQueueHandler,
 );
 
 router.get(

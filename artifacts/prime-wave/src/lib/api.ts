@@ -466,15 +466,66 @@ export function getDepositHistory(params?: { page?: number; limit?: number; stat
   return request<{ data: DepositRequest[]; meta: ListMeta }>(`/api/deposits/history?${q}`);
 }
 
+export type WithdrawalStatus =
+  | "PENDING" | "VALIDATING" | "QUEUED" | "PROCESSING"
+  | "BROADCASTING" | "CONFIRMING" | "APPROVED"
+  | "COMPLETED" | "FAILED" | "REJECTED" | "CANCELLED";
+
 export interface WithdrawalRequest {
-  id: string;
-  amount: string;
-  walletAddress: string;
-  network: string;
-  status: "PENDING" | "APPROVED" | "COMPLETED" | "REJECTED" | "CANCELLED";
-  rejectedReason?: string | null;
-  adminNotes?: string | null;
-  createdAt: string;
+  id:                    string;
+  withdrawalId:          string | null;
+  currency:              string;
+  amount:                string;
+  fee:                   string;
+  netAmount:             string;
+  walletAddress:         string;
+  walletAddressSnapshot: string;
+  network:               string;
+  status:                WithdrawalStatus;
+  failureReason:         string | null;
+  rejectedReason:        string | null;
+  adminNotes:            string | null;
+  cancelledAt:           string | null;
+  approvedAt:            string | null;
+  processedAt:           string | null;
+  completedAt:           string | null;
+  txHash:                string | null;
+  requestedAt:           string;
+  createdAt:             string;
+}
+
+export interface WalletAddress {
+  id:         string;
+  network:    string;
+  address:    string;
+  label:      string | null;
+  isVerified: boolean;
+  isPrimary:  boolean;
+  createdAt:  string;
+}
+
+export function listWalletAddresses(network?: string) {
+  const q = network ? `?network=${network}` : "";
+  return request<WalletAddress[]>(`/api/wallet-addresses${q}`);
+}
+
+export function addWalletAddress(data: { network: string; address: string; label?: string }) {
+  return request<WalletAddress>("/api/wallet-addresses", {
+    method: "POST",
+    body:   JSON.stringify(data),
+  });
+}
+
+export function deleteWalletAddress(id: string) {
+  return request<{ id: string; deleted: boolean }>(`/api/wallet-addresses/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function setPrimaryWalletAddress(id: string) {
+  return request<WalletAddress>(`/api/wallet-addresses/${id}/primary`, {
+    method: "PUT",
+  });
 }
 
 export interface WithdrawalSettings {
@@ -1523,7 +1574,7 @@ export function getAdminInvestment(id: string) {
 
 /* ── Admin Withdrawals ─────────────────────────────────────────────────────── */
 
-export type AdminWithdrawalStatus = "PENDING" | "APPROVED" | "COMPLETED" | "REJECTED" | "CANCELLED";
+export type AdminWithdrawalStatus = WithdrawalStatus;
 
 export interface AdminWithdrawalUser {
   id:        string;
@@ -1668,6 +1719,36 @@ export function adminUpdateWithdrawalNotes(id: string, adminNotes: string) {
     `/api/admin/withdrawals/${id}/notes`,
     { method: "PATCH", body: JSON.stringify({ adminNotes }) },
   );
+}
+
+export interface WithdrawalQueueItem {
+  id:                    string;
+  withdrawalId:          string | null;
+  currency:              string;
+  amount:                string;
+  fee:                   string;
+  netAmount:             string;
+  network:               string;
+  walletAddressSnapshot: string;
+  status:                string;
+  requestedAt:           string;
+  processedAt:           string | null;
+  createdAt:             string;
+  user: { id: string; username: string; email: string; firstName: string; lastName: string };
+}
+
+export interface ProcessQueueResult {
+  processed: number;
+  failed:    number;
+  errors:    string[];
+}
+
+export function getWithdrawalQueue() {
+  return request<WithdrawalQueueItem[]>("/api/admin/withdrawals/queue");
+}
+
+export function triggerProcessQueue() {
+  return request<ProcessQueueResult>("/api/admin/withdrawals/process-queue", { method: "POST" });
 }
 
 /* ── Admin Wallet Control Center ──────────────────────────────────── */

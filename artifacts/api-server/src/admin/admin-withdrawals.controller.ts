@@ -13,6 +13,8 @@ import {
   rejectWithdrawal,
 } from "./admin-withdrawals.service";
 import { getWithdrawalSettingsPublic, updateWithdrawalSettings } from "../withdrawals/withdrawals.service";
+import { getQueueItems } from "../withdrawals/withdrawal-queue.service";
+import { processPendingWithdrawals } from "../withdrawals/withdrawal-processor.service";
 import type {
   AdminWithdrawalListQuery,
   ApproveWithdrawalInput,
@@ -128,5 +130,23 @@ export async function rejectWithdrawalHandler(
     const input        = req.body as RejectWithdrawalInput;
     const result       = await rejectWithdrawal(user.sub, withdrawalId, input);
     sendSuccess(res, result, "Withdrawal rejected");
+  } catch (err) { next(err); }
+}
+
+export async function getWithdrawalQueueHandler(
+  _req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const result = await getQueueItems();
+    sendSuccess(res, result, "Withdrawal queue retrieved");
+  } catch (err) { next(err); }
+}
+
+export async function triggerProcessQueueHandler(
+  _req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const result = await processPendingWithdrawals();
+    sendSuccess(res, result, "Queue processing complete");
   } catch (err) { next(err); }
 }
