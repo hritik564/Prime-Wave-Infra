@@ -5,12 +5,13 @@
 // Future: EthWithdrawalGateway, TronWithdrawalGateway, etc.
 //
 // SAFETY CONTRACT:
-//   broadcastTransfer() throws GatewayDryRunError when BLOCKCHAIN_DRY_RUN=true.
-//   Callers must check isDryRun before calling broadcastTransfer.
+//   signAndBroadcast() throws GatewayDryRunError when BLOCKCHAIN_DRY_RUN=true.
+//   Callers must check isDryRun before calling signAndBroadcast.
 
 import type {
   BalanceResult,
   BlockchainHealthSnapshot,
+  BroadcastResult,
   ChainTransaction,
   AddressValidation,
   FeeEstimate,
@@ -20,7 +21,7 @@ import type {
 
 export class GatewayDryRunError extends Error {
   constructor() {
-    super("broadcastTransfer is disabled in dry-run mode (BLOCKCHAIN_DRY_RUN=true)");
+    super("signAndBroadcast is disabled in dry-run mode (BLOCKCHAIN_DRY_RUN=true)");
     this.name = "GatewayDryRunError";
   }
 }
@@ -29,6 +30,20 @@ export class GatewayNotConfiguredError extends Error {
   constructor(network: string) {
     super(`WithdrawalGateway not configured for network: ${network}`);
     this.name = "GatewayNotConfiguredError";
+  }
+}
+
+export class GatewaySigningError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "GatewaySigningError";
+  }
+}
+
+export class GatewayBroadcastError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "GatewayBroadcastError";
   }
 }
 
@@ -76,13 +91,18 @@ export interface IWithdrawalGateway {
   ): Promise<PreparedTransfer>;
 
   /**
-   * Broadcast a signed raw transaction.
-   * THROWS GatewayDryRunError when isDryRun === true.
-   * Sprint 31C will implement this.
+   * Sign and broadcast a USDT transfer, using the hot wallet private key
+   * held exclusively inside the gateway. Never exposes the private key.
    *
-   * @param signedRawTx   Hex-encoded signed raw transaction.
+   * THROWS GatewayDryRunError   when isDryRun === true.
+   * THROWS GatewaySigningError  when signing fails.
+   * THROWS GatewayBroadcastError when broadcast fails.
+   *
+   * Nonce is acquired exclusively inside this call (serialized via NonceLock).
+   *
+   * @param prepared  The PreparedTransfer from a prior prepareTransfer() call.
    */
-  broadcastTransfer(signedRawTx: string): Promise<{ txHash: string }>;
+  signAndBroadcast(prepared: PreparedTransfer): Promise<BroadcastResult>;
 
   /**
    * Fetch on-chain transaction status by hash.

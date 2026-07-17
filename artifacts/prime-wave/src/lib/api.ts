@@ -1731,6 +1731,9 @@ export interface WithdrawalQueueItem {
   network:               string;
   walletAddressSnapshot: string;
   status:                string;
+  txHash:                string | null;
+  signedAt:              string | null;
+  broadcastAt:           string | null;
   requestedAt:           string;
   processedAt:           string | null;
   createdAt:             string;

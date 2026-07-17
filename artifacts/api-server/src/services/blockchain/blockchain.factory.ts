@@ -25,8 +25,9 @@ function initOnce(): void {
   const hotWallet  = process.env["HOT_WALLET_ADDRESS"] ?? null;
 
   if (isBscConfigured()) {
-    const config  = getBscConfig();
-    const gateway = new BscWithdrawalGateway(config, hotWallet, dryRun);
+    const config     = getBscConfig();
+    const privateKey = process.env["HOT_WALLET_PRIVATE_KEY"] ?? null;
+    const gateway    = new BscWithdrawalGateway(config, hotWallet, dryRun, privateKey);
     _registry.set("BEP20", gateway);
 
     logger.info(

@@ -1,0 +1,178 @@
+SPRINT 31C — Live Transaction Engine
+
+Objective:
+Enable secure signing and broadcasting of BEP20 USDT withdrawal transactions through the Blockchain Gateway. This sprint introduces the live transaction engine while preserving idempotency, auditability, and recovery safety.
+
+==================================================
+1. Transaction Lifecycle
+==================================================
+
+Update the withdrawal state machine:
+
+PENDING
+→ VALIDATING
+→ QUEUED
+→ PROCESSING
+→ SIGNED
+→ BROADCASTING
+→ CONFIRMING
+→ COMPLETED
+
+Failure states remain:
+
+FAILED
+REJECTED
+CANCELLED
+
+==================================================
+2. Secure Transaction Signing
+==================================================
+
+Implement transaction signing inside the Blockchain Gateway.
+
+Requirements:
+
+- Load HOT_WALLET_PRIVATE_KEY from server environment variables.
+- Never expose the private key outside the backend.
+- Never log the private key.
+- Never store the private key in the database.
+- Never send the private key to the frontend.
+
+The withdrawal processor must continue communicating only with the Blockchain Gateway.
+
+==================================================
+3. Nonce Management
+==================================================
+
+Implement nonce management inside the Blockchain Gateway.
+
+Requirements:
+
+- Retrieve the correct account nonce.
+- Prevent duplicate nonce usage.
+- Ensure concurrent withdrawals never reuse the same nonce.
+- The withdrawal processor must not manage nonces.
+
+==================================================
+4. Broadcast Transactions
+==================================================
+
+Implement broadcastTransfer().
+
+Workflow:
+
+- Sign the prepared transaction.
+- Broadcast using eth_sendRawTransaction.
+- Receive transaction hash.
+- Return hash to the processor.
+
+Store:
+
+- transaction hash
+- broadcast timestamp
+
+Move status:
+
+SIGNED
+→ BROADCASTING
+→ CONFIRMING
+
+==================================================
+5. Permanent Balance Deduction
+==================================================
+
+Do not permanently deduct the user's withdrawal balance until the blockchain successfully returns a valid transaction hash.
+
+If signing fails:
+
+- Do not deduct balance.
+- Mark FAILED.
+
+If broadcasting fails:
+
+- Do not deduct balance.
+- Mark FAILED.
+
+If a transaction hash is received:
+
+- Permanently deduct the reserved balance.
+- Store the transaction hash.
+- Move to CONFIRMING.
+
+==================================================
+6. Concurrency Protection
+==================================================
+
+Before processing a withdrawal:
+
+- Acquire database lock.
+- Verify current status.
+- Verify idempotency key.
+- Process withdrawal.
+- Release lock.
+
+Prevent multiple workers from processing the same withdrawal.
+
+==================================================
+7. Confirmation Configuration
+==================================================
+
+Add environment variable:
+
+BSC_CONFIRMATIONS_REQUIRED=3
+
+Do not hardcode confirmation count.
+
+==================================================
+8. Logging
+==================================================
+
+Log:
+
+- signing started
+- signing completed
+- nonce used
+- broadcast started
+- broadcast completed
+- transaction hash
+- broadcast failures
+- signing failures
+
+Never log:
+
+- private keys
+- raw signed transaction
+- sensitive secrets
+
+==================================================
+9. Admin UI
+==================================================
+
+Update the Withdrawal Queue page to display:
+
+- SIGNED
+- BROADCASTING
+- CONFIRMING
+
+Display:
+
+- transaction hash
+- broadcast timestamp
+- blockchain explorer link
+
+==================================================
+10. Restrictions
+==================================================
+
+Do not implement confirmation monitoring or crash recovery in this sprint.
+
+Those belong to Sprint 31D.
+
+Expected Outcome:
+
+- Transactions are securely signed.
+- Transactions are broadcast to BSC.
+- Transaction hashes are stored.
+- User balances are finalized only after successful broadcast.
+- Concurrency and nonce safety are implemented.
+- System is fully prepared for confirmation tracking and recovery in Sprint 31D.

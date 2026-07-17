@@ -46,10 +46,26 @@ export interface PreparedTransfer {
   estimatedFeeBnb:     string;
   /** Chain ID. */
   chainId:             number;
-  /** Nonce for the hot wallet at preparation time. */
+  /** Nonce for the hot wallet at preparation time (advisory — live nonce fetched at sign time). */
   nonce:               number;
-  /** Marker that this is unsigned / dry-run only. */
-  dryRun:              true;
+  /** Whether this was a dry run (unsigned only). */
+  dryRun:              boolean;
+}
+
+/** Result of a successful sign + broadcast operation. */
+export interface BroadcastResult {
+  /** On-chain transaction hash. */
+  txHash:      string;
+  /** Timestamp when signing completed. */
+  signedAt:    Date;
+  /** Timestamp when broadcast completed. */
+  broadcastAt: Date;
+  /** Nonce used for the transaction. */
+  nonce:       number;
+  /** Gas price used in gwei. */
+  gasPriceGwei: string;
+  /** Estimated gas limit. */
+  estimatedGas: string;
 }
 
 /** On-chain transaction receipt data. */

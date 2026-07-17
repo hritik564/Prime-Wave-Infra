@@ -29,5 +29,6 @@ channel = "stable-25_05"
 [userenv.development]
 
 [userenv.shared]
-BLOCKCHAIN_DRY_RUN = "true"
+BLOCKCHAIN_DRY_RUN = "false"
 HOT_WALLET_ADDRESS = "0xA9A3c4E171636D167D16B2dBE93029f5C3FF0dC7"
+BSC_CONFIRMATIONS_REQUIRED = "3"

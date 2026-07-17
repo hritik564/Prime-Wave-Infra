@@ -3,20 +3,23 @@ import { logger } from "../lib/logger";
 import { enqueue, lockForProcessing } from "./withdrawal-queue.service";
 import { getWithdrawalSettings } from "./withdrawals.service";
 import { getWithdrawalGateway, isGatewayConfigured } from "../services/blockchain/blockchain.factory";
+import { GatewayDryRunError, GatewaySigningError, GatewayBroadcastError } from "../services/blockchain/blockchain.interface";
+import type { PreparedTransfer } from "../services/blockchain/blockchain.types";
 
 /**
  * Withdrawal Processor Service
  *
- * Drives the state machine for the non-blockchain portion of the pipeline:
- *   PENDING → VALIDATING → QUEUED → PROCESSING
+ * Drives the full withdrawal state machine:
+ *   PENDING → VALIDATING → QUEUED → PROCESSING → SIGNED → BROADCASTING → CONFIRMING
  *
- * Does NOT interact with blockchain, RPC nodes, or private keys.
+ * Balance is deducted permanently only after a valid txHash is received.
+ * On any signing or broadcast failure: status → FAILED, funds refunded.
  */
 
 interface ProcessResult {
-  processed:  number;
-  failed:     number;
-  errors:     string[];
+  processed: number;
+  failed:    number;
+  errors:    string[];
 }
 
 export async function processPendingWithdrawals(): Promise<ProcessResult> {
@@ -55,22 +58,22 @@ export async function processPendingWithdrawals(): Promise<ProcessResult> {
 }
 
 async function runSingleWithdrawal(wr: {
-  id:     string;
-  withdrawalId: string | null;
-  userId: string;
-  amount: object;
-  network: "BEP20";
+  id:                    string;
+  withdrawalId:          string | null;
+  userId:                string;
+  amount:                object;
+  network:               "BEP20";
   walletAddressSnapshot: string;
-  idempotencyKey: string;
+  idempotencyKey:        string;
 }): Promise<void> {
   const { id, withdrawalId: wId, idempotencyKey } = wr;
   const logCtx = { withdrawalId: wId ?? id, idempotencyKey };
 
-  // ── PENDING → VALIDATING ────────────────────────────────────────────────────
+  // ── PENDING → VALIDATING ─────────────────────────────────────────────────────
   await prisma.withdrawalRequest.update({ where: { id }, data: { status: "VALIDATING" } });
   logger.info({ ...logCtx, status: "VALIDATING" }, "withdrawal.processor: validating");
 
-  // ── Run validations ─────────────────────────────────────────────────────────
+  // ── Run validations ──────────────────────────────────────────────────────────
   const validationError = await validateWithdrawal(wr);
 
   if (validationError) {
@@ -86,20 +89,24 @@ async function runSingleWithdrawal(wr: {
   await lockForProcessing(id);
   logger.info({ ...logCtx, status: "PROCESSING" }, "withdrawal.processor: reached PROCESSING");
 
-  // ── Call blockchain gateway: prepareTransfer (dry run) ─────────────────────
-  await prepareBlockchainTransfer(id, wr, logCtx);
+  // ── Prepare transaction ──────────────────────────────────────────────────────
+  const prepared = await prepareBlockchainTransfer(id, wr, logCtx);
+
+  // ── Sign + broadcast ─────────────────────────────────────────────────────────
+  await signAndBroadcastWithdrawal(id, wr, prepared, logCtx);
 }
 
+// ── validateWithdrawal ────────────────────────────────────────────────────────
+
 async function validateWithdrawal(wr: {
-  userId: string;
-  amount: object;
-  network: "BEP20";
+  userId:                string;
+  amount:                object;
+  network:               "BEP20";
   walletAddressSnapshot: string;
 }): Promise<string | null> {
   const { Prisma } = await import("@prisma/client");
   const amount = wr.amount as import("@prisma/client").Prisma.Decimal;
 
-  // 1. Check user status
   const user = await prisma.user.findUnique({
     where:  { id: wr.userId },
     select: { status: true },
@@ -108,7 +115,6 @@ async function validateWithdrawal(wr: {
     return "User account is not active";
   }
 
-  // 2. Check withdrawal settings still enabled + amount still valid
   const settings = await getWithdrawalSettings(wr.network);
   if (!settings.isEnabled) {
     return `Withdrawals are currently disabled for ${wr.network}`;
@@ -120,7 +126,6 @@ async function validateWithdrawal(wr: {
     return `Amount exceeds current maximum of $${settings.maximumAmount.toFixed(2)}`;
   }
 
-  // 3. Check user still has a verified wallet address matching the snapshot
   const verifiedAddress = await prisma.walletAddress.findFirst({
     where: { userId: wr.userId, network: wr.network, address: wr.walletAddressSnapshot, isVerified: true },
   });
@@ -128,7 +133,6 @@ async function validateWithdrawal(wr: {
     return "Wallet address is no longer verified on this account";
   }
 
-  // 4. Re-check wallet balance (funds should still be locked)
   const wallet = await prisma.wallet.findUnique({
     where:  { userId: wr.userId },
     select: { lockedWithdrawalBalance: true },
@@ -137,8 +141,11 @@ async function validateWithdrawal(wr: {
     return "Insufficient locked balance for this withdrawal";
   }
 
+  void Prisma; // satisfy lint
   return null;
 }
+
+// ── failWithdrawal ────────────────────────────────────────────────────────────
 
 async function failWithdrawal(
   id:            string,
@@ -162,22 +169,16 @@ async function failWithdrawal(
   logger.info({ withdrawalId: id, failureReason }, "withdrawal.processor: withdrawal failed, funds refunded");
 }
 
-// ── Blockchain gateway integration ────────────────────────────────────────────
-//
-// In Sprint 31B this is DRY RUN only — prepareTransfer returns unsigned calldata
-// and stores it in preparedTxData. No signing, no broadcasting, no balance changes.
+// ── prepareBlockchainTransfer ─────────────────────────────────────────────────
 
 async function prepareBlockchainTransfer(
-  id:      string,
-  wr:      { walletAddressSnapshot: string; amount: object; network: "BEP20"; withdrawalId: string | null; idempotencyKey: string },
-  logCtx:  object,
-): Promise<void> {
+  id:     string,
+  wr:     { walletAddressSnapshot: string; amount: object; network: "BEP20"; withdrawalId: string | null; idempotencyKey: string },
+  logCtx: object,
+): Promise<PreparedTransfer | null> {
   if (!isGatewayConfigured(wr.network)) {
-    logger.warn(
-      { ...logCtx },
-      "withdrawal.processor: blockchain gateway not configured — skipping prepareTransfer (DRY RUN placeholder)",
-    );
-    return;
+    logger.warn({ ...logCtx }, "withdrawal.processor: blockchain gateway not configured — skipping prepareTransfer");
+    return null;
   }
 
   try {
@@ -194,12 +195,9 @@ async function prepareBlockchainTransfer(
 
     const prepared = await gw.prepareTransfer(wr.walletAddressSnapshot, amountStr, withdrawalRef);
 
-    // Store the prepared transaction data for audit / Sprint 31C signing
     await prisma.withdrawalRequest.update({
       where: { id },
-      data: {
-        preparedTxData: prepared as unknown as import("@prisma/client").Prisma.InputJsonValue,
-      },
+      data:  { preparedTxData: prepared as unknown as import("@prisma/client").Prisma.InputJsonValue },
     });
 
     logger.info(
@@ -209,17 +207,172 @@ async function prepareBlockchainTransfer(
         gasPriceGwei:    prepared.gasPriceGwei,
         estimatedFeeBnb: prepared.estimatedFeeBnb,
         nonce:           prepared.nonce,
-        dryRun:          prepared.dryRun,
       },
-      "withdrawal.processor: prepareTransfer complete (DRY RUN — awaiting Sprint 31C for broadcast)",
+      "withdrawal.processor: prepareTransfer complete",
     );
 
-    void Prisma; // satisfy lint
+    void Prisma;
+    return prepared;
   } catch (err) {
-    // Do NOT fail the withdrawal — blockchain prep failure is non-fatal in dry run
-    logger.error(
-      { ...logCtx, err },
-      "withdrawal.processor: prepareTransfer failed (non-fatal in DRY RUN — withdrawal stays PROCESSING)",
-    );
+    logger.error({ ...logCtx, err }, "withdrawal.processor: prepareTransfer failed (non-fatal)");
+    return null;
   }
+}
+
+// ── signAndBroadcastWithdrawal ────────────────────────────────────────────────
+//
+// Concurrency guard: reads the current DB status inside a raw SELECT FOR UPDATE
+// so that two concurrent processor instances cannot both proceed on the same row.
+// Signing happens outside the DB transaction (avoids holding a DB connection
+// open during RPC calls), but the final commit re-checks status before writing.
+//
+// Balance is deducted only if a valid txHash is returned from the gateway.
+
+async function signAndBroadcastWithdrawal(
+  id:      string,
+  wr:      { walletAddressSnapshot: string; amount: object; network: "BEP20"; withdrawalId: string | null; idempotencyKey: string; userId: string },
+  prepared: PreparedTransfer | null,
+  logCtx:  object,
+): Promise<void> {
+  const amount = wr.amount as import("@prisma/client").Prisma.Decimal;
+
+  if (!isGatewayConfigured(wr.network)) {
+    logger.info({ ...logCtx }, "withdrawal.processor: gateway not configured — leaving as PROCESSING");
+    return;
+  }
+
+  const gw = getWithdrawalGateway(wr.network);
+
+  if (gw.isDryRun) {
+    logger.info({ ...logCtx }, "withdrawal.processor: dry-run mode — skipping sign+broadcast");
+    return;
+  }
+
+  // ── Concurrency guard: SELECT FOR UPDATE ─────────────────────────────────────
+  const locked = await prisma.$queryRaw<Array<{ id: string; status: string }>>`
+    SELECT id, status FROM withdrawal_requests WHERE id = ${id} FOR UPDATE
+  `;
+
+  if (!locked[0] || locked[0].status !== "PROCESSING") {
+    logger.warn(
+      { ...logCtx, currentStatus: locked[0]?.status },
+      "withdrawal.processor: concurrency guard — withdrawal no longer PROCESSING, skipping",
+    );
+    return;
+  }
+
+  // ── Use stored preparedTxData or prepare fresh ───────────────────────────────
+  let preparedTx: PreparedTransfer;
+
+  if (prepared) {
+    preparedTx = prepared;
+  } else {
+    const row = await prisma.withdrawalRequest.findUnique({
+      where:  { id },
+      select: { preparedTxData: true },
+    });
+
+    if (row?.preparedTxData) {
+      preparedTx = row.preparedTxData as unknown as PreparedTransfer;
+    } else {
+      // Prepare fresh
+      const { Prisma } = await import("@prisma/client");
+      const amountStr  = (wr.amount as import("@prisma/client").Prisma.Decimal).toFixed(8);
+      void Prisma;
+      try {
+        preparedTx = await gw.prepareTransfer(
+          wr.walletAddressSnapshot,
+          amountStr,
+          wr.withdrawalId ?? wr.idempotencyKey,
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error({ ...logCtx, err }, "withdrawal.processor: fresh prepareTransfer failed");
+        await failWithdrawal(id, wr.userId, amount, `Transaction preparation failed: ${msg}`);
+        return;
+      }
+    }
+  }
+
+  // ── Sign + Broadcast ─────────────────────────────────────────────────────────
+  logger.info({ ...logCtx }, "withdrawal.processor: beginning sign+broadcast");
+
+  let txHash:      string;
+  let signedAt:    Date;
+  let broadcastAt: Date;
+  let nonce:       number;
+
+  // Mark SIGNED before signing (optimistic — sign starts now)
+  await prisma.withdrawalRequest.update({
+    where: { id },
+    data:  { status: "SIGNED", signedAt: new Date() },
+  });
+  logger.info({ ...logCtx, status: "SIGNED" }, "withdrawal.processor: signing started");
+
+  try {
+    // Mark BROADCASTING before sending to chain
+    await prisma.withdrawalRequest.update({
+      where: { id },
+      data:  { status: "BROADCASTING" },
+    });
+    logger.info({ ...logCtx, status: "BROADCASTING" }, "withdrawal.processor: broadcasting");
+
+    const result = await gw.signAndBroadcast(preparedTx);
+    txHash      = result.txHash;
+    signedAt    = result.signedAt;
+    broadcastAt = result.broadcastAt;
+    nonce       = result.nonce;
+  } catch (err) {
+    const isSignErr      = err instanceof GatewaySigningError;
+    const isBroadcastErr = err instanceof GatewayBroadcastError;
+    const msg            = err instanceof Error ? err.message : String(err);
+
+    logger.error(
+      { ...logCtx, err: msg, isSignErr, isBroadcastErr },
+      "withdrawal.processor: sign/broadcast failed — marking FAILED and refunding",
+    );
+
+    await failWithdrawal(id, wr.userId, amount, msg);
+    return;
+  }
+
+  // ── txHash received — deduct balance + transition to CONFIRMING ──────────────
+  logger.info({ ...logCtx, txHash, nonce }, "withdrawal.processor: txHash received — committing");
+
+  await prisma.$transaction(async (tx) => {
+    // Final status check before committing (second line of concurrency defence)
+    const current = await tx.withdrawalRequest.findUnique({
+      where:  { id },
+      select: { status: true },
+    });
+
+    if (!current || current.status !== "BROADCASTING") {
+      throw new Error(
+        `withdrawal.processor: unexpected status '${current?.status ?? "null"}' before CONFIRMING commit — aborting`,
+      );
+    }
+
+    // Permanently deduct locked balance (balance was locked at request time)
+    await tx.wallet.update({
+      where: { userId: wr.userId },
+      data:  { lockedWithdrawalBalance: { decrement: amount } },
+    });
+
+    // Move to CONFIRMING with txHash + timestamps
+    await tx.withdrawalRequest.update({
+      where: { id },
+      data:  {
+        status:      "CONFIRMING",
+        txHash,
+        signedAt,
+        broadcastAt,
+        processedAt: broadcastAt,
+      },
+    });
+  });
+
+  logger.info(
+    { ...logCtx, txHash, nonce, status: "CONFIRMING" },
+    "withdrawal.processor: withdrawal confirmed — awaiting on-chain confirmations",
+  );
 }

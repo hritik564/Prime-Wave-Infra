@@ -59,6 +59,7 @@ enum WithdrawalStatus {
   VALIDATING
   QUEUED
   PROCESSING
+  SIGNED
   BROADCASTING
   CONFIRMING
   APPROVED
@@ -755,6 +756,8 @@ model WithdrawalRequest {
   rejectedReason          String?
   adminNotes              String?
   preparedTxData          Json?
+  broadcastAt             DateTime?
+  signedAt                DateTime?
   requestedAt             DateTime          @default(now())
   processedAt             DateTime?
   cancelledAt             DateTime?
