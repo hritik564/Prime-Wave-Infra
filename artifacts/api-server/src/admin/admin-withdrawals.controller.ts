@@ -21,6 +21,7 @@ import {
   setWithdrawalEngineEnabled,
 } from "../withdrawals/withdrawal-engine.service";
 import { getOperationalHealth } from "../withdrawals/withdrawal-operational-health.service";
+import { isWorkerLocked } from "../withdrawals/withdrawal-auto-worker.service";
 import type {
   AdminWithdrawalListQuery,
   ApproveWithdrawalInput,
@@ -152,6 +153,13 @@ export async function triggerProcessQueueHandler(
   _req: Request, res: Response, next: NextFunction,
 ): Promise<void> {
   try {
+    if (isWorkerLocked()) {
+      res.status(409).json({
+        success: false,
+        message: "Queue processor already running — automatic worker is active",
+      });
+      return;
+    }
     const result = await processPendingWithdrawals();
     sendSuccess(res, result, "Queue processing complete");
   } catch (err) { next(err); }

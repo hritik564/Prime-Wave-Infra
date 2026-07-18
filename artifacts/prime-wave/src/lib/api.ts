@@ -1822,10 +1822,19 @@ export interface OperationalHealthAlert {
   message: string;
 }
 
+export interface QueueWorkerStatus {
+  started:             boolean;
+  lockHeld:            boolean;
+  pollIntervalSeconds: number;
+  lastPollAt:          string | null;
+  lastSuccessAt:       string | null;
+}
+
 export interface OperationalHealth {
   engine:        WithdrawalEngineStatus;
   hotWallet:     HotWalletStatus;
   queue:         WithdrawalQueueStats;
+  worker:        QueueWorkerStatus;
   lastProcessed: { id: string; withdrawalId: string | null; amount: string; completedAt: string } | null;
   alerts:        OperationalHealthAlert[];
   snapshotAt:    string;

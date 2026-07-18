@@ -4,6 +4,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./cron";
 import { startDepositVerificationWorker } from "./deposit-verification/deposit-verification.worker";
+import { startWithdrawalAutoWorker } from "./withdrawals/withdrawal-auto-worker.service";
 import { startWithdrawalRecovery } from "./withdrawals/withdrawal-recovery.service";
 import { validateCompanyWallets } from "./company-wallet-validator";
 import { prisma } from "./config/prisma";
@@ -214,6 +215,10 @@ const server = app.listen(port, () => {
 
   startDepositVerificationWorker().catch((e) =>
     logger.error({ e }, "startDepositVerificationWorker failed"),
+  );
+
+  startWithdrawalAutoWorker().catch((e) =>
+    logger.error({ e }, "startWithdrawalAutoWorker failed"),
   );
 });
 

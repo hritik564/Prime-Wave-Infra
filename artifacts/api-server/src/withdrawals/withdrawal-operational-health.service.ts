@@ -1,6 +1,7 @@
 import { prisma } from "../config/prisma";
 import { getWithdrawalEngineStatus, type WithdrawalEngineStatus } from "./withdrawal-engine.service";
 import { checkHotWalletStatus, type HotWalletStatus } from "./withdrawal-hot-wallet.service";
+import { getWorkerStatus, type QueueWorkerStatus } from "./withdrawal-auto-worker.service";
 
 // ── Withdrawal Operational Health ─────────────────────────────────────────────
 //
@@ -37,6 +38,7 @@ export interface OperationalHealth {
   engine:            WithdrawalEngineStatus;
   hotWallet:         HotWalletStatus;
   queue:             QueueStats;
+  worker:            QueueWorkerStatus;
   lastProcessed:     LastProcessedWithdrawal | null;
   alerts:            OperationalHealthAlert[];
   snapshotAt:        string;
@@ -177,6 +179,7 @@ export async function getOperationalHealth(): Promise<OperationalHealth> {
     engine:        engineStatus,
     hotWallet,
     queue,
+    worker:        getWorkerStatus(),
     lastProcessed: formattedLastProcessed,
     alerts,
     snapshotAt,

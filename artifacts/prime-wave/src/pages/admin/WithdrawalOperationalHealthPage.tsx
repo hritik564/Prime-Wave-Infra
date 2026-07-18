@@ -3,7 +3,7 @@ import {
   RefreshCw, Loader2, Activity, Power, PowerOff, Wallet,
   AlertTriangle, CheckCircle, Clock, Zap, GitMerge, ShieldAlert,
   Radio, PenLine, Filter,
-  AlertOctagon, Info, Server, Cpu,
+  AlertOctagon, Info, Server, Cpu, Timer, Lock, Unlock,
 } from "lucide-react";
 import AdminLayout from "./AdminLayout";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
@@ -12,6 +12,7 @@ import {
   setWithdrawalEngineStatus,
   type OperationalHealth,
   type OperationalHealthAlert,
+  type QueueWorkerStatus,
 } from "@/lib/api";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -539,6 +540,11 @@ export default function WithdrawalOperationalHealthPage() {
               </div>
             )}
 
+            {/* ── Queue Worker ── */}
+            {health.worker && (
+              <QueueWorkerCard worker={health.worker} />
+            )}
+
             {/* ── All clear ── */}
             {health.alerts.length === 0 && (
               <div
@@ -559,6 +565,83 @@ export default function WithdrawalOperationalHealthPage() {
 
       </div>
     </AdminLayout>
+  );
+}
+
+// ─── Queue Worker Card ────────────────────────────────────────────────────────
+function QueueWorkerCard({ worker }: { worker: QueueWorkerStatus }) {
+  const isRunning = worker.started;
+  const lockHeld  = worker.lockHeld;
+
+  const statusColor  = isRunning ? "#34d399" : "#f87171";
+  const statusBg     = isRunning ? "rgba(52,211,153,0.1)"  : "rgba(248,113,113,0.1)";
+  const statusBorder = isRunning ? "rgba(52,211,153,0.2)"  : "rgba(248,113,113,0.2)";
+  const statusLabel  = isRunning ? "Running" : "Stopped";
+
+  const lockColor  = lockHeld ? "#fbbf24" : "#34d399";
+  const lockBg     = lockHeld ? "rgba(251,191,36,0.1)" : "rgba(52,211,153,0.1)";
+  const lockLabel  = lockHeld ? "Running" : "Idle";
+
+  return (
+    <div
+      className="rounded-2xl p-5"
+      style={{ background: CARD, border: `1px solid ${BORDER}` }}
+    >
+      <div className="flex items-center gap-2 mb-4">
+        <Timer className="h-4 w-4" style={{ color: GOLD }} />
+        <p className="text-sm font-semibold uppercase tracking-widest" style={{ color: MUTED }}>
+          Queue Worker
+        </p>
+        <div
+          className="ml-auto flex items-center gap-1.5 rounded-full px-2.5 py-0.5"
+          style={{ background: statusBg, border: `1px solid ${statusBorder}` }}
+        >
+          <div className="h-1.5 w-1.5 rounded-full" style={{ background: statusColor }} />
+          <span className="text-xs font-semibold" style={{ color: statusColor }}>{statusLabel}</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Poll Interval */}
+        <div className="flex flex-col gap-0.5">
+          <p className="text-xs" style={{ color: MUTED }}>Poll Interval</p>
+          <p className="text-sm font-mono font-semibold text-foreground">
+            {worker.pollIntervalSeconds}s
+          </p>
+        </div>
+
+        {/* Last Poll */}
+        <div className="flex flex-col gap-0.5">
+          <p className="text-xs" style={{ color: MUTED }}>Last Poll</p>
+          <p className="text-sm font-mono font-semibold text-foreground">
+            {worker.lastPollAt ? ago(worker.lastPollAt) : "—"}
+          </p>
+        </div>
+
+        {/* Last Success */}
+        <div className="flex flex-col gap-0.5">
+          <p className="text-xs" style={{ color: MUTED }}>Last Successful Run</p>
+          <p className="text-sm font-mono font-semibold text-foreground">
+            {worker.lastSuccessAt ? ago(worker.lastSuccessAt) : "—"}
+          </p>
+        </div>
+
+        {/* Lock status */}
+        <div className="flex flex-col gap-0.5">
+          <p className="text-xs" style={{ color: MUTED }}>Worker Lock</p>
+          <div
+            className="flex items-center gap-1.5 w-fit rounded-full px-2 py-0.5"
+            style={{ background: lockBg }}
+          >
+            {lockHeld
+              ? <Lock   className="h-3 w-3" style={{ color: lockColor }} />
+              : <Unlock className="h-3 w-3" style={{ color: lockColor }} />
+            }
+            <span className="text-xs font-semibold" style={{ color: lockColor }}>{lockLabel}</span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

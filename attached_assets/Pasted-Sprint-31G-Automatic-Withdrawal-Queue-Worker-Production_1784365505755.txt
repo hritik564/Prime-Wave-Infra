@@ -1,0 +1,337 @@
+Sprint 31G — Automatic Withdrawal Queue Worker (Production Automation)
+
+Objective
+
+The withdrawal system is fully functional end-to-end, including blockchain broadcasting, confirmation tracking, treasury reconciliation, and operational controls.
+
+Currently, withdrawals require an administrator to manually click "Process Queue" after the hold period expires.
+
+This sprint will introduce a fully automatic background queue worker so withdrawals are processed automatically without administrator intervention.
+
+This is an automation sprint only.
+
+DO NOT modify any blockchain logic, signing logic, confirmation logic, treasury logic, reconciliation logic, or withdrawal validation rules.
+
+Only automate the triggering of the existing processor.
+
+====================================================
+PART 1 — Automatic Queue Worker
+====================================================
+
+Create a dedicated background service:
+
+withdrawal-auto-worker.service.ts
+
+Responsibilities:
+
+• Start automatically when the backend starts.
+• Run continuously.
+• Poll for eligible withdrawals at a configurable interval.
+• Invoke the existing withdrawal processor.
+• Never duplicate processing.
+• Never interfere with manual processing.
+
+The worker must NOT contain withdrawal logic.
+
+It should only orchestrate calls to the existing processor.
+
+====================================================
+PART 2 — Configurable Poll Interval
+====================================================
+
+Add environment variable:
+
+WITHDRAWAL_QUEUE_INTERVAL_SECONDS=30
+
+Default:
+
+30 seconds
+
+The worker must poll using this interval.
+
+Changing the environment variable should change polling frequency without code changes.
+
+====================================================
+PART 3 — Engine Awareness
+====================================================
+
+Before every polling cycle the worker must verify:
+
+Withdrawal Engine == ACTIVE
+
+If the engine is paused:
+
+• Skip processing
+• Log:
+
+Withdrawal queue skipped: engine paused
+
+====================================================
+PART 4 — Blockchain Health Awareness
+====================================================
+
+Before processing:
+
+Check Blockchain Health.
+
+If unhealthy:
+
+Do NOT process withdrawals.
+
+Log:
+
+Withdrawal queue skipped: blockchain unavailable
+
+====================================================
+PART 5 — Hot Wallet Safety
+====================================================
+
+Before processing:
+
+Verify hot wallet thresholds.
+
+If below minimum:
+
+Skip processing.
+
+Log:
+
+Withdrawal queue skipped: hot wallet below threshold
+
+Do not mark withdrawals failed.
+
+Simply wait until the wallet is funded again.
+
+====================================================
+PART 6 — Single Worker Lock
+====================================================
+
+Prevent overlapping runs.
+
+Requirements:
+
+If one polling cycle is already running:
+
+The next cycle must exit immediately.
+
+Use an in-memory mutex/lock.
+
+Example:
+
+workerRunning = true
+
+finally:
+
+workerRunning = false
+
+Never allow two processor executions simultaneously.
+
+====================================================
+PART 7 — Process Only Eligible Withdrawals
+====================================================
+
+The worker must process exactly the same withdrawals as the existing manual button.
+
+No duplicated logic.
+
+Internally call:
+
+withdrawalProcessor.processQueue()
+
+(or existing equivalent)
+
+====================================================
+PART 8 — Preserve Manual Button
+====================================================
+
+Keep:
+
+Admin
+→ W.Queue
+→ Process Queue
+
+The manual button must continue working.
+
+It becomes:
+
+Emergency Retry
+Manual Override
+Testing Tool
+
+The automatic worker must not disable or replace it.
+
+====================================================
+PART 9 — Startup Behaviour
+====================================================
+
+When backend starts:
+
+Initialize worker automatically.
+
+Startup logs should show:
+
+Withdrawal Auto Worker Started
+
+Interval: XX seconds
+
+Engine: ACTIVE
+
+====================================================
+PART 10 — Polling Logs
+====================================================
+
+Every polling cycle log concise operational information.
+
+Example:
+
+Withdrawal Queue Poll
+
+Eligible: 2
+
+Processing started
+
+or
+
+Withdrawal Queue Poll
+
+Eligible: 0
+
+Nothing to process
+
+or
+
+Skipped (Engine Paused)
+
+or
+
+Skipped (Blockchain Unavailable)
+
+or
+
+Skipped (Low Hot Wallet Balance)
+
+Avoid excessive verbose logging.
+
+====================================================
+PART 11 — Recovery Behaviour
+====================================================
+
+If the processor throws an unexpected exception:
+
+Catch it.
+
+Log it.
+
+Release worker lock.
+
+Continue polling normally on the next interval.
+
+Never terminate the worker.
+
+====================================================
+PART 12 — Admin Operational Health
+====================================================
+
+Extend W. Ops Health.
+
+Add a new section:
+
+Queue Worker
+
+Display:
+
+Status
+
+Running
+
+Stopped
+
+Current Poll Interval
+
+Last Poll Time
+
+Last Successful Processing Time
+
+Worker Lock Status
+
+Idle
+
+Running
+
+====================================================
+PART 13 — Manual Trigger Protection
+====================================================
+
+If the worker is currently processing:
+
+Admin clicking Process Queue should NOT start another processor.
+
+Instead return:
+
+Queue processor already running.
+
+No duplicate processing.
+
+====================================================
+PART 14 — Acceptance Tests
+====================================================
+
+Verify:
+
+✓ Worker starts automatically.
+
+✓ Eligible withdrawal processes without administrator interaction.
+
+✓ Manual button still works.
+
+✓ No duplicate processing.
+
+✓ Engine pause prevents processing.
+
+✓ Low hot wallet prevents processing.
+
+✓ Blockchain outage prevents processing.
+
+✓ Worker resumes automatically once conditions recover.
+
+✓ Backend restart automatically restarts worker.
+
+✓ TypeScript passes.
+
+====================================================
+IMPORTANT
+
+This sprint is automation only.
+
+Do NOT modify:
+
+• Blockchain Gateway
+• Transaction Signing
+• Broadcasting
+• Confirmation Service
+• Recovery Service
+• Treasury
+• Ledger
+• Reconciliation
+• Withdrawal Validation
+• Database Schema (unless absolutely required for worker metadata)
+
+Reuse the existing withdrawal processor exactly as it exists today.
+
+The goal is simply:
+
+Eligible
+↓
+
+Automatic Worker
+↓
+
+Existing Processor
+↓
+
+Blockchain
+↓
+
+Completed
+
+without requiring any administrator action.
