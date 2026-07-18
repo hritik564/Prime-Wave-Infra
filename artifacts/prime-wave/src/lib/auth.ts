@@ -8,8 +8,9 @@ export interface StoredUser {
   role?: string;
 }
 
-const TOKEN_KEY = "pw:token";
-const USER_KEY  = "pw:user";
+const TOKEN_KEY       = "pw:token";
+const ADMIN_TOKEN_KEY = "pw:admin:token";
+const USER_KEY        = "pw:user";
 
 export function getToken(): string | null {
   try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
@@ -17,6 +18,18 @@ export function getToken(): string | null {
 
 export function setToken(token: string): void {
   try { localStorage.setItem(TOKEN_KEY, token); } catch {}
+}
+
+export function getAdminToken(): string | null {
+  try { return localStorage.getItem(ADMIN_TOKEN_KEY); } catch { return null; }
+}
+
+export function setAdminToken(token: string): void {
+  try { localStorage.setItem(ADMIN_TOKEN_KEY, token); } catch {}
+}
+
+export function clearAdminToken(): void {
+  try { localStorage.removeItem(ADMIN_TOKEN_KEY); } catch {}
 }
 
 export function getStoredUser(): StoredUser | null {

@@ -246,7 +246,7 @@ export function ApproveKYCDialog({ member, onClose, onConfirm }: { member: BaseM
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. ActivateDialog
 // ─────────────────────────────────────────────────────────────────────────────
-export function ActivateDialog({ member, onClose, onConfirm }: { member: BaseMember; onClose: () => void; onConfirm: () => void }) {
+export function ActivateDialog({ member, onClose, onConfirm }: { member: BaseMember; onClose: () => void; onConfirm: () => Promise<void> }) {
   return (
     <ModalShell onClose={onClose}>
       <ModalHeader icon={BadgeCheck} title="Activate Member" subtitle={`Restore access for @${member.username}`} color="#34d399" bg="rgba(52,211,153,0.1)" onClose={onClose} />
@@ -257,7 +257,7 @@ export function ActivateDialog({ member, onClose, onConfirm }: { member: BaseMem
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <Btn label="Cancel" onClick={onClose} />
-          <Btn label="Activate Member" onClick={() => { onConfirm(); onClose(); }} color="#34d399" bg="rgba(52,211,153,0.12)" border="rgba(52,211,153,0.3)" />
+          <Btn label="Activate Member" onClick={async () => { await onConfirm(); onClose(); }} color="#34d399" bg="rgba(52,211,153,0.12)" border="rgba(52,211,153,0.3)" />
         </div>
       </div>
     </ModalShell>

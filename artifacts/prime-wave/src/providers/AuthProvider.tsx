@@ -11,6 +11,8 @@ import {
   getToken,
   getStoredUser,
   setToken,
+  setAdminToken,
+  clearAdminToken,
   setStoredUser,
   clearAuth,
   setUnauthorizedCallback,
@@ -46,7 +48,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const permissions: Permission[] = role ? getPermissionsForRole(role) : [];
 
   const authLogin = useCallback((newToken: string, newUser: StoredUser) => {
-    setToken(newToken);
+    if (newUser.type === "admin") {
+      setAdminToken(newToken);
+    } else {
+      setToken(newToken);
+    }
     setStoredUser(newUser);
     setTokenState(newToken);
     setUser(newUser);
@@ -54,6 +60,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const authLogout = useCallback(() => {
     const wasAdmin = getStoredUser()?.type === "admin";
+    if (wasAdmin) {
+      clearAdminToken();
+    }
     clearAuth();
     setTokenState(null);
     setUser(null);

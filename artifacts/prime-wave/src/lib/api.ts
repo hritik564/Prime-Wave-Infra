@@ -1,9 +1,10 @@
-import { getToken, fireUnauthorized } from "./auth";
+import { getToken, getAdminToken, fireUnauthorized } from "./auth";
 
 const BASE = "";
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = getToken();
+  const isAdminPath = path.startsWith("/api/admin/") && path !== "/api/admin/login";
+  const token = isAdminPath ? (getAdminToken() ?? getToken()) : getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...((init.headers as Record<string, string>) ?? {}),
