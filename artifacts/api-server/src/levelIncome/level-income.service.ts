@@ -1,5 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
+import { logger } from "../lib/logger";
+import { writeLedgerEntry } from "../ledger/ledger.service";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { LevelIncomeHistoryQuery } from "./level-income.schema";
@@ -84,7 +86,7 @@ export async function processLevelIncome(
     const wallet = await tx.wallet.update({
       where:  { userId: ancestorId },
       data:   { withdrawalWallet: { increment: incomeAmount } },
-      select: { id: true },
+      select: { id: true, withdrawalWallet: true },
     });
 
     // LevelIncome ledger record
@@ -114,6 +116,22 @@ export async function processLevelIncome(
     });
 
     targets.push({ receiverUserId: ancestorId, incomeAmount, level });
+
+    // Fire-and-forget ledger write (runs after the outer tx commits)
+    const _closingBalance = wallet.withdrawalWallet;
+    void Promise.resolve().then(() => writeLedgerEntry({
+      referenceId:     investmentId,
+      referenceType:   "level_income",
+      memberId:        ancestorId,
+      username:        ancestorId,
+      transactionType: "LEVEL_INCOME",
+      amount:          incomeAmount,
+      debitCredit:     "CREDIT",
+      walletType:      "WITHDRAWAL_WALLET",
+      closingBalance:  _closingBalance,
+      investmentId,
+      metadata:        { level, sourceUserId, percentage: pct, investmentAmount: investmentAmount.toFixed(8) },
+    })).catch(err => logger.error({ err }, "ledger: level income write failed"));
 
     // Move up to the next ancestor
     currentUserId = ancestorId;

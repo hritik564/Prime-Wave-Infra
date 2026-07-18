@@ -2782,3 +2782,143 @@ export async function blockchainSimulate(
     body: JSON.stringify({ to, amount, withdrawalId, network }),
   });
 }
+
+// ─── Treasury & Integrity ──────────────────────────────────────────────────────
+
+export interface TreasuryDashboard {
+  health: {
+    ledgerHealth:       string;
+    openDiscrepancies:  number;
+    lastScanAt:         string | null;
+    lastReconcileAt:    string | null;
+  };
+  reconciliation: {
+    status:             string;
+    lastRunAt:          string | null;
+    discrepancyCount:   number;
+    isManual:           boolean;
+  };
+  walletTotals: {
+    depositWallet:    string;
+    incomeWallet:     string;
+    withdrawalWallet: string;
+    lockedBalance:    string;
+  };
+  ledger: {
+    totalEntries:                number;
+    totalDeposits:               string;
+    totalInvestments:            string;
+    totalWithdrawalsCompleted:   string;
+    totalRoi:                    string;
+    totalIncomeDistributed:      string;
+    totalManualAdjustments:      string;
+  };
+}
+
+export async function getTreasuryDashboard(): Promise<TreasuryDashboard> {
+  return request<TreasuryDashboard>("/api/admin/treasury/dashboard");
+}
+
+export interface LedgerEntry {
+  id:              string;
+  createdAt:       string;
+  memberId:        string;
+  username:        string;
+  transactionType: string;
+  debitCredit:     "CREDIT" | "DEBIT";
+  walletType:      string;
+  amount:          string;
+  openingBalance:  string;
+  closingBalance:  string;
+  referenceId:     string;
+  referenceType:   string;
+  withdrawalId:    string | null;
+  investmentId:    string | null;
+  blockchainTxHash: string | null;
+}
+
+export interface LedgerPage {
+  entries: LedgerEntry[];
+  total:   number;
+  page:    number;
+  pages:   number;
+}
+
+export async function getLedgerEntries(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  transactionType?: string;
+  walletType?: string;
+  debitCredit?: string;
+  from?: string;
+  to?: string;
+}): Promise<LedgerPage> {
+  const q = new URLSearchParams();
+  if (params?.page)            q.set("page",            String(params.page));
+  if (params?.limit)           q.set("limit",           String(params.limit));
+  if (params?.search)          q.set("search",          params.search);
+  if (params?.transactionType) q.set("transactionType", params.transactionType);
+  if (params?.walletType)      q.set("walletType",      params.walletType);
+  if (params?.debitCredit)     q.set("debitCredit",     params.debitCredit);
+  if (params?.from)            q.set("from",            params.from);
+  if (params?.to)              q.set("to",              params.to);
+  return request<LedgerPage>(`/api/admin/treasury/ledger?${q.toString()}`);
+}
+
+export interface ReconciliationReportRow {
+  id:               string;
+  runAt:            string;
+  status:           string;
+  discrepancyCount: number;
+  isManual:         boolean;
+  triggeredBy:      string | null;
+}
+
+export async function getReconciliationReports(): Promise<ReconciliationReportRow[]> {
+  return request<ReconciliationReportRow[]>("/api/admin/treasury/reconciliation");
+}
+
+export async function triggerReconciliation(): Promise<{ discrepancyCount: number; status: string }> {
+  return request<{ discrepancyCount: number; status: string }>("/api/admin/treasury/reconciliation/run", {
+    method: "POST",
+  });
+}
+
+export async function triggerIntegrityScan(): Promise<{ discrepancyCount: number; health: string }> {
+  return request<{ discrepancyCount: number; health: string }>("/api/admin/treasury/integrity-scan", {
+    method: "POST",
+  });
+}
+
+export interface DiscrepancyRow {
+  id:              string;
+  type:            string;
+  severity:        string;
+  description:     string;
+  status:          string;
+  detectedAt:      string;
+  resolvedAt:      string | null;
+  resolvedBy:      string | null;
+  resolutionNotes: string | null;
+  referenceId:     string | null;
+}
+
+export async function getDiscrepancies(params?: { status?: string; severity?: string; type?: string }): Promise<DiscrepancyRow[]> {
+  const q = new URLSearchParams();
+  if (params?.status)   q.set("status",   params.status);
+  if (params?.severity) q.set("severity", params.severity);
+  if (params?.type)     q.set("type",     params.type);
+  return request<DiscrepancyRow[]>(`/api/admin/treasury/discrepancies?${q.toString()}`);
+}
+
+export async function updateDiscrepancy(
+  id: string,
+  status: "UNDER_REVIEW" | "RESOLVED",
+  notes?: string,
+): Promise<DiscrepancyRow> {
+  return request<DiscrepancyRow>(`/api/admin/treasury/discrepancies/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status, resolutionNotes: notes }),
+  });
+}

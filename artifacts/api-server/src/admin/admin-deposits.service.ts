@@ -4,6 +4,8 @@ import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { AdminDepositListQuery, RejectDepositInput } from "../deposits/deposits.schema";
 import { notificationService } from "../notifications/notifications.service";
+import { logger } from "../lib/logger";
+import { writeLedgerEntry } from "../ledger/ledger.service";
 
 // ── Shared select ─────────────────────────────────────────────────────────────
 
@@ -253,7 +255,7 @@ export async function approveDeposit(adminId: string, depositId: string) {
     const wallet = await tx.wallet.update({
       where:  { userId: deposit.userId },
       data:   { depositWallet: { increment: deposit.amount } },
-      select: { id: true },
+      select: { id: true, depositWallet: true },
     });
 
     // sourceDepositId carries a DB-level UNIQUE constraint — a second insert for
@@ -285,6 +287,22 @@ export async function approveDeposit(adminId: string, depositId: string) {
       },
     });
   }, { timeout: 30_000 });
+
+  void prisma.wallet.findUnique({ where: { userId: deposit.userId }, select: { depositWallet: true } })
+    .then(w => w && writeLedgerEntry({
+      referenceId:     depositId,
+      referenceType:   "deposit_approval",
+      memberId:        deposit.userId,
+      username:        deposit.userId,
+      transactionType: "DEPOSIT",
+      amount:          deposit.amount,
+      debitCredit:     "CREDIT",
+      walletType:      "DEPOSIT_WALLET",
+      closingBalance:  w.depositWallet,
+      blockchainTxHash: deposit.txHash,
+      metadata:        { network: deposit.network, adminId, txHash: deposit.txHash },
+    }))
+    .catch(err => logger.error({ err }, "ledger: approveDeposit write failed"));
 
   void notificationService.create({
     userId:   deposit.userId,
@@ -414,7 +432,7 @@ export async function createManualAdminDeposit(
     const wallet = await tx.wallet.update({
       where:  { userId },
       data:   { depositWallet: { increment: decimalAmount } },
-      select: { id: true },
+      select: { id: true, depositWallet: true },
     });
 
     // Wallet history — clearly labelled as manual; avoids any blockchain wording
@@ -457,6 +475,21 @@ export async function createManualAdminDeposit(
       },
     });
   }, { timeout: 30_000 });
+
+  void prisma.wallet.findUnique({ where: { userId }, select: { depositWallet: true } })
+    .then(w => w && writeLedgerEntry({
+      referenceId:     depositId!,
+      referenceType:   "manual_deposit",
+      memberId:        userId,
+      username:        userId,
+      transactionType: "DEPOSIT",
+      amount:          decimalAmount,
+      debitCredit:     "CREDIT",
+      walletType:      "DEPOSIT_WALLET",
+      closingBalance:  w.depositWallet,
+      metadata:        { network, reason, adminId, approvalMode: "MANUAL_ADMIN" },
+    }))
+    .catch(err => logger.error({ err }, "ledger: manual deposit write failed"));
 
   // Notify user — outside the transaction so a notification failure never
   // rolls back the already-credited wallet

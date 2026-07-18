@@ -5,6 +5,7 @@ import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { MatchingHistoryQuery } from "./matching.schema";
 import { notificationService } from "../notifications/notifications.service";
+import { writeLedgerEntry } from "../ledger/ledger.service";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -130,7 +131,7 @@ export async function processMatchingCycle(
         const wallet = await tx.wallet.update({
           where:  { userId: user.id },
           data:   { withdrawalWallet: { increment: incomeAmount } },
-          select: { id: true },
+          select: { id: true, withdrawalWallet: true },
         });
 
         // BinaryMatchIncome record — full transparency
@@ -170,6 +171,21 @@ export async function processMatchingCycle(
           },
         });
       });
+
+      void prisma.wallet.findUnique({ where: { userId: user.id }, select: { withdrawalWallet: true } })
+        .then(w => w && writeLedgerEntry({
+          referenceId:     user.id,
+          referenceType:   "binary_match",
+          memberId:        user.id,
+          username:        user.username,
+          transactionType: "MATCHING_BONUS",
+          amount:          incomeAmount,
+          debitCredit:     "CREDIT",
+          walletType:      "WITHDRAWAL_WALLET",
+          closingBalance:  w.withdrawalWallet,
+          metadata:        { matchedBV: matchedBV.toFixed(8), rewardedBV: rewardedBV.toFixed(8), cycleStart, cycleEnd },
+        }))
+        .catch(err => logger.error({ err }, "ledger: matching bonus write failed"));
 
       void notificationService.create({
         userId:  user.id,

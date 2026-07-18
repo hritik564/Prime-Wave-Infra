@@ -1,5 +1,16 @@
 import { Router } from "express";
 import {
+  getTreasuryDashboardHandler,
+  getLedgerEntriesHandler,
+  getReconciliationReportsHandler,
+  triggerReconciliationHandler,
+  triggerIntegrityScanHandler,
+  getDiscrepanciesHandler,
+  updateDiscrepancyHandler,
+  exportLedgerCsvHandler,
+  exportReconciliationCsvHandler,
+} from "./admin-treasury.controller";
+import {
   adminLogin,
   adminGetProfile,
   triggerMatchingCycle,
@@ -711,5 +722,16 @@ router.post("/blockchain/validate-address",  adminLimiter, superAdminGuard, vali
 router.post("/blockchain/check-balance",     adminLimiter, superAdminGuard, checkBalanceHandler);
 router.post("/blockchain/estimate-gas",      adminLimiter, superAdminGuard, estimateGasHandler);
 router.post("/blockchain/simulate",          adminLimiter, superAdminGuard, simulateTransferHandler);
+
+// ── Treasury & Financial Integrity — SUPER_ADMIN only ─────────────────────────
+router.get(  "/treasury/dashboard",             adminLimiter, superAdminGuard, getTreasuryDashboardHandler);
+router.get(  "/treasury/ledger",                adminLimiter, superAdminGuard, getLedgerEntriesHandler);
+router.get(  "/treasury/reconciliation",        adminLimiter, superAdminGuard, getReconciliationReportsHandler);
+router.post( "/treasury/reconciliation/run",    adminLimiter, superAdminGuard, triggerReconciliationHandler);
+router.post( "/treasury/integrity-scan",        adminLimiter, superAdminGuard, triggerIntegrityScanHandler);
+router.get(  "/treasury/discrepancies",         adminLimiter, superAdminGuard, getDiscrepanciesHandler);
+router.patch("/treasury/discrepancies/:id",     adminLimiter, superAdminGuard, updateDiscrepancyHandler);
+router.get(  "/treasury/export/ledger",         adminLimiter, superAdminGuard, exportLedgerCsvHandler);
+router.get(  "/treasury/export/reconciliation", adminLimiter, superAdminGuard, exportReconciliationCsvHandler);
 
 export default router;

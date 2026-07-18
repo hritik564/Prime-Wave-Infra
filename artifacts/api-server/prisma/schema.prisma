@@ -996,3 +996,114 @@ model IncomeTransferRelease {
   @@index([transferId])
   @@map("income_transfer_releases")
 }
+
+// ─── Financial Ledger (Sprint 31F) ────────────────────────────────────────────
+
+enum LedgerTransactionType {
+  DEPOSIT
+  INVESTMENT
+  ROI
+  LEVEL_INCOME
+  MATCHING_BONUS
+  ORBIT_INCOME
+  SALARY_INCOME
+  TRANSFER_OUT
+  TRANSFER_IN
+  WITHDRAWAL_REQUEST
+  WITHDRAWAL_BROADCAST
+  WITHDRAWAL_COMPLETED
+  WITHDRAWAL_REFUND
+  WITHDRAWAL_CANCELLATION
+  MANUAL_ADJUSTMENT
+}
+
+enum DebitCredit {
+  DEBIT
+  CREDIT
+}
+
+enum LedgerWalletType {
+  DEPOSIT_WALLET
+  INCOME_WALLET
+  WITHDRAWAL_WALLET
+  LOCKED_BALANCE
+}
+
+enum DiscrepancySeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DiscrepancyStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+}
+
+/// Immutable append-only financial ledger. Entries must never be edited or deleted.
+/// Corrections are recorded as separate reversing entries (MANUAL_ADJUSTMENT).
+model FinancialLedger {
+  id               String                @id @default(cuid())
+  referenceId      String
+  referenceType    String
+  memberId         String
+  username         String
+  transactionType  LedgerTransactionType
+  amount           Decimal               @db.Decimal(18, 8)
+  currency         String                @default("USDT")
+  debitCredit      DebitCredit
+  walletType       LedgerWalletType
+  openingBalance   Decimal               @db.Decimal(18, 8)
+  closingBalance   Decimal               @db.Decimal(18, 8)
+  blockchainTxHash String?
+  withdrawalId     String?
+  investmentId     String?
+  metadata         Json?
+  createdAt        DateTime              @default(now())
+
+  @@index([memberId])
+  @@index([referenceId])
+  @@index([transactionType])
+  @@index([createdAt])
+  @@index([withdrawalId])
+  @@index([blockchainTxHash])
+  @@map("financial_ledger")
+}
+
+/// Discrepancies detected by the reconciliation engine.
+model FinancialDiscrepancy {
+  id              String              @id @default(cuid())
+  type            String
+  severity        DiscrepancySeverity
+  description     String
+  detectedAt      DateTime            @default(now())
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  resolutionNotes String?
+  status          DiscrepancyStatus   @default(OPEN)
+  metadata        Json?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([status])
+  @@index([severity])
+  @@index([detectedAt])
+  @@map("financial_discrepancies")
+}
+
+/// Saved reconciliation run results.
+model ReconciliationReport {
+  id               String   @id @default(cuid())
+  runAt            DateTime @default(now())
+  status           String
+  summary          Json
+  discrepancyCount Int      @default(0)
+  isManual         Boolean  @default(false)
+  triggeredBy      String?
+  createdAt        DateTime @default(now())
+
+  @@index([runAt])
+  @@map("reconciliation_reports")
+}

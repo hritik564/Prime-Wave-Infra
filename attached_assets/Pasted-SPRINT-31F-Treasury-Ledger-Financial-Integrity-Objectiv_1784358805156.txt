@@ -1,0 +1,266 @@
+SPRINT 31F — Treasury, Ledger & Financial Integrity
+
+Objective:
+Build the financial integrity layer for PrimeWave. This sprint will ensure that every withdrawal, deposit, investment, ROI payout, and bonus is permanently recorded in an immutable financial ledger, can be reconciled against blockchain activity, and can be audited at any time.
+
+This sprint is NOT about blockchain transactions themselves—it is about accounting, reconciliation, and financial transparency.
+
+==================================================
+1. Immutable Financial Ledger
+==================================================
+
+Create a new append-only FinancialLedger model.
+
+Requirements:
+
+- Every financial event must create a ledger entry.
+- Ledger entries must NEVER be edited or deleted.
+- Corrections must be recorded as separate reversing entries.
+- Ledger becomes the financial source of truth.
+
+Suggested fields:
+
+- id
+- referenceId
+- referenceType
+- memberId
+- username
+- transactionType
+- amount
+- currency
+- debitCredit
+- walletType
+- openingBalance
+- closingBalance
+- blockchainTxHash (nullable)
+- withdrawalId (nullable)
+- investmentId (nullable)
+- createdAt
+- metadata (JSON)
+
+Supported transaction types:
+
+DEPOSIT
+INVESTMENT
+ROI
+LEVEL_INCOME
+MATCHING_BONUS
+ORBIT_INCOME
+SALARY_INCOME
+TRANSFER
+WITHDRAWAL_REQUEST
+WITHDRAWAL_BROADCAST
+WITHDRAWAL_COMPLETED
+WITHDRAWAL_REFUND
+MANUAL_ADJUSTMENT
+
+==================================================
+2. Automatic Ledger Integration
+==================================================
+
+Integrate the ledger into all existing financial services.
+
+Automatically create ledger entries for:
+
+- Deposits
+- Investments
+- ROI payouts
+- Binary bonuses
+- Level income
+- Orbit income
+- Salary income
+- Transfers
+- Withdrawal requests
+- Withdrawal broadcasts
+- Withdrawal completions
+- Withdrawal refunds
+
+No financial balance should change without creating a corresponding ledger entry.
+
+==================================================
+3. Financial Reconciliation Engine
+==================================================
+
+Create a reconciliation service.
+
+Responsibilities:
+
+Verify that:
+
+- Withdrawal wallet balances reconcile with ledger entries.
+- Deposit wallet balances reconcile with ledger entries.
+- Total completed withdrawals reconcile with blockchain transactions.
+- Completed blockchain transactions reconcile with completed withdrawal records.
+
+Detect:
+
+- Missing ledger entries
+- Duplicate ledger entries
+- Orphan withdrawal records
+- Blockchain/database mismatches
+- Negative balances
+- Inconsistent wallet balances
+
+Generate a reconciliation report.
+
+==================================================
+4. Nightly Integrity Scan
+==================================================
+
+Create a scheduled reconciliation job.
+
+Runs once daily.
+
+Checks:
+
+- Ledger consistency
+- Wallet balances
+- Blockchain withdrawal totals
+- Completed withdrawals
+- Pending withdrawals
+- Duplicate transaction hashes
+- Missing blockchain confirmations
+- Orphan financial records
+
+Save every scan result.
+
+Never modify data automatically.
+
+==================================================
+5. Financial Integrity Dashboard
+==================================================
+
+Create an admin dashboard:
+
+Treasury & Financial Integrity
+
+Display:
+
+- Total Ledger Entries
+- Total Deposits
+- Total Investments
+- Total ROI Paid
+- Total Bonuses Paid
+- Total Withdrawals Requested
+- Total Withdrawals Completed
+- Total Withdrawals Refunded
+- Total On-chain Sent
+- Total Pending Withdrawals
+- Ledger Health
+- Reconciliation Status
+
+Include visual indicators:
+
+Healthy
+Warning
+Critical
+
+==================================================
+6. Reconciliation Reports
+==================================================
+
+Provide detailed reports showing:
+
+- Blockchain totals
+- Internal totals
+- Ledger totals
+- Wallet totals
+
+Highlight discrepancies.
+
+Allow:
+
+- CSV export
+- Excel export
+
+==================================================
+7. Discrepancy Management
+==================================================
+
+Introduce discrepancy records.
+
+Each discrepancy should include:
+
+- type
+- severity
+- description
+- detectedAt
+- resolvedAt
+- resolvedBy
+- resolutionNotes
+
+Statuses:
+
+OPEN
+UNDER_REVIEW
+RESOLVED
+
+Never silently ignore discrepancies.
+
+==================================================
+8. Emergency Financial Tools
+==================================================
+
+Create administrator-only tools:
+
+- Run reconciliation now
+- Refresh blockchain verification
+- Export reconciliation report
+- Mark discrepancy as reviewed
+- Add administrator resolution notes
+
+These tools MUST NOT:
+
+- rebroadcast transactions
+- modify blockchain history
+- modify completed withdrawals
+
+==================================================
+9. Audit Logging
+==================================================
+
+Log every financial integrity action:
+
+- Reconciliation started
+- Reconciliation completed
+- Discrepancy detected
+- Discrepancy resolved
+- Ledger entry created
+- Manual review performed
+- Report exported
+
+Maintain a complete audit trail.
+
+==================================================
+10. Restrictions
+==================================================
+
+Do NOT modify:
+
+- Blockchain Gateway
+- Signing engine
+- Broadcasting engine
+- Confirmation poller
+- Recovery engine
+
+Do NOT change:
+
+- Withdrawal processing logic
+- Existing compensation calculations
+- Wallet calculation rules
+
+This sprint focuses entirely on accounting integrity and reconciliation.
+
+==================================================
+Expected Outcome
+==================================================
+
+After Sprint 31F:
+
+- Every financial movement is permanently recorded.
+- The ledger becomes the single source of financial truth.
+- Blockchain withdrawals reconcile with internal records.
+- Wallet balances can be independently verified.
+- Nightly reconciliation detects inconsistencies automatically.
+- Administrators have a complete Treasury & Financial Integrity dashboard.
+- PrimeWave gains enterprise-grade accounting, auditability, and financial transparency.

@@ -162,6 +162,10 @@ const server = app.listen(port, () => {
 
   startScheduler();
 
+  void import("./ledger/integrity-scan.service").then(({ startIntegrityScanScheduler }) => {
+    startIntegrityScanScheduler();
+  });
+
   boot("6", "validateCompanyWallets() starting");
 
   validateCompanyWallets()

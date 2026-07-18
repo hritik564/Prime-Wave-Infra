@@ -3,6 +3,8 @@ import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { CreateWithdrawalInput, WithdrawalHistoryQuery } from "./withdrawals.schema";
+import { logger } from "../lib/logger";
+import { writeLedgerEntry } from "../ledger/ledger.service";
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
@@ -207,6 +209,22 @@ export async function createWithdrawal(
     });
   });
 
+  void prisma.wallet.findUnique({ where: { userId }, select: { withdrawalWallet: true, lockedWithdrawalBalance: true } })
+    .then(w => w && writeLedgerEntry({
+      referenceId:     request.id,
+      referenceType:   "withdrawal_request",
+      memberId:        userId,
+      username:        userId,
+      transactionType: "WITHDRAWAL_REQUEST",
+      amount:          decimalAmount,
+      debitCredit:     "DEBIT",
+      walletType:      "WITHDRAWAL_WALLET",
+      closingBalance:  w.withdrawalWallet,
+      withdrawalId:    request.withdrawalId ?? request.id,
+      metadata:        { fee: fee.toFixed(8), netAmount: netAmount.toFixed(8), network: input.network },
+    }))
+    .catch(err => logger.error({ err }, "ledger: withdrawal request write failed"));
+
   return request;
 }
 
@@ -254,6 +272,21 @@ export async function cancelWithdrawal(userId: string, withdrawalId: string) {
       },
     });
   });
+
+  void prisma.wallet.findUnique({ where: { userId }, select: { withdrawalWallet: true } })
+    .then(w => w && writeLedgerEntry({
+      referenceId:     withdrawalId,
+      referenceType:   "withdrawal_cancellation",
+      memberId:        userId,
+      username:        userId,
+      transactionType: "WITHDRAWAL_CANCELLATION",
+      amount:          withdrawal.amount,
+      debitCredit:     "CREDIT",
+      walletType:      "WITHDRAWAL_WALLET",
+      closingBalance:  w.withdrawalWallet,
+      withdrawalId,
+    }))
+    .catch(err => logger.error({ err }, "ledger: withdrawal cancellation write failed"));
 
   return { withdrawalId, status: "CANCELLED", cancelledAt: now };
 }

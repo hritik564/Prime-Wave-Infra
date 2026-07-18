@@ -9,6 +9,7 @@ import { processLevelIncome } from "../levelIncome";
 import { notificationService } from "../notifications/notifications.service";
 import { logger } from "../lib/logger";
 import { processUserAchievements } from "../salary/salary-achievement.service";
+import { writeLedgerEntry } from "../ledger/ledger.service";
 
 // ── Create investment ─────────────────────────────────────────────────────────
 
@@ -96,6 +97,22 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
 
     return { investment: inv, levelIncomeTargets: levelTargets };
   }, { timeout: 30_000 });
+
+  void prisma.wallet.findUnique({ where: { userId }, select: { depositWallet: true } })
+    .then(w => w && writeLedgerEntry({
+      referenceId:     investment.id,
+      referenceType:   "investment",
+      memberId:        userId,
+      username:        userId,
+      transactionType: "INVESTMENT",
+      amount:          decimalAmount,
+      debitCredit:     "DEBIT",
+      walletType:      "DEPOSIT_WALLET",
+      closingBalance:  w.depositWallet,
+      investmentId:    investment.id,
+      metadata:        { planType, durationDays: plan.durationDays, autoCompound },
+    }))
+    .catch(err => logger.error({ err }, "ledger: investment write failed"));
 
   void notificationService.create({
     userId,

@@ -5,6 +5,8 @@ import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { OrbitHistoryQuery } from "./orbit.schema";
 import { notificationService } from "../notifications/notifications.service";
+import { logger } from "../lib/logger";
+import { writeLedgerEntry } from "../ledger/ledger.service";
 
 // ── Settings keys ─────────────────────────────────────────────────────────────
 
@@ -137,7 +139,7 @@ export async function processOrbitCycle(
         const wallet = await tx.wallet.update({
           where:  { userId: user.id },
           data:   { withdrawalWallet: { increment: incomeAmount } },
-          select: { id: true },
+          select: { id: true, withdrawalWallet: true },
         });
 
         // BinaryOrbitIncome record — full transparency
@@ -180,6 +182,21 @@ export async function processOrbitCycle(
           },
         });
       });
+
+      void prisma.wallet.findUnique({ where: { userId: user.id }, select: { withdrawalWallet: true } })
+        .then(w => w && writeLedgerEntry({
+          referenceId:     user.id,
+          referenceType:   "binary_orbit",
+          memberId:        user.id,
+          username:        user.id,
+          transactionType: "ORBIT_INCOME",
+          amount:          incomeAmount,
+          debitCredit:     "CREDIT",
+          walletType:      "WITHDRAWAL_WALLET",
+          closingBalance:  w.withdrawalWallet,
+          metadata:        { matchedBV: matchedBV.toFixed(8), rewardCount, payableRewardCount: rewardCount, cycleStart, cycleEnd },
+        }))
+        .catch(err => logger.error({ err }, "ledger: orbit income write failed"));
 
       void notificationService.create({
         userId:  user.id,

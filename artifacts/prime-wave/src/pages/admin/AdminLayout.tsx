@@ -57,6 +57,12 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "TREASURY",
+    items: [
+      { icon: Shield, label: "Integrity",    path: "/admin/treasury" },
+    ],
+  },
+  {
     label: "BLOCKCHAIN",
     items: [
       { icon: Link,       label: "Chain Health",  path: "/admin/blockchain-health" },

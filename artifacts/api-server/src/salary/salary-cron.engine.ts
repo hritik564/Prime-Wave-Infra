@@ -1,6 +1,7 @@
 import { prisma } from "../config/prisma";
 import { logger } from "../lib/logger";
 import { notificationService } from "../notifications/notifications.service";
+import { writeLedgerEntry } from "../ledger/ledger.service";
 import { isBinaryQualified } from "../eligibility/eligibility.service";
 
 // ── Monthly salary payout engine ──────────────────────────────────────────────
@@ -124,7 +125,7 @@ export async function runSalaryCycle(now?: Date): Promise<void> {
         const wallet = await tx.wallet.update({
           where:  { userId: ach.userId },
           data:   { withdrawalWallet: { increment: ach.monthlyAmount } },
-          select: { id: true },
+          select: { id: true, withdrawalWallet: true },
         });
 
         await tx.walletTransaction.create({
@@ -158,6 +159,21 @@ export async function runSalaryCycle(now?: Date): Promise<void> {
           },
         });
       });
+
+      void prisma.wallet.findUnique({ where: { userId: ach.userId }, select: { withdrawalWallet: true } })
+        .then(w => w && writeLedgerEntry({
+          referenceId:     ach.id,
+          referenceType:   "salary",
+          memberId:        ach.userId,
+          username:        ach.userId,
+          transactionType: "SALARY_INCOME",
+          amount:          ach.monthlyAmount,
+          debitCredit:     "CREDIT",
+          walletType:      "WITHDRAWAL_WALLET",
+          closingBalance:  w.withdrawalWallet,
+          metadata:        { rankName: ach.rankName, month, year },
+        }))
+        .catch(err => logger.error({ err }, "ledger: salary write failed"));
 
       void notificationService.create({
         userId:   ach.userId,
