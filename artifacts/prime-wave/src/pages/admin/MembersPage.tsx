@@ -14,7 +14,7 @@ import {
   adminResetUserPassword,
   type AdminUserDetail,
 } from "@/lib/api";
-import { getToken } from "@/lib/auth";
+import { getAdminToken } from "@/lib/auth";
 import {
   Search, Filter, FileSpreadsheet, FileText,
   Users, UserCheck, UserPlus, Calendar, RefreshCw,
@@ -312,7 +312,7 @@ export default function MembersPage() {
     setLoading(true);
     setError(null);
     try {
-      const token = getToken();
+      const token = getAdminToken();
       const qs    = buildQS(f, pg, LIMIT);
       const res   = await fetch(`/api/admin/reports/members?${qs}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -338,7 +338,7 @@ export default function MembersPage() {
   const handleExport = useCallback(async (type: "excel" | "csv") => {
     setExporting(type);
     try {
-      const token    = getToken();
+      const token    = getAdminToken();
       const qs       = buildExportQS(applied);
       const endpoint = type === "excel"
         ? `/api/admin/reports/members/export?${qs}`
