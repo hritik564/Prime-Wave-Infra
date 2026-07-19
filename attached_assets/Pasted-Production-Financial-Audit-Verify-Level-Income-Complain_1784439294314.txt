@@ -1,0 +1,148 @@
+Production Financial Audit — Verify Level Income Complaint (@aaditya2202)
+
+Objective
+
+A complaint has been received that user:
+
+@aaditya2202
+
+made a $200 investment, but every qualified upline (up to Level 5) received only $1 instead of the expected $2.
+
+DO NOT modify any code.
+
+DO NOT update any database records.
+
+DO NOT compensate anyone.
+
+This is a read-only forensic investigation.
+
+====================================================
+PART 1 — Locate the Investment
+====================================================
+
+Find the exact investment made by:
+
+@aaditya2202
+
+Report:
+
+- Investment ID
+- Investment amount
+- Investment timestamp
+- Investment status
+- Plan selected
+- User ID
+
+====================================================
+PART 2 — Trace Level Income Generation
+====================================================
+
+For this investment, list every generated Level Income record.
+
+For each record report:
+
+- Recipient username
+- Recipient user ID
+- Level
+- Percentage stored
+- Income amount
+- Wallet transaction ID
+- Ledger ID
+- Timestamp
+
+====================================================
+PART 3 — Verify Sponsor Chain
+====================================================
+
+Reconstruct the sponsor hierarchy.
+
+Show:
+
+Level 1
+Level 2
+Level 3
+Level 4
+Level 5
+
+For each level indicate:
+
+- Username
+- User ID
+- Whether a payout was generated
+- If not, explain why
+
+====================================================
+PART 4 — Determine Configuration Used
+====================================================
+
+Determine which level income configuration was actually used when this investment was processed.
+
+Report:
+
+- Timestamp of the investment
+- system_settings.level.config value that existed at that time (if historical/audit data exists)
+- If historical values are unavailable, report the current production configuration
+- Confirm whether the payout engine read system_settings or any fallback
+
+====================================================
+PART 5 — Recalculate Expected Payout
+====================================================
+
+Using the business rule that was active at the moment the investment was processed:
+
+Recalculate the expected payout.
+
+For a $200 investment report:
+
+Expected Level 1
+Expected Level 2
+Expected Level 3
+Expected Level 4
+Expected Level 5
+
+Compare against the actual payout.
+
+====================================================
+PART 6 — Root Cause
+====================================================
+
+Determine which of these is true:
+
+A.
+Complaint is incorrect.
+The payouts match the active business configuration.
+
+B.
+Complaint is valid because an incorrect percentage was used.
+
+C.
+Some recipients were skipped due to missing sponsor links or qualification.
+
+D.
+Any other root cause.
+
+Support the conclusion with database evidence.
+
+====================================================
+PART 7 — Financial Impact
+====================================================
+
+If an underpayment occurred, report only:
+
+- Total missing amount
+- Affected users
+- Amount each user should have received
+- Amount actually received
+
+Do NOT perform any corrections.
+
+====================================================
+Deliverable
+====================================================
+
+Produce a complete evidence-based report using production database records only.
+
+No code changes.
+No configuration changes.
+No compensation.
+No assumptions.
