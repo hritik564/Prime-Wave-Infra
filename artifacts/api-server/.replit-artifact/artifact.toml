@@ -15,7 +15,11 @@ run = "pnpm --filter @workspace/api-server run dev"
 [services.production]
 
 [services.production.build]
-args = ["pnpm", "--filter", "@workspace/api-server", "run", "build"]
+# build:prod runs `prisma migrate deploy` before bundling so that schema
+# changes are applied to the production database before the new server binary
+# is started.  If migrate deploy fails, the deployment is aborted and the
+# currently-running server is left untouched.
+args = ["pnpm", "--filter", "@workspace/api-server", "run", "build:prod"]
 
 [services.production.build.env]
 NODE_ENV = "production"
