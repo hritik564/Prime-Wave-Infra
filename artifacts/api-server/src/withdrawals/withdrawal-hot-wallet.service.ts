@@ -38,7 +38,7 @@ export interface HotWalletStatus {
 
 export async function checkHotWalletStatus(): Promise<HotWalletStatus> {
   const minBnb  = parseFloat(process.env["MIN_HOT_WALLET_BNB"]  ?? "0.05");
-  const minUsdt = parseFloat(process.env["MIN_HOT_WALLET_USDT"] ?? "100");
+  const minUsdt = parseFloat(process.env["MIN_HOT_WALLET_USDT"] ?? "1");
   const checkedAt = new Date().toISOString();
 
   if (!isGatewayConfigured("BEP20")) {
