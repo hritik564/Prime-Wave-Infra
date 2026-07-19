@@ -26,7 +26,7 @@ const envSchema = z.object({
 
   // Hot wallet minimum balances — processing pauses if either falls below.
   MIN_HOT_WALLET_BNB:  z.string().default("0.05"),
-  MIN_HOT_WALLET_USDT: z.string().default("100"),
+  MIN_HOT_WALLET_USDT: z.string().default("1"),
 });
 
 const parsed = envSchema.safeParse(process.env);
