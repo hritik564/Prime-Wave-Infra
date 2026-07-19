@@ -90,19 +90,20 @@ interface ToastItem { id: number; message: string; type: "success" | "error" }
 
 function HoldCountdown({ requestedAt, holdMinutes }: { requestedAt: string; holdMinutes: number }) {
   const getRemaining = () => {
-    const expiry = new Date(requestedAt).getTime() + holdMinutes * 60 * 1_000;
-    return Math.max(0, expiry - Date.now());
+    const base    = new Date(requestedAt).getTime();
+    const minutes = Number(holdMinutes);
+    if (!Number.isFinite(base) || !Number.isFinite(minutes)) return 0;
+    return Math.max(0, base + minutes * 60 * 1_000 - Date.now());
   };
 
   const [remaining, setRemaining] = useState(getRemaining);
 
   useEffect(() => {
-    if (remaining === 0) return;
-    const timer = setInterval(() => {
+    const tick = () => {
       const r = getRemaining();
       setRemaining(r);
-      if (r === 0) clearInterval(timer);
-    }, 1_000);
+    };
+    const timer = setInterval(tick, 1_000);
     return () => clearInterval(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedAt, holdMinutes]);
@@ -116,14 +117,17 @@ function HoldCountdown({ requestedAt, holdMinutes }: { requestedAt: string; hold
   }
 
   const totalSec = Math.floor(remaining / 1_000);
-  const h = Math.floor(totalSec / 3600).toString().padStart(2, "0");
-  const m = Math.floor((totalSec % 3600) / 60).toString().padStart(2, "0");
-  const s = (totalSec % 60).toString().padStart(2, "0");
+  const hours    = Math.floor(totalSec / 3600);
+  const mins     = Math.floor((totalSec % 3600) / 60).toString().padStart(2, "0");
+  const secs     = (totalSec % 60).toString().padStart(2, "0");
+  const display  = hours > 0
+    ? `${hours.toString().padStart(2, "0")}:${mins}:${secs}`
+    : `${mins}:${secs}`;
 
   return (
     <div className="flex flex-col gap-0.5">
-      <Badge variant="warning">Hold Period</Badge>
-      <span className="font-mono text-[10px]" style={{ color: "#fbbf24" }}>{h}:{m}:{s} remaining</span>
+      <Badge variant="warning">🟡 Hold Period</Badge>
+      <span className="font-mono text-[10px]" style={{ color: "#fbbf24" }}>{display} Remaining</span>
     </div>
   );
 }
@@ -164,6 +168,46 @@ function ExplorerLink({ txHash, network }: { txHash: string; network: string }) 
           View on BscScan
         </a>
       )}
+    </div>
+  );
+}
+
+// ── Wallet Address Card ────────────────────────────────────────────────────────
+
+function WalletAddressCard({ addr }: { addr: WalletAddress }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(addr.address).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div
+      className="flex items-center gap-3 rounded-xl px-4 py-3"
+      style={{ background: "rgba(212,175,55,0.05)", border: "1px solid rgba(212,175,55,0.2)" }}
+    >
+      <div className="flex-1 min-w-0">
+        {addr.label && <p className="text-xs font-semibold text-foreground mb-0.5">{addr.label}</p>}
+        <p className="font-mono text-xs truncate" style={{ color: "rgba(170,179,197,0.8)" }}>{addr.address}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          {addr.isVerified && (
+            <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: "#34d399" }}>
+              <CheckCircle2 className="h-2.5 w-2.5" />
+              Verified
+            </span>
+          )}
+        </div>
+      </div>
+      <button
+        onClick={handleCopy}
+        className="shrink-0 flex items-center justify-center h-8 w-8 rounded-lg transition-colors"
+        style={{ background: "rgba(255,255,255,0.05)", color: copied ? "#34d399" : "rgba(170,179,197,0.5)" }}
+        title="Copy wallet address"
+      >
+        {copied ? <CheckCheck className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+      </button>
     </div>
   );
 }
@@ -374,6 +418,19 @@ export default function WithdrawalWalletPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Poll for status updates when there are non-terminal withdrawal requests
+  useEffect(() => {
+    const TERMINAL = new Set(["COMPLETED", "FAILED", "REJECTED", "CANCELLED"]);
+    const hasActive = withdrawalRequests.some(w => !TERMINAL.has(w.status));
+    if (!hasActive) return;
+    const poll = setInterval(() => {
+      getWithdrawalHistory({ limit: 50 })
+        .then(r => setWithdrawalRequests(r.data))
+        .catch(() => {});
+    }, 10_000);
+    return () => clearInterval(poll);
+  }, [withdrawalRequests]);
+
   const showToast = useCallback((message: string, type: ToastItem["type"] = "success") => {
     const id = Date.now();
     setToasts((t) => [...t, { id, message, type }]);
@@ -512,39 +569,11 @@ export default function WithdrawalWalletPage() {
               No BEP20 addresses added yet. Add one to enable withdrawals.
             </div>
           ) : (
-            <>
-              {/* Locked state notice */}
-              <div
-                className="flex items-start gap-3 rounded-xl px-4 py-3 mb-2"
-                style={{ background: "rgba(212,175,55,0.04)", border: "1px solid rgba(212,175,55,0.18)" }}
-              >
-                <Lock className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: "#D4AF37" }} />
-                <p className="text-xs" style={{ color: "rgba(170,179,197,0.7)" }}>
-                  For your financial security, your withdrawal wallet cannot be changed after registration.
-                </p>
-              </div>
-              <div className="space-y-2">
-                {walletAddresses.map((addr) => (
-                  <div
-                    key={addr.id}
-                    className="flex items-center gap-3 rounded-xl px-4 py-3"
-                    style={{ background: "rgba(212,175,55,0.05)", border: "1px solid rgba(212,175,55,0.2)" }}
-                  >
-                    <div className="flex-1 min-w-0">
-                      {addr.label && <p className="text-xs font-semibold text-foreground">{addr.label}</p>}
-                      <p className="font-mono text-xs truncate" style={{ color: "rgba(170,179,197,0.8)" }}>{addr.address}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: "#D4AF37" }}>
-                          <Lock className="h-2.5 w-2.5" />
-                          Permanently Locked
-                        </span>
-                        <span className="text-xs" style={{ color: "#34d399" }}>Verified</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
+            <div className="space-y-2">
+              {walletAddresses.map((addr) => (
+                <WalletAddressCard key={addr.id} addr={addr} />
+              ))}
+            </div>
           )}
         </div>
 

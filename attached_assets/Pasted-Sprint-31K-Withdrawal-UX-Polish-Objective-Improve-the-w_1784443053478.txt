@@ -1,0 +1,209 @@
+Sprint 31K — Withdrawal UX Polish
+
+Objective
+
+Improve the withdrawal user experience by fixing the hold period countdown timer and simplifying the withdrawal wallet interface.
+
+This is a UI/UX improvement only.
+
+DO NOT change any withdrawal business logic.
+
+DO NOT change the hold period duration.
+
+DO NOT change blockchain, treasury, wallet engine, or database schema.
+
+====================================================
+PART 1 — Fix Hold Period Countdown
+====================================================
+
+Current Issue
+
+The withdrawal history displays:
+
+NaN:NaN:NaN remaining
+
+This indicates the countdown is not being calculated correctly.
+
+Investigate the root cause and fix it.
+
+Do NOT hardcode the timer.
+
+The countdown must always be calculated from backend data.
+
+Preferred implementation:
+
+Backend should expose either:
+
+• holdUntil
+
+or
+
+• createdAt + holdPeriodSeconds
+
+The frontend should calculate:
+
+Remaining Time = holdUntil - Current Time
+
+Update automatically every second.
+
+====================================================
+PART 2 — Countdown Display
+====================================================
+
+During the hold period display:
+
+🟡 Hold Period
+
+MM:SS Remaining
+
+Example:
+
+01:59 Remaining
+
+01:58 Remaining
+
+01:57 Remaining
+
+Do not display hours unless the hold period exceeds one hour.
+
+Never display:
+
+NaN
+
+undefined
+
+Negative values
+
+Invalid dates
+
+====================================================
+PART 3 — Automatic Status Updates
+====================================================
+
+When countdown reaches zero:
+
+Automatically change status to:
+
+🟢 Eligible for Processing
+
+No page refresh required.
+
+After processing starts:
+
+🔄 Processing
+
+After blockchain broadcast:
+
+📡 Broadcasting
+
+After confirmation:
+
+✅ Completed
+
+====================================================
+PART 4 — Explorer Link
+====================================================
+
+Once the withdrawal is successfully completed:
+
+Display:
+
+Transaction Hash
+
+View on BscScan
+
+The link should open in a new browser tab.
+
+Do not display the explorer link before a transaction hash exists.
+
+====================================================
+PART 5 — Simplify Withdrawal Wallet UI
+====================================================
+
+Current UI contains unnecessary security messages.
+
+Remove:
+
+"For your financial security, your withdrawal wallet cannot be changed after registration."
+
+Remove:
+
+"🔒 Permanently Locked"
+
+Keep the interface clean.
+
+Display only:
+
+Wallet Address
+
+Verification Status
+
+Example:
+
+0x83BE...B460f
+
+✅ Verified
+
+No additional warning banners.
+
+No lock messages.
+
+The wallet should still remain locked internally.
+
+This is only a visual cleanup.
+
+====================================================
+PART 6 — Copy Wallet Address
+====================================================
+
+Keep the existing copy button (or add one if missing).
+
+Users should always be able to copy their verified withdrawal wallet.
+
+====================================================
+PART 7 — Regression Testing
+====================================================
+
+Verify:
+
+✓ Countdown displays correctly.
+
+✓ Countdown updates every second.
+
+✓ Countdown reaches zero correctly.
+
+✓ Status changes automatically.
+
+✓ Completed withdrawals display transaction hash.
+
+✓ Explorer link works correctly.
+
+✓ Wallet remains immutable.
+
+✓ Edit/Delete/Add buttons remain unavailable.
+
+✓ Wallet still cannot be modified through the API.
+
+✓ Only administrators can update a user's withdrawal wallet through the admin panel with full audit logging.
+
+====================================================
+Acceptance Criteria
+====================================================
+
+After implementation:
+
+✓ Hold period countdown works correctly.
+
+✓ No NaN values appear.
+
+✓ Withdrawal status progresses automatically.
+
+✓ Completed withdrawals display a blockchain explorer link.
+
+✓ Withdrawal wallet UI is clean and minimal.
+
+✓ Only the wallet address and "Verified" status are displayed.
+
+✓ Wallet security remains fully enforced.
+
+✓ No business logic or financial calculations are changed.
