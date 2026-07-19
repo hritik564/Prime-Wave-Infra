@@ -3,7 +3,7 @@ import { Loader2, User, Lock, Wallet, Check, Moon, Sun, Link2, Hash, Copy, Check
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
-import { getProfile, updateProfile, changePassword, type ProfileData } from "@/lib/api";
+import { getProfile, updateProfile, changePassword, listWalletAddresses, addWalletAddress, type ProfileData, type WalletAddress } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import { useTheme } from "@/providers/ThemeProvider";
 import { useLocation } from "wouter";
@@ -87,11 +87,16 @@ export default function SettingsPage() {
   const [firstName, setFirstName]       = useState("");
   const [lastName, setLastName]         = useState("");
   const [phone, setPhone]               = useState("");
-  const [walletAddress, setWalletAddress] = useState("");
-  const [walletWasSet, setWalletWasSet]   = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved]   = useState(false);
   const [profileError, setProfileError]   = useState<string>();
+
+  // Wallet address (shared with Withdrawal Wallet tab — both use wallet_addresses table)
+  const [savedAddr, setSavedAddr]         = useState<WalletAddress | null>(null);
+  const [walletInput, setWalletInput]     = useState("");
+  const [walletSaving, setWalletSaving]   = useState(false);
+  const [walletSaved, setWalletSaved]     = useState(false);
+  const [walletError, setWalletError]     = useState<string | undefined>();
 
   // Password form
   const [currentPassword, setCurrentPassword] = useState("");
@@ -125,14 +130,13 @@ export default function SettingsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const data = await getProfile();
+        const [data, addrs] = await Promise.all([getProfile(), listWalletAddresses("BEP20")]);
         setProfile(data);
         setFirstName(data.firstName);
         setLastName(data.lastName);
         setPhone(data.phone ?? "");
-        const wa = (data as ProfileData & { walletAddress?: string }).walletAddress ?? "";
-        setWalletAddress(wa);
-        setWalletWasSet(wa !== "");
+        const primary = addrs.find((a) => a.isPrimary) ?? addrs[0] ?? null;
+        setSavedAddr(primary);
       } catch {
         // silently fail
       } finally {
@@ -146,10 +150,7 @@ export default function SettingsPage() {
     setProfileSaving(true);
     setProfileError(undefined);
     try {
-      const updated = await updateProfile({
-        firstName, lastName, phone,
-        ...(walletWasSet ? {} : { walletAddress: walletAddress || undefined }),
-      });
+      const updated = await updateProfile({ firstName, lastName, phone });
       setProfile(updated);
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 2500);
@@ -157,6 +158,23 @@ export default function SettingsPage() {
       setProfileError(err instanceof Error ? err.message : "Update failed");
     } finally {
       setProfileSaving(false);
+    }
+  };
+
+  const handleSaveWalletAddress = async () => {
+    if (!walletInput.trim()) return;
+    setWalletSaving(true);
+    setWalletError(undefined);
+    try {
+      const addr = await addWalletAddress({ network: "BEP20", address: walletInput.trim() });
+      setSavedAddr(addr);
+      setWalletInput("");
+      setWalletSaved(true);
+      setTimeout(() => setWalletSaved(false), 2500);
+    } catch (err) {
+      setWalletError(err instanceof Error ? err.message : "Failed to save wallet address");
+    } finally {
+      setWalletSaving(false);
     }
   };
 
@@ -328,7 +346,7 @@ export default function SettingsPage() {
 
             {/* ── Wallet Address ── */}
             <Card title="Withdrawal Wallet Address" icon={Wallet}>
-              {walletWasSet ? (
+              {savedAddr ? (
                 <>
                   <div
                     className="flex items-start gap-3 rounded-xl px-4 py-3 mb-4"
@@ -336,15 +354,20 @@ export default function SettingsPage() {
                   >
                     <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "#D4AF37" }} />
                     <p className="text-xs" style={{ color: "rgba(170,179,197,0.7)" }}>
-                      For your financial security, your withdrawal wallet cannot be changed after registration. Contact Support if you believe this is incorrect.
+                      For your financial security, your withdrawal wallet cannot be changed after it is set. Contact Support if you believe this is incorrect.
                     </p>
                   </div>
-                  <Field label="Wallet Address">
+                  {savedAddr.label && (
+                    <p className="text-xs font-semibold mb-1" style={{ color: "hsl(var(--muted-foreground))" }}>
+                      {savedAddr.label}
+                    </p>
+                  )}
+                  <Field label="BEP20 Wallet Address">
                     <div className="relative">
-                      <TextInput value={walletAddress} readOnly />
+                      <TextInput value={savedAddr.address} readOnly />
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(walletAddress).catch(() => {});
+                          navigator.clipboard.writeText(savedAddr.address).catch(() => {});
                           setCopied("wallet");
                           setTimeout(() => setCopied(null), 2000);
                         }}
@@ -364,16 +387,24 @@ export default function SettingsPage() {
               ) : (
                 <>
                   <p className="text-xs mb-4" style={{ color: "hsl(var(--muted-foreground))" }}>
-                    Add your USDT (BEP20) wallet address. This can only be set once and cannot be changed.
+                    Add your USDT (BEP20) wallet address. Once set it cannot be changed — the same address will appear in your Withdrawal Wallet tab.
                   </p>
-                  <Field label="Wallet Address">
+                  <Field label="BEP20 Wallet Address">
                     <TextInput
-                      value={walletAddress}
-                      onChange={setWalletAddress}
+                      value={walletInput}
+                      onChange={setWalletInput}
                       placeholder="e.g. 0x..."
                     />
                   </Field>
-                  <SaveButton loading={profileSaving} saved={profileSaved} onClick={handleSaveProfile} />
+                  {walletError && (
+                    <p className="text-xs mt-1 mb-2" style={{ color: "#ef4444" }}>{walletError}</p>
+                  )}
+                  <SaveButton
+                    loading={walletSaving}
+                    saved={walletSaved}
+                    onClick={() => void handleSaveWalletAddress()}
+                    disabled={!walletInput.trim()}
+                  />
                 </>
               )}
             </Card>
