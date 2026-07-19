@@ -4,39 +4,114 @@ import { logger } from "../lib/logger";
 import { writeLedgerEntry } from "../ledger/ledger.service";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
+import { getSetting } from "../config/settings";
 import type { LevelIncomeHistoryQuery } from "./level-income.schema";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/** Level rules: level → percentage (stored as whole number, e.g. 1 = 1%) */
-const LEVEL_RULES: Record<number, number> = {
-  1: 1,
-  2: 1,
-  3: 1,
-  4: 1,
-  5: 1,
-};
+/** Number of referral levels the engine pays. */
+const ENGINE_LEVELS = 5;
 
-const MAX_LEVELS = 5;
+/**
+ * Default level config used as fallback when system_settings has no entry.
+ * Official PrimeWave business rule: 1% flat across all 5 levels.
+ */
+const DEFAULT_LEVEL_CONFIG_JSON = JSON.stringify([
+  { level: 1, rate: 1 },
+  { level: 2, rate: 1 },
+  { level: 3, rate: 1 },
+  { level: 4, rate: 1 },
+  { level: 5, rate: 1 },
+]);
+
+// ── Config loader ─────────────────────────────────────────────────────────────
+
+/**
+ * Load the level income rate table from system_settings.level.config.
+ *
+ * The result is cached by config/settings.ts for 5 minutes. Cache is
+ * automatically invalidated whenever the admin saves a new level.config
+ * via saveLevelConfig() (which calls clearSettingsCache).
+ *
+ * Validation rules (throws on failure — halts investment processing):
+ *   ✓ JSON must be parseable.
+ *   ✓ Levels 1–5 must all be present.
+ *   ✓ Every rate must be a finite number.
+ *   ✓ Every rate must be >= 0.
+ */
+export async function loadLevelRules(): Promise<Record<number, number>> {
+  const raw = await getSetting("level.config", DEFAULT_LEVEL_CONFIG_JSON);
+
+  let entries: { level: unknown; rate: unknown }[];
+  try {
+    entries = JSON.parse(raw) as { level: unknown; rate: unknown }[];
+    if (!Array.isArray(entries)) throw new TypeError("expected array");
+  } catch {
+    throw new Error(
+      "[Level Income] system_settings.level.config is not valid JSON. " +
+      "Correct the row in system_settings and restart the server.",
+    );
+  }
+
+  const byLevel: Record<number, number> = {};
+
+  for (const e of entries) {
+    if (typeof e.level !== "number" || !Number.isFinite(e.level)) {
+      throw new Error(
+        `[Level Income] level.config entry has non-numeric level field: ${JSON.stringify(e)}`,
+      );
+    }
+    if (typeof e.rate !== "number" || !Number.isFinite(e.rate)) {
+      throw new Error(
+        `[Level Income] level.config entry for level ${e.level} has non-numeric rate: ${JSON.stringify(e)}`,
+      );
+    }
+    if (e.rate < 0) {
+      throw new Error(
+        `[Level Income] level.config rate for level ${e.level} is negative (${e.rate}). Rates must be >= 0.`,
+      );
+    }
+    // Only capture levels 1–ENGINE_LEVELS; ignore extras.
+    if (e.level >= 1 && e.level <= ENGINE_LEVELS) {
+      byLevel[e.level] = e.rate;
+    }
+  }
+
+  // All levels 1–ENGINE_LEVELS must be present.
+  for (let l = 1; l <= ENGINE_LEVELS; l++) {
+    if (byLevel[l] === undefined) {
+      throw new Error(
+        `[Level Income] level.config is missing level ${l}. ` +
+        `Config must define levels 1–${ENGINE_LEVELS}. ` +
+        "Correct system_settings.level.config and restart the server.",
+      );
+    }
+  }
+
+  return byLevel;
+}
 
 // ── Level income propagation ──────────────────────────────────────────────────
 
 /*
- * Level Income Business Rule — Sprint 28J
+ * Level Income Business Rule — Sprint 28J (config source updated Sprint 31H)
  *
  * Pure referral commission. Binary qualification does NOT apply.
  *
  * Trigger:    A referred user makes a qualifying investment.
  * Recipients: First 5 levels of the sponsor (referral) chain.
- * Amount:     1% of investment per level.
+ * Rate:       Read live from system_settings.level.config (cached 5 min).
  *
  * Every sponsor within the first five referral levels receives income
  * unconditionally — no investment requirement, no binary left/right
  * referral requirement, no rank or KYC check.
- *
- * Binary qualification belongs exclusively to the Binary Matching,
- * Orbit, and Salary engines (isBinaryQualified in eligibility.service).
  */
+
+export interface LevelIncomeTarget {
+  receiverUserId: string;
+  incomeAmount:   Prisma.Decimal;
+  level:          number;
+}
 
 /**
  * Walk up the sponsor chain and pay level income to each ancestor.
@@ -44,52 +119,40 @@ const MAX_LEVELS = 5;
  * Called inside the createInvestment Prisma transaction — all payouts are
  * atomic with the investment creation.
  *
- * Algorithm:
- *   - Start at sourceUser, walk up via sponsorId up to MAX_LEVELS times.
- *   - For each ancestor that exists, apply the level % to investmentAmount.
- *   - Credit withdrawalWallet, create LevelIncome + WalletTransaction records.
- *   - If the chain ends before MAX_LEVELS (no sponsor), stop early.
- *   - No qualification gate — every ancestor within 5 levels is paid.
+ * Rates are loaded from system_settings.level.config (auto-cached, auto-
+ * invalidated on admin save — no restart required to pick up new rates).
  */
-export interface LevelIncomeTarget {
-  receiverUserId: string;
-  incomeAmount:   Prisma.Decimal;
-  level:          number;
-}
-
 export async function processLevelIncome(
   tx: Prisma.TransactionClient,
   sourceUserId:     string,
   investmentId:     string,
   investmentAmount: Prisma.Decimal,
 ): Promise<LevelIncomeTarget[]> {
-  // Walk up the sponsor chain, fetching one level at a time.
-  // We only need sponsorId and the wallet, so keep the select minimal.
+  // Load config outside the per-level loop (one cached read per investment).
+  const levelRules = await loadLevelRules();
+
   const targets: LevelIncomeTarget[] = [];
   let currentUserId = sourceUserId;
 
-  for (let level = 1; level <= MAX_LEVELS; level++) {
-    // Find the current user's sponsor
+  for (let level = 1; level <= ENGINE_LEVELS; level++) {
     const current = await tx.user.findUnique({
       where:  { id: currentUserId },
       select: { sponsorId: true },
     });
 
     const ancestorId = current?.sponsorId;
-    if (!ancestorId) break; // Chain ends — no more levels to pay
+    if (!ancestorId) break;
 
-    const pct     = LEVEL_RULES[level]!;
-    const percentage    = new Prisma.Decimal(pct);
-    const incomeAmount  = investmentAmount.times(percentage).div(100);
+    const pct          = levelRules[level]!;
+    const percentage   = new Prisma.Decimal(pct);
+    const incomeAmount = investmentAmount.times(percentage).div(100);
 
-    // Credit ancestor's withdrawal wallet
     const wallet = await tx.wallet.update({
       where:  { userId: ancestorId },
       data:   { withdrawalWallet: { increment: incomeAmount } },
       select: { id: true, withdrawalWallet: true },
     });
 
-    // LevelIncome ledger record
     await tx.levelIncome.create({
       data: {
         receiverUserId:  ancestorId,
@@ -102,7 +165,6 @@ export async function processLevelIncome(
       },
     });
 
-    // Wallet audit record
     await tx.walletTransaction.create({
       data: {
         walletId:    wallet.id,
@@ -117,7 +179,6 @@ export async function processLevelIncome(
 
     targets.push({ receiverUserId: ancestorId, incomeAmount, level });
 
-    // Fire-and-forget ledger write (runs after the outer tx commits)
     const _closingBalance = wallet.withdrawalWallet;
     void Promise.resolve().then(() => writeLedgerEntry({
       referenceId:     investmentId,
@@ -133,7 +194,6 @@ export async function processLevelIncome(
       metadata:        { level, sourceUserId, percentage: pct, investmentAmount: investmentAmount.toFixed(8) },
     })).catch(err => logger.error({ err }, "ledger: level income write failed"));
 
-    // Move up to the next ancestor
     currentUserId = ancestorId;
   }
 
@@ -224,7 +284,6 @@ export async function getLevelIncomeSummary(receiverUserId: string) {
     throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
   }
 
-  // Level-wise breakdown (groupBy level)
   const grouped = await prisma.levelIncome.groupBy({
     by:     ["level"],
     where:  { receiverUserId },
@@ -233,18 +292,25 @@ export async function getLevelIncomeSummary(receiverUserId: string) {
     orderBy: { level: "asc" },
   });
 
-  // Overall totals
   const totals = await prisma.levelIncome.aggregate({
     where: { receiverUserId },
     _sum:  { incomeAmount: true },
     _count: { id: true },
   });
 
+  // Load live rates for display; fall back to 0 if config fails for any reason.
+  let levelRules: Record<number, number> = {};
+  try {
+    levelRules = await loadLevelRules();
+  } catch {
+    // Non-fatal for summary display — rates show as 0 if config is broken.
+  }
+
   const breakdown = grouped.map((g) => ({
     level:       g.level,
     count:       g._count.id,
     incomeAmount: g._sum.incomeAmount ?? new Prisma.Decimal(0),
-    percentage:  LEVEL_RULES[g.level] ?? 0,
+    percentage:  levelRules[g.level] ?? 0,
   }));
 
   return {

@@ -22,7 +22,7 @@ vi.mock("../../config/env", () => ({
 vi.mock("../../config/prisma", () => ({
   prisma: {
     investment:        { count: vi.fn(), create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn() },
-    wallet:            { findUnique: vi.fn(), update: vi.fn() },
+    wallet:            { findUnique: vi.fn().mockResolvedValue(null), update: vi.fn() },
     walletTransaction: { create: vi.fn() },
     levelIncome:       { create: vi.fn() },
     user:              { findUnique: vi.fn() },

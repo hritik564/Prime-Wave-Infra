@@ -88,9 +88,9 @@ const STATIC_DEFS: Record<string, {
     name: "Level Income", shortName: "Level", color: "#60a5fa",
     config: [
       { key: "level.max_depth",   label: "Max Depth",    value: "5", unit: "levels" },
-      { key: "level.level1_rate", label: "Level 1 Rate", value: "5", unit: "%"      },
-      { key: "level.level2_rate", label: "Level 2 Rate", value: "3", unit: "%"      },
-      { key: "level.level3_rate", label: "Level 3 Rate", value: "2", unit: "%"      },
+      { key: "level.level1_rate", label: "Level 1 Rate", value: "1", unit: "%"      },
+      { key: "level.level2_rate", label: "Level 2 Rate", value: "1", unit: "%"      },
+      { key: "level.level3_rate", label: "Level 3 Rate", value: "1", unit: "%"      },
       { key: "level.level4_rate", label: "Level 4 Rate", value: "1", unit: "%"      },
       { key: "level.level5_rate", label: "Level 5 Rate", value: "1", unit: "%"      },
     ],

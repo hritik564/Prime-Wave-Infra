@@ -1,7 +1,8 @@
 /**
  * Sprint 28J — Level Income Business Rule Regression Tests
+ * Updated Sprint 31H — config now loaded from system_settings (mocked here).
  *
- * These tests verify that processLevelIncome is now a pure referral commission:
+ * These tests verify that processLevelIncome is a pure referral commission:
  * every sponsor within the first 5 referral levels is paid unconditionally —
  * no binary qualification, no investment requirement, no left/right leg check.
  */
@@ -29,6 +30,22 @@ vi.mock("../../config/prisma", () => ({
   },
 }));
 
+// ── Mock the settings module so loadLevelRules reads from this mock ──────────
+// Official PrimeWave business rule: 1% flat across all 5 levels.
+vi.mock("../../config/settings", () => ({
+  getSetting: vi.fn().mockResolvedValue(
+    JSON.stringify([
+      { level: 1, rate: 1 },
+      { level: 2, rate: 1 },
+      { level: 3, rate: 1 },
+      { level: 4, rate: 1 },
+      { level: 5, rate: 1 },
+    ]),
+  ),
+  setSetting:        vi.fn().mockResolvedValue(undefined),
+  clearSettingsCache: vi.fn(),
+}));
+
 import { processLevelIncome, type LevelIncomeTarget } from "../level-income.service";
 import { isBinaryQualified } from "../../eligibility/eligibility.service";
 
@@ -48,7 +65,10 @@ function buildMockTx(sponsorMap: Record<string, string | null>) {
       ),
     },
     wallet: {
-      update: vi.fn().mockResolvedValue({ id: "wallet-id" }),
+      update: vi.fn().mockResolvedValue({
+        id:              "wallet-id",
+        withdrawalWallet: new Prisma.Decimal("0"),
+      }),
     },
     levelIncome: {
       create: vi.fn().mockResolvedValue({}),
@@ -59,18 +79,16 @@ function buildMockTx(sponsorMap: Record<string, string | null>) {
   } as unknown as Prisma.TransactionClient;
 }
 
-const AMOUNT  = new Prisma.Decimal("1000");
-const INV_ID  = "inv-001";
+const AMOUNT   = new Prisma.Decimal("1000");
+const INV_ID   = "inv-001";
 const INVESTOR = "user-investor";
 
 // ── Scenario 1–4: Unconditional payout regardless of ancestor state ──────────
 
 describe("Level Income — pure referral commission (Sprint 28J)", () => {
   it("Scenario 1: pays sponsor who has ZERO investments", async () => {
-    // Previously: isMemberActive returned false → sponsor was skipped.
-    // Now: no gate exists — sponsor receives income unconditionally.
     const sponsorMap: Record<string, string | null> = {
-      [INVESTOR]:       "sponsor-no-investment",
+      [INVESTOR]:              "sponsor-no-investment",
       "sponsor-no-investment": null,
     };
     const tx = buildMockTx(sponsorMap);
@@ -82,7 +100,6 @@ describe("Level Income — pure referral commission (Sprint 28J)", () => {
   });
 
   it("Scenario 2: pays sponsor who has ONLY LEFT referrals (fails binary gate)", async () => {
-    // Previously: directRightCount = 0 → isMemberActive false → skipped.
     const sponsorMap: Record<string, string | null> = {
       [INVESTOR]:          "sponsor-left-only",
       "sponsor-left-only": null,
@@ -95,7 +112,6 @@ describe("Level Income — pure referral commission (Sprint 28J)", () => {
   });
 
   it("Scenario 3: pays sponsor who has ONLY RIGHT referrals (fails binary gate)", async () => {
-    // Previously: directLeftCount = 0 → isMemberActive false → skipped.
     const sponsorMap: Record<string, string | null> = {
       [INVESTOR]:           "sponsor-right-only",
       "sponsor-right-only": null,
@@ -108,10 +124,9 @@ describe("Level Income — pure referral commission (Sprint 28J)", () => {
   });
 
   it("Scenario 4: pays sponsor who fully fails binary qualification", async () => {
-    // Previously: no investments, no left, no right → isMemberActive false → skipped.
     const sponsorMap: Record<string, string | null> = {
-      [INVESTOR]:              "unqualified-sponsor",
-      "unqualified-sponsor":   null,
+      [INVESTOR]:            "unqualified-sponsor",
+      "unqualified-sponsor": null,
     };
     const tx = buildMockTx(sponsorMap);
     const targets = await processLevelIncome(tx, INVESTOR, INV_ID, AMOUNT);
@@ -147,7 +162,7 @@ describe("Level Income — pure referral commission (Sprint 28J)", () => {
 
   it("each payout is exactly 1% of the investment amount", async () => {
     const sponsorMap: Record<string, string | null> = {
-      [INVESTOR]: "sponsor-1",
+      [INVESTOR]:  "sponsor-1",
       "sponsor-1": null,
     };
     const tx = buildMockTx(sponsorMap);
@@ -155,6 +170,22 @@ describe("Level Income — pure referral commission (Sprint 28J)", () => {
 
     // 1% of 1000 = 10.00
     expect(targets[0]?.incomeAmount.toFixed(2)).toBe("10.00");
+  });
+
+  it("$100 investment pays exactly $1.00 at each of the five levels", async () => {
+    const sponsorMap: Record<string, string | null> = {
+      [INVESTOR]: "l1", "l1": "l2", "l2": "l3", "l3": "l4", "l4": "l5", "l5": null,
+    };
+    const tx = buildMockTx(sponsorMap);
+    const targets = await processLevelIncome(
+      tx, INVESTOR, INV_ID, new Prisma.Decimal("100"),
+    );
+
+    expect(targets).toHaveLength(5);
+    targets.forEach((t: LevelIncomeTarget) => {
+      // 1% of $100 = $1.00 at every level
+      expect(t.incomeAmount.toFixed(2)).toBe("1.00");
+    });
   });
 
   it("full 5-level chain: levels numbered 1–5 in order, all wallets credited", async () => {
@@ -202,7 +233,6 @@ describe("Level Income — pure referral commission (Sprint 28J)", () => {
 
 describe("Binary qualification gate — unchanged in other engines (Scenarios 6–8)", () => {
   it("Scenario 6 / 7 / 8: isBinaryQualified is exported from eligibility.service", () => {
-    // If the rename broke something, this would be undefined or throw a TypeError.
     expect(typeof isBinaryQualified).toBe("function");
   });
 
@@ -210,15 +240,11 @@ describe("Binary qualification gate — unchanged in other engines (Scenarios 6�
     const mod = await import("../../eligibility/eligibility.service");
     const alias = (mod as Record<string, unknown>)["isMemberActive"];
     expect(typeof alias).toBe("function");
-    expect(alias).toBe(isBinaryQualified); // same function reference
+    expect(alias).toBe(isBinaryQualified);
   });
 
   it("level-income.service does NOT call isBinaryQualified (confirmed by import absence)", async () => {
     const mod = await import("../level-income.service");
-    // processLevelIncome must exist and be callable
     expect(typeof mod.processLevelIncome).toBe("function");
-    // If isBinaryQualified were still imported in level-income.service, any call to it
-    // would use the mocked prisma. The test suite running with only the prisma mock
-    // (no eligibility mock needed) confirms the import has been removed.
   });
 });

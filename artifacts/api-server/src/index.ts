@@ -13,6 +13,7 @@ import { runGenerator } from "./admin/scripts/networkGenerator";
 import { runFunder }    from "./admin/scripts/networkFunder";
 import { runSeed23B }                                      from "./dev/seed23b.fn";
 import { runPhase1HealthCheck, runPhase4Reconciliation, logPhase5Report } from "./dev/reconcile23b";
+import { loadLevelRules } from "./levelIncome/level-income.service";
 
 // ── Synchronous boot logger ───────────────────────────────────────────────────
 // Uses fs.writeSync so the write is a direct OS syscall — survives pipe
@@ -147,6 +148,25 @@ const server = app.listen(port, () => {
   boot("5", `app.listen() callback fired — port ${port} is bound`);
 
   logger.info({ port }, "Server listening");
+
+  // ── Level Income Configuration Startup Validation ─────────────────────────
+  loadLevelRules()
+    .then((rules) => {
+      const rates = Object.entries(rules)
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .map(([l, r]) => `L${l} → ${r}%`)
+        .join(", ");
+      logger.info(
+        { levels: Object.keys(rules).length, rates: Object.fromEntries(Object.entries(rules).map(([l, r]) => [`L${l}`, `${r}%`])) },
+        `Level Income Configuration Loaded | Levels: ${Object.keys(rules).length} | Rates: ${rates}`,
+      );
+    })
+    .catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      boot("FATAL-level-config", `Level Income config validation failed — ${msg}`);
+      logger.error({ err }, "FATAL: Level Income config is invalid — fix system_settings.level.config and restart");
+      process.exit(1);
+    });
 
   maybeResetAdminPassword().catch((e) => logger.error({ e }, "maybeResetAdminPassword failed"));
   maybeGenerateNetwork();

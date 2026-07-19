@@ -1,5 +1,6 @@
 import { prisma } from "../config/prisma";
 import { Prisma } from "@prisma/client";
+import { clearSettingsCache } from "../config/settings";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,16 +47,11 @@ const DEFAULT_PLANS: PlanCatalogItem[] = [
 ];
 
 const DEFAULT_LEVELS: LevelConfigItem[] = [
-  { level: 1,  rate: 5.0, qualification: "Active investment required", status: "ACTIVE"   },
-  { level: 2,  rate: 3.0, qualification: "Active investment required", status: "ACTIVE"   },
-  { level: 3,  rate: 2.0, qualification: "Active investment required", status: "ACTIVE"   },
-  { level: 4,  rate: 1.5, qualification: "Active investment required", status: "ACTIVE"   },
-  { level: 5,  rate: 1.0, qualification: "Active investment required", status: "ACTIVE"   },
-  { level: 6,  rate: 0.8, qualification: "Active investment required", status: "ACTIVE"   },
-  { level: 7,  rate: 0.6, qualification: "Active investment required", status: "ACTIVE"   },
-  { level: 8,  rate: 0.5, qualification: "Active investment required", status: "ACTIVE"   },
-  { level: 9,  rate: 0.4, qualification: "Active investment required", status: "ACTIVE"   },
-  { level: 10, rate: 0.3, qualification: "Active investment required", status: "INACTIVE" },
+  { level: 1, rate: 1, qualification: "Active investment required", status: "ACTIVE" },
+  { level: 2, rate: 1, qualification: "Active investment required", status: "ACTIVE" },
+  { level: 3, rate: 1, qualification: "Active investment required", status: "ACTIVE" },
+  { level: 4, rate: 1, qualification: "Active investment required", status: "ACTIVE" },
+  { level: 5, rate: 1, qualification: "Active investment required", status: "ACTIVE" },
 ];
 
 interface ConfigDef {
@@ -398,6 +394,11 @@ export async function saveLevelConfig(
     update: { value: JSON.stringify(levels) },
     create: { key: LEVEL_CONFIG_KEY, value: JSON.stringify(levels), description: "Level income configuration" },
   });
+
+  // Invalidate the settings cache so the payout engine picks up new rates
+  // immediately — no server restart required.
+  clearSettingsCache();
+
   await prisma.adminLog.create({
     data: {
       adminId,
