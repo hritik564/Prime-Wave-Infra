@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { type AdminUserDetail } from "@/lib/api";
+import { type AdminUserDetail, type AdminWalletTx, type AdminWalletDetail } from "@/lib/api";
+import { getAdminToken } from "@/lib/auth";
 import {
   X, Copy, UserPlus, TrendingUp, DollarSign, ArrowDownLeft,
   Users, Award, Wallet, ArrowUpRight, ShieldX, KeyRound, LogIn,
@@ -7,7 +8,7 @@ import {
   ChevronRight, Activity, FileText, BarChart2, Network,
   AlertTriangle, ChevronDown, Download, Search, Pin,
   Globe, CalendarDays, Zap, Eye, UserCheck,
-  File, ImageIcon, Receipt,
+  File, ImageIcon, Receipt, CreditCard,
 } from "lucide-react";
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -86,6 +87,109 @@ const RANK_NEXT: Record<Rank, { next: string; progress: number }> = {
   GOLD:    { next: "Diamond",  progress: 78 },
   DIAMOND: { next: "—",        progress: 100 },
 };
+
+// ─── Transaction Timeline Config ──────────────────────────────────────────────
+const CREDIT_TYPES = new Set([
+  "DEPOSIT","ROI_CLAIM","PRINCIPAL_RELEASE","BINARY_MATCH","BINARY_ORBIT","LEVEL_INCOME","SALARY",
+]);
+
+interface TxCfg { emoji: string; label: string; filterLabel: string }
+const TX_CFG: Record<string, TxCfg> = {
+  DEPOSIT:           { emoji: "📥", label: "Deposit",             filterLabel: "Deposit"          },
+  INVESTMENT:        { emoji: "💰", label: "Investment Purchase",  filterLabel: "Investment"       },
+  ROI_CLAIM:         { emoji: "📈", label: "Daily ROI",            filterLabel: "Daily ROI"        },
+  PRINCIPAL_RELEASE: { emoji: "💰", label: "Principal Return",     filterLabel: "Principal Return" },
+  BINARY_MATCH:      { emoji: "⚖",  label: "Binary Orbit Bonus",   filterLabel: "Binary Bonus"     },
+  BINARY_ORBIT:      { emoji: "⚖",  label: "Binary Orbit Bonus",   filterLabel: "Binary Bonus"     },
+  LEVEL_INCOME:      { emoji: "👥", label: "Level Income",         filterLabel: "Level Income"     },
+  SALARY:            { emoji: "🏆", label: "Rank Salary",          filterLabel: "Rank Salary"      },
+  WITHDRAWAL:        { emoji: "💸", label: "Withdrawal",           filterLabel: "Withdrawal"       },
+  INCOME_TRANSFER:   { emoji: "🔄", label: "Income Transfer",      filterLabel: "Transfer"         },
+};
+const TX_FILTER_OPTIONS = [
+  "All","Deposit","Investment","Daily ROI","Level Income",
+  "Binary Bonus","Rank Salary","Withdrawal","Transfer","Principal Return",
+];
+
+function txLabel(type: string)   { return TX_CFG[type]?.label      ?? type.replace(/_/g, " "); }
+function txEmoji(type: string)   { return TX_CFG[type]?.emoji      ?? "📝"; }
+function txIsCredit(type: string){ return CREDIT_TYPES.has(type); }
+
+function txAmountColor(tx: AdminWalletTx) {
+  if (tx.status === "FAILED")  return "rgba(107,114,128,0.9)";
+  if (tx.status === "PENDING") return "#fbbf24";
+  return txIsCredit(tx.type) ? "#34d399" : "#f87171";
+}
+function txSign(tx: AdminWalletTx) {
+  if (tx.status !== "SUCCESS") return "";
+  return txIsCredit(tx.type) ? "+" : "−";
+}
+
+const $$ = (v: number | string) => {
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  return isNaN(n) ? "—" : `$${n.toFixed(2)}`;
+};
+
+function txMeta(tx: AdminWalletTx): Record<string, unknown> {
+  if (!tx.metadata || typeof tx.metadata !== "object") return {};
+  return tx.metadata as Record<string, unknown>;
+}
+
+function txMatchesFilter(tx: AdminWalletTx, f: string) {
+  if (f === "All") return true;
+  return (TX_CFG[tx.type]?.filterLabel ?? "") === f;
+}
+
+function txMatchesSearch(tx: AdminWalletTx, q: string) {
+  if (!q) return true;
+  const lower = q.toLowerCase();
+  const m = txMeta(tx);
+  return (
+    tx.id.toLowerCase().includes(lower) ||
+    (tx.description ?? "").toLowerCase().includes(lower) ||
+    String(m["investmentId"]  ?? "").toLowerCase().includes(lower) ||
+    String(m["sourceUserId"]  ?? "").toLowerCase().includes(lower)
+  );
+}
+
+// Compute running balances walking newest-first through txs
+function computeBalances(txs: AdminWalletTx[], currentTotal: number) {
+  let bal = currentTotal;
+  return txs.map(tx => {
+    const amt     = parseFloat(tx.amount) || 0;
+    const success = tx.status === "SUCCESS";
+    const credit  = txIsCredit(tx.type);
+    const balAfter  = bal;
+    const balBefore = success ? (credit ? bal - amt : bal + amt) : bal;
+    if (success) bal = credit ? bal - amt : bal + amt;
+    return { before: balBefore, after: balAfter };
+  });
+}
+
+function exportTxCsv(txs: AdminWalletTx[], bals: { before: number; after: number }[], username: string) {
+  const headers = ["Date UTC","Type","Title","Status","Amount","Balance Before","Balance After","Transaction ID","Description"];
+  const rows = txs.map((tx, i) => [
+    new Date(tx.createdAt).toISOString(),
+    tx.type,
+    txLabel(tx.type),
+    tx.status,
+    (txIsCredit(tx.type) ? "+" : "-") + parseFloat(tx.amount).toFixed(8),
+    bals[i].before.toFixed(8),
+    bals[i].after.toFixed(8),
+    tx.id,
+    tx.description ?? "",
+  ]);
+  const csv = [headers, ...rows]
+    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `transactions_${username}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function Pill({ label, color, bg, size = 10 }: { label: string; color: string; bg: string; size?: number }) {
   return <span style={{ fontSize: size, fontWeight: 700, letterSpacing: "0.05em", color, background: bg, padding: "2px 7px", borderRadius: 4 }}>{label}</span>;
@@ -350,11 +454,12 @@ function QuickActionPanel({ m, onTabSwitch, onAction }: { m: DrawerMember; onTab
 // ─────────────────────────────────────────────────────────────────────────────
 // Tabs
 // ─────────────────────────────────────────────────────────────────────────────
-const TABS = ["Overview","Investments","Wallets","Network","Activity","Audit Log","Notes","Documents"] as const;
+const TABS = ["Overview","Investments","Wallets","Transactions","Network","Activity","Audit Log","Notes","Documents"] as const;
 type Tab = typeof TABS[number];
 
 const TAB_ICONS: Record<Tab, React.ElementType> = {
   Overview: Zap, Investments: TrendingUp, Wallets: Wallet,
+  Transactions: CreditCard,
   Network: Network, Activity: Activity, "Audit Log": Shield,
   Notes: FileText, Documents: File,
 };
@@ -447,18 +552,30 @@ function InvestmentsTab({ detail }: { m: DrawerMember; detail?: AdminUserDetail 
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB: Wallets
 // ─────────────────────────────────────────────────────────────────────────────
-function WalletsTab({ m }: { m: DrawerMember }) {
+function WalletsTab({ m, onTabSwitch }: { m: DrawerMember; onTabSwitch: (tab: Tab) => void }) {
+  const [walletDetail, setWalletDetail] = useState<AdminWalletDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const token = getAdminToken();
+    fetch(`/api/admin/wallets/${m.id}`, {
+      headers: { Authorization: `Bearer ${token ?? ""}` },
+    })
+      .then(r => r.ok ? r.json() as Promise<{ data: AdminWalletDetail }> : Promise.reject())
+      .then(json => setWalletDetail(json.data))
+      .catch(() => setWalletDetail(null))
+      .finally(() => setLoading(false));
+  }, [m.id]);
+
   const wallets = [
     { label: "Deposit Wallet",    balance: m.depositWallet,    color: "#60a5fa", icon: ArrowDownLeft },
     { label: "Income Wallet",     balance: m.incomeWallet,     color: "#34d399", icon: TrendingUp    },
     { label: "Withdrawal Wallet", balance: m.withdrawalWallet, color: GOLD,      icon: Wallet        },
   ];
-  const txMock = [
-    { label: "Investment Deposit",  wallet: "Deposit",    amount: m.investment,     sign: "+", color: "#60a5fa", date: new Date(m.joinedAt.getTime()+86400000*3) },
-    { label: "ROI Credit",          wallet: "Income",     amount: seeded(m.directReferrals*3,2000,50), sign: "+", color: "#34d399", date: new Date(Date.now()-86400000*7) },
-    { label: "Withdrawal Request",  wallet: "Withdrawal", amount: seeded(m.directReferrals*7,1500,20), sign: "−", color: "#f87171", date: new Date(Date.now()-86400000*3) },
-    { label: "Level Income",        wallet: "Income",     amount: seeded(m.directReferrals,400,10),    sign: "+", color: "#34d399", date: new Date(Date.now()-86400000*1) },
-  ];
+
+  const recentTxs = walletDetail?.transactions?.slice(0, 5) ?? [];
+
   return (
     <div>
       {wallets.map(w => (
@@ -472,16 +589,34 @@ function WalletsTab({ m }: { m: DrawerMember }) {
           <span style={{ fontSize: 16, fontWeight: 700, color: w.color, fontFamily: "monospace" }}>{$(w.balance)}</span>
         </div>
       ))}
-      <SectionTitle title="RECENT TRANSACTIONS" />
-      {txMock.map((tx, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
-          <div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }}>{tx.label}</div>
-            <div style={{ fontSize: 10, color: MUTED }}>{tx.wallet} · {dt(tx.date)}</div>
-          </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: tx.color, fontFamily: "monospace" }}>{tx.sign}{$(tx.amount)}</span>
+
+      <SectionTitle title="RECENT TRANSACTIONS" action={
+        <button onClick={() => onTabSwitch("Transactions")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 10, color: "#60a5fa", display: "flex", alignItems: "center", gap: 3 }}>
+          View All <ChevronRight size={9} />
+        </button>
+      } />
+
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "20px 0", color: MUTED, fontSize: 12 }}>Loading…</div>
+      ) : recentTxs.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "20px 0", color: MUTED, fontSize: 12 }}>No transactions yet.</div>
+      ) : (
+        recentTxs.map(tx => <TxMiniRow key={tx.id} tx={tx} />)
+      )}
+
+      {walletDetail && (
+        <div style={{ display: "flex", gap: 7, marginTop: 14 }}>
+          {[
+            { label: "Lifetime In",  value: $$(walletDetail.lifetimeCredits), color: "#34d399" },
+            { label: "Lifetime Out", value: $$(walletDetail.lifetimeDebits),  color: "#f87171" },
+          ].map(s => (
+            <div key={s.label} style={{ flex: 1, background: CARD, borderRadius: 8, padding: "8px 10px" }}>
+              <div style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>{s.label}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: s.color, fontFamily: "monospace" }}>{s.value}</div>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -685,6 +820,324 @@ function AuditLogTab({ m }: { m: DrawerMember }) {
         </div>
       ))}
       {filtered.length === 0 && <div style={{ textAlign: "center", padding: 24, color: MUTED, fontSize: 12 }}>No results for "{query}"</div>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TAB: Transactions — Financial Timeline
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Expandable detail for a single transaction
+function TxDetailRows({ tx }: { tx: AdminWalletTx }) {
+  const m = txMeta(tx);
+  const rows: { label: string; value: string }[] = [];
+
+  switch (tx.type) {
+    case "LEVEL_INCOME": {
+      if (m["level"] !== undefined)        rows.push({ label: "Level",            value: `Level ${m["level"]}` });
+      if (m["sourceUserId"])               rows.push({ label: "Source User ID",   value: String(m["sourceUserId"]) });
+      if (m["investmentId"])               rows.push({ label: "Investment ID",    value: String(m["investmentId"]) });
+      if (m["investmentAmount"] !== undefined) rows.push({ label: "Investment",   value: $$(String(m["investmentAmount"])) });
+      if (m["percentage"] !== undefined)   rows.push({ label: "Rate Applied",     value: `${(Number(m["percentage"]) * 100).toFixed(2)}%` });
+      break;
+    }
+    case "ROI_CLAIM": {
+      if (m["investmentId"])               rows.push({ label: "Investment ID",    value: String(m["investmentId"]) });
+      if (m["amountClaimed"])              rows.push({ label: "Amount Claimed",   value: $$(String(m["amountClaimed"])) });
+      if (m["ledgerEntriesClaimed"] !== undefined) rows.push({ label: "Days Claimed", value: String(m["ledgerEntriesClaimed"]) });
+      break;
+    }
+    case "PRINCIPAL_RELEASE": {
+      if (m["investmentId"])               rows.push({ label: "Investment ID",    value: String(m["investmentId"]) });
+      if (m["principalCredited"])          rows.push({ label: "Principal",        value: $$(String(m["principalCredited"])) });
+      break;
+    }
+    case "BINARY_MATCH":
+    case "BINARY_ORBIT": {
+      if (m["matchedBV"] !== undefined)    rows.push({ label: "Matched BV",       value: $$(String(m["matchedBV"])) });
+      if (m["rewardedBV"] !== undefined)   rows.push({ label: "Rewarded BV",      value: $$(String(m["rewardedBV"])) });
+      if (m["cycleStart"])                 rows.push({ label: "Cycle Start",      value: new Date(String(m["cycleStart"])).toLocaleDateString("en-GB", { day:"numeric",month:"short",year:"numeric" }) });
+      if (m["cycleEnd"])                   rows.push({ label: "Cycle End",        value: new Date(String(m["cycleEnd"])).toLocaleDateString("en-GB", { day:"numeric",month:"short",year:"numeric" }) });
+      break;
+    }
+    case "INVESTMENT": {
+      if (m["planType"])                   rows.push({ label: "Plan",             value: String(m["planType"]) });
+      if (m["durationDays"] !== undefined) rows.push({ label: "Duration",         value: `${m["durationDays"]} days` });
+      if (m["investmentId"])               rows.push({ label: "Investment ID",    value: String(m["investmentId"]) });
+      if (m["autoCompound"] !== undefined) rows.push({ label: "Auto-Compound",   value: m["autoCompound"] ? "Yes" : "No" });
+      break;
+    }
+    case "WITHDRAWAL": {
+      if (m["network"])                    rows.push({ label: "Network",          value: String(m["network"]) });
+      if (m["fee"] !== undefined)          rows.push({ label: "Fee",              value: $$(String(m["fee"])) });
+      if (m["netAmount"] !== undefined)    rows.push({ label: "Net Amount",       value: $$(String(m["netAmount"])) });
+      break;
+    }
+    case "SALARY": {
+      if (m["rankName"])                   rows.push({ label: "Rank",             value: String(m["rankName"]) });
+      if (m["month"] && m["year"])         rows.push({ label: "Period",           value: `${m["month"]}/${m["year"]}` });
+      if (m["paymentNumber"] !== undefined)rows.push({ label: "Payment #",        value: String(m["paymentNumber"]) });
+      if (m["durationMonths"] !== undefined) rows.push({ label: "Total Months",  value: String(m["durationMonths"]) });
+      break;
+    }
+    case "DEPOSIT": {
+      if (m["txHash"])                     rows.push({ label: "TX Hash",          value: String(m["txHash"]) });
+      if (m["network"])                    rows.push({ label: "Network",          value: String(m["network"]) });
+      break;
+    }
+    case "INCOME_TRANSFER": {
+      if (m["fromWallet"])                 rows.push({ label: "From Wallet",      value: String(m["fromWallet"]) });
+      if (m["toWallet"])                   rows.push({ label: "To Wallet",        value: String(m["toWallet"]) });
+      break;
+    }
+  }
+
+  if (tx.description) rows.push({ label: "Note", value: tx.description });
+
+  if (rows.length === 0) return null;
+  return (
+    <div style={{ marginTop: 2 }}>
+      {rows.map(r => (
+        <div key={r.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "4px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+          <span style={{ fontSize: 10, color: MUTED, flexShrink: 0, marginRight: 8 }}>{r.label}</span>
+          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.68)", fontFamily: "monospace", textAlign: "right", wordBreak: "break-all" }}>{r.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Single expandable transaction card
+function TxCard({ tx, balBefore, balAfter }: { tx: AdminWalletTx; balBefore: number; balAfter: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const amount    = parseFloat(tx.amount) || 0;
+  const amtColor  = txAmountColor(tx);
+  const sign      = txSign(tx);
+  const isSuccess = tx.status === "SUCCESS";
+  const isPending = tx.status === "PENDING";
+  const isFailed  = tx.status === "FAILED";
+  const credit    = txIsCredit(tx.type);
+  const statusBadgeCfg = isFailed
+    ? { color: "rgba(107,114,128,0.9)", bg: "rgba(107,114,128,0.08)" }
+    : isPending
+    ? { color: "#fbbf24", bg: "rgba(251,191,36,0.08)" }
+    : null;
+
+  const dateFmt = new Date(tx.createdAt).toLocaleDateString("en-GB", {
+    day: "numeric", month: "short", year: "numeric",
+  }) + " UTC";
+
+  return (
+    <div
+      style={{ background: BG2, border: `1px solid ${expanded ? "rgba(255,255,255,0.1)" : BORDER}`, borderRadius: 9, marginBottom: 7, overflow: "hidden", cursor: "pointer", transition: "border-color 0.15s" }}
+      onClick={() => setExpanded(v => !v)}
+      onMouseEnter={e => !expanded && ((e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.09)")}
+      onMouseLeave={e => !expanded && ((e.currentTarget as HTMLElement).style.borderColor = BORDER)}
+    >
+      {/* Collapsed row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 13px" }}>
+        <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1 }}>{txEmoji(tx.type)}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{txLabel(tx.type)}</span>
+            {statusBadgeCfg && (
+              <span style={{ fontSize: 9, fontWeight: 700, color: statusBadgeCfg.color, background: statusBadgeCfg.bg, padding: "1px 5px", borderRadius: 3 }}>{tx.status}</span>
+            )}
+          </div>
+          <span style={{ fontSize: 10, color: MUTED }}>{dateFmt}</span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: amtColor, fontFamily: "monospace" }}>{sign}{$$(amount)}</span>
+          <ChevronDown size={10} style={{ color: MUTED, transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s", marginTop: 3 }} />
+        </div>
+      </div>
+
+      {/* Expanded details */}
+      {expanded && (
+        <div style={{ borderTop: `1px solid rgba(255,255,255,0.06)`, padding: "12px 13px 13px" }}
+          onClick={e => e.stopPropagation()}>
+
+          {/* Balance before / after */}
+          {isSuccess && (
+            <div style={{ display: "flex", gap: 7, marginBottom: 12 }}>
+              {[
+                { label: "Balance Before", value: $$(balBefore), color: MUTED      },
+                { label: "Balance After",  value: $$(balAfter),  color: amtColor   },
+              ].map(b => (
+                <div key={b.label} style={{ flex: 1, background: CARD, borderRadius: 7, padding: "8px 10px" }}>
+                  <div style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>{b.label}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: b.color, fontFamily: "monospace" }}>{b.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Business detail rows */}
+          <TxDetailRows tx={tx} />
+
+          {/* Transaction ID footer */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, marginTop: 4 }}>
+            <span style={{ fontSize: 9, color: MUTED }}>Transaction ID</span>
+            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "monospace", wordBreak: "break-all", textAlign: "right", maxWidth: "72%" }}>{tx.id}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Mini compact row for Wallets tab
+function TxMiniRow({ tx }: { tx: AdminWalletTx }) {
+  const amount   = parseFloat(tx.amount) || 0;
+  const amtColor = txAmountColor(tx);
+  const sign     = txSign(tx);
+  const dateFmt  = new Date(tx.createdAt).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" });
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 0", borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
+      <span style={{ fontSize: 16, flexShrink: 0 }}>{txEmoji(tx.type)}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", fontWeight: 500 }}>{txLabel(tx.type)}</div>
+        <div style={{ fontSize: 9, color: MUTED }}>{dateFmt} · {tx.status}</div>
+      </div>
+      <span style={{ fontSize: 12, fontWeight: 700, color: amtColor, fontFamily: "monospace", flexShrink: 0 }}>{sign}{$$(amount)}</span>
+    </div>
+  );
+}
+
+// Full Transactions tab
+function TransactionsTab({ m, onTabSwitch }: { m: DrawerMember; onTabSwitch: (tab: Tab) => void }) {
+  const [walletDetail, setWalletDetail] = useState<AdminWalletDetail | null>(null);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState<string | null>(null);
+  const [filter,   setFilter]   = useState("All");
+  const [query,    setQuery]    = useState("");
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    setWalletDetail(null);
+    const token = getAdminToken();
+    fetch(`/api/admin/wallets/${m.id}`, {
+      headers: { Authorization: `Bearer ${token ?? ""}` },
+    })
+      .then(r => r.ok ? r.json() as Promise<{ data: AdminWalletDetail }> : Promise.reject(`HTTP ${r.status}`))
+      .then(json => setWalletDetail(json.data))
+      .catch(e  => setError(String(e)))
+      .finally(() => setLoading(false));
+  }, [m.id]);
+
+  if (loading) return (
+    <div style={{ textAlign: "center", padding: 48, color: MUTED, fontSize: 13 }}>
+      <div style={{ fontSize: 20, marginBottom: 10 }}>⏳</div>
+      Loading transactions…
+    </div>
+  );
+  if (error) return (
+    <div style={{ textAlign: "center", padding: 40, color: "#f87171", fontSize: 13 }}>Failed to load: {error}</div>
+  );
+  if (!walletDetail) return null;
+
+  const w = walletDetail.wallet;
+  const currentTotal =
+    (parseFloat(String(w.depositWallet))    || 0) +
+    (parseFloat(String(w.incomeWallet))     || 0) +
+    (parseFloat(String(w.withdrawalWallet)) || 0);
+
+  const allBalances = computeBalances(walletDetail.transactions, currentTotal);
+
+  const filteredPairs = walletDetail.transactions
+    .map((tx, i) => ({ tx, bal: allBalances[i] }))
+    .filter(({ tx }) => txMatchesFilter(tx, filter) && txMatchesSearch(tx, query));
+
+  const filtered     = filteredPairs.map(p => p.tx);
+  const filteredBals = filteredPairs.map(p => p.bal);
+
+  return (
+    <div>
+      {/* Lifetime stats strip */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 14 }}>
+        {[
+          { label: "Lifetime Credits", value: $$(walletDetail.lifetimeCredits), color: "#34d399" },
+          { label: "Lifetime Debits",  value: $$(walletDetail.lifetimeDebits),  color: "#f87171" },
+        ].map(s => (
+          <div key={s.label} style={{ background: BG2, border: `1px solid ${BORDER}`, borderRadius: 9, padding: "10px 12px" }}>
+            <div style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>{s.label}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: s.color, fontFamily: "monospace" }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Search + CSV export */}
+      <div style={{ display: "flex", gap: 7, marginBottom: 9 }}>
+        <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 7, background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 7, padding: "6px 10px" }}>
+          <Search size={11} style={{ color: MUTED, flexShrink: 0 }} />
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search by ID, user, description…"
+            style={{ background: "none", border: "none", outline: "none", fontSize: 11, color: "rgba(255,255,255,0.75)", width: "100%" }}
+          />
+          {query && (
+            <button onClick={() => setQuery("")} style={{ background: "none", border: "none", cursor: "pointer", color: MUTED, padding: 0 }}>
+              ×
+            </button>
+          )}
+        </div>
+        <button
+          onClick={() => exportTxCsv(filtered, filteredBals, m.username)}
+          title="Export CSV"
+          style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 7, padding: "6px 11px", cursor: "pointer", fontSize: 11, color: MUTED, flexShrink: 0 }}
+        >
+          <Download size={11} /> CSV
+        </button>
+      </div>
+
+      {/* Filter chips */}
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 11 }}>
+        {TX_FILTER_OPTIONS.map(f => {
+          const active = filter === f;
+          return (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              style={{
+                padding: "3px 9px", borderRadius: 100, fontSize: 10, fontWeight: active ? 700 : 400, cursor: "pointer",
+                background: active ? "rgba(212,175,55,0.12)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${active ? "rgba(212,175,55,0.35)" : BORDER}`,
+                color: active ? GOLD_L : MUTED,
+                transition: "all 0.15s",
+              }}
+            >{f}</button>
+          );
+        })}
+      </div>
+
+      {/* Count */}
+      <div style={{ fontSize: 10, color: MUTED, marginBottom: 10 }}>
+        {filtered.length} transaction{filtered.length !== 1 ? "s" : ""}
+        {filter !== "All" ? ` · ${filter}` : ""}
+        {query ? ` · "${query}"` : ""}
+        <span style={{ color: "rgba(255,255,255,0.2)", marginLeft: 6 }}>
+          (showing last {walletDetail.transactions.length} total)
+        </span>
+      </div>
+
+      {/* Timeline */}
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 32, color: MUTED, fontSize: 12 }}>No transactions found.</div>
+      ) : (
+        filtered.map((tx, i) => (
+          <TxCard key={tx.id} tx={tx} balBefore={filteredBals[i].before} balAfter={filteredBals[i].after} />
+        ))
+      )}
+
+      {walletDetail.transactions.length === 0 && (
+        <div style={{ textAlign: "center", padding: 48, color: MUTED, fontSize: 12 }}>
+          <div style={{ fontSize: 24, marginBottom: 10 }}>💳</div>
+          No transactions yet for this member.
+        </div>
+      )}
     </div>
   );
 }
@@ -951,14 +1404,15 @@ export default function MemberDrawer({ member, detail, onClose, onAction }: { me
 
             {/* ── Tab content ──────────────────────────────────────────────── */}
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px 28px" }}>
-              {activeTab === "Overview"    && <OverviewTab    m={member} onTabSwitch={setActiveTab} onAction={label => onAction?.(label)} />}
-              {activeTab === "Investments" && <InvestmentsTab m={member} detail={detail} />}
-              {activeTab === "Wallets"     && <WalletsTab     m={member} />}
-              {activeTab === "Network"     && <NetworkTab     m={member} />}
-              {activeTab === "Activity"    && <ActivityTab    m={member} />}
-              {activeTab === "Audit Log"   && <AuditLogTab    m={member} />}
-              {activeTab === "Notes"       && <NotesTab       m={member} />}
-              {activeTab === "Documents"   && <DocumentsTab   m={member} />}
+              {activeTab === "Overview"     && <OverviewTab     m={member} onTabSwitch={setActiveTab} onAction={label => onAction?.(label)} />}
+              {activeTab === "Investments"  && <InvestmentsTab  m={member} detail={detail} />}
+              {activeTab === "Wallets"      && <WalletsTab      m={member} onTabSwitch={setActiveTab} />}
+              {activeTab === "Transactions" && <TransactionsTab m={member} onTabSwitch={setActiveTab} />}
+              {activeTab === "Network"      && <NetworkTab      m={member} />}
+              {activeTab === "Activity"     && <ActivityTab     m={member} />}
+              {activeTab === "Audit Log"    && <AuditLogTab     m={member} />}
+              {activeTab === "Notes"        && <NotesTab        m={member} />}
+              {activeTab === "Documents"    && <DocumentsTab    m={member} />}
             </div>
           </>
         )}

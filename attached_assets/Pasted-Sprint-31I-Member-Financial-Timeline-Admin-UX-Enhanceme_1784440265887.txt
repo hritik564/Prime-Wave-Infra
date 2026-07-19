@@ -1,0 +1,341 @@
+Sprint 31I — Member Financial Timeline (Admin UX Enhancement)
+
+Objective
+
+The Recent Transactions section inside the Member Drawer currently displays raw wallet transaction data, making it difficult for administrators to investigate income-related support tickets.
+
+Convert the Recent Transactions section into a clean, human-readable financial timeline that explains every transaction from a business perspective.
+
+This is a UI/UX enhancement only.
+
+DO NOT change any business logic.
+
+DO NOT modify any calculations.
+
+DO NOT change any database schema.
+
+DO NOT alter any ledger or wallet records.
+
+====================================================
+PART 1 — Human Readable Transaction Titles
+====================================================
+
+Replace raw transaction enums with business-friendly names.
+
+Examples:
+
+LEVEL_INCOME
+→ Level Income
+
+ROI
+→ Daily ROI
+
+BINARY_INCOME
+→ Binary Orbit Bonus
+
+INVESTMENT
+→ Investment Purchase
+
+WITHDRAWAL
+→ Withdrawal
+
+SALARY
+→ Rank Salary
+
+REFUND
+→ Refund
+
+ADJUSTMENT
+→ Manual Adjustment
+
+====================================================
+PART 2 — Business Explanation
+====================================================
+
+Each transaction should clearly explain WHY the money moved.
+
+Example:
+
+----------------------------------------------------
+👥 Level 2 Income
+
++$2.00
+
+Received from:
+@aaditya2202
+
+Investment:
+$200
+
+Rate:
+1%
+
+Investment ID:
+cmrqifdf500m1thux4n1qb77d
+
+Date:
+18 Jul 2026 15:16 UTC
+----------------------------------------------------
+
+ROI Example:
+
+----------------------------------------------------
+📈 Daily ROI
+
++$0.80
+
+Investment:
+PLAN_360
+
+Principal:
+$100
+
+ROI Rate:
+0.80%
+
+Day:
+42 / 360
+----------------------------------------------------
+
+Binary Example:
+
+----------------------------------------------------
+⚖ Binary Orbit Bonus
+
++$500
+
+Matched BV
+
+Left:
+150 BV
+
+Right:
+150 BV
+----------------------------------------------------
+
+Investment Example:
+
+----------------------------------------------------
+💰 Investment Purchase
+
+-$200
+
+Plan:
+PLAN_90
+
+Status:
+Active
+
+Investment ID:
+xxxxxxxx
+----------------------------------------------------
+
+Withdrawal Example:
+
+----------------------------------------------------
+💸 Withdrawal
+
+-$100
+
+Status:
+Completed
+
+Network:
+BEP20
+
+Wallet:
+0x....
+
+Transaction Hash:
+0x....
+----------------------------------------------------
+
+====================================================
+PART 3 — Transaction Status Colors
+====================================================
+
+Credits
+Green
+
+Debits
+Red
+
+Pending
+Amber
+
+Failed
+Grey
+
+====================================================
+PART 4 — Icons
+====================================================
+
+Investment
+💰
+
+Daily ROI
+📈
+
+Level Income
+👥
+
+Binary Bonus
+⚖
+
+Withdrawal
+💸
+
+Salary
+🏆
+
+Refund
+↩
+
+Manual Adjustment
+📝
+
+====================================================
+PART 5 — Expandable Transaction Cards
+====================================================
+
+Collapsed View
+
+Example
+
+👥 Level Income
+
++$2.00
+
+18 Jul 2026
+
+Clicking the card should expand to show complete audit information.
+
+====================================================
+PART 6 — Source Information
+====================================================
+
+Whenever applicable show the transaction source.
+
+For example:
+
+Source Member
+
+@aaditya2202
+
+User ID
+
+Investment Amount
+
+Investment Plan
+
+Investment ID
+
+Level Number
+
+Percentage Applied
+
+This allows admins to investigate without opening multiple screens.
+
+====================================================
+PART 7 — Running Wallet Balance
+====================================================
+
+Every transaction should display:
+
+Balance Before
+
+Balance After
+
+Example
+
++$2.00
+
+Balance Before
+$125.00
+
+Balance After
+$127.00
+
+====================================================
+PART 8 — Filters
+====================================================
+
+Allow filtering by:
+
+Investment
+
+Daily ROI
+
+Level Income
+
+Binary Bonus
+
+Rank Salary
+
+Withdrawal
+
+Refund
+
+Adjustment
+
+====================================================
+PART 9 — Search
+====================================================
+
+Allow searching by:
+
+Username
+
+Investment ID
+
+Wallet Transaction ID
+
+Ledger ID
+
+Transaction ID
+
+====================================================
+PART 10 — Export
+====================================================
+
+Allow exporting the filtered transaction history to CSV/Excel for audit purposes.
+
+====================================================
+PART 11 — Performance
+====================================================
+
+Do not introduce N+1 database queries.
+
+Reuse existing APIs wherever possible.
+
+Only fetch additional information when expanding a transaction if necessary.
+
+====================================================
+Acceptance Criteria
+====================================================
+
+✓ No raw enum names are visible to administrators.
+
+✓ Every transaction clearly answers:
+
+• What happened?
+
+• Why did it happen?
+
+• Who caused it?
+
+• How was the amount calculated?
+
+• What wallet balance changed?
+
+✓ Transactions are easy to audit without checking database records.
+
+✓ No business logic changes.
+
+✓ No financial calculation changes.
+
+✓ No database schema changes.
+
+✓ No impact on existing APIs or wallet engine.
+
+This sprint is purely an Admin UX enhancement designed to make financial investigations significantly faster and easier.
