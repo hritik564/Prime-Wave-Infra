@@ -50,6 +50,19 @@ export function clearAuth(): void {
   } catch {}
 }
 
+/** Decode the stored admin JWT to extract the role claim (no secret needed on the client). */
+export function getAdminRole(): string | null {
+  try {
+    const token = getAdminToken();
+    if (!token) return null;
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const padded  = parts[1]!.replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(padded)) as { role?: string };
+    return payload.role ?? null;
+  } catch { return null; }
+}
+
 /* ── 401 interceptor hook ──────────────────────────────────────────────────── */
 
 let _onUnauthorized: (() => void) | null = null;

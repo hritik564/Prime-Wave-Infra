@@ -2,7 +2,7 @@ import { type Request, type Response, type NextFunction } from "express";
 import { type AuthenticatedRequest } from "../shared/types";
 import { sendSuccess } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
-import { searchUsers, getAdminUserDetail, setUserStatus, adminUpdateUser, adminResetUserPassword, type AdminUpdateUserInput } from "./admin-users.service";
+import { searchUsers, getAdminUserDetail, setUserStatus, adminUpdateUser, adminResetUserPassword, adminUpdateUserWallet, getWalletAuditLogs, type AdminUpdateUserInput } from "./admin-users.service";
 import type { UserSearchQuery } from "./admin-dashboard.schema";
 
 export async function searchUsersHandler(
@@ -83,5 +83,31 @@ export async function resetUserPasswordHandler(
     }
     const result = await adminResetUserPassword(user.sub, userId, password);
     sendSuccess(res, result, "Password reset successfully");
+  } catch (err) { next(err); }
+}
+
+export async function updateUserWalletHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const userId   = String(req.params["id"] ?? "");
+    const { newWallet, reason } = req.body as { newWallet: string; reason: string };
+    const ipAddress =
+      (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
+      ?? req.socket.remoteAddress
+      ?? null;
+    const result = await adminUpdateUserWallet(user.sub, userId, newWallet, reason, ipAddress);
+    sendSuccess(res, result, "Withdrawal wallet updated successfully");
+  } catch (err) { next(err); }
+}
+
+export async function getWalletAuditLogsHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const userId = String(req.params["id"] ?? "");
+    const logs   = await getWalletAuditLogs(userId);
+    sendSuccess(res, { logs }, "Wallet audit logs retrieved");
   } catch (err) { next(err); }
 }

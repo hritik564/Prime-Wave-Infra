@@ -5,6 +5,7 @@ import { HTTP_STATUS } from "../shared/constants";
 import type { UserSearchQuery } from "./admin-dashboard.schema";
 import { notificationService } from "../notifications/notifications.service";
 import { computeOperationalStatus } from "../eligibility/eligibility.service";
+import { logger } from "../lib/logger";
 
 // ── User search ───────────────────────────────────────────────────────────────
 
@@ -362,6 +363,106 @@ export async function adminUpdateUser(
   });
 
   return updated;
+}
+
+// ── Withdrawal wallet update (SUPER_ADMIN only) ───────────────────────────────
+
+export async function adminUpdateUserWallet(
+  adminId:   string,
+  userId:    string,
+  newWallet: string,
+  reason:    string,
+  ipAddress: string | null,
+) {
+  const [admin, user] = await Promise.all([
+    prisma.admin.findUnique({
+      where:  { id: adminId },
+      select: { id: true, firstName: true, lastName: true, email: true },
+    }),
+    prisma.user.findUnique({
+      where:  { id: userId },
+      select: { id: true, username: true, walletAddress: true },
+    }),
+  ]);
+
+  if (!admin) throw new AppError("Admin not found", HTTP_STATUS.NOT_FOUND, "ADMIN_NOT_FOUND");
+  if (!user)  throw new AppError("User not found",  HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
+
+  const adminUsername  = `${admin.firstName} ${admin.lastName}`.trim() || admin.email;
+  const trimmedWallet  = newWallet.trim();
+  const previousWallet = user.walletAddress ?? null;
+
+  if (!trimmedWallet) {
+    throw new AppError("New wallet address is required", HTTP_STATUS.BAD_REQUEST, "INVALID_WALLET");
+  }
+  if (trimmedWallet === previousWallet) {
+    throw new AppError(
+      "New wallet address is identical to the current address",
+      HTTP_STATUS.CONFLICT,
+      "WALLET_UNCHANGED",
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: userId },
+      data:  { walletAddress: trimmedWallet },
+    });
+
+    await tx.walletAddress.deleteMany({ where: { userId } });
+
+    await tx.walletAddress.create({
+      data: {
+        userId,
+        address:    trimmedWallet,
+        network:    "BEP20",
+        label:      "Updated by Admin",
+        isPrimary:  true,
+        isVerified: true,
+      },
+    });
+
+    await tx.walletChangeAuditLog.create({
+      data: {
+        adminId,
+        adminUsername,
+        userId,
+        userUsername:  user.username,
+        previousWallet,
+        newWallet:     trimmedWallet,
+        reason:        reason.trim(),
+        ipAddress,
+      },
+    });
+
+    await tx.adminLog.create({
+      data: {
+        adminId,
+        action:       "USER_WALLET_UPDATED",
+        targetUserId: userId,
+        details: {
+          previousWallet,
+          newWallet: trimmedWallet,
+          reason:    reason.trim(),
+          username:  user.username,
+        },
+      },
+    });
+  });
+
+  logger.warn(
+    { adminId, adminUsername, userId, userUsername: user.username, previousWallet, newWallet: trimmedWallet },
+    "wallet.admin.change: withdrawal wallet updated by admin",
+  );
+
+  return { userId, username: user.username, previousWallet, newWallet: trimmedWallet };
+}
+
+export async function getWalletAuditLogs(userId: string) {
+  return prisma.walletChangeAuditLog.findMany({
+    where:   { userId },
+    orderBy: { createdAt: "desc" },
+  });
 }
 
 // ── Password reset (admin) ────────────────────────────────────────────────────

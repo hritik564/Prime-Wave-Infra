@@ -1107,3 +1107,23 @@ model ReconciliationReport {
   @@index([runAt])
   @@map("reconciliation_reports")
 }
+
+/// Immutable audit trail for every admin-initiated withdrawal wallet address change.
+/// Denormalised on write — never updated, never deleted.
+model WalletChangeAuditLog {
+  id             String   @id @default(cuid())
+  adminId        String
+  adminUsername  String
+  userId         String
+  userUsername   String
+  previousWallet String?
+  newWallet      String
+  reason         String
+  ipAddress      String?
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@index([adminId])
+  @@index([createdAt])
+  @@map("wallet_change_audit_logs")
+}

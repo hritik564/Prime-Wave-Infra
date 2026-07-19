@@ -2684,6 +2684,35 @@ export async function adminUpdateCompanyWallet(id: string, data: { walletAddress
   return res.wallet;
 }
 
+// ── Admin: Withdrawal Wallet Management (SUPER_ADMIN only) ───────────────────
+
+export interface WalletChangeAuditLogEntry {
+  id:             string;
+  adminId:        string;
+  adminUsername:  string;
+  userId:         string;
+  userUsername:   string;
+  previousWallet: string | null;
+  newWallet:      string;
+  reason:         string;
+  ipAddress:      string | null;
+  createdAt:      string;
+}
+
+export async function adminUpdateUserWallet(
+  userId: string,
+  data:   { newWallet: string; reason: string },
+): Promise<{ userId: string; username: string; previousWallet: string | null; newWallet: string }> {
+  return request<{ userId: string; username: string; previousWallet: string | null; newWallet: string }>(
+    `/api/admin/users/${userId}/wallet`,
+    { method: "PATCH", body: JSON.stringify(data) },
+  );
+}
+
+export async function getWalletAuditLogs(userId: string): Promise<{ logs: WalletChangeAuditLogEntry[] }> {
+  return request<{ logs: WalletChangeAuditLogEntry[] }>(`/api/admin/users/${userId}/wallet-audit`);
+}
+
 // ── Blockchain Gateway ────────────────────────────────────────────────────────
 
 export interface BlockchainNetworkHealth {

@@ -65,6 +65,8 @@ import {
   activateUserHandler,
   updateUserHandler,
   resetUserPasswordHandler,
+  updateUserWalletHandler,
+  getWalletAuditLogsHandler,
 } from "./admin-users.controller";
 import { walletAdjustmentHandler } from "./admin-wallet-adjustments.controller";
 import {
@@ -157,7 +159,7 @@ import { depositAuditHandler } from "./reports/deposit-audit.controller";
 import { validate } from "../middleware/validate.middleware";
 import { requireAdminAuth, requireAdminRoles } from "../middleware/auth.middleware";
 import { authLimiter, adminLimiter } from "../middleware/rateLimiter.middleware";
-import { adminLoginSchema } from "./admin.schema";
+import { adminLoginSchema, updateUserWalletSchema } from "./admin.schema";
 import {
   adminDepositListQuerySchema,
   rejectDepositSchema,
@@ -418,6 +420,22 @@ router.get(
   adminLimiter,
   superAdminGuard,
   userIncomeSummaryHandler,
+);
+
+// ── Withdrawal wallet management — SUPER_ADMIN only ───────────────────────────
+router.patch(
+  "/users/:id/wallet",
+  adminLimiter,
+  superAdminGuard,
+  validate(updateUserWalletSchema, "body"),
+  updateUserWalletHandler,
+);
+
+router.get(
+  "/users/:id/wallet-audit",
+  adminLimiter,
+  superAdminGuard,
+  getWalletAuditLogsHandler,
 );
 
 // ── Manual Wallet Credit — SUPER_ADMIN + FINANCE_ADMIN ───────────────────────

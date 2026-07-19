@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { type AdminUserDetail, type AdminWalletTx, type AdminWalletDetail } from "@/lib/api";
-import { getAdminToken } from "@/lib/auth";
+import { type AdminUserDetail, type AdminWalletTx, type AdminWalletDetail, type WalletChangeAuditLogEntry, adminUpdateUserWallet, getWalletAuditLogs } from "@/lib/api";
+import { getAdminToken, getAdminRole } from "@/lib/auth";
 import {
   X, Copy, UserPlus, TrendingUp, DollarSign, ArrowDownLeft,
   Users, Award, Wallet, ArrowUpRight, ShieldX, KeyRound, LogIn,
@@ -552,9 +552,25 @@ function InvestmentsTab({ detail }: { m: DrawerMember; detail?: AdminUserDetail 
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB: Wallets
 // ─────────────────────────────────────────────────────────────────────────────
-function WalletsTab({ m, onTabSwitch }: { m: DrawerMember; onTabSwitch: (tab: Tab) => void }) {
-  const [walletDetail, setWalletDetail] = useState<AdminWalletDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+function WalletsTab({ m, detail, onTabSwitch }: { m: DrawerMember; detail?: AdminUserDetail | null; onTabSwitch: (tab: Tab) => void }) {
+  const adminRole    = getAdminRole();
+  const isSuperAdmin = adminRole === "SUPER_ADMIN";
+
+  const [walletDetail,  setWalletDetail]  = useState<AdminWalletDetail | null>(null);
+  const [loading,       setLoading]       = useState(true);
+  const [auditLogs,     setAuditLogs]     = useState<WalletChangeAuditLogEntry[] | null>(null);
+  const [auditLoading,  setAuditLoading]  = useState(false);
+
+  const [currentWallet, setCurrentWallet] = useState<string | null>(detail?.walletAddress ?? null);
+  const [changeOpen,    setChangeOpen]    = useState(false);
+  const [newWallet,     setNewWallet]     = useState("");
+  const [reasonPreset,  setReasonPreset]  = useState("");
+  const [reasonCustom,  setReasonCustom]  = useState("");
+  const [changing,      setChanging]      = useState(false);
+  const [changeError,   setChangeError]   = useState<string | null>(null);
+  const [changeSuccess, setChangeSuccess] = useState(false);
+
+  const finalReason = reasonPreset === "Other" ? reasonCustom : reasonPreset;
 
   useEffect(() => {
     setLoading(true);
@@ -567,6 +583,38 @@ function WalletsTab({ m, onTabSwitch }: { m: DrawerMember; onTabSwitch: (tab: Ta
       .catch(() => setWalletDetail(null))
       .finally(() => setLoading(false));
   }, [m.id]);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    setAuditLoading(true);
+    getWalletAuditLogs(m.id)
+      .then(d => setAuditLogs(d.logs))
+      .catch(() => setAuditLogs([]))
+      .finally(() => setAuditLoading(false));
+  }, [m.id, isSuperAdmin]);
+
+  const handleChangeWallet = async () => {
+    setChangeError(null);
+    if (!newWallet.trim())             { setChangeError("New wallet address is required"); return; }
+    if (!finalReason.trim())           { setChangeError("Reason is required"); return; }
+    if (finalReason.trim().length < 5) { setChangeError("Reason must be at least 5 characters"); return; }
+    setChanging(true);
+    try {
+      const result = await adminUpdateUserWallet(m.id, { newWallet: newWallet.trim(), reason: finalReason.trim() });
+      setCurrentWallet(result.newWallet);
+      setChangeSuccess(true);
+      setChangeOpen(false);
+      setNewWallet("");
+      setReasonPreset("");
+      setReasonCustom("");
+      getWalletAuditLogs(m.id).then(d => setAuditLogs(d.logs)).catch(() => {});
+      setTimeout(() => setChangeSuccess(false), 4000);
+    } catch (err) {
+      setChangeError(err instanceof Error ? err.message : "Failed to update wallet address");
+    } finally {
+      setChanging(false);
+    }
+  };
 
   const wallets = [
     { label: "Deposit Wallet",    balance: m.depositWallet,    color: "#60a5fa", icon: ArrowDownLeft },
@@ -615,6 +663,136 @@ function WalletsTab({ m, onTabSwitch }: { m: DrawerMember; onTabSwitch: (tab: Ta
               <div style={{ fontSize: 12, fontWeight: 700, color: s.color, fontFamily: "monospace" }}>{s.value}</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── SUPER_ADMIN: Withdrawal Wallet Management ─────────────────────── */}
+      {isSuperAdmin && (
+        <div style={{ marginTop: 20 }}>
+          <SectionTitle title="WITHDRAWAL WALLET ADDRESS" />
+
+          <div style={{ background: BG2, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+            <div style={{ fontSize: 9, color: MUTED, marginBottom: 4, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Current BEP20 Address</div>
+            {currentWallet ? (
+              <span style={{ fontSize: 11, fontFamily: "monospace", color: "rgba(255,255,255,0.8)", wordBreak: "break-all" as const }}>{currentWallet}</span>
+            ) : (
+              <span style={{ fontSize: 11, color: MUTED, fontStyle: "italic" }}>No withdrawal wallet set</span>
+            )}
+          </div>
+
+          {changeSuccess && (
+            <div style={{ background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.3)", borderRadius: 8, padding: "8px 12px", marginBottom: 8, fontSize: 11, color: "#34d399" }}>
+              ✓ Withdrawal wallet updated and audit log recorded
+            </div>
+          )}
+
+          {!changeOpen ? (
+            <button
+              onClick={() => setChangeOpen(true)}
+              style={{ width: "100%", padding: "9px 14px", borderRadius: 8, background: "rgba(212,175,55,0.08)", border: `1px solid rgba(212,175,55,0.2)`, color: GOLD, fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}
+            >
+              <Pencil size={11} />
+              Change Withdrawal Wallet
+            </button>
+          ) : (
+            <div style={{ background: BG2, border: `1px solid rgba(212,175,55,0.25)`, borderRadius: 10, padding: "14px" }}>
+              <div style={{ fontSize: 10, color: GOLD, fontWeight: 700, marginBottom: 12, textTransform: "uppercase" as const, letterSpacing: "0.08em" }}>
+                🔐 Change Withdrawal Wallet — SUPER ADMIN ONLY
+              </div>
+
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: 9, color: MUTED, display: "block", marginBottom: 4, textTransform: "uppercase" as const }}>New BEP20 Wallet Address *</label>
+                <input
+                  type="text"
+                  value={newWallet}
+                  onChange={e => setNewWallet(e.target.value)}
+                  placeholder="0x…"
+                  style={{ width: "100%", boxSizing: "border-box" as const, background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 7, padding: "8px 10px", fontSize: 12, fontFamily: "monospace", color: "rgba(255,255,255,0.85)", outline: "none" }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: 9, color: MUTED, display: "block", marginBottom: 4, textTransform: "uppercase" as const }}>Reason for Change *</label>
+                <select
+                  value={reasonPreset}
+                  onChange={e => { setReasonPreset(e.target.value); setReasonCustom(""); }}
+                  style={{ width: "100%", boxSizing: "border-box" as const, background: "#1a2440", border: `1px solid ${BORDER}`, borderRadius: 7, padding: "8px 10px", fontSize: 12, color: reasonPreset ? "rgba(255,255,255,0.85)" : MUTED, outline: "none", marginBottom: 6 }}
+                >
+                  <option value="">Select a reason…</option>
+                  <option value="Wallet compromised">Wallet compromised</option>
+                  <option value="Wrong address entered during registration">Wrong address entered during registration</option>
+                  <option value="User verification completed">User verification completed</option>
+                  <option value="Support request approved">Support request approved</option>
+                  <option value="Other">Other (specify below)</option>
+                </select>
+                {reasonPreset === "Other" && (
+                  <textarea
+                    value={reasonCustom}
+                    onChange={e => setReasonCustom(e.target.value)}
+                    placeholder="Describe the reason for this change…"
+                    rows={2}
+                    style={{ width: "100%", boxSizing: "border-box" as const, background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, borderRadius: 7, padding: "8px 10px", fontSize: 12, color: "rgba(255,255,255,0.85)", outline: "none", resize: "vertical" as const }}
+                  />
+                )}
+              </div>
+
+              {changeError && (
+                <div style={{ fontSize: 11, color: "#f87171", marginBottom: 8 }}>{changeError}</div>
+              )}
+
+              <div style={{ display: "flex", gap: 7 }}>
+                <button
+                  onClick={() => void handleChangeWallet()}
+                  disabled={changing || !newWallet.trim() || !finalReason.trim() || finalReason.trim().length < 5}
+                  style={{ flex: 1, padding: "9px", borderRadius: 7, background: "linear-gradient(135deg, #D4AF37, #F3D37A)", color: "#0E1B37", fontSize: 11, fontWeight: 700, cursor: "pointer", border: "none", opacity: (changing || !newWallet.trim() || !finalReason.trim() || finalReason.trim().length < 5) ? 0.5 : 1 }}
+                >
+                  {changing ? "Saving…" : "Confirm Change"}
+                </button>
+                <button
+                  onClick={() => { setChangeOpen(false); setChangeError(null); setNewWallet(""); setReasonPreset(""); setReasonCustom(""); }}
+                  style={{ padding: "9px 14px", borderRadius: 7, background: "rgba(255,255,255,0.05)", border: `1px solid ${BORDER}`, color: MUTED, fontSize: 11, cursor: "pointer" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Wallet Change Audit History */}
+          <SectionTitle title="WALLET CHANGE HISTORY" />
+          {auditLoading ? (
+            <div style={{ textAlign: "center", padding: "12px 0", color: MUTED, fontSize: 11 }}>Loading…</div>
+          ) : !auditLogs || auditLogs.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "12px 0", color: MUTED, fontSize: 11 }}>No wallet address changes on record.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {auditLogs.map(log => (
+                <div key={log.id} style={{ background: BG2, border: `1px solid ${BORDER}`, borderRadius: 9, padding: "10px 12px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24" }}>Wallet Changed</span>
+                    <span style={{ fontSize: 9, color: MUTED }}>{new Date(log.createdAt).toLocaleString()}</span>
+                  </div>
+                  <div style={{ fontSize: 9, color: MUTED, marginBottom: 2 }}>
+                    By: <span style={{ color: "rgba(255,255,255,0.65)" }}>{log.adminUsername}</span>
+                  </div>
+                  {log.previousWallet && (
+                    <div style={{ fontSize: 9, color: MUTED, marginBottom: 2 }}>
+                      From: <span style={{ fontFamily: "monospace", color: "rgba(255,255,255,0.45)", fontSize: 8 }}>{log.previousWallet.slice(0, 14)}…</span>
+                    </div>
+                  )}
+                  <div style={{ fontSize: 9, color: MUTED, marginBottom: 5 }}>
+                    To: <span style={{ fontFamily: "monospace", color: "#34d399", fontSize: 8 }}>{log.newWallet.slice(0, 14)}…</span>
+                  </div>
+                  <div style={{ background: "rgba(251,191,36,0.06)", borderRadius: 5, padding: "4px 8px" }}>
+                    <span style={{ fontSize: 9, color: "rgba(251,191,36,0.85)" }}>📋 {log.reason}</span>
+                  </div>
+                  {log.ipAddress && (
+                    <div style={{ fontSize: 8, color: MUTED, marginTop: 4 }}>IP: {log.ipAddress}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1406,7 +1584,7 @@ export default function MemberDrawer({ member, detail, onClose, onAction }: { me
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px 28px" }}>
               {activeTab === "Overview"     && <OverviewTab     m={member} onTabSwitch={setActiveTab} onAction={label => onAction?.(label)} />}
               {activeTab === "Investments"  && <InvestmentsTab  m={member} detail={detail} />}
-              {activeTab === "Wallets"      && <WalletsTab      m={member} onTabSwitch={setActiveTab} />}
+              {activeTab === "Wallets"      && <WalletsTab      m={member} detail={detail} onTabSwitch={setActiveTab} />}
               {activeTab === "Transactions" && <TransactionsTab m={member} onTabSwitch={setActiveTab} />}
               {activeTab === "Network"      && <NetworkTab      m={member} />}
               {activeTab === "Activity"     && <ActivityTab     m={member} />}
