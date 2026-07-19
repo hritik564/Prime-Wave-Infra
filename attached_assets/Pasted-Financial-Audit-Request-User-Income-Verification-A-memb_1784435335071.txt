@@ -1,0 +1,220 @@
+Financial Audit Request — User Income Verification
+
+A member (@aaditya2010) has reported that their Direct Income appears to be incorrect.
+
+Do NOT modify any code.
+
+This is an investigation only.
+
+Generate a complete financial audit for this member so we can manually verify every calculation against the PrimeWave compensation plan.
+
+====================================================
+PART 1 — User Summary
+====================================================
+
+Return:
+
+- User ID
+- Username
+- Sponsor ID
+- Sponsor Username
+- Current Rank
+- Registration Date
+- Status
+- Active / Inactive
+- Wallet balances
+  - Main Wallet
+  - Withdrawal Wallet
+  - ROI Wallet
+  - Total Earnings
+
+====================================================
+PART 2 — Investment History
+====================================================
+
+List every investment chronologically.
+
+For each investment include:
+
+- Investment ID
+- Date & Time
+- Amount
+- Package
+- Lock Period
+- Current Status
+
+====================================================
+PART 3 — Referral Tree
+====================================================
+
+Show every directly sponsored member.
+
+For each direct referral:
+
+- Username
+- Registration Date
+- Sponsor Confirmation
+- Investment Date
+- Investment Amount
+- Investment Status
+
+====================================================
+PART 4 — Direct Income Audit
+====================================================
+
+For every Direct Income transaction ever credited to @aaditya2010 provide:
+
+- Timestamp
+- Income Amount
+- Source User
+- Source Investment
+- Investment Amount
+- Compensation Rule Applied
+- Percentage Used
+- Ledger Entry ID
+- Wallet Credited
+- Transaction ID
+
+Then calculate:
+
+Expected Direct Income
+
+Actual Direct Income
+
+Difference
+
+If there is any discrepancy:
+
+Explain exactly why.
+
+====================================================
+PART 5 — Matching Bonus Audit
+====================================================
+
+Return every Matching Bonus.
+
+Include:
+
+- Source User
+- Left Volume
+- Right Volume
+- Business Volume
+- Matching Rule
+- Amount Credited
+- Ledger Reference
+
+====================================================
+PART 6 — Level Income Audit
+====================================================
+
+Return every Level Income.
+
+For each transaction include:
+
+- Source User
+- Level
+- Investment
+- Percentage
+- Amount
+- Qualification Status
+
+====================================================
+PART 7 — ROI Audit
+====================================================
+
+Return every ROI payment.
+
+Include:
+
+- Date
+- Investment
+- Daily %
+- Amount
+- Ledger Reference
+
+====================================================
+PART 8 — Salary / Rank Income
+====================================================
+
+List every salary payment.
+
+Include:
+
+- Rank
+- Qualification Date
+- Amount
+- Payment Date
+
+====================================================
+PART 9 — Ledger Verification
+====================================================
+
+Return every ledger entry belonging to this user.
+
+Verify:
+
+Opening Balance
++ Deposits
++ Bonuses
++ ROI
++ Direct Income
++ Matching
++ Salary
+− Withdrawals
+− Transfers
+
+Equals
+
+Current Wallet Balance
+
+Highlight any mismatch.
+
+====================================================
+PART 10 — Compensation Rule Verification
+====================================================
+
+For every direct referral determine:
+
+Was Direct Income supposed to be paid?
+
+YES / NO
+
+Reason
+
+Examples:
+
+Referral never invested
+
+Referral investment cancelled
+
+Referral invested successfully
+
+Referral refunded
+
+Referral outside qualification period
+
+etc.
+
+====================================================
+PART 11 — Final Conclusion
+====================================================
+
+State clearly:
+
+1. Is the member's complaint valid?
+
+2. If yes:
+
+Exactly which transaction is wrong.
+
+Exactly why it happened.
+
+Exactly which backend function performed the calculation.
+
+3. If no:
+
+Explain mathematically why the credited Direct Income is correct according to the compensation plan.
+
+Do not modify any code.
+
+Produce only an audit report with evidence from the database, ledger, investment history, and compensation calculations.
