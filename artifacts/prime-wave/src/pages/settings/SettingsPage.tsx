@@ -380,8 +380,8 @@ export default function SettingsPage() {
                     </div>
                   </Field>
                   <div className="flex items-center gap-2 mt-1">
-                    <Lock className="h-3 w-3" style={{ color: "#D4AF37" }} />
-                    <span className="text-xs font-semibold" style={{ color: "#D4AF37" }}>Permanently Locked</span>
+                    <Check className="h-3 w-3" style={{ color: "#34d399" }} />
+                    <span className="text-xs font-semibold" style={{ color: "#34d399" }}>Verified</span>
                   </div>
                 </>
               ) : (
