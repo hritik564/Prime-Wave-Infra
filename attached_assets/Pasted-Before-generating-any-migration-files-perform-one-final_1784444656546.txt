@@ -1,0 +1,166 @@
+Before generating any migration files, perform one final production safety verification.
+
+DO NOT generate SQL yet.
+
+DO NOT modify the database.
+
+This is the final migration review.
+
+====================================================
+PART 1 — Review Every NOT NULL Column
+====================================================
+
+Review every new NOT NULL column being added to existing production tables.
+
+Do NOT review only netAmount.
+
+Review every NOT NULL column individually including (but not limited to):
+
+- netAmount
+- seqId
+- idempotencyKey
+- requestedAt
+- currency
+- fee
+- any other NOT NULL additions
+
+For each column report:
+
+• Existing production rows affected
+• Default value (if any)
+• Whether existing rows will receive a value automatically
+• Whether a manual backfill is required
+• Whether uniqueness constraints could fail
+• Whether the migration is completely safe
+
+====================================================
+PART 2 — Verify Unique Constraints
+====================================================
+
+Review every new UNIQUE constraint.
+
+Examples:
+
+withdrawalId
+
+idempotencyKey
+
+seqId
+
+wallet indexes
+
+Verify:
+
+• Existing production data cannot violate the constraint.
+
+• Migration will not fail because of duplicate values.
+
+====================================================
+PART 3 — Verify Foreign Keys
+====================================================
+
+Review every new foreign key.
+
+Confirm:
+
+• Existing production data satisfies every FK.
+
+• No orphan records exist.
+
+• No migration failure is possible.
+
+====================================================
+PART 4 — Dry Run Against Production Snapshot
+====================================================
+
+Before production deployment:
+
+Restore a copy of the current production database into a staging environment.
+
+Run both proposed migrations.
+
+After migration verify:
+
+✓ Same number of users
+
+✓ Same number of investments
+
+✓ Same number of deposits
+
+✓ Same number of withdrawals
+
+✓ Same number of wallet transactions
+
+✓ Same number of ROI records
+
+✓ Same number of Level Income records
+
+✓ Same number of Binary records
+
+✓ Same number of Salary records
+
+✓ Same number of Admin Logs
+
+No data loss should occur.
+
+====================================================
+PART 5 — Functional Smoke Test
+====================================================
+
+After the migrated staging database starts successfully:
+
+Test:
+
+✓ New registration
+
+✓ Login
+
+✓ Deposit
+
+✓ Investment
+
+✓ Level Income
+
+✓ ROI generation
+
+✓ Withdrawal
+
+✓ Automatic withdrawal worker
+
+✓ Blockchain broadcast
+
+✓ Explorer URL
+
+✓ Reconciliation
+
+✓ Treasury Health
+
+Everything must function normally.
+
+====================================================
+PART 6 — Final Approval Report
+====================================================
+
+Produce a final report containing:
+
+• Remaining migration risks
+
+• Any columns still requiring manual backfill
+
+• Any possible downtime required
+
+• Expected migration duration
+
+• Rollback strategy
+
+• Final deployment recommendation
+
+Do NOT generate migration SQL until this report shows:
+
+✅ Zero destructive operations
+
+✅ Zero data loss
+
+✅ Zero schema drift remaining
+
+Only after this report is approved should the production migration files be generated.
