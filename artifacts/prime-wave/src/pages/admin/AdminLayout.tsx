@@ -53,6 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "PLATFORM",
     items: [
+      { icon: Package,   label: "Plans & Config", path: "/admin/plans" },
       { icon: Settings,  label: "Company Wallets",path: "/admin/company-wallets" },
     ],
   },
