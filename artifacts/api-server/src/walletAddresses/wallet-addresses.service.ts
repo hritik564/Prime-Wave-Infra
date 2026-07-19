@@ -1,9 +1,11 @@
 import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
+import { logger } from "../lib/logger";
 import type { AddWalletAddressInput } from "./wallet-addresses.schema";
 
-const MAX_ADDRESSES_PER_NETWORK = 5;
+const LOCK_MESSAGE =
+  "Your withdrawal wallet has been permanently locked for security reasons. Please contact PrimeWave Support if you believe this is incorrect.";
 
 const addressSelect = {
   id:         true,
@@ -27,12 +29,13 @@ export async function addWalletAddress(userId: string, input: AddWalletAddressIn
   const { network, address, label } = input;
 
   const count = await prisma.walletAddress.count({ where: { userId, network } });
-  if (count >= MAX_ADDRESSES_PER_NETWORK) {
-    throw new AppError(
-      `Maximum ${MAX_ADDRESSES_PER_NETWORK} ${network} addresses allowed per account`,
-      HTTP_STATUS.CONFLICT,
-      "TOO_MANY_WALLET_ADDRESSES",
+
+  if (count >= 1) {
+    logger.warn(
+      { userId, address, network, attemptType: "ADD" },
+      "wallet.lock: add attempt rejected — wallet permanently locked",
     );
+    throw new AppError(LOCK_MESSAGE, HTTP_STATUS.FORBIDDEN, "WALLET_LOCKED");
   }
 
   const existing = await prisma.walletAddress.findUnique({
@@ -46,10 +49,8 @@ export async function addWalletAddress(userId: string, input: AddWalletAddressIn
     );
   }
 
-  const isFirst = count === 0;
-
   return prisma.walletAddress.create({
-    data:   { userId, network, address, label: label ?? null, isVerified: true, isPrimary: isFirst },
+    data:   { userId, network, address, label: label ?? null, isVerified: true, isPrimary: true },
     select: addressSelect,
   });
 }
@@ -57,41 +58,18 @@ export async function addWalletAddress(userId: string, input: AddWalletAddressIn
 export async function deleteWalletAddress(userId: string, addressId: string) {
   const record = await prisma.walletAddress.findFirst({
     where:  { id: addressId, userId },
-    select: { id: true, isPrimary: true, network: true },
+    select: { id: true, address: true, network: true },
   });
 
   if (!record) {
     throw new AppError("Wallet address not found", HTTP_STATUS.NOT_FOUND, "WALLET_ADDRESS_NOT_FOUND");
   }
 
-  const hasPendingWithdrawal = await prisma.withdrawalRequest.findFirst({
-    where: {
-      userId,
-      status: { in: ["PENDING", "VALIDATING", "QUEUED", "PROCESSING"] },
-    },
-    select: { id: true },
-  });
-  if (hasPendingWithdrawal) {
-    throw new AppError(
-      "Cannot delete wallet address while a withdrawal is in progress",
-      HTTP_STATUS.CONFLICT,
-      "WITHDRAWAL_IN_PROGRESS",
-    );
-  }
-
-  await prisma.walletAddress.delete({ where: { id: record.id } });
-
-  if (record.isPrimary) {
-    const next = await prisma.walletAddress.findFirst({
-      where:   { userId, network: record.network },
-      orderBy: { createdAt: "asc" },
-    });
-    if (next) {
-      await prisma.walletAddress.update({ where: { id: next.id }, data: { isPrimary: true } });
-    }
-  }
-
-  return { id: addressId, deleted: true };
+  logger.warn(
+    { userId, addressId, address: record.address, network: record.network, attemptType: "DELETE" },
+    "wallet.lock: delete attempt rejected — wallet permanently locked",
+  );
+  throw new AppError(LOCK_MESSAGE, HTTP_STATUS.FORBIDDEN, "WALLET_LOCKED");
 }
 
 export async function setPrimaryWalletAddress(userId: string, addressId: string) {

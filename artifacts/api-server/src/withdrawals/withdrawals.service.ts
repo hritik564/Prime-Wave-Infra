@@ -29,12 +29,14 @@ export async function getWithdrawalSettings(network: "BEP20") {
  * Exposes only what's needed to render min/max validation — no internal fields.
  */
 export async function getWithdrawalSettingsPublic(network: "BEP20") {
-  const settings = await getWithdrawalSettings(network);
+  const settings    = await getWithdrawalSettings(network);
+  const holdMinutes = parseInt(process.env["WITHDRAWAL_HOLD_MINUTES"] ?? "2", 10);
   return {
     network:       settings.network,
     minimumAmount: settings.minimumAmount.toFixed(2),
     maximumAmount: settings.maximumAmount.toFixed(2),
     isEnabled:     settings.isEnabled,
+    holdMinutes,
   };
 }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, User, Lock, Wallet, Check, Moon, Sun, Link2, Hash, Copy, CheckCheck, ChevronLeft, ChevronRight, Share2 } from "lucide-react";
+import { Loader2, User, Lock, Wallet, Check, Moon, Sun, Link2, Hash, Copy, CheckCheck, ChevronLeft, ChevronRight, Share2, ShieldCheck } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
@@ -88,6 +88,7 @@ export default function SettingsPage() {
   const [lastName, setLastName]         = useState("");
   const [phone, setPhone]               = useState("");
   const [walletAddress, setWalletAddress] = useState("");
+  const [walletWasSet, setWalletWasSet]   = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved]   = useState(false);
   const [profileError, setProfileError]   = useState<string>();
@@ -129,7 +130,9 @@ export default function SettingsPage() {
         setFirstName(data.firstName);
         setLastName(data.lastName);
         setPhone(data.phone ?? "");
-        setWalletAddress((data as ProfileData & { walletAddress?: string }).walletAddress ?? "");
+        const wa = (data as ProfileData & { walletAddress?: string }).walletAddress ?? "";
+        setWalletAddress(wa);
+        setWalletWasSet(wa !== "");
       } catch {
         // silently fail
       } finally {
@@ -143,7 +146,10 @@ export default function SettingsPage() {
     setProfileSaving(true);
     setProfileError(undefined);
     try {
-      const updated = await updateProfile({ firstName, lastName, phone, walletAddress });
+      const updated = await updateProfile({
+        firstName, lastName, phone,
+        ...(walletWasSet ? {} : { walletAddress: walletAddress || undefined }),
+      });
       setProfile(updated);
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 2500);
@@ -322,17 +328,54 @@ export default function SettingsPage() {
 
             {/* ── Wallet Address ── */}
             <Card title="Withdrawal Wallet Address" icon={Wallet}>
-              <p className="text-xs mb-4" style={{ color: "hsl(var(--muted-foreground))" }}>
-                Your USDT (TRC-20 / ERC-20) wallet address for receiving withdrawals.
-              </p>
-              <Field label="Wallet Address">
-                <TextInput
-                  value={walletAddress}
-                  onChange={setWalletAddress}
-                  placeholder="e.g. TRx... or 0x..."
-                />
-              </Field>
-              <SaveButton loading={profileSaving} saved={profileSaved} onClick={handleSaveProfile} />
+              {walletWasSet ? (
+                <>
+                  <div
+                    className="flex items-start gap-3 rounded-xl px-4 py-3 mb-4"
+                    style={{ background: "rgba(212,175,55,0.05)", border: "1px solid rgba(212,175,55,0.2)" }}
+                  >
+                    <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "#D4AF37" }} />
+                    <p className="text-xs" style={{ color: "rgba(170,179,197,0.7)" }}>
+                      For your financial security, your withdrawal wallet cannot be changed after registration. Contact Support if you believe this is incorrect.
+                    </p>
+                  </div>
+                  <Field label="Wallet Address">
+                    <div className="relative">
+                      <TextInput value={walletAddress} readOnly />
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(walletAddress).catch(() => {});
+                          setCopied("wallet");
+                          setTimeout(() => setCopied(null), 2000);
+                        }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg"
+                        style={{ color: copied === "wallet" ? "#34d399" : "rgba(170,179,197,0.4)" }}
+                        title="Copy wallet address"
+                      >
+                        {copied === "wallet" ? <CheckCheck className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  </Field>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Lock className="h-3 w-3" style={{ color: "#D4AF37" }} />
+                    <span className="text-xs font-semibold" style={{ color: "#D4AF37" }}>Permanently Locked</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs mb-4" style={{ color: "hsl(var(--muted-foreground))" }}>
+                    Add your USDT (BEP20) wallet address. This can only be set once and cannot be changed.
+                  </p>
+                  <Field label="Wallet Address">
+                    <TextInput
+                      value={walletAddress}
+                      onChange={setWalletAddress}
+                      placeholder="e.g. 0x..."
+                    />
+                  </Field>
+                  <SaveButton loading={profileSaving} saved={profileSaved} onClick={handleSaveProfile} />
+                </>
+              )}
             </Card>
 
             {/* ── Password ── */}

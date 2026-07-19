@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
+import { logger } from "../lib/logger";
 
 // ── Shared DTOs ───────────────────────────────────────────────────────────────
 
@@ -81,7 +82,25 @@ export async function updateUserProfile(userId: string, input: UpdateProfileInpu
   if (input.firstName     !== undefined) data["firstName"]     = input.firstName;
   if (input.lastName      !== undefined) data["lastName"]      = input.lastName;
   if (input.phone         !== undefined) data["phone"]         = input.phone;
-  if (input.walletAddress !== undefined) data["walletAddress"] = input.walletAddress;
+  if (input.walletAddress !== undefined) {
+    const currentUser = await prisma.user.findUnique({
+      where:  { id: userId },
+      select: { walletAddress: true },
+    });
+    const existing = currentUser?.walletAddress ?? "";
+    if (existing !== "" && input.walletAddress !== existing) {
+      logger.warn(
+        { userId, attemptType: "WALLET_ADDRESS_UPDATE" },
+        "wallet.lock: walletAddress change rejected — permanently locked",
+      );
+      throw new AppError(
+        "Your withdrawal wallet has been permanently locked for security reasons. Please contact PrimeWave Support if you believe this is incorrect.",
+        HTTP_STATUS.FORBIDDEN,
+        "WALLET_LOCKED",
+      );
+    }
+    data["walletAddress"] = input.walletAddress;
+  }
 
   const user = await prisma.user.update({
     where: { id: userId },

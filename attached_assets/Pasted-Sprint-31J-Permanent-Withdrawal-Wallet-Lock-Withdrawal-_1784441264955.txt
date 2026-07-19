@@ -1,0 +1,300 @@
+Sprint 31J — Permanent Withdrawal Wallet Lock + Withdrawal Status Enhancements
+
+Objective
+
+For security and fraud prevention, users must NOT be able to change, delete, or replace their withdrawal wallet address after it has been successfully saved for the first time.
+
+Additionally, improve the withdrawal user experience by displaying:
+
+• A live hold period countdown timer while the withdrawal is waiting to become eligible.
+• The blockchain transaction URL after a withdrawal has been successfully processed.
+
+This sprint combines security hardening with withdrawal UX improvements.
+
+====================================================
+BUSINESS RULE
+====================================================
+
+A user has ONE permanent withdrawal wallet.
+
+Once a wallet address has been successfully saved:
+
+✓ It cannot be edited.
+✓ It cannot be deleted.
+✓ It cannot be replaced.
+✓ A second wallet cannot be added.
+
+This applies regardless of whether the wallet was added from:
+
+• Profile
+• Withdrawal Page
+• Any future wallet management screen
+
+====================================================
+PART 1 — Backend Enforcement
+====================================================
+
+The backend must enforce the wallet lock.
+
+Frontend restrictions alone are NOT sufficient.
+
+Whenever an API request attempts to:
+
+• Update
+• Replace
+• Delete
+• Clear
+• Create another withdrawal wallet
+
+the backend must reject the request if a withdrawal wallet already exists.
+
+Return:
+
+HTTP 403 Forbidden
+
+Response message:
+
+"Your withdrawal wallet has been permanently locked for security reasons. Please contact PrimeWave Support if you believe this is incorrect."
+
+====================================================
+PART 2 — Frontend Wallet UI
+====================================================
+
+If a withdrawal wallet already exists:
+
+Hide or disable:
+
+• Edit
+• Delete
+• Replace
+• Add Wallet
+
+Instead display:
+
+Withdrawal Wallet
+
+0xA4E2........91F2
+
+Status
+
+🔒 Permanently Locked
+
+Message
+
+For your financial security, your withdrawal wallet cannot be changed after registration.
+
+====================================================
+PART 3 — Withdrawal Page
+====================================================
+
+If a wallet already exists:
+
+Allow users only to:
+
+✓ View wallet address
+
+✓ Copy wallet address
+
+No editing capabilities should be available.
+
+====================================================
+PART 4 — Profile Page
+====================================================
+
+Profile page must follow the exact same behavior.
+
+Once saved, the withdrawal wallet is permanently locked.
+
+====================================================
+PART 5 — API Protection
+====================================================
+
+Verify ALL wallet-related endpoints.
+
+Protect:
+
+POST
+
+PUT
+
+PATCH
+
+DELETE
+
+Any endpoint capable of modifying withdrawal wallets.
+
+Reject every modification attempt after the first successful save.
+
+====================================================
+PART 6 — Database Integrity
+====================================================
+
+Do NOT modify existing wallet records.
+
+Do NOT create new tables.
+
+Do NOT migrate any data.
+
+This sprint is purely an enforcement change.
+
+====================================================
+PART 7 — Security Logging
+====================================================
+
+Whenever someone attempts to modify a locked wallet:
+
+Create a security audit log.
+
+Include:
+
+User ID
+
+Username
+
+Current Wallet
+
+Attempt Type
+
+Timestamp
+
+IP Address (if available)
+
+Result
+
+Rejected
+
+====================================================
+PART 8 — Admin Restriction
+====================================================
+
+Administrators must NOT be able to modify a member's withdrawal wallet through the normal admin interface.
+
+If a future exceptional recovery process is required, it must be implemented as a separate audited workflow.
+
+Do NOT implement that workflow in this sprint.
+
+====================================================
+PART 9 — Hold Period Countdown Timer
+====================================================
+
+Improve the Withdrawal History UI.
+
+Whenever a withdrawal is in the HOLD PERIOD state:
+
+Display:
+
+Status
+
+🟡 Hold Period
+
+Countdown
+
+Time Remaining:
+
+HH:MM:SS
+
+Example:
+
+Hold Period
+
+00:14:26 remaining
+
+The timer should update automatically in real time.
+
+Once the hold period expires:
+
+Automatically change the status to:
+
+🟢 Eligible for Processing
+
+No page refresh should be required.
+
+This is a UI enhancement only.
+
+Do NOT change the existing hold period duration or queue logic.
+
+====================================================
+PART 10 — Blockchain Transaction URL
+====================================================
+
+After a withdrawal has been successfully completed:
+
+Display:
+
+✅ Completed
+
+Transaction Hash
+
+Explorer Link
+
+Example:
+
+Transaction
+
+0x7a83...d91e
+
+View on BscScan
+
+The explorer URL should be generated automatically based on the configured blockchain network.
+
+If additional networks are supported in the future, the correct explorer should be used automatically.
+
+The transaction link should open in a new browser tab.
+
+If the transaction has not yet been broadcast:
+
+Do NOT display the explorer link.
+
+====================================================
+PART 11 — Regression Testing
+====================================================
+
+Verify:
+
+✓ New users can save a withdrawal wallet once.
+
+✓ Second save is rejected.
+
+✓ Edit is rejected.
+
+✓ Delete is rejected.
+
+✓ Replace is rejected.
+
+✓ Direct API modification attempts are rejected.
+
+✓ Frontend edit controls are unavailable after first save.
+
+✓ Hold period countdown displays correctly.
+
+✓ Countdown reaches zero correctly.
+
+✓ Status changes to Eligible automatically.
+
+✓ Completed withdrawals display transaction hash.
+
+✓ Explorer URL opens the correct blockchain explorer.
+
+✓ Existing withdrawals continue working normally.
+
+✓ Existing users can continue withdrawing without interruption.
+
+====================================================
+Acceptance Criteria
+====================================================
+
+After implementation:
+
+✓ Withdrawal wallets become permanently locked after the first successful save.
+
+✓ Neither users nor administrators can modify them through the normal application.
+
+✓ All modification attempts are rejected with HTTP 403 and logged for audit purposes.
+
+✓ Users can clearly see the remaining hold period before processing.
+
+✓ Successfully completed withdrawals display the blockchain transaction hash and a clickable explorer URL.
+
+✓ No changes are made to withdrawal business logic, treasury, blockchain processing, wallet balances, or financial calculations.
+
+This sprint focuses on security hardening and improving transparency for users during the withdrawal process.

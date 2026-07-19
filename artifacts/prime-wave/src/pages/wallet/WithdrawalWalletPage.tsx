@@ -3,6 +3,7 @@ import {
   ArrowUpFromLine, X, Wallet, Loader2, CheckCircle2,
   GitMerge, RefreshCw, Users, DollarSign, ArrowLeftRight,
   TrendingUp, Layers, HelpCircle, Plus, Trash2, Star,
+  Lock, ExternalLink, Copy, CheckCheck,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
@@ -84,6 +85,88 @@ function shorten(addr: string) {
 }
 
 interface ToastItem { id: number; message: string; type: "success" | "error" }
+
+// ── Hold Period Countdown ──────────────────────────────────────────────────────
+
+function HoldCountdown({ requestedAt, holdMinutes }: { requestedAt: string; holdMinutes: number }) {
+  const getRemaining = () => {
+    const expiry = new Date(requestedAt).getTime() + holdMinutes * 60 * 1_000;
+    return Math.max(0, expiry - Date.now());
+  };
+
+  const [remaining, setRemaining] = useState(getRemaining);
+
+  useEffect(() => {
+    if (remaining === 0) return;
+    const timer = setInterval(() => {
+      const r = getRemaining();
+      setRemaining(r);
+      if (r === 0) clearInterval(timer);
+    }, 1_000);
+    return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedAt, holdMinutes]);
+
+  if (remaining === 0) {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <Badge variant="success">Eligible for Processing</Badge>
+      </div>
+    );
+  }
+
+  const totalSec = Math.floor(remaining / 1_000);
+  const h = Math.floor(totalSec / 3600).toString().padStart(2, "0");
+  const m = Math.floor((totalSec % 3600) / 60).toString().padStart(2, "0");
+  const s = (totalSec % 60).toString().padStart(2, "0");
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <Badge variant="warning">Hold Period</Badge>
+      <span className="font-mono text-[10px]" style={{ color: "#fbbf24" }}>{h}:{m}:{s} remaining</span>
+    </div>
+  );
+}
+
+// ── Explorer Link ──────────────────────────────────────────────────────────────
+
+function ExplorerLink({ txHash, network }: { txHash: string; network: string }) {
+  const [copied, setCopied] = useState(false);
+  const url = network === "BEP20" ? `https://bscscan.com/tx/${txHash}` : null;
+  const short = `${txHash.slice(0, 8)}…${txHash.slice(-6)}`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(txHash).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-1">
+        <span className="font-mono text-[10px] truncate max-w-[120px]" style={{ color: "rgba(170,179,197,0.55)" }}>{short}</span>
+        <button onClick={handleCopy} className="shrink-0" title="Copy TX hash">
+          {copied
+            ? <CheckCheck className="h-3 w-3" style={{ color: "#34d399" }} />
+            : <Copy className="h-3 w-3" style={{ color: "rgba(170,179,197,0.4)" }} />
+          }
+        </button>
+      </div>
+      {url && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-[10px] hover:underline"
+          style={{ color: "#60a5fa" }}
+        >
+          <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+          View on BscScan
+        </a>
+      )}
+    </div>
+  );
+}
 
 // ── Withdrawal Modal ───────────────────────────────────────────────────────────
 
@@ -254,8 +337,9 @@ function WithdrawalModal({ available, addresses, onClose, onSuccess }: Withdrawa
 
 export default function WithdrawalWalletPage() {
   const { user: _user }           = useAuth();
-  const [modalOpen, setModalOpen] = useState(false);
-  const [balance, setBalance]     = useState<number>(0);
+  const [modalOpen, setModalOpen]   = useState(false);
+  const [holdMinutes, setHoldMinutes] = useState(2);
+  const [balance, setBalance]       = useState<number>(0);
   const [txHistory, setTxHistory] = useState<Transaction[]>([]);
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
   const [walletAddresses, setWalletAddresses]       = useState<WalletAddress[]>([]);
@@ -269,16 +353,18 @@ export default function WithdrawalWalletPage() {
 
   const load = useCallback(async () => {
     try {
-      const [walletData, txData, wrData, addrData] = await Promise.all([
+      const [walletData, txData, wrData, addrData, settings] = await Promise.all([
         getWallets(),
         getWalletHistory({ limit: 50, wallet: "WITHDRAWAL_WALLET" }),
         getWithdrawalHistory({ limit: 50 }),
         listWalletAddresses("BEP20"),
+        getWithdrawalSettings(),
       ]);
       setBalance(parseFloat(walletData.withdrawalWallet));
       setTxHistory(txData.data);
       setWithdrawalRequests(wrData.data);
       setWalletAddresses(addrData);
+      setHoldMinutes(settings.holdMinutes);
     } catch {
       // keep whatever we have
     } finally {
@@ -352,17 +438,19 @@ export default function WithdrawalWalletPage() {
         <div className="mb-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-semibold font-heading text-foreground">BEP20 Withdrawal Addresses</h2>
-            <button
-              onClick={() => setAddAddrOpen((v) => !v)}
-              className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all"
-              style={{ background: "rgba(212,175,55,0.1)", color: "#D4AF37", border: "1px solid rgba(212,175,55,0.2)" }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add Address
-            </button>
+            {!loading && walletAddresses.length === 0 && (
+              <button
+                onClick={() => setAddAddrOpen((v) => !v)}
+                className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all"
+                style={{ background: "rgba(212,175,55,0.1)", color: "#D4AF37", border: "1px solid rgba(212,175,55,0.2)" }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Address
+              </button>
+            )}
           </div>
 
-          {addAddrOpen && (
+          {addAddrOpen && walletAddresses.length === 0 && (
             <div className="mb-3 rounded-xl p-4 space-y-3" style={{ background: "hsl(var(--card))", border: "1px solid rgba(212,175,55,0.2)" }}>
               <div>
                 <label className="text-xs font-semibold uppercase tracking-widest mb-1.5 block" style={{ color: "hsl(var(--muted-foreground))" }}>
@@ -424,53 +512,39 @@ export default function WithdrawalWalletPage() {
               No BEP20 addresses added yet. Add one to enable withdrawals.
             </div>
           ) : (
-            <div className="space-y-2">
-              {walletAddresses.map((addr) => (
-                <div
-                  key={addr.id}
-                  className="flex items-center gap-3 rounded-xl px-4 py-3"
-                  style={{
-                    background: addr.isPrimary ? "rgba(212,175,55,0.05)" : "hsl(var(--card))",
-                    border: addr.isPrimary ? "1px solid rgba(212,175,55,0.25)" : "1px solid hsl(var(--border))",
-                  }}
-                >
-                  <div className="flex-1 min-w-0">
-                    {addr.label && <p className="text-xs font-semibold text-foreground">{addr.label}</p>}
-                    <p className="font-mono text-xs truncate" style={{ color: "rgba(170,179,197,0.7)" }}>{addr.address}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {addr.isPrimary && (
-                        <span className="text-xs font-semibold" style={{ color: "#D4AF37" }}>Primary</span>
-                      )}
-                      {addr.isVerified ? (
+            <>
+              {/* Locked state notice */}
+              <div
+                className="flex items-start gap-3 rounded-xl px-4 py-3 mb-2"
+                style={{ background: "rgba(212,175,55,0.04)", border: "1px solid rgba(212,175,55,0.18)" }}
+              >
+                <Lock className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: "#D4AF37" }} />
+                <p className="text-xs" style={{ color: "rgba(170,179,197,0.7)" }}>
+                  For your financial security, your withdrawal wallet cannot be changed after registration.
+                </p>
+              </div>
+              <div className="space-y-2">
+                {walletAddresses.map((addr) => (
+                  <div
+                    key={addr.id}
+                    className="flex items-center gap-3 rounded-xl px-4 py-3"
+                    style={{ background: "rgba(212,175,55,0.05)", border: "1px solid rgba(212,175,55,0.2)" }}
+                  >
+                    <div className="flex-1 min-w-0">
+                      {addr.label && <p className="text-xs font-semibold text-foreground">{addr.label}</p>}
+                      <p className="font-mono text-xs truncate" style={{ color: "rgba(170,179,197,0.8)" }}>{addr.address}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: "#D4AF37" }}>
+                          <Lock className="h-2.5 w-2.5" />
+                          Permanently Locked
+                        </span>
                         <span className="text-xs" style={{ color: "#34d399" }}>Verified</span>
-                      ) : (
-                        <span className="text-xs" style={{ color: "#fb923c" }}>Pending verification</span>
-                      )}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {!addr.isPrimary && addr.isVerified && (
-                      <button
-                        onClick={() => void handleSetPrimary(addr.id)}
-                        className="p-1.5 rounded-lg transition-colors"
-                        style={{ color: "rgba(170,179,197,0.4)" }}
-                        title="Set as primary"
-                      >
-                        <Star className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => void handleDeleteAddress(addr.id)}
-                      className="p-1.5 rounded-lg transition-colors"
-                      style={{ color: "rgba(248,113,113,0.5)" }}
-                      title="Remove address"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
 
@@ -559,16 +633,26 @@ export default function WithdrawalWalletPage() {
               <div className="md:hidden space-y-3">
                 {withdrawalRequests.map((item) => {
                   const s = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.PENDING;
+                  const isPending   = item.status === "PENDING";
+                  const isCompleted = item.status === "COMPLETED";
                   return (
                     <div key={item.id} className="rounded-xl p-4" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 2px 12px rgba(0,0,0,0.25)" }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-lg font-bold font-heading" style={{ color: "#f87171" }}>-{fmt(item.amount)}</span>
-                        <Badge variant={s.variant}>{s.label}</Badge>
+                      <div className="flex items-start justify-between mb-2 gap-2">
+                        <span className="text-lg font-bold font-heading shrink-0" style={{ color: "#f87171" }}>-{fmt(item.amount)}</span>
+                        {isPending
+                          ? <HoldCountdown requestedAt={item.requestedAt} holdMinutes={holdMinutes} />
+                          : <Badge variant={s.variant}>{s.label}</Badge>
+                        }
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-mono" style={{ color: "rgba(170,179,197,0.55)" }}>{shorten(item.walletAddress)}</span>
                         <span className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>{fmtDate(item.createdAt)}</span>
                       </div>
+                      {isCompleted && item.txHash && (
+                        <div className="mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                          <ExplorerLink txHash={item.txHash} network={item.network} />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -587,10 +671,20 @@ export default function WithdrawalWalletPage() {
                   <tbody>
                     {withdrawalRequests.map((item, i) => {
                       const s = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.PENDING;
+                      const isPending   = item.status === "PENDING";
+                      const isCompleted = item.status === "COMPLETED";
                       return (
                         <tr key={item.id} className="transition-colors hover:bg-white/[0.02]" style={{ borderBottom: i < withdrawalRequests.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
                           <td className="px-5 py-4 font-semibold font-mono" style={{ color: "#f87171" }}>-{fmt(item.amount)}</td>
-                          <td className="px-5 py-4"><Badge variant={s.variant}>{s.label}</Badge></td>
+                          <td className="px-5 py-4">
+                            {isPending
+                              ? <HoldCountdown requestedAt={item.requestedAt} holdMinutes={holdMinutes} />
+                              : <Badge variant={s.variant}>{s.label}</Badge>
+                            }
+                            {isCompleted && item.txHash && (
+                              <div className="mt-1"><ExplorerLink txHash={item.txHash} network={item.network} /></div>
+                            )}
+                          </td>
                           <td className="px-5 py-4 text-xs font-semibold" style={{ color: "#D4AF37" }}>{item.network}</td>
                           <td className="px-5 py-4 font-mono text-xs" style={{ color: "rgba(170,179,197,0.55)" }}>{shorten(item.walletAddress)}</td>
                           <td className="px-5 py-4 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>{fmtDate(item.createdAt)}</td>

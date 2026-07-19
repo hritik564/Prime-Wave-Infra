@@ -530,6 +530,7 @@ export function setPrimaryWalletAddress(id: string) {
 }
 
 export interface WithdrawalSettings {
+  holdMinutes: number;
   network: string;
   minimumAmount: string;
   maximumAmount: string;
