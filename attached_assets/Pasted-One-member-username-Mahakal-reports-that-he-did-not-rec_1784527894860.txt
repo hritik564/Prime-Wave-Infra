@@ -1,0 +1,170 @@
+One member (username: Mahakal) reports that he did not receive his Binary Orbit matching bonus.
+
+Do NOT modify any data.
+
+Perform a complete forensic investigation and determine whether the complaint is VALID or INVALID.
+
+Produce a chronological report covering:
+
+## 1. Member Information
+- User ID
+- Username
+- Sponsor
+- Placement (LEFT/RIGHT)
+- Current rank
+- Registration date
+- Active/Inactive status
+
+## 2. Binary Tree Position
+Show the complete binary tree around Mahakal.
+
+Include:
+- Parent
+- Left child
+- Right child
+- Upline chain
+- Downline members
+- Business volume contributed by each member
+
+## 3. Binary Volume Calculation
+Calculate from first principles.
+
+Show:
+
+Left Leg
+- Every investment
+- Amount
+- BV generated
+- Date
+- Running total
+
+Right Leg
+- Every investment
+- Amount
+- BV generated
+- Date
+- Running total
+
+Compare against the Binary Orbit rule:
+
+150 BV Left
++
+150 BV Right
+=
+$500 bonus
+
+Show every qualifying cycle.
+
+## 4. Binary Matching Engine Audit
+
+Search:
+
+binary matching job
+salary scheduler
+cron history
+reward processing
+
+Determine:
+
+- Was Mahakal evaluated?
+- If yes:
+    - Timestamp
+    - Result
+- If skipped:
+    - Exact reason
+- If failed:
+    - Exact error
+
+## 5. Income History
+
+List every:
+
+- ROI income
+- Level income
+- Binary Orbit income
+- Salary
+- Manual adjustment
+
+Verify whether any Binary Orbit payment already exists.
+
+## 6. Financial Ledger Verification
+
+Cross-check:
+
+wallet_transactions
+financial_ledger
+income_transfers
+
+Verify:
+
+- Was bonus generated?
+- Was ledger entry created?
+- Was wallet credited?
+- Was transfer released?
+
+Highlight any mismatch.
+
+## 7. Eligibility Checks
+
+Verify every eligibility rule.
+
+Examples:
+
+- Active investment?
+- Minimum investment?
+- Correct binary placement?
+- Left/right business requirement?
+- Any carry-forward logic?
+- Daily payout cap?
+- Duplicate prevention?
+- Already paid previously?
+- Sponsor qualification?
+- Any lock or hold?
+
+Show PASS or FAIL for each rule.
+
+## 8. Source Code Verification
+
+Trace the exact code path used for Binary Orbit calculation.
+
+Include:
+
+- Functions called
+- SQL queries
+- Conditions evaluated
+
+Identify the exact line that accepted or rejected Mahakal.
+
+## 9. Root Cause
+
+Determine exactly ONE of:
+
+A. Complaint is INVALID
+(User has already been paid.)
+
+B. Complaint is INVALID
+(User has not yet qualified.)
+
+C. Complaint is VALID
+(System bug prevented payment.)
+
+D. Complaint is VALID
+(Data inconsistency prevented payment.)
+
+E. Complaint is VALID
+(Cron failed.)
+
+F. Complaint is VALID
+(Configuration error.)
+
+## 10. Recommended Fix
+
+If no issue exists:
+Explain why.
+
+If an issue exists:
+Provide the smallest safe fix.
+
+DO NOT modify any production data.
+
+Return a complete evidence-backed investigation.
