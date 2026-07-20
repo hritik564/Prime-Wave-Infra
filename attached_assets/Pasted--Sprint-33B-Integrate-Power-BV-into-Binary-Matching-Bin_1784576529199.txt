@@ -1,0 +1,232 @@
+# Sprint 33B – Integrate Power BV into Binary Matching & Binary Orbit
+
+Sprint 33A has been approved.
+
+We will now integrate Power BV into ONLY the Binary Matching and Binary Orbit engines.
+
+DO NOT modify:
+
+- Salary Qualification
+- Salary Scheduler
+- Level Income
+- BV Propagation
+- Investments
+- Wallet Transactions (except metadata additions)
+- Existing BV Ledger structure
+
+Salary will be redesigned in Sprint 33C.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Power BV must now participate in:
+
+✅ Binary Matching
+
+✅ Binary Orbit
+
+Power BV must still NEVER:
+
+- Propagate upward
+- Create investment records
+- Create sponsor business
+- Create level income
+- Affect salary (yet)
+
+--------------------------------------------------
+BINARY MATCHING
+--------------------------------------------------
+
+Candidate query must include members having:
+
+Organic Left BV > 0
+OR
+Power Left BV > 0
+
+AND
+
+Organic Right BV > 0
+OR
+Power Right BV > 0
+
+Working calculation:
+
+Effective Left BV
+
+=
+
+Organic Left BV
+
++
+
+Power Left BV
+
+Effective Right BV
+
+=
+
+Organic Right BV
+
++
+
+Power Right BV
+
+Matched BV
+
+=
+
+MIN(Effective Left, Effective Right)
+
+--------------------------------------------------
+FLUSH RULE
+--------------------------------------------------
+
+Consume Organic BV first.
+
+If Organic BV is exhausted,
+consume Power BV.
+
+Example:
+
+Organic Left
+
+100
+
+Power Left
+
+50
+
+Matched
+
+120
+
+Result:
+
+Organic Left
+
+0
+
+Power Left
+
+30
+
+Never consume Power BV before Organic BV.
+
+--------------------------------------------------
+BINARY ORBIT
+--------------------------------------------------
+
+Apply exactly the same logic.
+
+Candidate selection:
+
+Organic + Power.
+
+Reward calculation:
+
+Organic + Power.
+
+Flush:
+
+Organic first.
+
+Power second.
+
+--------------------------------------------------
+AUDITABILITY
+--------------------------------------------------
+
+Every matching payout metadata must include:
+
+organicLeftConsumed
+
+organicRightConsumed
+
+powerLeftConsumed
+
+powerRightConsumed
+
+Every Orbit payout metadata must include the same fields.
+
+This allows complete forensic reconstruction later.
+
+--------------------------------------------------
+DO NOT MODIFY
+--------------------------------------------------
+
+Do NOT modify:
+
+Salary
+
+Salary Qualification
+
+Salary Scheduler
+
+Level Income
+
+BV propagation
+
+Investment flow
+
+Existing organic BV ledger
+
+--------------------------------------------------
+TEST CASES
+--------------------------------------------------
+
+Create automated tests covering:
+
+Case 1
+
+Organic only
+
+Behaviour identical to previous version.
+
+Case 2
+
+Power only
+
+Matching works.
+
+Orbit works.
+
+Case 3
+
+Organic + Power
+
+Organic consumed first.
+
+Power consumed second.
+
+Case 4
+
+Power only on one leg
+
+No matching.
+
+Case 5
+
+Power removed
+
+Effective BV immediately recalculates correctly.
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1. Files modified.
+
+2. Candidate query changes.
+
+3. Effective BV calculation.
+
+4. Flush logic.
+
+5. Metadata changes.
+
+6. Automated test results.
+
+7. Confirmation that Salary, Level Income and BV Propagation remain completely unchanged.

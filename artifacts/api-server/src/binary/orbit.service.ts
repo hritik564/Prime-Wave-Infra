@@ -4,6 +4,7 @@ import { getNumericSetting } from "../config/settings";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { OrbitHistoryQuery } from "./orbit.schema";
+import { computeBVFlush } from "./bv-flush";
 import { notificationService } from "../notifications/notifications.service";
 import { logger } from "../lib/logger";
 import { writeLedgerEntry } from "../ledger/ledger.service";
@@ -89,13 +90,17 @@ export async function processOrbitCycle(
           amount: { gte: new Prisma.Decimal("100") },
         },
       },
-      leftBV:  { gt: 0 },
-      rightBV: { gt: 0 },
+      AND: [
+        { OR: [{ leftBV: { gt: 0 } }, { powerLeftBV: { gt: 0 } }] },
+        { OR: [{ rightBV: { gt: 0 } }, { powerRightBV: { gt: 0 } }] },
+      ],
     },
     select: {
-      id:      true,
-      leftBV:  true,
-      rightBV: true,
+      id:           true,
+      leftBV:       true,
+      rightBV:      true,
+      powerLeftBV:  true,
+      powerRightBV: true,
     },
     orderBy: { id: "asc" },
   });
@@ -110,7 +115,22 @@ export async function processOrbitCycle(
   let totalRewards        = 0;
 
   for (const user of candidates) {
-    const matchedBV   = Prisma.Decimal.min(user.leftBV, user.rightBV);
+    // ── Effective BV + organic-first flush ──────────────────────────────────
+    // effectiveLeft = leftBV + powerLeftBV, effectiveRight = rightBV + powerRightBV
+    // matchedBV = min(effectiveLeft, effectiveRight)
+    // Organic BV is consumed first; Power BV fills any remainder.
+    const flush = computeBVFlush(
+      { organicBV: user.leftBV,  powerBV: user.powerLeftBV },
+      { organicBV: user.rightBV, powerBV: user.powerRightBV },
+    );
+    const {
+      matchedBV,
+      organicLeftConsumed,   powerLeftConsumed,
+      organicRightConsumed,  powerRightConsumed,
+      carryForwardLeft,      carryForwardRight,
+      powerCarryForwardLeft, powerCarryForwardRight,
+    } = flush;
+
     const rewardCount = Math.floor(matchedBV.div(decBvPerReward).toNumber());
 
     if (rewardCount <= 0) {
@@ -123,16 +143,19 @@ export async function processOrbitCycle(
     const incomeAmount         = new Prisma.Decimal(payableRewardCount).times(decIncomePerReward);
 
     // ALL matched BV is flushed — only unmatched BV carries forward
-    const flushedBV         = matchedBV;
-    const carryForwardLeft  = user.leftBV.minus(matchedBV);
-    const carryForwardRight = user.rightBV.minus(matchedBV);
+    const flushedBV = matchedBV;
 
     try {
       await prisma.$transaction(async (tx) => {
-        // Update user BV balances — flush ALL matched BV
+        // Update user BV balances — organic-first flush; power remainder preserved
         await tx.user.update({
           where: { id: user.id },
-          data:  { leftBV: carryForwardLeft, rightBV: carryForwardRight },
+          data:  {
+            leftBV:       carryForwardLeft,
+            rightBV:      carryForwardRight,
+            powerLeftBV:  powerCarryForwardLeft,
+            powerRightBV: powerCarryForwardRight,
+          },
         });
 
         // Credit withdrawal wallet
@@ -168,13 +191,17 @@ export async function processOrbitCycle(
             amount:      incomeAmount,
             description: `Binary orbit income — ${payableRewardCount} orbit × $${incomePerReward} (cycle ${cycleStart.toISOString()})`,
             metadata: {
-              matchedBV:         matchedBV.toFixed(8),
+              matchedBV:            matchedBV.toFixed(8),
               rewardCount,
               payableRewardCount,
               destroyedRewardCount,
-              flushedBV:         flushedBV.toFixed(8),
-              carryForwardLeft:  carryForwardLeft.toFixed(8),
-              carryForwardRight: carryForwardRight.toFixed(8),
+              flushedBV:            flushedBV.toFixed(8),
+              carryForwardLeft:     carryForwardLeft.toFixed(8),
+              carryForwardRight:    carryForwardRight.toFixed(8),
+              organicLeftConsumed:  organicLeftConsumed.toFixed(8),
+              organicRightConsumed: organicRightConsumed.toFixed(8),
+              powerLeftConsumed:    powerLeftConsumed.toFixed(8),
+              powerRightConsumed:   powerRightConsumed.toFixed(8),
               bvPerReward,
               cycleStart,
               cycleEnd,
