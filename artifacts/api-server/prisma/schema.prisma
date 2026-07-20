@@ -107,6 +107,11 @@ enum BinaryPosition {
   RIGHT
 }
 
+enum PowerBvOperation {
+  ADD
+  REMOVE
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -129,6 +134,8 @@ model User {
   rightDeepestNodeId    String?
   leftBV                Decimal         @default(0) @db.Decimal(18, 8)
   rightBV               Decimal         @default(0) @db.Decimal(18, 8)
+  powerLeftBV           Decimal         @default(0) @db.Decimal(18, 8)
+  powerRightBV          Decimal         @default(0) @db.Decimal(18, 8)
 
   walletAddress String?
   telegramId    String?
@@ -188,6 +195,7 @@ model User {
   incomeTransfers      IncomeTransfer[]
   depositVerifications DepositVerification[]
   walletAddresses      WalletAddress[]
+  powerBvLedger        PowerBvLedger[]
 
   @@map("users")
 }
@@ -208,6 +216,7 @@ model Admin {
 
   approvedWithdrawals  WithdrawalRequest[] @relation("WithdrawalApprover")
   completedWithdrawals WithdrawalRequest[] @relation("WithdrawalCompleter")
+  powerBvLedger        PowerBvLedger[]
 
   @@map("admins")
 }
@@ -1126,4 +1135,28 @@ model WalletChangeAuditLog {
   @@index([adminId])
   @@index([createdAt])
   @@map("wallet_change_audit_logs")
+}
+
+/// Immutable audit trail for every Power BV change.
+/// Never update, never delete — one row per operation.
+model PowerBvLedger {
+  id            String           @id @default(cuid())
+  userId        String
+  adminId       String
+  side          BinaryPosition
+  operation     PowerBvOperation
+  bv            Decimal          @db.Decimal(18, 8)
+  balanceBefore Decimal          @db.Decimal(18, 8)
+  balanceAfter  Decimal          @db.Decimal(18, 8)
+  reason        String
+  metadata      Json?
+  createdAt     DateTime         @default(now())
+
+  user  User  @relation(fields: [userId],  references: [id], onDelete: Restrict)
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([adminId])
+  @@index([createdAt])
+  @@map("power_bv_ledger")
 }

@@ -454,14 +454,14 @@ function QuickActionPanel({ m, onTabSwitch, onAction }: { m: DrawerMember; onTab
 // ─────────────────────────────────────────────────────────────────────────────
 // Tabs
 // ─────────────────────────────────────────────────────────────────────────────
-const TABS = ["Overview","Investments","Wallets","Transactions","Network","Activity","Audit Log","Notes","Documents"] as const;
+const TABS = ["Overview","Investments","Wallets","Transactions","Network","Activity","Audit Log","Notes","Documents","Power BV"] as const;
 type Tab = typeof TABS[number];
 
 const TAB_ICONS: Record<Tab, React.ElementType> = {
   Overview: Zap, Investments: TrendingUp, Wallets: Wallet,
   Transactions: CreditCard,
   Network: Network, Activity: Activity, "Audit Log": Shield,
-  Notes: FileText, Documents: File,
+  Notes: FileText, Documents: File, "Power BV": BarChart2,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1436,6 +1436,275 @@ function DocumentsTab({ m }: { m: DrawerMember }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TAB: Power BV
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PBvSummary {
+  userId: string; username: string;
+  organicLeftBV: string; organicRightBV: string;
+  powerLeftBV: string;   powerRightBV: string;
+  effectiveLeftBV: string; effectiveRightBV: string;
+}
+interface PBvEntry {
+  id: string; side: "LEFT" | "RIGHT"; operation: "ADD" | "REMOVE";
+  bv: string; balanceBefore: string; balanceAfter: string;
+  reason: string; createdAt: string;
+  admin: { firstName: string; lastName: string; email: string; role: string };
+}
+
+function PowerBvTab({ m }: { m: DrawerMember }) {
+  const adminRole = getAdminRole();
+  const canWrite  = adminRole === "SUPER_ADMIN" || adminRole === "FINANCE_ADMIN";
+  const token     = getAdminToken();
+
+  const [summary,    setSummary]    = useState<PBvSummary | null>(null);
+  const [ledger,     setLedger]     = useState<PBvEntry[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
+
+  const [formMode,   setFormMode]   = useState<"add" | "remove" | null>(null);
+  const [formSide,   setFormSide]   = useState<"LEFT" | "RIGHT">("LEFT");
+  const [formBv,     setFormBv]     = useState("");
+  const [formReason, setFormReason] = useState("");
+  const [formErr,    setFormErr]    = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [confirm,    setConfirm]    = useState(false);
+  const [toast,      setToast]      = useState<string | null>(null);
+
+  const h = { Authorization: `Bearer ${token ?? ""}` };
+
+  const fetchAll = useCallback(() => {
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/admin/power-bv/${m.id}`, { headers: h }).then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`)),
+      fetch(`/api/admin/power-bv/${m.id}/ledger?limit=50`, { headers: h }).then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`)),
+    ])
+      .then(([sum, led]) => {
+        setSummary((sum as { data: PBvSummary }).data);
+        setLedger(((led as { data: { records: PBvEntry[] } }).data.records) ?? []);
+      })
+      .catch(e => setError(String(e)))
+      .finally(() => setLoading(false));
+  }, [m.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const bvNum = parseInt(formBv, 10);
+
+  const handlePreSubmit = () => {
+    setFormErr(null);
+    if (!formBv || isNaN(bvNum) || bvNum <= 0) { setFormErr("BV must be a positive whole number"); return; }
+    if (bvNum > 10000) { setFormErr("BV cannot exceed 10,000 per operation"); return; }
+    if (formReason.trim().length < 10) { setFormErr("Reason must be at least 10 characters"); return; }
+    setConfirm(true);
+  };
+
+  const handleConfirm = async () => {
+    if (!formMode) return;
+    setConfirm(false);
+    setSubmitting(true);
+    setFormErr(null);
+    try {
+      const r = await fetch(`/api/admin/power-bv/${m.id}/${formMode}`, {
+        method:  "POST",
+        headers: { ...h, "Content-Type": "application/json" },
+        body:    JSON.stringify({ side: formSide, bv: bvNum, reason: formReason.trim() }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({})) as { message?: string };
+        throw new Error(j.message ?? `HTTP ${r.status}`);
+      }
+      setToast(`Power BV ${formMode === "add" ? "added" : "removed"} successfully`);
+      setFormMode(null); setFormBv(""); setFormReason("");
+      fetchAll();
+      setTimeout(() => setToast(null), 4000);
+    } catch (e) {
+      setFormErr(e instanceof Error ? e.message : "Operation failed");
+    } finally { setSubmitting(false); }
+  };
+
+  const exportCsv = () => {
+    if (!ledger.length) return;
+    const headers = ["Date UTC","Admin","Side","Operation","BV","Balance Before","Balance After","Reason"];
+    const rows = ledger.map(e => [
+      new Date(e.createdAt).toISOString(),
+      `${e.admin.firstName} ${e.admin.lastName} (${e.admin.email})`,
+      e.side, e.operation,
+      parseFloat(e.bv).toFixed(2),
+      parseFloat(e.balanceBefore).toFixed(2),
+      parseFloat(e.balanceAfter).toFixed(2),
+      e.reason,
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `power_bv_${m.username}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  if (loading) return <div style={{ textAlign: "center", padding: 48, color: MUTED, fontSize: 13 }}>Loading Power BV data…</div>;
+  if (error)   return <div style={{ textAlign: "center", padding: 40, color: "#f87171", fontSize: 13 }}>{error}</div>;
+
+  const oL = parseFloat(summary?.organicLeftBV  ?? "0");
+  const oR = parseFloat(summary?.organicRightBV ?? "0");
+  const pL = parseFloat(summary?.powerLeftBV    ?? "0");
+  const pR = parseFloat(summary?.powerRightBV   ?? "0");
+  const eL = parseFloat(summary?.effectiveLeftBV  ?? "0");
+  const eR = parseFloat(summary?.effectiveRightBV ?? "0");
+  const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+  return (
+    <div>
+      {toast && (
+        <div style={{ background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.3)", borderRadius: 8, padding: "9px 13px", marginBottom: 14, fontSize: 12, color: "#34d399" }}>
+          ✓ {toast}
+        </div>
+      )}
+
+      {/* BV Balances Grid */}
+      <Card>
+        <SectionTitle title="BV BALANCES" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+          {[
+            { label: "Organic L",   val: oL, color: "#60a5fa" },
+            { label: "Power L",     val: pL, color: "#f59e0b" },
+            { label: "Effective L", val: eL, color: "#34d399" },
+            { label: "Organic R",   val: oR, color: "#a78bfa" },
+            { label: "Power R",     val: pR, color: "#f59e0b" },
+            { label: "Effective R", val: eR, color: "#34d399" },
+          ].map(s => (
+            <div key={s.label} style={{ background: CARD, borderRadius: 7, padding: "9px 10px" }}>
+              <div style={{ fontSize: 9, color: MUTED, marginBottom: 3 }}>{s.label}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: s.color, fontFamily: "monospace" }}>{fmt(s.val)}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: "6px 8px", background: "rgba(245,158,11,0.05)", border: "1px solid rgba(245,158,11,0.18)", borderRadius: 6, fontSize: 10, color: "rgba(245,158,11,0.75)" }}>
+          ⚡ Effective BV is display only — bonus engines do not use Power BV yet.
+        </div>
+      </Card>
+
+      {/* Write actions — SUPER_ADMIN and FINANCE_ADMIN only */}
+      {canWrite && (
+        <Card>
+          <SectionTitle title="MANAGE POWER BV" />
+          <div style={{ display: "flex", gap: 8, marginBottom: formMode ? 14 : 0 }}>
+            {(["add","remove"] as const).map(mode => {
+              const active = formMode === mode;
+              const color  = mode === "add" ? "#34d399" : "#f87171";
+              const border = active ? `rgba(${mode === "add" ? "52,211,153" : "248,113,113"},0.4)` : BORDER;
+              const bg     = active ? `rgba(${mode === "add" ? "52,211,153" : "248,113,113"},0.08)` : "rgba(255,255,255,0.03)";
+              return (
+                <button key={mode} onClick={() => { setFormMode(active ? null : mode); setFormErr(null); }}
+                  style={{ flex: 1, padding: "8px 0", borderRadius: 7, border: `1px solid ${border}`, background: bg, color: active ? color : MUTED, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {mode === "add" ? "+ Add" : "− Remove"} Power BV
+                </button>
+              );
+            })}
+          </div>
+
+          {formMode && (
+            <div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                {(["LEFT","RIGHT"] as const).map(s => (
+                  <button key={s} onClick={() => setFormSide(s)}
+                    style={{ flex: 1, padding: "7px 0", borderRadius: 6, border: `1px solid ${formSide === s ? "rgba(212,175,55,0.4)" : BORDER}`, background: formSide === s ? "rgba(212,175,55,0.08)" : "rgba(255,255,255,0.02)", color: formSide === s ? GOLD_L : MUTED, fontSize: 11, fontWeight: formSide === s ? 700 : 400, cursor: "pointer" }}>
+                    {s} Leg
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ marginBottom: 9 }}>
+                <div style={{ fontSize: 10, color: MUTED, marginBottom: 4 }}>BV Amount (1 – 10,000)</div>
+                <input type="number" min="1" max="10000" value={formBv} onChange={e => setFormBv(e.target.value)}
+                  placeholder="e.g. 150"
+                  style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "7px 10px", fontSize: 12, color: "rgba(255,255,255,0.8)", outline: "none", boxSizing: "border-box" }} />
+              </div>
+
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 10, color: MUTED, marginBottom: 4 }}>Reason (min 10 chars)</div>
+                <textarea value={formReason} onChange={e => setFormReason(e.target.value)}
+                  placeholder="e.g. Platform launch incentive — Platinum bootstrap"
+                  rows={3}
+                  style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "7px 10px", fontSize: 12, color: "rgba(255,255,255,0.8)", outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+              </div>
+
+              {formErr && <div style={{ fontSize: 11, color: "#f87171", marginBottom: 8 }}>{formErr}</div>}
+
+              <button onClick={handlePreSubmit} disabled={submitting}
+                style={{ width: "100%", padding: "9px 0", borderRadius: 7, border: `1px solid ${formMode === "add" ? "rgba(52,211,153,0.35)" : "rgba(248,113,113,0.35)"}`, background: formMode === "add" ? "rgba(52,211,153,0.1)" : "rgba(248,113,113,0.1)", color: formMode === "add" ? "#34d399" : "#f87171", fontSize: 12, fontWeight: 700, cursor: submitting ? "not-allowed" : "pointer" }}>
+                {submitting ? "Processing…" : `Confirm ${formMode === "add" ? "Add" : "Remove"}`}
+              </button>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Confirmation modal */}
+      {confirm && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.65)" }}>
+          <div style={{ background: "hsl(222 62% 9%)", border: `1px solid ${BORDER}`, borderRadius: 12, padding: "22px 24px", maxWidth: 360, width: "90%" }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.9)", marginBottom: 10 }}>
+              Confirm Power BV {formMode === "add" ? "Addition" : "Removal"}
+            </div>
+            <div style={{ fontSize: 12, color: MUTED, marginBottom: 18, lineHeight: 1.6 }}>
+              <b style={{ color: formMode === "add" ? "#34d399" : "#f87171" }}>{formMode === "add" ? "+" : "−"}{bvNum} BV</b>{" "}
+              on the <b style={{ color: "rgba(255,255,255,0.8)" }}>{formSide}</b> leg of{" "}
+              <b style={{ color: GOLD_L }}>@{m.username}</b>.<br /><br />
+              <span style={{ fontStyle: "italic", color: "rgba(255,255,255,0.55)" }}>{formReason}</span>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setConfirm(false)}
+                style={{ flex: 1, padding: "8px 0", borderRadius: 7, border: `1px solid ${BORDER}`, background: "rgba(255,255,255,0.04)", color: MUTED, fontSize: 12, cursor: "pointer" }}>
+                Cancel
+              </button>
+              <button onClick={() => void handleConfirm()}
+                style={{ flex: 1, padding: "8px 0", borderRadius: 7, border: "none", background: formMode === "add" ? "#34d399" : "#f87171", color: "#000", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ledger */}
+      <SectionTitle title={`AUDIT LEDGER (${ledger.length})`} action={
+        ledger.length > 0
+          ? <button onClick={exportCsv} style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 6, padding: "3px 9px", cursor: "pointer", fontSize: 10, color: MUTED }}><Download size={10} /> CSV</button>
+          : undefined
+      } />
+
+      {ledger.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 32, color: MUTED, fontSize: 12 }}>No Power BV operations yet.</div>
+      ) : (
+        ledger.map(e => {
+          const isAdd = e.operation === "ADD";
+          const col   = isAdd ? "#34d399" : "#f87171";
+          return (
+            <div key={e.id} style={{ background: BG2, border: `1px solid ${BORDER}`, borderRadius: 9, padding: "10px 13px", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: isAdd ? "rgba(52,211,153,0.08)" : "rgba(248,113,113,0.08)", color: col }}>{e.operation}</span>
+                  <span style={{ fontSize: 10, color: e.side === "LEFT" ? "#60a5fa" : "#a78bfa", fontWeight: 600 }}>{e.side}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: col, fontFamily: "monospace" }}>{isAdd ? "+" : "−"}{fmt(parseFloat(e.bv))} BV</span>
+                </div>
+                <span style={{ fontSize: 10, color: MUTED }}>{dtt(new Date(e.createdAt))}</span>
+              </div>
+              <div style={{ fontSize: 10, color: MUTED, marginBottom: 4 }}>
+                Balance: {fmt(parseFloat(e.balanceBefore))} → {fmt(parseFloat(e.balanceAfter))} BV
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 3 }}>{e.reason}</div>
+              <div style={{ fontSize: 10, color: MUTED }}>By {e.admin.firstName} {e.admin.lastName} · {e.admin.role}</div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Header quick-actions dropdown
 // ─────────────────────────────────────────────────────────────────────────────
 function HeaderActions({ m, onAction }: { m: DrawerMember; onAction: (label: string) => void }) {
@@ -1591,6 +1860,7 @@ export default function MemberDrawer({ member, detail, onClose, onAction }: { me
               {activeTab === "Audit Log"    && <AuditLogTab     m={member} />}
               {activeTab === "Notes"        && <NotesTab        m={member} />}
               {activeTab === "Documents"    && <DocumentsTab    m={member} />}
+              {activeTab === "Power BV"    && <PowerBvTab      m={member} />}
             </div>
           </>
         )}

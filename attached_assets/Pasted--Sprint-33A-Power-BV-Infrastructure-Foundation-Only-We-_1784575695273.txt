@@ -1,0 +1,299 @@
+# Sprint 33A – Power BV Infrastructure (Foundation Only)
+
+We are implementing a new first-class feature called "Power BV (Power Leg)".
+
+⚠️ IMPORTANT:
+This sprint is FOUNDATION ONLY.
+
+Do NOT modify any bonus engine yet.
+
+Specifically:
+
+- Do NOT change Binary Matching.
+- Do NOT change Binary Orbit.
+- Do NOT change Salary Qualification.
+- Do NOT change Salary Scheduler.
+- Do NOT change Level Income.
+- Do NOT change investment propagation.
+- Do NOT change BV calculations.
+
+The platform must behave EXACTLY as it does today after deployment.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Create the complete infrastructure for Power BV so future sprints can safely integrate it.
+
+Power BV is NOT seeded business.
+
+Power BV is an administrator-controlled business volume that belongs ONLY to the assigned member.
+
+Rules:
+
+• Never propagates upward.
+• Never creates investment records.
+• Never creates BV history entries.
+• Never creates level income.
+• Never creates sponsor business.
+• Never affects existing calculations in this sprint.
+
+It is simply stored, managed and audited.
+
+--------------------------------------------------
+DATABASE CHANGES
+--------------------------------------------------
+
+Add two new columns to User:
+
+powerLeftBV
+Decimal(18,8)
+Default = 0
+
+powerRightBV
+Decimal(18,8)
+Default = 0
+
+Do NOT modify:
+
+- leftBV
+- rightBV
+
+--------------------------------------------------
+NEW LEDGER TABLE
+--------------------------------------------------
+
+Create:
+
+PowerBvLedger
+
+Fields:
+
+- id
+- userId
+- side (LEFT / RIGHT)
+- operation (ADD / REMOVE)
+- bv
+- balanceBefore
+- balanceAfter
+- adminId
+- reason
+- metadata (optional JSON)
+- createdAt
+
+Requirements:
+
+- Immutable
+- Never update rows
+- Never delete rows
+- Every Power BV change must create one ledger row
+
+--------------------------------------------------
+SERVICE LAYER
+--------------------------------------------------
+
+Create:
+
+src/binary/power-bv.service.ts
+
+Functions:
+
+- addPowerBV()
+- removePowerBV()
+- getPowerSummary()
+- getPowerLedger()
+
+Requirements:
+
+- Prisma interactive transactions
+- Lock user row before update
+- Prevent negative balances
+- Validate inputs
+- Atomic update + ledger write
+
+--------------------------------------------------
+VALIDATION
+--------------------------------------------------
+
+Create:
+
+power-bv.schema.ts
+
+Validation:
+
+- side = LEFT | RIGHT
+- BV > 0
+- configurable maximum per operation
+- reason required
+- minimum reason length
+
+--------------------------------------------------
+ADMIN API
+--------------------------------------------------
+
+Create:
+
+POST /api/admin/power-bv/:userId/add
+
+POST /api/admin/power-bv/:userId/remove
+
+GET /api/admin/power-bv/:userId
+
+GET /api/admin/power-bv/:userId/ledger
+
+Permissions:
+
+- SUPER_ADMIN
+- FINANCE_ADMIN
+
+Read endpoints available to existing admin roles.
+
+--------------------------------------------------
+ADMIN LOGGING
+--------------------------------------------------
+
+Every add/remove operation must also create an AdminLog entry.
+
+Actions:
+
+POWER_BV_ADD
+
+POWER_BV_REMOVE
+
+Include:
+
+- Admin
+- User
+- Side
+- Amount
+- Reason
+
+--------------------------------------------------
+ADMIN UI
+--------------------------------------------------
+
+Create a new "Power BV" tab inside the existing member drawer.
+
+Display:
+
+Organic Left BV
+
+Power Left BV
+
+Organic Right BV
+
+Power Right BV
+
+Effective Left BV (Organic + Power)
+
+Effective Right BV (Organic + Power)
+
+Current Power BV balances
+
+Provide:
+
+- Add Power BV
+- Remove Power BV
+- Reason
+- Confirmation dialog
+
+Ledger Table:
+
+- Date
+- Admin
+- Side
+- Operation
+- Amount
+- Balance Before
+- Balance After
+- Reason
+
+Provide CSV export.
+
+IMPORTANT:
+
+Effective BV shown in the UI is DISPLAY ONLY.
+
+No backend calculations should use it yet.
+
+--------------------------------------------------
+DO NOT TOUCH
+--------------------------------------------------
+
+Do NOT modify:
+
+- Binary Matching
+- Binary Orbit
+- Salary Qualification
+- Salary Scheduler
+- BV propagation
+- Investments
+- Wallet Transactions
+- Existing BV ledgers
+- Existing APIs
+
+This sprint is infrastructure only.
+
+--------------------------------------------------
+MIGRATION REQUIREMENTS
+--------------------------------------------------
+
+Migration must be additive only.
+
+No destructive SQL.
+
+No data migration.
+
+No recalculation.
+
+No modification of existing BV.
+
+Every existing user should simply receive:
+
+powerLeftBV = 0
+
+powerRightBV = 0
+
+--------------------------------------------------
+TESTING
+--------------------------------------------------
+
+Verify:
+
+1. Adding Power BV updates ONLY:
+   - powerLeftBV / powerRightBV
+   - PowerBvLedger
+   - AdminLog
+
+2. Removing Power BV updates ONLY:
+   - powerLeftBV / powerRightBV
+   - PowerBvLedger
+   - AdminLog
+
+3. Existing Binary Matching behaves identically.
+
+4. Existing Binary Orbit behaves identically.
+
+5. Existing Salary behaves identically.
+
+6. Existing Level Income behaves identically.
+
+7. Existing wallet balances remain unchanged.
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1. Database migration summary.
+2. Files added.
+3. Files modified.
+4. API documentation.
+5. Screenshots of the new Admin UI.
+6. Confirmation that ALL existing bonus engines behave identically before and after deployment.
+7. Test cases proving that Power BV currently affects nothing except the new columns, ledger and admin interface.
+
+Do NOT begin Sprint 33B.
+
+Wait for approval before integrating Power BV into Binary Matching and Binary Orbit.

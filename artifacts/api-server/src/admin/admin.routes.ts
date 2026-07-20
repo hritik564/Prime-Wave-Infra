@@ -199,6 +199,7 @@ import {
   updateCompanyWalletParamSchema,
   updateCompanyWalletBodySchema,
 } from "./admin-company-wallets.schema";
+import powerBvRouter from "../binary/power-bv.routes";
 
 const router = Router();
 
@@ -740,6 +741,9 @@ router.post("/blockchain/validate-address",  adminLimiter, superAdminGuard, vali
 router.post("/blockchain/check-balance",     adminLimiter, superAdminGuard, checkBalanceHandler);
 router.post("/blockchain/estimate-gas",      adminLimiter, superAdminGuard, estimateGasHandler);
 router.post("/blockchain/simulate",          adminLimiter, superAdminGuard, simulateTransferHandler);
+
+// ── Power BV Management — FINANCE_ADMIN+ (write), any admin (read) ────────────
+router.use("/power-bv", powerBvRouter);
 
 // ── Treasury & Financial Integrity — SUPER_ADMIN only ─────────────────────────
 router.get(  "/treasury/dashboard",             adminLimiter, superAdminGuard, getTreasuryDashboardHandler);
