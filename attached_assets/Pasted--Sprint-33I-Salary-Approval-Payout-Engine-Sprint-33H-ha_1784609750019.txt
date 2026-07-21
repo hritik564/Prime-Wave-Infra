@@ -1,0 +1,524 @@
+# Sprint 33I – Salary Approval & Payout Engine
+
+Sprint 33H has been approved.
+
+This sprint implements the Salary Approval & Payout Engine.
+
+The monthly salary generation engine is complete.
+
+SalaryIncome records are now immutable monthly snapshots.
+
+This sprint is responsible ONLY for approving those records and crediting member wallets.
+
+⚠️ IMPORTANT
+
+This sprint DOES NOT change:
+
+- Qualification
+- Salary generation
+- Monthly snapshot rules
+- SalaryBusinessSummary
+- SalaryAchievement
+- SalaryBusinessEvent
+
+Those systems are complete.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Implement the Salary Approval & Payout Engine.
+
+The engine must:
+
+• Approve pending salaries
+
+• Credit Withdrawal Wallet
+
+• Record immutable payout history
+
+• Prevent duplicate payouts
+
+• Support batch processing
+
+• Be fully transactional
+
+--------------------------------------------------
+PAYOUT MODEL
+--------------------------------------------------
+
+Salary lifecycle is:
+
+PENDING
+
+↓
+
+APPROVED
+
+↓
+
+PAID
+
+These transitions are one-way only.
+
+Never allow:
+
+PAID
+
+↓
+
+APPROVED
+
+or
+
+APPROVED
+
+↓
+
+PENDING
+
+Historical salary records must never be edited backwards.
+
+--------------------------------------------------
+NEW SERVICE
+--------------------------------------------------
+
+Create:
+
+src/salary/salary-payout.service.ts
+
+Responsibilities:
+
+Approve salary
+
+Pay salary
+
+Batch approval
+
+Batch payout
+
+Metrics
+
+Audit logging
+
+--------------------------------------------------
+APPROVAL
+--------------------------------------------------
+
+Implement:
+
+approveSalary(incomeId)
+
+Rules:
+
+Salary must exist.
+
+Status must equal:
+
+PENDING
+
+Update:
+
+status
+
+↓
+
+APPROVED
+
+approvedAt
+
+approvedBy (nullable for scheduler)
+
+Do NOT modify:
+
+salaryAmount
+
+rankName
+
+salaryMonth
+
+salaryYear
+
+--------------------------------------------------
+PAYOUT
+--------------------------------------------------
+
+Implement:
+
+paySalary(incomeId)
+
+Rules:
+
+Status must equal:
+
+APPROVED
+
+Open one Prisma transaction.
+
+Inside transaction:
+
+1.
+
+Lock SalaryIncome row.
+
+2.
+
+Verify status still APPROVED.
+
+3.
+
+Credit:
+
+Withdrawal Wallet
+
+(amount = salaryAmount)
+
+4.
+
+Create WalletTransaction.
+
+Category:
+
+SALARY
+
+Reference:
+
+SalaryIncome.id
+
+5.
+
+Update SalaryIncome
+
+status
+
+↓
+
+PAID
+
+paidAt
+
+transactionId
+
+Commit.
+
+--------------------------------------------------
+ATOMICITY
+--------------------------------------------------
+
+Wallet credit
+
++
+
+WalletTransaction
+
++
+
+SalaryIncome update
+
+must succeed together.
+
+If any fails:
+
+Rollback everything.
+
+--------------------------------------------------
+IDEMPOTENCY
+--------------------------------------------------
+
+Calling:
+
+paySalary()
+
+twice
+
+must
+
+NOT
+
+credit wallet twice.
+
+If already PAID:
+
+Return duplicate.
+
+No updates.
+
+No wallet credit.
+
+--------------------------------------------------
+BATCH JOBS
+--------------------------------------------------
+
+Implement:
+
+approveMonthlyBatch(month, year)
+
+Approve every:
+
+PENDING
+
+SalaryIncome.
+
+Implement:
+
+payMonthlyBatch(month, year)
+
+Pay every:
+
+APPROVED
+
+SalaryIncome.
+
+Reuse scheduler architecture:
+
+Cursor pagination
+
+Worker pool
+
+Failure isolation
+
+Metrics
+
+--------------------------------------------------
+FAILURE ISOLATION
+--------------------------------------------------
+
+One user's payout fails.
+
+↓
+
+Log error.
+
+↓
+
+Continue paying remaining users.
+
+Never abort the entire payroll.
+
+--------------------------------------------------
+AUDIT
+--------------------------------------------------
+
+Create:
+
+SalaryPayoutEvent
+
+Fields:
+
+id
+
+salaryIncomeId
+
+userId
+
+eventType
+
+performedBy
+
+metadata
+
+createdAt
+
+Enum:
+
+SalaryPayoutEventType
+
+APPROVED
+
+PAID
+
+Immutable.
+
+Never update.
+
+Never delete.
+
+--------------------------------------------------
+WALLET
+--------------------------------------------------
+
+Credit ONLY:
+
+Withdrawal Wallet
+
+Do NOT credit:
+
+Deposit Wallet
+
+Income Wallet
+
+Salary is immediately withdrawable.
+
+--------------------------------------------------
+METRICS
+--------------------------------------------------
+
+Return:
+
+processed
+
+approved
+
+paid
+
+duplicates
+
+failed
+
+walletAmountCredited
+
+durationMs
+
+--------------------------------------------------
+LOGGING
+--------------------------------------------------
+
+Structured logs:
+
+Approval started
+
+Salary approved
+
+Payout started
+
+Wallet credited
+
+Duplicate payout skipped
+
+Payout failed
+
+Batch completed
+
+--------------------------------------------------
+TESTING
+--------------------------------------------------
+
+Create comprehensive tests.
+
+1.
+
+Approve pending salary.
+
+2.
+
+Approve already approved.
+
+Duplicate.
+
+3.
+
+Approve paid salary.
+
+Rejected.
+
+4.
+
+Pay approved salary.
+
+Wallet credited.
+
+5.
+
+Pay pending salary.
+
+Rejected.
+
+6.
+
+Pay already paid salary.
+
+Duplicate.
+
+7.
+
+Wallet credit and SalaryIncome update are atomic.
+
+8.
+
+Wallet transaction created.
+
+9.
+
+Batch approval.
+
+10.
+
+Batch payout.
+
+11.
+
+Failure isolation.
+
+12.
+
+Metrics.
+
+13.
+
+Duplicate batch payout.
+
+14.
+
+Concurrent payout attempt.
+
+Only one succeeds.
+
+15.
+
+Immutable status transitions.
+
+Cannot move backwards.
+
+--------------------------------------------------
+DO NOT TOUCH
+--------------------------------------------------
+
+Do NOT modify:
+
+Qualification Engine
+
+Salary Scheduler
+
+Salary Generation
+
+SalaryBusinessSummary
+
+SalaryBusinessEvent
+
+SalaryAchievement
+
+Compensation rules
+
+Business propagation
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1. Files added.
+
+2. Files modified.
+
+3. Approval workflow.
+
+4. Payout transaction flow.
+
+5. Wallet integration.
+
+6. Audit implementation.
+
+7. Batch architecture.
+
+8. Idempotency implementation.
+
+9. Metrics collected.
+
+10. Logging implementation.
+
+11. Test results.
+
+12. Confirmation that historical SalaryIncome records remain immutable after payment.
+
+Wait for approval before Sprint 33J (Salary Run Management, Payroll Reporting & Finance Audit).

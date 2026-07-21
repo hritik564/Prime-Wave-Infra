@@ -172,6 +172,7 @@ model User {
   // Salary
   salaryAchievements           SalaryAchievement[]
   salaryIncome                 SalaryIncome[]
+  salaryPayoutEvents           SalaryPayoutEvent[]
   salaryBusinessSummary        SalaryBusinessSummary?
   salaryBusinessEvents         SalaryBusinessEvent[] @relation("SalaryBusinessEventUser")
   salaryBusinessEventsAsSource SalaryBusinessEvent[] @relation("SalaryBusinessEventSource")
@@ -651,17 +652,24 @@ model SalaryAchievement {
 // regardless of which rank was selected.
 
 model SalaryIncome {
-  id        String             @id @default(cuid())
-  userId    String
-  rankName  String
-  month     Int
-  year      Int
-  amount    Decimal            @db.Decimal(18, 2)
-  status    SalaryIncomeStatus @default(PENDING)
-  reference String?
-  createdAt DateTime           @default(now())
+  id            String             @id @default(cuid())
+  userId        String
+  rankName      String
+  month         Int
+  year          Int
+  amount        Decimal            @db.Decimal(18, 2)
+  status        SalaryIncomeStatus @default(PENDING)
+  reference     String?
+  // Approval fields — set by approveSalary()
+  approvedAt    DateTime?
+  approvedBy    String?
+  // Payout fields — set by paySalary()
+  paidAt        DateTime?
+  transactionId String?            // WalletTransaction.id after successful payout
+  createdAt     DateTime           @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  payoutEvents SalaryPayoutEvent[]
 
   @@unique([userId, month, year])
   @@index([userId])
@@ -669,6 +677,29 @@ model SalaryIncome {
   @@index([status])
   @@index([createdAt])
   @@map("salary_income")
+}
+
+// ── Salary Payout Event ───────────────────────────────────────────────────────
+//
+// Immutable audit trail for every salary status transition (APPROVED, PAID).
+// One record is inserted per transition. Never updated or deleted.
+
+model SalaryPayoutEvent {
+  id             String                @id @default(cuid())
+  salaryIncomeId String
+  userId         String
+  eventType      SalaryPayoutEventType
+  performedBy    String?
+  metadata       Json?
+  createdAt      DateTime              @default(now())
+
+  income SalaryIncome @relation(fields: [salaryIncomeId], references: [id], onDelete: Restrict)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([salaryIncomeId])
+  @@index([userId])
+  @@index([eventType])
+  @@map("salary_payout_event")
 }
 
 // ── Salary Business Summary ───────────────────────────────────────────────────
@@ -1252,6 +1283,11 @@ enum SalaryQualificationPool {
 
 enum SalaryIncomeStatus {
   PENDING
+  APPROVED
+  PAID
+}
+
+enum SalaryPayoutEventType {
   APPROVED
   PAID
 }
