@@ -645,22 +645,28 @@ model SalaryAchievement {
 // ── Salary Income ─────────────────────────────────────────────────────────────
 //
 // One record per user per rank per month.
-// Idempotency key: (userId, rankName, month, year).
+// Idempotency key: (userId, month, year) — one salary per member per month.
+// Sprint 33H: status + reference added; unique constraint narrowed to (userId, month, year)
+// so the engine generates exactly one salary per member per calendar month,
+// regardless of which rank was selected.
 
 model SalaryIncome {
-  id       String   @id @default(cuid())
-  userId   String
-  rankName String
-  month    Int
-  year     Int
-  amount   Decimal  @db.Decimal(18, 2)
-  createdAt DateTime @default(now())
+  id        String             @id @default(cuid())
+  userId    String
+  rankName  String
+  month     Int
+  year      Int
+  amount    Decimal            @db.Decimal(18, 2)
+  status    SalaryIncomeStatus @default(PENDING)
+  reference String?
+  createdAt DateTime           @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Restrict)
 
-  @@unique([userId, rankName, month, year])
+  @@unique([userId, month, year])
   @@index([userId])
   @@index([year, month])
+  @@index([status])
   @@index([createdAt])
   @@map("salary_income")
 }
@@ -1242,4 +1248,10 @@ enum SalaryEventType {
 enum SalaryQualificationPool {
   DIRECT_ONLY
   ALL_BUSINESS
+}
+
+enum SalaryIncomeStatus {
+  PENDING
+  APPROVED
+  PAID
 }

@@ -92,9 +92,8 @@ export async function runSalaryCycle(now?: Date): Promise<void> {
     // ── 3. Idempotency ────────────────────────────────────────────────────────
     const already = await prisma.salaryIncome.findUnique({
       where: {
-        userId_rankName_month_year: {
-          userId:   ach.userId,
-          rankName: ach.rankName,
+        userId_month_year: {
+          userId: ach.userId,
           month,
           year,
         },

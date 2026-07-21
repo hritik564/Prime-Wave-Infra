@@ -1,0 +1,461 @@
+# Sprint 33H – Monthly Salary Generation Engine
+
+Sprint 33G has been approved.
+
+This sprint implements the Monthly Salary Generation Engine.
+
+The business rule has been finalized:
+
+✅ Monthly Snapshot Model
+
+A member earns salary based on the highest qualified rank at the moment the monthly salary job runs.
+
+Once generated, that month's salary is permanently locked.
+
+Future promotions do NOT change historical months.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Implement the Monthly Salary Generation Engine.
+
+The engine must:
+
+• Generate one SalaryIncome record per eligible member per month.
+
+• Use snapshot qualification.
+
+• Never modify previously generated months.
+
+• Be completely idempotent.
+
+• Be fully transactional.
+
+--------------------------------------------------
+NEW SERVICE
+--------------------------------------------------
+
+Create:
+
+src/salary/salary-income.service.ts
+
+Responsibilities:
+
+• Determine highest qualified rank
+
+• Generate monthly salary
+
+• Prevent duplicate generation
+
+• Support one user
+
+• Support batch generation
+
+--------------------------------------------------
+MONTHLY SNAPSHOT RULE
+--------------------------------------------------
+
+When the monthly job runs:
+
+Determine:
+
+Highest SalaryAchievement currently held.
+
+Generate ONE SalaryIncome record.
+
+Example:
+
+July 1
+
+Highest Rank
+
+Ruby
+
+↓
+
+Generate
+
+July Salary
+
+↓
+
+Locked forever.
+
+Example:
+
+July 15
+
+User reaches Emerald.
+
+↓
+
+July salary remains Ruby.
+
+↓
+
+Emerald applies from August generation.
+
+Historical months never change.
+
+--------------------------------------------------
+HIGHEST RANK
+--------------------------------------------------
+
+Determine the highest qualified rank using:
+
+SalaryAchievement
+
+JOIN
+
+SalaryRankConfig
+
+ordered by rank order / requiredBusiness descending.
+
+Generate salary only for the highest rank.
+
+Never generate multiple salaries for one month.
+
+--------------------------------------------------
+SALARY AMOUNT
+--------------------------------------------------
+
+Use:
+
+SalaryRankConfig.monthlySalary
+
+(or the existing configured salary amount field)
+
+No hardcoded salary values.
+
+Configuration drives everything.
+
+--------------------------------------------------
+SALARY RECORD
+--------------------------------------------------
+
+Create one SalaryIncome record.
+
+Fields:
+
+userId
+
+rankName
+
+salaryAmount
+
+salaryMonth
+
+salaryYear
+
+generatedAt
+
+status
+
+reference
+
+Use the existing SalaryIncome model if present.
+
+If required fields are missing, extend the model minimally.
+
+Do NOT redesign SalaryIncome.
+
+--------------------------------------------------
+UNIQUENESS
+--------------------------------------------------
+
+Enforce:
+
+(userId, salaryMonth, salaryYear)
+
+One salary per member per month.
+
+Running the job twice
+
+must
+
+NOT
+
+create duplicates.
+
+--------------------------------------------------
+STATUS
+--------------------------------------------------
+
+Generated salaries begin as:
+
+PENDING
+
+Future payout sprint will transition:
+
+PENDING
+
+↓
+
+APPROVED
+
+↓
+
+PAID
+
+No payout logic in this sprint.
+
+--------------------------------------------------
+ELIGIBILITY
+--------------------------------------------------
+
+Generate salary ONLY if:
+
+User is ACTIVE.
+
+Highest SalaryAchievement exists.
+
+Configured salary amount > 0.
+
+Otherwise:
+
+Skip.
+
+--------------------------------------------------
+TRANSACTIONS
+--------------------------------------------------
+
+Each user's salary generation executes inside a Prisma transaction.
+
+Either:
+
+SalaryIncome created
+
+OR
+
+Nothing committed.
+
+--------------------------------------------------
+JOB TYPES
+--------------------------------------------------
+
+Implement:
+
+generateMonthlySalary(userId, month, year)
+
+Generate for one member.
+
+Implement:
+
+generateMonthlyBatch(month, year)
+
+Generate for all ACTIVE members.
+
+Reuse existing scheduler batching pattern.
+
+Cursor pagination.
+
+Configurable concurrency.
+
+Failure isolation.
+
+Metrics.
+
+--------------------------------------------------
+IDEMPOTENCY
+--------------------------------------------------
+
+Duplicate monthly job:
+
+↓
+
+Existing SalaryIncome found.
+
+↓
+
+Skip.
+
+↓
+
+Increment duplicatesSkipped metric.
+
+Never overwrite existing SalaryIncome.
+
+--------------------------------------------------
+METRICS
+--------------------------------------------------
+
+Return:
+
+usersProcessed
+
+salaryGenerated
+
+duplicatesSkipped
+
+usersSkipped
+
+usersFailed
+
+durationMs
+
+--------------------------------------------------
+LOGGING
+--------------------------------------------------
+
+Structured logs:
+
+Monthly generation started
+
+User processed
+
+Salary generated
+
+Duplicate skipped
+
+User skipped
+
+User failed
+
+Monthly generation completed
+
+--------------------------------------------------
+TESTING
+--------------------------------------------------
+
+Create comprehensive tests.
+
+1.
+
+Qualified Bronze.
+
+Salary generated.
+
+2.
+
+Qualified Ruby.
+
+Ruby salary generated.
+
+3.
+
+Highest rank only.
+
+No duplicate salaries.
+
+4.
+
+Inactive member skipped.
+
+5.
+
+No achievement skipped.
+
+6.
+
+Configured salary = 0.
+
+Skipped.
+
+7.
+
+Duplicate monthly run.
+
+No duplicate salary.
+
+8.
+
+Transaction rollback.
+
+No partial SalaryIncome.
+
+9.
+
+Batch generation.
+
+Multiple users.
+
+10.
+
+Failure isolation.
+
+One member fails.
+
+Others continue.
+
+11.
+
+Metrics.
+
+Verified.
+
+12.
+
+Snapshot rule.
+
+Promotion after generation does NOT alter existing SalaryIncome.
+
+13.
+
+Historical month regeneration.
+
+Duplicate prevented.
+
+14.
+
+Concurrency.
+
+Multiple workers.
+
+--------------------------------------------------
+DO NOT TOUCH
+--------------------------------------------------
+
+Do NOT implement:
+
+Salary payouts
+
+Wallet credits
+
+Withdrawal system
+
+Payment scheduler
+
+Member dashboard
+
+Admin dashboard
+
+Salary approval
+
+Salary reversal
+
+Compensation rules
+
+Qualification logic
+
+Business propagation
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1. Files added.
+
+2. Files modified.
+
+3. Salary generation algorithm.
+
+4. Snapshot implementation.
+
+5. Highest-rank selection algorithm.
+
+6. Batch architecture.
+
+7. Idempotency implementation.
+
+8. Metrics collected.
+
+9. Logging implementation.
+
+10. Test results.
+
+11. Confirmation that historical SalaryIncome records are immutable.
+
+Wait for approval before Sprint 33I (Salary Approval & Payout Engine).
