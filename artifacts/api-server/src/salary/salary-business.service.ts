@@ -39,6 +39,7 @@ import { Prisma } from "@prisma/client";
 import type { SalaryPool, SalaryEventType } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { logger } from "../lib/logger";
+import { evaluateUser } from "./salary-scheduler.service";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -381,6 +382,14 @@ export async function propagateInvestmentBusiness(
           { userId, pool, investmentId, eventType, depth },
           "salary-business: propagation step already recorded — skipped",
         );
+      } else {
+        // Incremental qualification for this ancestor only (Job 1)
+        void evaluateUser(userId).catch((err) =>
+          logger.error(
+            { err, userId, investmentId, eventType },
+            "salary-scheduler: incremental qualification failed after business update",
+          ),
+        );
       }
     } catch (err) {
       logger.error(
@@ -410,6 +419,14 @@ export async function updatePowerBusiness(
       logger.debug(
         { userId, powerBvLedgerId, eventType },
         "salary-business: power event already recorded — skipped",
+      );
+    } else {
+      // Incremental qualification for this user only (Job 1)
+      void evaluateUser(userId).catch((err) =>
+        logger.error(
+          { err, userId, powerBvLedgerId, eventType },
+          "salary-scheduler: incremental qualification failed after power update",
+        ),
       );
     }
   } catch (err) {

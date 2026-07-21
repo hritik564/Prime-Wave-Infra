@@ -1,0 +1,462 @@
+# Sprint 33G – Salary Qualification Scheduler & Reconciliation
+
+Sprint 33F has been approved.
+
+This sprint implements the operational layer of the Salary Engine.
+
+⚠️ IMPORTANT
+
+This sprint DOES NOT change any qualification rules.
+
+It simply executes the Qualification Engine built in Sprint 33F in a safe, scalable and fault-tolerant manner.
+
+Do NOT modify:
+
+- Qualification logic
+- Effective business calculation
+- Salary payouts
+- SalaryIncome generation
+- Member UI
+- Admin UI
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Build the automation layer for the Salary Engine.
+
+The scheduler must:
+
+• Execute qualification automatically
+
+• Support incremental qualification
+
+• Support full reconciliation
+
+• Isolate failures
+
+• Never create duplicate achievements
+
+• Be completely idempotent
+
+--------------------------------------------------
+NEW SERVICE
+--------------------------------------------------
+
+Create:
+
+src/salary/salary-scheduler.service.ts
+
+Responsibilities:
+
+• Run qualification for one user
+
+• Run qualification for all users
+
+• Incremental processing
+
+• Full reconciliation
+
+• Logging
+
+• Metrics
+
+--------------------------------------------------
+JOB TYPES
+--------------------------------------------------
+
+Implement four internal jobs.
+
+--------------------------------------------------
+JOB 1
+
+Incremental Qualification
+--------------------------------------------------
+
+Runs whenever:
+
+Investment Created
+
+Investment Cancelled
+
+Investment Refunded
+
+Power BV Added
+
+Power BV Removed
+
+Instead of qualifying every member,
+
+qualify ONLY affected users.
+
+Typical flow:
+
+Business Event
+
+↓
+
+SalaryBusinessSummary updated
+
+↓
+
+Qualification Scheduler
+
+↓
+
+evaluateUser(userId)
+
+--------------------------------------------------
+JOB 2
+
+Nightly Qualification
+--------------------------------------------------
+
+Once daily.
+
+Iterate every ACTIVE user.
+
+For each user:
+
+Run Salary Qualification.
+
+Failures must NOT stop the batch.
+
+Continue processing.
+
+Produce summary metrics.
+
+--------------------------------------------------
+JOB 3
+
+Full Reconciliation
+--------------------------------------------------
+
+Administrative job.
+
+Purpose:
+
+Rebuild qualification state from existing SalaryBusinessSummary.
+
+For every ACTIVE user:
+
+Run qualification.
+
+Do NOT touch SalaryBusinessSummary.
+
+Do NOT touch SalaryBusinessEvent.
+
+Only create missing SalaryAchievement rows.
+
+Update:
+
+lastReconciledAt
+
+on successful completion.
+
+--------------------------------------------------
+JOB 4
+
+Single User Rebuild
+--------------------------------------------------
+
+Internal helper.
+
+Input:
+
+userId
+
+Execute:
+
+Qualification
+
+Return:
+
+Summary object.
+
+Useful for:
+
+Future Admin tools
+
+Support debugging
+
+Recovery
+
+--------------------------------------------------
+FAILURE ISOLATION
+--------------------------------------------------
+
+Every user executes independently.
+
+Example:
+
+User 100 fails.
+
+↓
+
+Log error.
+
+↓
+
+Continue with User 101.
+
+Never abort an entire nightly batch because one user failed.
+
+--------------------------------------------------
+CONCURRENCY
+--------------------------------------------------
+
+Implement configurable batching.
+
+Example:
+
+100 users
+
+↓
+
+10 workers
+
+↓
+
+10 users per worker
+
+Avoid one gigantic transaction.
+
+Each user:
+
+Own transaction.
+
+--------------------------------------------------
+METRICS
+--------------------------------------------------
+
+Collect:
+
+usersProcessed
+
+usersSucceeded
+
+usersFailed
+
+newAchievementsCreated
+
+duplicatesSkipped
+
+durationMs
+
+Return metrics object.
+
+--------------------------------------------------
+LOGGING
+--------------------------------------------------
+
+Structured logs.
+
+Job Started
+
+User Started
+
+User Failed
+
+User Completed
+
+Job Completed
+
+Duration
+
+Failures
+
+--------------------------------------------------
+LAST RECONCILED
+--------------------------------------------------
+
+Only the reconciliation job updates:
+
+SalaryBusinessSummary.lastReconciledAt
+
+Normal qualification runs MUST NOT update it.
+
+--------------------------------------------------
+IDEMPOTENCY
+--------------------------------------------------
+
+Running:
+
+Nightly Qualification
+
+twice
+
+must produce:
+
+Zero duplicate achievements.
+
+Reconciliation
+
+twice
+
+must produce:
+
+Zero duplicate achievements.
+
+--------------------------------------------------
+HOOKS
+--------------------------------------------------
+
+Wire incremental qualification into:
+
+SalaryBusinessService
+
+Immediately after successful business updates.
+
+Events:
+
+Investment Created
+
+Investment Cancelled
+
+Investment Refunded
+
+Power BV Added
+
+Power BV Removed
+
+Scheduler should call:
+
+evaluateUser(userId)
+
+Do NOT qualify the entire network.
+
+--------------------------------------------------
+PERFORMANCE
+--------------------------------------------------
+
+Optimise for scalability.
+
+Guidelines:
+
+• Fetch users in batches.
+
+• Avoid loading unnecessary relations.
+
+• Use existing indexes.
+
+• No N+1 queries where avoidable.
+
+• Keep memory usage bounded.
+
+--------------------------------------------------
+TESTING
+--------------------------------------------------
+
+Create comprehensive tests.
+
+1.
+
+Incremental qualification.
+
+Single affected user.
+
+2.
+
+Nightly batch.
+
+Processes all users.
+
+3.
+
+Failure isolation.
+
+One user throws.
+
+Others continue.
+
+4.
+
+Reconciliation.
+
+Updates lastReconciledAt.
+
+5.
+
+Duplicate nightly run.
+
+No duplicate achievements.
+
+6.
+
+Duplicate reconciliation.
+
+No duplicate achievements.
+
+7.
+
+Metrics returned correctly.
+
+8.
+
+Batch processing.
+
+Multiple workers.
+
+9.
+
+Large user set simulation.
+
+No memory growth.
+
+10.
+
+Single user rebuild.
+
+Returns expected summary.
+
+--------------------------------------------------
+DO NOT TOUCH
+--------------------------------------------------
+
+Do NOT implement:
+
+Salary payouts
+
+SalaryIncome generation
+
+Monthly scheduler
+
+Member dashboard
+
+Admin dashboard
+
+Salary APIs
+
+Compensation logic
+
+Qualification rules
+
+Business propagation
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1. Files added.
+
+2. Files modified.
+
+3. Scheduler architecture.
+
+4. Batch processing strategy.
+
+5. Failure isolation strategy.
+
+6. Metrics collected.
+
+7. Logging implementation.
+
+8. Test results.
+
+9. Performance considerations.
+
+10. Confirmation that qualification logic remains unchanged.
+
+Wait for approval before Sprint 33H (Monthly Salary Generation Engine).
