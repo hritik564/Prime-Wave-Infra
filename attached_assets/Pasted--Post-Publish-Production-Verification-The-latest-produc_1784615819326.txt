@@ -1,0 +1,199 @@
+# Post-Publish Production Verification
+
+The latest production deployment has completed.
+
+Do NOT modify any code.
+
+Do NOT generate migrations.
+
+Do NOT refactor anything.
+
+This task is verification only.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Verify that the production deployment completed successfully and that the Sprint 33P migration has been applied correctly.
+
+Use the live production database and production API.
+
+--------------------------------------------------
+VERIFY MIGRATIONS
+--------------------------------------------------
+
+Check the production _prisma_migrations table.
+
+Confirm:
+
+✓ 20260721120000_sprint33p_schema_sync exists
+
+✓ Finished_at is populated
+
+✓ Migration completed successfully
+
+✓ No failed migrations
+
+--------------------------------------------------
+VERIFY PRODUCTION SCHEMA
+--------------------------------------------------
+
+Confirm the following now exist:
+
+Tables
+
+✓ salary_run
+
+✓ salary_run_audit
+
+✓ salary_payout_event
+
+--------------------------------------------------
+
+Enums
+
+✓ SalaryIncomeStatus
+
+✓ SalaryRunStatus
+
+✓ SalaryPayoutEventType
+
+✓ SalaryRunAuditAction
+
+--------------------------------------------------
+
+salary_income columns
+
+✓ status
+
+✓ reference
+
+✓ approvedAt
+
+✓ approvedBy
+
+✓ paidAt
+
+✓ transactionId
+
+✓ salaryRunId
+
+--------------------------------------------------
+
+Constraints
+
+✓ UNIQUE(userId, month, year)
+
+Old constraint:
+
+UNIQUE(userId, rankName, month, year)
+
+must NOT exist.
+
+--------------------------------------------------
+
+Indexes
+
+✓ salary_income_status_idx
+
+✓ salary_income_salaryRunId_idx
+
+✓ salary_income_createdAt_idx
+
+--------------------------------------------------
+VERIFY PRODUCTION API
+--------------------------------------------------
+
+Call the production API.
+
+Verify:
+
+✓ Admin SalaryRun endpoints respond correctly
+
+✓ Salary generation endpoint loads
+
+✓ Salary approval endpoint loads
+
+✓ Salary payout endpoint loads
+
+✓ No schema exceptions
+
+✓ No Prisma errors
+
+✓ No missing-column errors
+
+✓ No relation does not exist errors
+
+--------------------------------------------------
+VERIFY DATABASE
+--------------------------------------------------
+
+Confirm:
+
+✓ salary_business_summary contains data
+
+✓ salary_business_event contains data
+
+✓ salary_run table accessible
+
+✓ salary_income queries succeed
+
+✓ Foreign keys valid
+
+--------------------------------------------------
+VERIFY APPLICATION LOGS
+--------------------------------------------------
+
+Inspect the latest production logs.
+
+Confirm:
+
+✓ No migration failures
+
+✓ No Prisma migration errors
+
+✓ No startup errors
+
+✓ No SQL exceptions
+
+✓ No relation errors
+
+✓ No missing column errors
+
+--------------------------------------------------
+FINAL REPORT
+--------------------------------------------------
+
+Return:
+
+1.
+
+Migration status
+
+2.
+
+Production schema verification
+
+3.
+
+API verification
+
+4.
+
+Database verification
+
+5.
+
+Application log verification
+
+6.
+
+Any warnings
+
+7.
+
+Final verdict
+
+PASS or FAIL
+
+PASS only if production is fully synchronized with Sprint 33P and the application is running without any migration or schema-related issues.
