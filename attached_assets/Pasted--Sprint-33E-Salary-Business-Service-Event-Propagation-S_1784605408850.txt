@@ -1,0 +1,460 @@
+# Sprint 33E – Salary Business Service & Event Propagation
+
+Sprint 33D has been approved.
+
+This sprint implements the Salary Business Service responsible for maintaining salary business counters and writing immutable SalaryBusinessEvent records.
+
+⚠️ IMPORTANT
+
+This sprint DOES NOT implement:
+
+- Salary Qualification
+- Salary Scheduler
+- Salary payouts
+- Member UI
+- Admin UI
+- API endpoints (except internal service wiring if required)
+
+This sprint only builds the salary accounting layer.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Implement an event-driven salary accounting service.
+
+Whenever qualifying business changes, the service must:
+
+1. Update SalaryBusinessSummary.
+2. Write immutable SalaryBusinessEvent records.
+3. Guarantee idempotency.
+4. Remain fully transactional.
+
+No salary qualification logic yet.
+
+--------------------------------------------------
+NEW SERVICE
+--------------------------------------------------
+
+Create:
+
+src/salary/salary-business.service.ts
+
+Primary responsibilities:
+
+• Credit Direct Business
+• Debit Direct Business
+• Credit Downline Business
+• Debit Downline Business
+• Credit Power Business
+• Debit Power Business
+
+Every operation must:
+
+- execute inside a Prisma transaction
+- update SalaryBusinessSummary
+- create SalaryBusinessEvent
+- be idempotent
+- never partially commit
+
+--------------------------------------------------
+FUNCTIONS
+--------------------------------------------------
+
+Implement:
+
+creditDirectBusiness()
+
+debitDirectBusiness()
+
+creditDownlineBusiness()
+
+debitDownlineBusiness()
+
+creditPowerBusiness()
+
+debitPowerBusiness()
+
+Keep each function focused.
+
+No qualification logic.
+
+--------------------------------------------------
+DIRECT BUSINESS
+--------------------------------------------------
+
+Investment Created
+
+Walk sponsor chain.
+
+Depth 1 only.
+
+Update:
+
+SalaryBusinessSummary.directBusiness
+
+Write:
+
+SalaryBusinessEvent
+
+pool = DIRECT
+
+eventType = INVESTMENT_CREATED
+
+--------------------------------------------------
+DOWNLINE BUSINESS
+--------------------------------------------------
+
+Investment Created
+
+Walk sponsor chain.
+
+Depth 2+
+
+Update:
+
+SalaryBusinessSummary.downlineBusiness
+
+Write:
+
+SalaryBusinessEvent
+
+pool = DOWNLINE
+
+eventType = INVESTMENT_CREATED
+
+Safety:
+
+Maximum sponsor depth:
+
+50
+
+If exceeded:
+
+Log anomaly.
+
+Stop propagation.
+
+--------------------------------------------------
+POWER BUSINESS
+--------------------------------------------------
+
+Power BV Added
+
+Update:
+
+SalaryBusinessSummary.powerBusiness
+
+Write:
+
+SalaryBusinessEvent
+
+pool = POWER
+
+eventType = POWER_BV_ADDED
+
+No propagation.
+
+Only the selected user receives Power Business.
+
+--------------------------------------------------
+DEBIT RULES
+--------------------------------------------------
+
+Investment Cancelled
+
+Investment Refunded
+
+Mirror the exact credit path.
+
+Subtract from:
+
+Direct Business
+
+or
+
+Downline Business
+
+Power BV Removed
+
+Subtract from:
+
+Power Business
+
+Never allow negative balances.
+
+Floor:
+
+0
+
+If a negative would occur:
+
+Clamp to zero.
+
+Write AdminLog anomaly.
+
+--------------------------------------------------
+EVENT TABLE
+--------------------------------------------------
+
+Every counter modification MUST create exactly one SalaryBusinessEvent.
+
+Populate:
+
+userId
+
+sourceUserId
+
+pool
+
+eventType
+
+delta
+
+referenceId
+
+referenceType
+
+depth
+
+metadata
+
+createdAt
+
+Never update events.
+
+Never delete events.
+
+--------------------------------------------------
+IDEMPOTENCY
+--------------------------------------------------
+
+Respect:
+
+(userId, pool, referenceId, eventType)
+
+Duplicate attempts:
+
+Ignore gracefully.
+
+Never double-credit.
+
+Never double-debit.
+
+--------------------------------------------------
+ATOMICITY
+--------------------------------------------------
+
+Each logical operation must be a single Prisma transaction.
+
+Either:
+
+Summary updated
+
++
+
+Event written
+
+OR
+
+Nothing committed.
+
+--------------------------------------------------
+HOOKS
+--------------------------------------------------
+
+Integrate into:
+
+investments.service.ts
+
+On:
+
+Investment Created
+
+Investment Cancelled
+
+Investment Refunded
+
+Integrate into:
+
+power-bv.service.ts
+
+On:
+
+Power BV Added
+
+Power BV Removed
+
+Do NOT integrate into:
+
+Salary Qualification
+
+Scheduler
+
+Cron
+
+Member APIs
+
+--------------------------------------------------
+RECONCILIATION SUPPORT
+--------------------------------------------------
+
+Update:
+
+SalaryBusinessSummary.updatedAt
+
+automatically.
+
+Do NOT update:
+
+lastReconciledAt
+
+That is reserved exclusively for the reconciliation process.
+
+--------------------------------------------------
+LOGGING
+--------------------------------------------------
+
+Write structured logs for:
+
+Credits
+
+Debits
+
+Duplicate detection
+
+Sponsor depth exceeded
+
+Negative balance prevented
+
+Transaction failures
+
+--------------------------------------------------
+TESTING
+--------------------------------------------------
+
+Create comprehensive tests covering:
+
+1.
+
+Investment Created
+
+Direct sponsor credited.
+
+2.
+
+Investment Created
+
+Depth 2+
+
+Downline credited.
+
+3.
+
+Investment Cancelled
+
+Counters decrease correctly.
+
+4.
+
+Investment Refunded
+
+Counters decrease correctly.
+
+5.
+
+Power BV Added
+
+Power Business increases.
+
+6.
+
+Power BV Removed
+
+Power Business decreases.
+
+7.
+
+Duplicate investment event.
+
+No double credit.
+
+8.
+
+Duplicate Power BV event.
+
+No double credit.
+
+9.
+
+Sponsor chain depth > 50.
+
+Stops safely.
+
+10.
+
+Negative balances prevented.
+
+11.
+
+Transaction rollback.
+
+No partial writes.
+
+12.
+
+Concurrent investment creation.
+
+Counters remain correct.
+
+--------------------------------------------------
+DO NOT TOUCH
+--------------------------------------------------
+
+Do NOT implement:
+
+Salary Qualification
+
+Rank calculation
+
+Unlock logic
+
+Salary payouts
+
+Salary Scheduler
+
+Member Dashboard
+
+Admin Dashboard
+
+GET /api/salary/summary
+
+Qualification APIs
+
+Cron jobs
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1. Files added.
+
+2. Files modified.
+
+3. Service architecture.
+
+4. Sponsor propagation flow.
+
+5. Transaction flow.
+
+6. Idempotency implementation.
+
+7. Logging implementation.
+
+8. Test results.
+
+9. Confirmation that Salary Qualification, Scheduler, and payout systems remain completely untouched.
+
+Wait for approval before beginning Sprint 33F (Salary Qualification Engine).

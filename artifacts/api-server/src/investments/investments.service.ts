@@ -10,6 +10,7 @@ import { notificationService } from "../notifications/notifications.service";
 import { logger } from "../lib/logger";
 import { processUserAchievements } from "../salary/salary-achievement.service";
 import { writeLedgerEntry } from "../ledger/ledger.service";
+import { propagateInvestmentBusiness } from "../salary/salary-business.service";
 
 // ── Create investment ─────────────────────────────────────────────────────────
 
@@ -131,6 +132,18 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
       metadata: { level: target.level, incomeAmount: target.incomeAmount.toString(), sourceUserId: userId },
     });
   }
+
+  // ── Salary business accounting (Sprint 33E) ──────────────────────────────
+  // Walk the sponsor chain and credit DIRECT (depth 1) / DOWNLINE (depth 2+)
+  // pools.  Runs after the investment tx commits; errors are logged and do not
+  // roll back the investment.
+  void (async () => {
+    try {
+      await propagateInvestmentBusiness(userId, investment.id, decimalAmount, "INVESTMENT_CREATED");
+    } catch (err) {
+      logger.error({ err, userId, investmentId: investment.id }, "salary-business: investment propagation failed");
+    }
+  })();
 
   // ── Event-driven salary qualification (Sprint 23E) ────────────────────────
   // After BV propagates, re-evaluate salary rank for the investor AND every

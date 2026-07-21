@@ -3,6 +3,7 @@ import { prisma } from "../config/prisma.js";
 import { AppError } from "../middleware/error.middleware.js";
 import { HTTP_STATUS } from "../shared/constants.js";
 import type { PowerBvAddInput, PowerBvRemoveInput, PowerBvLedgerQuery } from "./power-bv.schema.js";
+import { updatePowerBusiness } from "../salary/salary-business.service.js";
 
 // ── Add Power BV ──────────────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ export async function addPowerBV(
   const { side, bv, reason } = input;
   const decBv = new Prisma.Decimal(bv);
 
-  await prisma.$transaction(async (tx) => {
+  const { ledgerEntryId } = await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({
       where:  { id: userId },
       select: { id: true, powerLeftBV: true, powerRightBV: true },
@@ -44,7 +45,7 @@ export async function addPowerBV(
         : { powerRightBV: balanceAfter },
     });
 
-    await tx.powerBvLedger.create({
+    const ledger = await tx.powerBvLedger.create({
       data: {
         userId,
         adminId,
@@ -55,6 +56,7 @@ export async function addPowerBV(
         balanceAfter,
         reason,
       },
+      select: { id: true },
     });
 
     await tx.adminLog.create({
@@ -71,7 +73,13 @@ export async function addPowerBV(
         },
       },
     });
+
+    return { ledgerEntryId: ledger.id };
   });
+
+  // ── Salary business accounting (Sprint 33E) ────────────────────────────────
+  // Credit the POWER pool for this user. Runs after the Power BV tx commits.
+  void updatePowerBusiness(userId, ledgerEntryId, decBv, "POWER_BV_ADDED");
 }
 
 // ── Remove Power BV ───────────────────────────────────────────────────────────
@@ -88,7 +96,7 @@ export async function removePowerBV(
   const { side, bv, reason } = input;
   const decBv = new Prisma.Decimal(bv);
 
-  await prisma.$transaction(async (tx) => {
+  const { ledgerEntryId } = await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({
       where:  { id: userId },
       select: { id: true, powerLeftBV: true, powerRightBV: true },
@@ -116,7 +124,7 @@ export async function removePowerBV(
         : { powerRightBV: balanceAfter },
     });
 
-    await tx.powerBvLedger.create({
+    const ledger = await tx.powerBvLedger.create({
       data: {
         userId,
         adminId,
@@ -127,6 +135,7 @@ export async function removePowerBV(
         balanceAfter,
         reason,
       },
+      select: { id: true },
     });
 
     await tx.adminLog.create({
@@ -143,7 +152,13 @@ export async function removePowerBV(
         },
       },
     });
+
+    return { ledgerEntryId: ledger.id };
   });
+
+  // ── Salary business accounting (Sprint 33E) ────────────────────────────────
+  // Debit the POWER pool for this user. Runs after the Power BV tx commits.
+  void updatePowerBusiness(userId, ledgerEntryId, decBv, "POWER_BV_REMOVED");
 }
 
 // ── Summary ───────────────────────────────────────────────────────────────────
