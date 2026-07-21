@@ -1,0 +1,480 @@
+# Sprint 33F – Salary Qualification Engine
+
+Sprint 33E has been approved.
+
+This sprint implements the Salary Qualification Engine.
+
+⚠️ IMPORTANT
+
+This sprint DOES NOT implement:
+
+- Salary payouts
+- Salary scheduler
+- Monthly salary generation
+- Member UI
+- Admin UI
+- Cron jobs
+
+This sprint only determines whether a member qualifies for salary ranks and creates SalaryAchievement records.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Build the complete Salary Qualification Engine using the new SalaryBusinessSummary model.
+
+The engine must:
+
+• Read salary business counters
+
+• Evaluate qualification rules
+
+• Create SalaryAchievement records
+
+• Never duplicate achievements
+
+• Never revoke achievements
+
+• Never pay salary
+
+Qualification only.
+
+--------------------------------------------------
+NEW SERVICE
+--------------------------------------------------
+
+Create:
+
+src/salary/salary-qualification.service.ts
+
+Primary responsibilities:
+
+• Determine unlock state
+
+• Calculate effective business
+
+• Evaluate every rank
+
+• Create SalaryAchievement
+
+• Never revoke existing achievements
+
+--------------------------------------------------
+UNLOCK STATE
+--------------------------------------------------
+
+Unlock MUST NOT be stored.
+
+Determine unlock state by checking:
+
+SalaryAchievement
+
+WHERE
+
+rankName = "Gold"
+
+If a Gold achievement exists:
+
+Unlocked = TRUE
+
+Otherwise:
+
+Unlocked = FALSE
+
+No User flag.
+
+No duplicate state.
+
+--------------------------------------------------
+EFFECTIVE BUSINESS
+--------------------------------------------------
+
+Read:
+
+SalaryBusinessSummary
+
+directBusiness
+
+downlineBusiness
+
+powerBusiness
+
+Rules:
+
+DIRECT_ONLY
+
+Effective Business
+
+=
+
+directBusiness
+
+ALL_BUSINESS
+
+If unlocked:
+
+Effective Business
+
+=
+
+directBusiness
+
++
+
+downlineBusiness
+
++
+
+powerBusiness
+
+Otherwise:
+
+Effective Business
+
+=
+
+directBusiness
+
+--------------------------------------------------
+QUALIFICATION ENGINE
+--------------------------------------------------
+
+Load all active SalaryRankConfig records ordered by requiredBusiness ascending.
+
+For each rank:
+
+Determine:
+
+Effective Business
+
+Compare against:
+
+requiredBusiness
+
+If qualified:
+
+Create SalaryAchievement
+
+ONLY IF
+
+one does not already exist.
+
+Never overwrite existing achievements.
+
+--------------------------------------------------
+GOLD UNLOCK
+--------------------------------------------------
+
+Example:
+
+Bronze
+
+↓
+
+Silver
+
+↓
+
+Gold
+
+Gold qualifies
+
+↓
+
+Create Gold SalaryAchievement
+
+↓
+
+Immediately re-evaluate remaining ranks
+
+Because:
+
+Downline Business
+
++
+
+Power Business
+
+now become available.
+
+Example:
+
+Direct
+
+15,000
+
+Downline
+
+120,000
+
+Power
+
+15,000
+
+Gold achieved
+
+↓
+
+Effective Business instantly becomes
+
+150,000
+
+The same qualification pass should continue evaluating:
+
+Platinum
+
+Sapphire
+
+Ruby
+
+Emerald
+
+Diamond
+
+Ambassador
+
+Sovereign Crown
+
+without waiting for another scheduler cycle.
+
+--------------------------------------------------
+NEVER REVOKE
+--------------------------------------------------
+
+Achievements are permanent.
+
+Example:
+
+User qualifies for Gold.
+
+Later:
+
+Business decreases.
+
+Gold remains.
+
+Do NOT delete.
+
+Do NOT deactivate.
+
+Do NOT downgrade.
+
+The SalaryAchievement table remains cumulative.
+
+--------------------------------------------------
+TRANSACTIONS
+--------------------------------------------------
+
+Each qualification run must execute inside a Prisma transaction.
+
+Either:
+
+All new achievements created
+
+OR
+
+Nothing committed.
+
+--------------------------------------------------
+PURE FUNCTION
+--------------------------------------------------
+
+Create a pure helper.
+
+Example:
+
+computeEffectiveBusiness()
+
+Input:
+
+Business Summary
+
+Qualification Pool
+
+Unlocked
+
+Output:
+
+Decimal
+
+This helper should have dedicated unit tests.
+
+--------------------------------------------------
+IDEMPOTENCY
+--------------------------------------------------
+
+Respect:
+
+(userId, rankName)
+
+Duplicate qualification runs
+
+must
+
+NOT
+
+create duplicate SalaryAchievement records.
+
+Use:
+
+upsert
+
+or
+
+existing unique constraints.
+
+--------------------------------------------------
+LOGGING
+--------------------------------------------------
+
+Structured logs:
+
+Qualification started
+
+Unlock detected
+
+Rank achieved
+
+Duplicate skipped
+
+Transaction failed
+
+Qualification completed
+
+--------------------------------------------------
+TESTING
+--------------------------------------------------
+
+Create comprehensive tests.
+
+1.
+
+Direct Business qualifies Bronze.
+
+2.
+
+Direct Business qualifies Silver.
+
+3.
+
+Direct Business qualifies Gold.
+
+4.
+
+Gold immediately unlocks ALL_BUSINESS.
+
+5.
+
+Downline Business ignored before Gold.
+
+6.
+
+Downline Business counted after Gold.
+
+7.
+
+Power Business ignored before Gold.
+
+8.
+
+Power Business counted after Gold.
+
+9.
+
+Multiple ranks achieved in one pass.
+
+10.
+
+Duplicate qualification run.
+
+No duplicate achievements.
+
+11.
+
+Business decreases.
+
+Achievements remain.
+
+12.
+
+Inactive user.
+
+Skipped.
+
+13.
+
+ALL_BUSINESS rank with insufficient effective business.
+
+Not awarded.
+
+14.
+
+Transaction rollback.
+
+No partial achievements.
+
+15.
+
+computeEffectiveBusiness()
+
+Unit tests covering:
+
+DIRECT_ONLY
+
+ALL_BUSINESS
+
+Locked
+
+Unlocked
+
+--------------------------------------------------
+DO NOT TOUCH
+--------------------------------------------------
+
+Do NOT implement:
+
+Salary Scheduler
+
+Monthly Salary
+
+SalaryIncome
+
+Payment cron
+
+Member Dashboard
+
+Admin Dashboard
+
+GET /api/salary/summary
+
+Reconciliation cron
+
+Any payout logic
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1. Files added.
+
+2. Files modified.
+
+3. Qualification algorithm.
+
+4. Unlock algorithm.
+
+5. Effective business calculation.
+
+6. Transaction flow.
+
+7. Idempotency implementation.
+
+8. Logging implementation.
+
+9. Test results.
+
+10. Confirmation that no payout or scheduler logic was modified.
+
+Wait for approval before Sprint 33G (Scheduler & Qualification Cron).
