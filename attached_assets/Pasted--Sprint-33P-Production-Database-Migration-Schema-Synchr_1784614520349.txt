@@ -1,0 +1,387 @@
+# Sprint 33P – Production Database Migration & Schema Synchronization
+
+This sprint is NOT a feature sprint.
+
+Do NOT modify business logic.
+
+Do NOT refactor existing services.
+
+Do NOT change compensation calculations.
+
+Do NOT alter qualification rules.
+
+The objective is to bring the production database into complete alignment with the current application schema developed during Sprints 33E–33W.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Synchronize the production database with the canonical Prisma schema.
+
+Preserve all existing production data.
+
+Generate proper Prisma migrations for every schema change that was previously applied only through development db push operations.
+
+After completion, production and schema.prisma must be 100% identical.
+
+--------------------------------------------------
+STEP 1 – SCHEMA DRIFT ANALYSIS
+--------------------------------------------------
+
+Compare:
+
+Production Database
+
+↓
+
+Current schema.prisma
+
+Produce a complete drift report including:
+
+• Missing tables
+
+• Missing columns
+
+• Missing enums
+
+• Missing indexes
+
+• Missing constraints
+
+• Constraint differences
+
+• Default value differences
+
+• Nullable differences
+
+--------------------------------------------------
+STEP 2 – GENERATE PRISMA MIGRATION
+--------------------------------------------------
+
+Create a proper Prisma migration that safely upgrades production.
+
+The migration must include:
+
+--------------------------------------------------
+SalaryIncome
+--------------------------------------------------
+
+Add:
+
+status
+
+reference
+
+approvedAt
+
+approvedBy
+
+paidAt
+
+transactionId
+
+salaryRunId
+
+Create required indexes:
+
+status
+
+salaryRunId
+
+createdAt
+
+Remove:
+
+Old unique constraint:
+
+(userId, rankName, month, year)
+
+Create:
+
+New unique constraint:
+
+(userId, month, year)
+
+--------------------------------------------------
+Enums
+--------------------------------------------------
+
+Create:
+
+SalaryIncomeStatus
+
+SalaryRunStatus
+
+SalaryPayoutEventType
+
+SalaryRunAuditAction
+
+--------------------------------------------------
+Create Tables
+--------------------------------------------------
+
+salary_run
+
+salary_run_audit
+
+salary_payout_event
+
+Include:
+
+Primary keys
+
+Foreign keys
+
+Unique constraints
+
+Indexes
+
+Cascade rules
+
+--------------------------------------------------
+STEP 3 – SAFE DATA MIGRATION
+--------------------------------------------------
+
+Existing SalaryIncome records must remain intact.
+
+For historical rows:
+
+status
+
+↓
+
+PENDING
+
+reference
+
+↓
+
+NULL
+
+approvedAt
+
+↓
+
+NULL
+
+approvedBy
+
+↓
+
+NULL
+
+paidAt
+
+↓
+
+NULL
+
+transactionId
+
+↓
+
+NULL
+
+salaryRunId
+
+↓
+
+NULL
+
+Do NOT lose any historical salary data.
+
+--------------------------------------------------
+STEP 4 – VERIFY CONSTRAINT CHANGES
+--------------------------------------------------
+
+Confirm:
+
+Old unique constraint removed.
+
+New unique constraint active.
+
+Indexes created.
+
+Foreign keys valid.
+
+Enums registered.
+
+--------------------------------------------------
+STEP 5 – APPLY MIGRATION
+--------------------------------------------------
+
+Apply migration against a staging copy first.
+
+Verify:
+
+Migration succeeds.
+
+No data loss.
+
+No failed constraints.
+
+No orphan records.
+
+No foreign-key violations.
+
+--------------------------------------------------
+STEP 6 – PRODUCTION DEPLOYMENT
+--------------------------------------------------
+
+Only after staging verification:
+
+Apply migration to production.
+
+Verify:
+
+Tables exist.
+
+Columns exist.
+
+Enums exist.
+
+Indexes exist.
+
+Constraints exist.
+
+No migration warnings.
+
+--------------------------------------------------
+STEP 7 – APPLICATION VERIFICATION
+--------------------------------------------------
+
+Start the application against the migrated production database.
+
+Verify:
+
+SalaryRun creation
+
+Salary generation
+
+Salary approval
+
+Salary payout
+
+Wallet credit
+
+Salary history
+
+Admin Salary Management
+
+Everything must function without schema errors.
+
+--------------------------------------------------
+STEP 8 – FINAL SCHEMA VALIDATION
+--------------------------------------------------
+
+Run Prisma validation.
+
+Run:
+
+prisma migrate status
+
+prisma validate
+
+prisma generate
+
+Confirm:
+
+No schema drift.
+
+No pending migrations.
+
+No warnings.
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1.
+
+Complete schema drift report.
+
+2.
+
+Migration name.
+
+3.
+
+SQL summary.
+
+4.
+
+Tables created.
+
+5.
+
+Columns added.
+
+6.
+
+Enums created.
+
+7.
+
+Indexes created.
+
+8.
+
+Constraints updated.
+
+9.
+
+Data migration summary.
+
+10.
+
+Staging deployment report.
+
+11.
+
+Production deployment report.
+
+12.
+
+Prisma migration status.
+
+13.
+
+Application verification results.
+
+14.
+
+Final verdict:
+
+PASS
+
+or
+
+FAIL
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+PASS only if:
+
+✓ Production database matches schema.prisma exactly.
+
+✓ No schema drift remains.
+
+✓ All historical salary data preserved.
+
+✓ SalaryRun architecture fully operational.
+
+✓ Approval and payout workflow operational.
+
+✓ Prisma reports zero pending migrations.
+
+After PASS:
+
+The production database becomes the canonical schema for PrimeWave.
+
+The next sprint will be:
+
+Sprint 33X – Salary Progress & Visualization.
