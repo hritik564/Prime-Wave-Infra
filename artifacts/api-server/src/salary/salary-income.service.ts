@@ -79,9 +79,10 @@ const DEFAULT_PAGE_SIZE   = 500;
  * `{ status: "duplicate" }` without modifying the existing record.
  */
 export async function generateMonthlySalary(
-  userId: string,
-  month:  number,
-  year:   number,
+  userId:       string,
+  month:        number,
+  year:         number,
+  salaryRunId?: string,
 ): Promise<GenerateResult> {
   logger.info({ userId, month, year }, "salary-income: monthly generation started");
 
@@ -149,12 +150,13 @@ export async function generateMonthlySalary(
     const income = await tx.salaryIncome.create({
       data: {
         userId,
-        rankName:  highest.rankName,
+        rankName:   highest.rankName,
         month,
         year,
-        amount:    highest.config.monthlySalary,
-        status:    "PENDING",
-        reference: `salary-${userId}-${year}-${String(month).padStart(2, "0")}`,
+        amount:     highest.config.monthlySalary,
+        status:     "PENDING",
+        reference:  `salary-${userId}-${year}-${String(month).padStart(2, "0")}`,
+        ...(salaryRunId ? { salaryRunId } : {}),
       },
     });
 

@@ -1,0 +1,609 @@
+# Sprint 33J – Salary Run Management, Finance Reporting & Payroll Audit
+
+Sprint 33I has been approved.
+
+The Salary Engine is now functionally complete.
+
+This sprint introduces the Finance Operations layer.
+
+⚠️ IMPORTANT
+
+This sprint MUST NOT modify:
+
+- Qualification
+- SalaryBusinessSummary
+- SalaryBusinessEvent
+- SalaryAchievement
+- Salary Scheduler
+- Monthly Snapshot Engine
+- Salary Payout rules
+
+Those domains are complete.
+
+This sprint focuses entirely on payroll management, finance reporting, auditing, and operational visibility.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Implement a complete Payroll Run Management system.
+
+Every monthly payroll should become a managed financial event.
+
+Instead of viewing thousands of SalaryIncome records individually,
+
+Finance should work with:
+
+Salary Run
+
+↓
+
+Payroll
+
+↓
+
+Reports
+
+↓
+
+Audit
+
+↓
+
+Exports
+
+--------------------------------------------------
+NEW MODEL
+--------------------------------------------------
+
+Create:
+
+SalaryRun
+
+Fields:
+
+id
+
+month
+
+year
+
+status
+
+startedAt
+
+completedAt
+
+generatedCount
+
+approvedCount
+
+paidCount
+
+failedCount
+
+totalAmount
+
+createdBy
+
+notes
+
+createdAt
+
+updatedAt
+
+--------------------------------------------------
+ENUM
+--------------------------------------------------
+
+SalaryRunStatus
+
+GENERATING
+
+GENERATED
+
+APPROVING
+
+APPROVED
+
+PAYING
+
+COMPLETED
+
+FAILED
+
+--------------------------------------------------
+RELATION
+--------------------------------------------------
+
+SalaryRun
+
+↓
+
+SalaryIncome
+
+One-to-many
+
+SalaryIncome gains:
+
+salaryRunId
+
+Nullable for migration.
+
+Every new monthly generation attaches every generated SalaryIncome to its SalaryRun.
+
+--------------------------------------------------
+GENERATION FLOW
+--------------------------------------------------
+
+Monthly generation now becomes:
+
+Create SalaryRun
+
+↓
+
+status = GENERATING
+
+↓
+
+Generate SalaryIncome
+
+↓
+
+Attach salaryRunId
+
+↓
+
+Update:
+
+generatedCount
+
+totalAmount
+
+↓
+
+status = GENERATED
+
+--------------------------------------------------
+APPROVAL FLOW
+--------------------------------------------------
+
+When payroll approval executes:
+
+SalaryRun
+
+GENERATED
+
+↓
+
+APPROVING
+
+↓
+
+Approve salaries
+
+↓
+
+approvedCount
+
+↓
+
+status = APPROVED
+
+--------------------------------------------------
+PAYOUT FLOW
+--------------------------------------------------
+
+When payroll payout executes:
+
+SalaryRun
+
+APPROVED
+
+↓
+
+PAYING
+
+↓
+
+Pay salaries
+
+↓
+
+paidCount
+
+↓
+
+status = COMPLETED
+
+If unrecoverable batch failure:
+
+↓
+
+FAILED
+
+--------------------------------------------------
+REPORT SERVICE
+--------------------------------------------------
+
+Create:
+
+salary-report.service.ts
+
+Capabilities:
+
+Payroll Summary
+
+Payroll Detail
+
+Member Salary History
+
+Rank Distribution
+
+Monthly Totals
+
+Pending Salaries
+
+Approved Salaries
+
+Paid Salaries
+
+Wallet Credits
+
+--------------------------------------------------
+SUMMARY API (Service Layer)
+--------------------------------------------------
+
+Implement internal methods.
+
+No HTTP routes yet.
+
+Functions:
+
+getSalaryRunSummary(runId)
+
+getMonthlyPayroll(month, year)
+
+getMemberSalaryHistory(userId)
+
+getRankDistribution(month, year)
+
+getPayrollTotals(month, year)
+
+--------------------------------------------------
+FINANCE METRICS
+--------------------------------------------------
+
+For every SalaryRun compute:
+
+Total Members
+
+Generated
+
+Approved
+
+Paid
+
+Pending
+
+Failed
+
+Total Payroll
+
+Average Salary
+
+Highest Salary
+
+Lowest Salary
+
+Rank Breakdown
+
+--------------------------------------------------
+AUDIT
+--------------------------------------------------
+
+Create:
+
+SalaryRunAudit
+
+Fields:
+
+id
+
+salaryRunId
+
+action
+
+performedBy
+
+metadata
+
+createdAt
+
+Enum:
+
+SalaryRunAuditAction
+
+RUN_CREATED
+
+GENERATION_COMPLETED
+
+APPROVAL_STARTED
+
+APPROVAL_COMPLETED
+
+PAYOUT_STARTED
+
+PAYOUT_COMPLETED
+
+RUN_FAILED
+
+Immutable.
+
+Never update.
+
+Never delete.
+
+--------------------------------------------------
+EXPORT SERVICE
+--------------------------------------------------
+
+Create:
+
+salary-export.service.ts
+
+Generate:
+
+CSV
+
+Payroll Summary
+
+Payroll Detail
+
+Member Salary History
+
+Rank Distribution
+
+Future PDF support should be easy to add.
+
+--------------------------------------------------
+SEARCH
+--------------------------------------------------
+
+Support internal queries:
+
+Salary Runs by Month
+
+Salary Runs by Status
+
+Salary Runs by Date
+
+Member Salary History
+
+Salary by Rank
+
+Salary by Month
+
+Salary by User
+
+--------------------------------------------------
+BATCH METRICS
+--------------------------------------------------
+
+SalaryRun should maintain:
+
+generatedCount
+
+approvedCount
+
+paidCount
+
+failedCount
+
+totalAmount
+
+Update incrementally during execution.
+
+Do NOT calculate these repeatedly using COUNT() during normal operation.
+
+--------------------------------------------------
+IDEMPOTENCY
+--------------------------------------------------
+
+Generating the same payroll twice:
+
+↓
+
+Existing SalaryRun found
+
+↓
+
+Return duplicate.
+
+Do NOT create another run.
+
+Approving completed run:
+
+↓
+
+Duplicate.
+
+Paying completed run:
+
+↓
+
+Duplicate.
+
+--------------------------------------------------
+TRANSACTIONS
+--------------------------------------------------
+
+Every SalaryRun status transition must be transactional.
+
+Either:
+
+Status
+
++
+
+Counters
+
++
+
+Audit
+
+Commit together.
+
+Or
+
+Nothing commits.
+
+--------------------------------------------------
+LOGGING
+--------------------------------------------------
+
+Structured logs.
+
+Run created
+
+Generation started
+
+Generation completed
+
+Approval started
+
+Approval completed
+
+Payout started
+
+Payout completed
+
+Run failed
+
+Report generated
+
+Export generated
+
+--------------------------------------------------
+TESTING
+--------------------------------------------------
+
+Create comprehensive tests.
+
+1.
+
+SalaryRun creation.
+
+2.
+
+Duplicate SalaryRun prevented.
+
+3.
+
+Generation updates counters.
+
+4.
+
+Approval updates counters.
+
+5.
+
+Payout updates counters.
+
+6.
+
+Run transitions.
+
+7.
+
+Failed run.
+
+8.
+
+Report summary.
+
+9.
+
+Member history.
+
+10.
+
+Rank distribution.
+
+11.
+
+CSV export.
+
+12.
+
+Audit entries.
+
+13.
+
+Transaction rollback.
+
+14.
+
+Concurrent run creation.
+
+15.
+
+Metrics correctness.
+
+--------------------------------------------------
+DO NOT TOUCH
+--------------------------------------------------
+
+Do NOT modify:
+
+Qualification Engine
+
+Salary Scheduler
+
+Business Summary
+
+SalaryBusinessEvent
+
+SalaryAchievement
+
+SalaryIncome generation rules
+
+Salary approval rules
+
+Salary payout rules
+
+Wallet logic
+
+Compensation plan
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1. Files added.
+
+2. Files modified.
+
+3. SalaryRun architecture.
+
+4. Payroll lifecycle.
+
+5. Report service architecture.
+
+6. Export service architecture.
+
+7. Audit implementation.
+
+8. Batch metrics implementation.
+
+9. Idempotency implementation.
+
+10. Transaction flow.
+
+11. Test results.
+
+12. Confirmation that all existing salary business logic remains unchanged.
+
+Wait for approval before Sprint 33K (Admin Payroll Dashboard, Analytics & Operational Console).

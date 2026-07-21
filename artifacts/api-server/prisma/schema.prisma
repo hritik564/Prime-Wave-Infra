@@ -666,15 +666,19 @@ model SalaryIncome {
   // Payout fields — set by paySalary()
   paidAt        DateTime?
   transactionId String?            // WalletTransaction.id after successful payout
+  // Run association — nullable for records created before SalaryRun was introduced
+  salaryRunId   String?
   createdAt     DateTime           @default(now())
 
   user         User                @relation(fields: [userId], references: [id], onDelete: Restrict)
   payoutEvents SalaryPayoutEvent[]
+  run          SalaryRun?          @relation(fields: [salaryRunId], references: [id], onDelete: SetNull)
 
   @@unique([userId, month, year])
   @@index([userId])
   @@index([year, month])
   @@index([status])
+  @@index([salaryRunId])
   @@index([createdAt])
   @@map("salary_income")
 }
@@ -700,6 +704,61 @@ model SalaryPayoutEvent {
   @@index([userId])
   @@index([eventType])
   @@map("salary_payout_event")
+}
+
+// ── Salary Run ────────────────────────────────────────────────────────────────
+//
+// Managed financial event representing one monthly payroll cycle.
+// Created once per (month, year).  Tracks aggregate counters so Finance
+// never has to run expensive COUNTs during normal operation.
+//
+// Lifecycle:  GENERATING → GENERATED → APPROVING → APPROVED → PAYING → COMPLETED
+//             Any stage can transition to FAILED via markRunFailed().
+
+model SalaryRun {
+  id             String          @id @default(cuid())
+  month          Int
+  year           Int
+  status         SalaryRunStatus @default(GENERATING)
+  startedAt      DateTime        @default(now())
+  completedAt    DateTime?
+  generatedCount Int             @default(0)
+  approvedCount  Int             @default(0)
+  paidCount      Int             @default(0)
+  failedCount    Int             @default(0)
+  totalAmount    Decimal         @default(0) @db.Decimal(18, 2)
+  createdBy      String?
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  incomes SalaryIncome[]
+  audits  SalaryRunAudit[]
+
+  @@unique([month, year])
+  @@index([status])
+  @@index([year, month])
+  @@map("salary_run")
+}
+
+// ── Salary Run Audit ──────────────────────────────────────────────────────────
+//
+// Immutable audit trail for every SalaryRun state transition.
+// Never updated or deleted.
+
+model SalaryRunAudit {
+  id          String               @id @default(cuid())
+  salaryRunId String
+  action      SalaryRunAuditAction
+  performedBy String?
+  metadata    Json?
+  createdAt   DateTime             @default(now())
+
+  run SalaryRun @relation(fields: [salaryRunId], references: [id], onDelete: Restrict)
+
+  @@index([salaryRunId])
+  @@index([action])
+  @@map("salary_run_audit")
 }
 
 // ── Salary Business Summary ───────────────────────────────────────────────────
@@ -1290,4 +1349,24 @@ enum SalaryIncomeStatus {
 enum SalaryPayoutEventType {
   APPROVED
   PAID
+}
+
+enum SalaryRunStatus {
+  GENERATING
+  GENERATED
+  APPROVING
+  APPROVED
+  PAYING
+  COMPLETED
+  FAILED
+}
+
+enum SalaryRunAuditAction {
+  RUN_CREATED
+  GENERATION_COMPLETED
+  APPROVAL_STARTED
+  APPROVAL_COMPLETED
+  PAYOUT_STARTED
+  PAYOUT_COMPLETED
+  RUN_FAILED
 }
