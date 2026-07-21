@@ -1,0 +1,296 @@
+# Sprint 33Z – Production Post-Publish Verification
+
+Sprint 33Z has now been published to PRODUCTION.
+
+Perform a COMPLETE production verification.
+
+Do NOT modify any production data.
+
+Read-only verification only.
+
+--------------------------------------------------
+OBJECTIVES
+--------------------------------------------------
+
+Verify that:
+
+1. All historical seeded DepositRequest business has been removed.
+
+2. Network Intelligence now reflects only:
+
+   - Genuine Approved Deposits
+   - Admin Power Business
+
+3. Binary Matching still functions correctly.
+
+4. Binary Orbit still functions correctly.
+
+5. Salary qualification remains correct.
+
+6. Direct Income is NOT generated from Power Business.
+
+--------------------------------------------------
+STEP 1 – Seed Cleanup Verification
+--------------------------------------------------
+
+Verify:
+
+- Number of seeded DepositRequest rows before migration
+- Number remaining after migration
+
+Expected:
+
+0 seeded DepositRequest rows remain.
+
+--------------------------------------------------
+STEP 2 – Network Intelligence
+--------------------------------------------------
+
+Verify the following totals:
+
+System-wide:
+
+- Total Team Business
+- Left Business
+- Right Business
+
+Confirm they now represent:
+
+Approved Deposits
++
+Power Business (if any)
+
+ONLY.
+
+No demo seed business should remain.
+
+--------------------------------------------------
+STEP 3 – Mahakal Verification
+--------------------------------------------------
+
+For Mahakal produce:
+
+Left Business
+
+Right Business
+
+Carry Forward
+
+Binary Qualified
+
+Business source breakdown:
+
+Organic Deposits
+
+Power Business
+
+Seeded Business
+
+Expected:
+
+Seeded Business = 0
+
+--------------------------------------------------
+STEP 4 – Binary Matching
+--------------------------------------------------
+
+Verify Binary Matching calculations.
+
+Confirm:
+
+Organic BV contributes.
+
+Power BV contributes.
+
+Removed seed deposits contribute NOTHING.
+
+No negative balances.
+
+No orphan calculations.
+
+No duplicate matches.
+
+--------------------------------------------------
+STEP 5 – Binary Orbit
+--------------------------------------------------
+
+Verify Binary Orbit.
+
+Confirm:
+
+Organic BV contributes.
+
+Power BV contributes.
+
+Seed business contributes NOTHING.
+
+--------------------------------------------------
+STEP 6 – Salary
+--------------------------------------------------
+
+Verify Salary qualification.
+
+Confirm:
+
+Organic business contributes.
+
+Power Business contributes.
+
+Removed seed business contributes NOTHING.
+
+SalaryBusinessSummary remains healthy.
+
+--------------------------------------------------
+STEP 7 – Direct Income
+--------------------------------------------------
+
+Verify Direct Income.
+
+Confirm:
+
+Power Business NEVER generates:
+
+- Direct Referral Income
+
+- Level Income
+
+Verify no DirectIncome rows were created due to Power Business.
+
+--------------------------------------------------
+STEP 8 – Binary Tree Integrity
+--------------------------------------------------
+
+Verify:
+
+SP placeholder accounts remain.
+
+Real members under SP nodes remain connected.
+
+No orphaned binaryParentId records.
+
+Tree traversal remains valid.
+
+--------------------------------------------------
+STEP 9 – Database Health
+--------------------------------------------------
+
+Verify:
+
+Migration applied successfully.
+
+Prisma healthy.
+
+No failed migrations.
+
+No FK violations.
+
+No broken references.
+
+--------------------------------------------------
+STEP 10 – Final Production Summary
+--------------------------------------------------
+
+Return:
+
+1.
+
+Seeded DepositRequests
+
+Before:
+_____
+
+After:
+_____
+
+2.
+
+System Business
+
+Before:
+_____
+
+After:
+_____
+
+3.
+
+Mahakal
+
+Left:
+Right:
+Carry:
+Qualified:
+
+4.
+
+Binary Matching
+
+PASS / FAIL
+
+5.
+
+Binary Orbit
+
+PASS / FAIL
+
+6.
+
+Salary
+
+PASS / FAIL
+
+7.
+
+Direct Income Isolation
+
+PASS / FAIL
+
+8.
+
+Binary Tree Integrity
+
+PASS / FAIL
+
+9.
+
+Database Health
+
+PASS / FAIL
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+PASS only if ALL of the following are true:
+
+✓ No seeded DepositRequest rows remain.
+
+✓ Network Intelligence uses only Organic Deposits + Power Business.
+
+✓ Binary Matching ignores removed seed business.
+
+✓ Binary Orbit ignores removed seed business.
+
+✓ Salary ignores removed seed business.
+
+✓ Power Business contributes to Binary Matching.
+
+✓ Power Business contributes to Binary Orbit.
+
+✓ Power Business contributes to Salary qualification.
+
+✓ Power Business generates NO Direct Income.
+
+✓ Binary genealogy remains intact.
+
+✓ Database passes all integrity checks.
+
+Return a final overall verdict:
+
+🟢 PRODUCTION VERIFIED – PASS
+
+or
+
+🔴 PRODUCTION FAILED – INVESTIGATION REQUIRED
+
+Do not make any further code changes. This is a verification and audit only.
