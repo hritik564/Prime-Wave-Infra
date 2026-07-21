@@ -1,0 +1,192 @@
+# CRITICAL HOTFIX — Level Income Percentage Validation
+
+A production bug has been discovered.
+
+A user invested $1,000.
+
+An upline received:
+
+Level 4 Income = $15
+
+which equals 1.5%.
+
+According to the current compensation plan, Level 4 should receive 1%.
+
+Expected payout:
+
+$10
+
+Actual payout:
+
+$15
+
+This is a financial production issue.
+
+--------------------------------------------------
+
+Do NOT make assumptions.
+
+Investigate using LIVE production data.
+
+--------------------------------------------------
+
+Verify:
+
+1.
+
+Locate the exact $1,000 investment.
+
+Return:
+
+- Investment ID
+- Investor
+- Timestamp
+
+2.
+
+Locate every income generated from this investment.
+
+Return:
+
+- Direct Income
+- Level Income
+- Binary
+- Orbit
+- Salary
+
+3.
+
+For every Level Income record return:
+
+- Recipient
+- Level
+- Percentage applied
+- Amount paid
+
+4.
+
+Identify where the percentage came from.
+
+Was it read from:
+
+- database configuration
+- seed data
+- constants
+- environment
+- hardcoded values
+
+Return the exact source.
+
+5.
+
+Inspect the level income calculation.
+
+Show:
+
+configured %
+
+actual %
+
+expected %
+
+6.
+
+If Level 4 used 1.5%
+
+Explain exactly WHY.
+
+Which file
+
+Which function
+
+Which variable
+
+Which database row
+
+caused 1.5% instead of 1%.
+
+7.
+
+Search the ENTIRE codebase for:
+
+1.5
+
+0.015
+
+LEVEL4
+
+level4
+
+LEVEL_INCOME
+
+level_income
+
+commission percentages
+
+Return every matching implementation.
+
+8.
+
+Verify every configured level percentage.
+
+Expected:
+
+Level 1 = 1%
+
+Level 2 = 1%
+
+Level 3 = 1%
+
+Level 4 = 1%
+
+Level 5 = 1%
+
+Return the actual production values.
+
+9.
+
+Check whether previous users have also been overpaid.
+
+Search the last 100 Level Income records.
+
+Report:
+
+Recipient
+
+Level
+
+Investment
+
+Expected
+
+Actual
+
+Difference
+
+10.
+
+If this is confirmed,
+
+prepare a HOTFIX.
+
+Do NOT deploy automatically.
+
+Show:
+
+Root cause
+
+Files changed
+
+Database changes (if any)
+
+Migration required (Yes/No)
+
+Regression risk
+
+--------------------------------------------------
+
+This investigation is HIGH PRIORITY.
+
+Do not provide assumptions.
+
+Provide database evidence and execution evidence for every conclusion.
