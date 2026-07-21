@@ -199,6 +199,19 @@ seedRouter.post("/seed", async (req, res) => {
   // ── Users, wallets, and admins in a single atomic transaction ─────────────
   // Investment creation is intentionally outside this transaction: createInvestment()
   // opens its own Prisma interactive transaction and cannot be nested.
+  // One SalaryBusinessSummary row per seeded user.
+  // Mirrors the Wallet seed pattern — skipDuplicates makes this idempotent.
+  const allBatches = [...batch1, ...batch2, ...batch3, ...batch4, ...batch5, ...batch6];
+  const now = new Date();
+  const salaryBusinessSummaries = allBatches.map((u) => ({
+    userId:           u.id,
+    directBusiness:   "0.00000000",
+    downlineBusiness: "0.00000000",
+    powerBusiness:    "0.00000000",
+    version:          1,
+    updatedAt:        now,
+  }));
+
   const txResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.user.createMany({ data: batch1, skipDuplicates: true });
     await tx.user.createMany({ data: batch2, skipDuplicates: true });
@@ -206,10 +219,11 @@ seedRouter.post("/seed", async (req, res) => {
     await tx.user.createMany({ data: batch4, skipDuplicates: true });
     await tx.user.createMany({ data: batch5, skipDuplicates: true });
     await tx.user.createMany({ data: batch6, skipDuplicates: true });
-    const { count: walletCount } = await tx.wallet.createMany({ data: wallets, skipDuplicates: true });
-    const { count: adminCount }  = await tx.admin.createMany({ data: admins,  skipDuplicates: true });
-    const userCount              = await tx.user.count();
-    return { userCount, walletCount, adminCount };
+    const { count: walletCount }               = await tx.wallet.createMany({ data: wallets,                  skipDuplicates: true });
+    const { count: adminCount }                = await tx.admin.createMany({  data: admins,                   skipDuplicates: true });
+    const { count: salaryBusinessSummaryCount} = await tx.salaryBusinessSummary.createMany({ data: salaryBusinessSummaries, skipDuplicates: true });
+    const userCount                            = await tx.user.count();
+    return { userCount, walletCount, adminCount, salaryBusinessSummaryCount };
   });
 
   // ── Investments via canonical service ──────────────────────────────────────

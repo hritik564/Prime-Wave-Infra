@@ -170,8 +170,11 @@ model User {
   levelIncomeSource   LevelIncome[] @relation("LevelIncomeSource")
 
   // Salary
-  salaryAchievements SalaryAchievement[]
-  salaryIncome       SalaryIncome[]
+  salaryAchievements           SalaryAchievement[]
+  salaryIncome                 SalaryIncome[]
+  salaryBusinessSummary        SalaryBusinessSummary?
+  salaryBusinessEvents         SalaryBusinessEvent[] @relation("SalaryBusinessEventUser")
+  salaryBusinessEventsAsSource SalaryBusinessEvent[] @relation("SalaryBusinessEventSource")
 
   // Deposits
   depositRequests    DepositRequest[]
@@ -593,10 +596,11 @@ model SalaryRankConfig {
   durationMonths   Int
   requiresDualDirects Boolean @default(false)
   allowSpill          Boolean @default(false)
-  powerLegRequired Decimal? @db.Decimal(18, 2)
-  weakLegRequired  Decimal? @db.Decimal(18, 2)
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
+  powerLegRequired  Decimal?                 @db.Decimal(18, 2)
+  weakLegRequired   Decimal?                 @db.Decimal(18, 2)
+  isActive          Boolean                  @default(true)
+  qualificationPool SalaryQualificationPool  @default(DIRECT_ONLY)
+  createdAt         DateTime                 @default(now())
 
   achievements SalaryAchievement[]
 
@@ -659,6 +663,64 @@ model SalaryIncome {
   @@index([year, month])
   @@index([createdAt])
   @@map("salary_income")
+}
+
+// ── Salary Business Summary ───────────────────────────────────────────────────
+//
+// 1-to-1 with User. Single source of truth for salary qualification counters.
+// Pattern mirrors the Wallet table — financial domain data lives in its own
+// table, not as columns on User.
+//
+// Counters are updated atomically via Prisma `increment` operators.
+// version is bumped on every write for optimistic-concurrency detection.
+// lastReconciledAt is set by the nightly drift-reconciliation cron.
+
+model SalaryBusinessSummary {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  directBusiness   Decimal   @default(0) @db.Decimal(18, 8)
+  downlineBusiness Decimal   @default(0) @db.Decimal(18, 8)
+  powerBusiness    Decimal   @default(0) @db.Decimal(18, 8)
+  lastReconciledAt DateTime?
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("salary_business_summary")
+}
+
+// ── Salary Business Event ─────────────────────────────────────────────────────
+//
+// Immutable audit trail for every salary pool delta.
+// NEVER update. NEVER delete.
+// Unique constraint (userId, pool, referenceId, eventType) ensures idempotency:
+// replaying an investment event cannot double-count a pool credit.
+
+model SalaryBusinessEvent {
+  id            String          @id @default(cuid())
+  userId        String
+  sourceUserId  String?
+  pool          SalaryPool
+  eventType     SalaryEventType
+  delta         Decimal         @db.Decimal(18, 8)
+  referenceId   String
+  referenceType String
+  depth         Int?
+  metadata      Json?
+  createdAt     DateTime        @default(now())
+
+  user       User  @relation("SalaryBusinessEventUser",   fields: [userId],       references: [id], onDelete: Restrict)
+  sourceUser User? @relation("SalaryBusinessEventSource", fields: [sourceUserId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, pool, referenceId, eventType])
+  @@index([userId])
+  @@index([sourceUserId])
+  @@index([referenceId])
+  @@index([createdAt])
+  @@map("salary_business_event")
 }
 
 // ── Company Wallets ───────────────────────────────────────────────────────────
@@ -1159,4 +1221,25 @@ model PowerBvLedger {
   @@index([adminId])
   @@index([createdAt])
   @@map("power_bv_ledger")
+}
+
+// ── Salary Engine Enums (Sprint 33D) ─────────────────────────────────────────
+
+enum SalaryPool {
+  DIRECT
+  DOWNLINE
+  POWER
+}
+
+enum SalaryEventType {
+  INVESTMENT_CREATED
+  INVESTMENT_CANCELLED
+  INVESTMENT_REFUNDED
+  POWER_BV_ADDED
+  POWER_BV_REMOVED
+}
+
+enum SalaryQualificationPool {
+  DIRECT_ONLY
+  ALL_BUSINESS
 }

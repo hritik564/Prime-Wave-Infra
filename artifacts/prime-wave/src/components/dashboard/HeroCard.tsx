@@ -1,4 +1,4 @@
-import { TrendingUp, Award, Target } from "lucide-react";
+  ₹import { TrendingUp, Award, Target } from "lucide-react";
 
 interface HeroCardProps {
   totalInvestment?:  string;

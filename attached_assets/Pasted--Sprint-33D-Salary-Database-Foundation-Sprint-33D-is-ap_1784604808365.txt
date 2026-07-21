@@ -1,0 +1,395 @@
+# Sprint 33D – Salary Database Foundation
+
+Sprint 33D is approved.
+
+This sprint establishes the database foundation for the new Salary Engine.
+
+⚠️ This is a DATABASE sprint only.
+
+Do NOT implement any salary business logic yet.
+
+Do NOT modify any existing compensation engine.
+
+No qualification logic.
+
+No scheduler changes.
+
+No API endpoints.
+
+No UI.
+
+No event propagation.
+
+Only create the new database structures required for future sprints.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Build the database foundation for the new Salary Engine architecture.
+
+The implementation must follow the approved Revision 2 architecture with the final architectural review.
+
+Salary is now its own bounded context.
+
+Salary business counters must NOT live on the User table.
+
+--------------------------------------------------
+DATABASE MODEL
+--------------------------------------------------
+
+Create a new table:
+
+SalaryBusinessSummary
+
+Structure:
+
+id
+
+userId
+
+directBusiness
+
+downlineBusiness
+
+powerBusiness
+
+lastReconciledAt
+
+version
+
+createdAt
+
+updatedAt
+
+Requirements:
+
+userId
+
+• Foreign Key → User
+
+• Unique
+
+• One-to-one relationship
+
+Business columns:
+
+Decimal(18,8)
+
+Default = 0
+
+version
+
+Int
+
+Default = 1
+
+lastReconciledAt
+
+Nullable DateTime
+
+createdAt
+
+updatedAt
+
+Standard timestamps.
+
+--------------------------------------------------
+USER RELATION
+--------------------------------------------------
+
+Add ONLY the relation:
+
+salaryBusinessSummary
+
+to User.
+
+Do NOT add:
+
+salaryDirectBusiness
+
+salaryDownlineBusiness
+
+salaryPowerBusiness
+
+The User table must remain free of salary counters.
+
+--------------------------------------------------
+SALARY BUSINESS EVENT
+--------------------------------------------------
+
+Create:
+
+SalaryBusinessEvent
+
+Fields:
+
+id
+
+userId
+
+sourceUserId
+
+pool
+
+eventType
+
+delta
+
+referenceId
+
+referenceType
+
+depth
+
+metadata
+
+createdAt
+
+Relationships:
+
+user
+
+sourceUser
+
+Indexes:
+
+userId
+
+sourceUserId
+
+referenceId
+
+createdAt
+
+Unique constraint:
+
+(userId, pool, referenceId, eventType)
+
+Enums:
+
+SalaryPool
+
+DIRECT
+
+DOWNLINE
+
+POWER
+
+SalaryEventType
+
+INVESTMENT_CREATED
+
+INVESTMENT_CANCELLED
+
+INVESTMENT_REFUNDED
+
+POWER_BV_ADDED
+
+POWER_BV_REMOVED
+
+Immutable table.
+
+Never update.
+
+Never delete.
+
+--------------------------------------------------
+SALARY RANK CONFIG
+--------------------------------------------------
+
+Add:
+
+qualificationPool
+
+to SalaryRankConfig.
+
+Enum:
+
+SalaryQualificationPool
+
+DIRECT_ONLY
+
+ALL_BUSINESS
+
+Existing fields remain unchanged for now.
+
+Do NOT remove:
+
+powerLegRequired
+
+weakLegRequired
+
+They will be deprecated later.
+
+--------------------------------------------------
+RELATIONSHIPS
+--------------------------------------------------
+
+Final salary domain should become:
+
+User
+
+↓
+
+SalaryBusinessSummary
+
+↓
+
+SalaryBusinessEvent
+
+↓
+
+SalaryAchievement
+
+↓
+
+SalaryIncome
+
+--------------------------------------------------
+MIGRATION
+--------------------------------------------------
+
+Migration must be additive.
+
+No destructive SQL.
+
+No table drops.
+
+No column removals.
+
+No data deletion.
+
+Create one SalaryBusinessSummary row for every existing user.
+
+All counters:
+
+0.00000000
+
+version:
+
+1
+
+lastReconciledAt:
+
+NULL
+
+Migration must be idempotent.
+
+Running it twice must not create duplicate summary rows.
+
+--------------------------------------------------
+SEED UPDATE
+--------------------------------------------------
+
+Update SalaryRankConfig seed.
+
+Bronze
+
+DIRECT_ONLY
+
+Silver
+
+DIRECT_ONLY
+
+Gold
+
+DIRECT_ONLY
+
+Platinum
+
+ALL_BUSINESS
+
+Sapphire
+
+ALL_BUSINESS
+
+Ruby
+
+ALL_BUSINESS
+
+Emerald
+
+ALL_BUSINESS
+
+Do NOT modify any existing business thresholds.
+
+--------------------------------------------------
+DO NOT TOUCH
+--------------------------------------------------
+
+Do NOT modify:
+
+Binary Matching
+
+Binary Orbit
+
+Power BV
+
+Salary Qualification
+
+Salary Scheduler
+
+Investments
+
+Wallets
+
+Member Dashboard
+
+Admin UI
+
+API routes
+
+Cron jobs
+
+Business propagation
+
+No existing business logic should change.
+
+--------------------------------------------------
+VALIDATION
+--------------------------------------------------
+
+Verify:
+
+✓ Every user has exactly one SalaryBusinessSummary.
+
+✓ Decimal precision is 18,8.
+
+✓ All foreign keys valid.
+
+✓ Enums generated correctly.
+
+✓ Prisma generate succeeds.
+
+✓ Migration succeeds.
+
+✓ Existing data untouched.
+
+✓ Seed executes successfully.
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1. Updated Prisma schema.
+
+2. Migration summary.
+
+3. Database ER diagram.
+
+4. Tables created.
+
+5. Relations created.
+
+6. Seed updates.
+
+7. Confirmation that no existing business logic changed.
+
+8. Confirmation that the project compiles successfully after the migration.
+
+Do NOT begin Sprint 33E.
+
+Wait for approval before implementing salary business services.
