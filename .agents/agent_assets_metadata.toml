@@ -54,3 +54,9 @@ id = "BgEhjO_b7jXyL2jPa-rCH"
 uri = "file://artifacts/api-server/docs/salary-architecture-33c.md"
 type = "text"
 title = "Sprint 33C — Salary Engine Architecture & Data Flow"
+
+[[outputs]]
+id = "QVQ4HBOaSY9hV8tF_w6Bc"
+uri = "file://artifacts/api-server/docs/salary-architecture-33c-r2.md"
+type = "text"
+title = "Sprint 33C Revision 2 — Salary Engine Architecture"

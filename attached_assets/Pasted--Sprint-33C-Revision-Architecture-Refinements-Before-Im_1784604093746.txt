@@ -1,0 +1,170 @@
+# Sprint 33C Revision – Architecture Refinements (Before Implementation)
+
+The Salary Engine Architecture has been reviewed and approved in principle.
+
+Before we begin Sprint 33D (database implementation), make the following architectural refinements.
+
+These changes are intended to simplify the design, reduce duplicated state, and improve long-term maintainability.
+
+No production implementation yet—only update the architecture and future implementation plan accordingly.
+
+--------------------------------------------------
+1. REMOVE DUPLICATED UNLOCK STATE
+--------------------------------------------------
+
+The current proposal introduces:
+
+- salaryTeamUnlocked
+- salaryGoldAchievedAt
+
+These should NOT be added.
+
+Reason:
+
+The existing SalaryAchievement table already contains the source of truth.
+
+If a user has achieved Gold, the unlock state can be determined directly from:
+
+- SalaryAchievement.rankName = "Gold"
+- SalaryAchievement.achievedAt
+
+Do not duplicate this information on the User table.
+
+Update the architecture so that unlock status is derived from existing SalaryAchievement records rather than stored separately.
+
+--------------------------------------------------
+2. RENAME TEAM BUSINESS
+--------------------------------------------------
+
+Rename:
+
+salaryTeamBusiness
+
+to:
+
+salaryDownlineBusiness
+
+Reason:
+
+"Downline Business" is more precise.
+
+Business pools should become:
+
+- salaryDirectBusiness
+- salaryDownlineBusiness
+- salaryPowerBusiness
+
+Update:
+
+- database design
+- architecture document
+- event flow
+- qualification examples
+- UI mockups
+- implementation plan
+
+Use the new naming consistently throughout the project.
+
+--------------------------------------------------
+3. FUTURE-PROOF QUALIFICATION POOLS
+--------------------------------------------------
+
+Current proposal:
+
+DIRECT_ONLY
+
+DIRECT_AND_UNLOCKED
+
+Replace with:
+
+DIRECT_ONLY
+
+ALL_BUSINESS
+
+Reason:
+
+The unlock condition should not be encoded into the enum.
+
+The qualification engine should determine when ALL_BUSINESS becomes available based on business rules (currently Gold achievement).
+
+This keeps the schema reusable if qualification rules change in the future.
+
+Update SalaryRankConfig examples accordingly.
+
+--------------------------------------------------
+4. ADD SALARY SUMMARY API
+--------------------------------------------------
+
+Introduce a dedicated backend endpoint.
+
+Example:
+
+GET /api/salary/summary
+
+The endpoint should return a fully computed salary qualification summary.
+
+Suggested response:
+
+{
+  "currentRank": "...",
+  "directBusiness": 0,
+  "downlineBusiness": 0,
+  "powerBusiness": 0,
+  "effectiveBusiness": 0,
+  "unlockStatus": false,
+  "nextRank": "...",
+  "requiredBusiness": 0,
+  "remainingBusiness": 0
+}
+
+The frontend should consume this API rather than calculating qualification state itself.
+
+The response should contain everything required to render the Salary dashboard.
+
+--------------------------------------------------
+5. KEEP EXISTING RECOMMENDATIONS
+--------------------------------------------------
+
+Retain the following architecture exactly as proposed:
+
+✓ Sponsor-chain propagation
+
+✓ Incremental counters
+
+✓ SalaryBusinessEvent immutable audit log
+
+✓ Nightly reconciliation
+
+✓ Counter-based qualification
+
+✓ One-way unlock behaviour
+
+✓ Power Business does not propagate
+
+✓ Additive migration strategy
+
+✓ Existing SalaryAchievement and SalaryIncome models
+
+These remain approved.
+
+--------------------------------------------------
+6. UPDATED DELIVERABLE
+--------------------------------------------------
+
+Return:
+
+1. Updated architecture document.
+
+2. Revised database schema.
+
+3. Revised event flow diagrams.
+
+4. Updated qualification engine logic.
+
+5. Updated API specification.
+
+6. Updated implementation roadmap for Sprint 33D onward.
+
+Do not begin implementation yet.
+
+Wait for approval before creating migrations or modifying production code.
