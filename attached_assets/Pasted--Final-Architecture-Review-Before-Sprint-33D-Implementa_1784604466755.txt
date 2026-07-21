@@ -1,0 +1,153 @@
+# Final Architecture Review – Before Sprint 33D Implementation
+
+The Salary Engine Architecture (Revision 2) has been reviewed and is approved in principle.
+
+Before we begin Sprint 33D (database implementation), perform one final architectural review and evaluate the following recommendation.
+
+Do NOT begin implementation yet.
+
+This is the final design validation before production development.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Review whether the salary business counters should remain on the User table or be moved into a dedicated SalaryBusinessSummary table.
+
+We want the cleanest long-term architecture, not simply the easiest implementation.
+
+--------------------------------------------------
+CURRENT PROPOSAL
+--------------------------------------------------
+
+The current design stores:
+
+salaryDirectBusiness
+
+salaryDownlineBusiness
+
+salaryPowerBusiness
+
+directly on the User table.
+
+This was chosen for O(1) reads and simple updates.
+
+--------------------------------------------------
+PROPOSED ALTERNATIVE
+--------------------------------------------------
+
+Instead of storing salary counters on User, create a dedicated table.
+
+Example:
+
+SalaryBusinessSummary
+
+---------------------------------
+
+userId (PK / FK -> User)
+
+directBusiness
+
+downlineBusiness
+
+powerBusiness
+
+updatedAt
+
+---------------------------------
+
+This table becomes the single source of truth for all salary business counters.
+
+Salary-related models would then become:
+
+User
+
+↓
+
+SalaryBusinessSummary
+
+↓
+
+SalaryBusinessEvent
+
+↓
+
+SalaryAchievement
+
+↓
+
+SalaryIncome
+
+This keeps the salary domain isolated from the core User model.
+
+--------------------------------------------------
+REVIEW REQUIRED
+--------------------------------------------------
+
+Evaluate both approaches objectively.
+
+Option A
+
+Salary counters on User.
+
+Option B
+
+Dedicated SalaryBusinessSummary table.
+
+For each option discuss:
+
+1. Read performance
+
+2. Write performance
+
+3. Transaction complexity
+
+4. Database normalization
+
+5. Future scalability
+
+6. Maintainability
+
+7. Separation of concerns
+
+8. Migration complexity
+
+9. Reporting and analytics
+
+10. Long-term architecture
+
+Do not automatically prefer either option.
+
+Recommend whichever is genuinely better for PrimeWave.
+
+--------------------------------------------------
+IMPORTANT
+--------------------------------------------------
+
+If you believe the current User-table approach is technically superior, explain why and keep it.
+
+If you believe the dedicated SalaryBusinessSummary table is superior, recommend migrating to it before Sprint 33D.
+
+The decision should be based on engineering best practices, maintainability, scalability, and future product evolution—not implementation effort.
+
+--------------------------------------------------
+OUTPUT
+--------------------------------------------------
+
+Return:
+
+1. A detailed comparison of both approaches.
+
+2. Your recommendation.
+
+3. The reasoning behind that recommendation.
+
+4. If you recommend changing the architecture, provide the revised database diagram.
+
+5. Confirm whether any previously approved architecture documents need updating.
+
+Do NOT create migrations.
+
+Do NOT modify code.
+
+Do NOT begin Sprint 33D until this review has been completed and approved.

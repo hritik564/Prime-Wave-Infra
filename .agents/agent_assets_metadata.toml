@@ -60,3 +60,9 @@ id = "QVQ4HBOaSY9hV8tF_w6Bc"
 uri = "file://artifacts/api-server/docs/salary-architecture-33c-r2.md"
 type = "text"
 title = "Sprint 33C Revision 2 — Salary Engine Architecture"
+
+[[outputs]]
+id = "eLO5--5siMcQWOImPxjON"
+uri = "file://artifacts/api-server/docs/salary-architecture-33c-r3.md"
+type = "text"
+title = "Sprint 33C Revision 3 — Final Architecture Review"
