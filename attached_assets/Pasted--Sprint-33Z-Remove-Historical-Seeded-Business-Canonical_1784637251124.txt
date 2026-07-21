@@ -1,0 +1,154 @@
+# Sprint 33Z – Remove Historical Seeded Business & Canonicalize Power Business
+
+This sprint removes the historical demo/read-only seeded business volume that was introduced for the early network demonstration.
+
+From this point forward, manually awarded business must ONLY originate from the Admin Power Business system.
+
+No fake deposits.
+
+No seeded placeholder investments.
+
+No hidden reporting-only business.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Remove all historical demo seed business from production.
+
+Replace its purpose with the existing Admin Power Business system.
+
+--------------------------------------------------
+BUSINESS RULE
+--------------------------------------------------
+
+Admin Power Business represents manually granted business volume.
+
+It SHALL:
+
+✓ Contribute to Binary Matching.
+
+✓ Contribute to Binary Orbit.
+
+✓ Contribute to Salary qualification (when eligible).
+
+✓ Appear in Network Intelligence.
+
+✓ Appear in Salary Center.
+
+✓ Be fully auditable.
+
+It SHALL NOT:
+
+✗ Generate Direct Referral Income.
+
+✗ Create fake deposits.
+
+✗ Create fake investments.
+
+✗ Create wallet transactions pretending to be deposits.
+
+--------------------------------------------------
+STEP 1 – IDENTIFY DEMO SEEDS
+--------------------------------------------------
+
+Locate every deposit/account created solely for the historical demo.
+
+Produce a report including:
+
+- User
+- Deposit ID
+- Amount
+- Approval date
+- Binary placement
+- Reason classified as demo seed
+
+--------------------------------------------------
+STEP 2 – REMOVE DEMO SEEDS
+--------------------------------------------------
+
+Delete or safely reverse every demo seed.
+
+Remove any derived reporting data generated solely from those demo seeds.
+
+Preserve genuine member deposits.
+
+--------------------------------------------------
+STEP 3 – RECALCULATE
+--------------------------------------------------
+
+Rebuild:
+
+- Binary Team Business
+- Left Business
+- Right Business
+- Matching availability
+- Orbit qualification
+
+using only genuine production activity plus Power Business.
+
+--------------------------------------------------
+STEP 4 – POWER BUSINESS VERIFICATION
+--------------------------------------------------
+
+Verify that Power Business now participates in:
+
+✓ Binary Matching
+
+✓ Binary Orbit
+
+✓ Salary qualification
+
+and does NOT generate:
+
+✗ Direct Referral Income
+
+--------------------------------------------------
+STEP 5 – AUDIT
+--------------------------------------------------
+
+Confirm that every manually awarded business can be traced to an Admin Power Business record.
+
+There should be no remaining hidden or seeded business.
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1. Demo seed accounts identified.
+
+2. Demo seed deposits removed.
+
+3. Binary totals before/after.
+
+4. Matching totals before/after.
+
+5. Orbit totals before/after.
+
+6. Salary impact before/after.
+
+7. Verification that Direct Income is unaffected.
+
+8. Final PASS/FAIL.
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+PASS only if:
+
+✓ No historical demo seed business remains.
+
+✓ Network Intelligence reflects only genuine deposits plus Admin Power Business.
+
+✓ Binary Matching recognises Admin Power Business.
+
+✓ Binary Orbit recognises Admin Power Business.
+
+✓ Salary engine recognises Admin Power Business.
+
+✓ Direct Income ignores Admin Power Business.
+
+✓ Every manual business adjustment is auditable through the Admin Power Business system.
