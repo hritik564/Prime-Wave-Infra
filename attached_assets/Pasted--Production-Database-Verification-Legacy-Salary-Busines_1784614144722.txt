@@ -1,0 +1,184 @@
+# Production Database Verification – Legacy Salary Business Cleanup
+
+This is a verification task only.
+
+Do NOT modify business logic.
+
+Do NOT introduce new features.
+
+Do NOT refactor any code.
+
+The objective is to confirm that the production database has been fully migrated to the new SalaryBusinessSummary architecture and that all obsolete salary business fields have been removed.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Verify that the production database no longer contains any legacy salary business volume fields that were used by the previous salary implementation.
+
+SalaryBusinessSummary must now be the ONLY source of salary qualification business.
+
+--------------------------------------------------
+VERIFY DATABASE SCHEMA
+--------------------------------------------------
+
+Inspect the production database schema.
+
+Identify every column, table and index related to salary business.
+
+Specifically verify whether any of the following legacy fields still exist on the User table (or equivalent member table):
+
+• selfBusiness
+• teamBusiness
+• salaryBusiness
+• salaryTeamBusiness
+• readOnlyBusiness
+• readOnlyTeamBusiness
+
+Also inspect for any similarly named legacy fields.
+
+Return the complete list.
+
+--------------------------------------------------
+VERIFY APPLICATION QUERIES
+--------------------------------------------------
+
+Search the entire backend.
+
+Confirm that no repository, service, controller, API or Prisma query still reads or writes any legacy salary business field.
+
+Confirm that every salary qualification calculation now reads exclusively from:
+
+SalaryBusinessSummary
+
+--------------------------------------------------
+VERIFY FRONTEND
+--------------------------------------------------
+
+Search the frontend.
+
+Confirm there are no remaining UI components displaying:
+
+Legacy Business Volume
+
+Legacy Team Business
+
+Read-only Team Business
+
+Old Salary Business
+
+If any legacy labels still exist, list every location.
+
+--------------------------------------------------
+VERIFY PRISMA SCHEMA
+--------------------------------------------------
+
+Inspect schema.prisma.
+
+Confirm:
+
+No legacy salary business columns remain.
+
+SalaryBusinessSummary is the canonical model.
+
+No obsolete relations remain.
+
+--------------------------------------------------
+VERIFY DATABASE MIGRATIONS
+--------------------------------------------------
+
+Inspect the migration history.
+
+Confirm:
+
+The migration removing the legacy salary business fields exists.
+
+If no migration exists:
+
+State exactly which columns still need to be removed.
+
+Generate the required Prisma migration.
+
+--------------------------------------------------
+PRODUCTION VERIFICATION
+--------------------------------------------------
+
+If connected to the production database:
+
+Confirm:
+
+✓ Legacy columns removed
+
+✓ No orphan indexes
+
+✓ No triggers
+
+✓ No views
+
+✓ No stored procedures referencing legacy fields
+
+If any legacy object still exists, list it.
+
+--------------------------------------------------
+POST VERIFICATION
+--------------------------------------------------
+
+Return:
+
+1.
+
+Legacy salary business columns found.
+
+2.
+
+Legacy tables found.
+
+3.
+
+Legacy indexes found.
+
+4.
+
+Legacy queries found.
+
+5.
+
+Legacy frontend references found.
+
+6.
+
+Migration status.
+
+7.
+
+Production database status.
+
+8.
+
+Final verdict:
+
+PASS
+
+or
+
+FAIL
+
+--------------------------------------------------
+PASS CRITERIA
+--------------------------------------------------
+
+PASS only if:
+
+✓ SalaryBusinessSummary is the sole salary business source.
+
+✓ No legacy database fields remain.
+
+✓ No legacy queries remain.
+
+✓ No frontend references remain.
+
+✓ No migration is pending.
+
+If PASS:
+
+Confirm that the production database is fully aligned with the new compensation architecture and ready for Sprint 33X – Salary Progress & Visualization.
