@@ -536,8 +536,14 @@ function BusinessOverviewCard({ legBreakdown, teamBusiness, loading }: { legBrea
   const leftBusiness  = Number(teamBusiness?.leftBusiness  ?? 0);
   const rightBusiness = Number(teamBusiness?.rightBusiness ?? 0);
   const totalBusiness = Number(teamBusiness?.totalBusiness ?? 0);
-  const carryLeft  = Number(legBreakdown?.carryForwardLeft  ?? 0);
-  const carryRight = Number(legBreakdown?.carryForwardRight ?? 0);
+  const carryLeft   = Number(legBreakdown?.carryForwardLeft  ?? 0);
+  const carryRight  = Number(legBreakdown?.carryForwardRight ?? 0);
+  // Power BV — included in all bonus engines (Sprint 34A)
+  const powerLeft   = Number(legBreakdown?.powerLeftBV  ?? 0);
+  const powerRight  = Number(legBreakdown?.powerRightBV ?? 0);
+  // Effective BV = organic carry-forward + power
+  const effectLeft  = carryLeft  + powerLeft;
+  const effectRight = carryRight + powerRight;
   const totalMax = Math.max(leftBusiness, rightBusiness, 1);
 
   return (
@@ -567,9 +573,22 @@ function BusinessOverviewCard({ legBreakdown, teamBusiness, loading }: { legBrea
           <div className="h-1.5 w-full rounded-full overflow-hidden mt-2" style={{ background: "rgba(255,255,255,0.08)" }}>
             <div className="h-full rounded-full" style={{ width: `${(leftBusiness / totalMax) * 100}%`, background: "linear-gradient(90deg,#3b82f6,#60a5fa)" }} />
           </div>
-          <p className="text-[10px] mt-1.5" style={{ color: "hsl(var(--muted-foreground))" }}>
-            Carry Fwd (BV): {loading ? "—" : carryLeft.toFixed(0)}
-          </p>
+          {/* BV breakdown — Sprint 34A: organic carry-fwd + power */}
+          {!loading && (
+            <div className="mt-2 space-y-0.5">
+              <div className="flex justify-between text-[9px]" style={{ color: "hsl(var(--muted-foreground))" }}>
+                <span>Organic BV</span><span>{carryLeft.toFixed(0)}</span>
+              </div>
+              {powerLeft > 0 && (
+                <div className="flex justify-between text-[9px]" style={{ color: "rgba(245,158,11,0.75)" }}>
+                  <span>Power BV</span><span>+{powerLeft.toFixed(0)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-[9px] font-semibold" style={{ color: "#60a5fa", borderTop: "1px solid rgba(96,165,250,0.12)", paddingTop: 2 }}>
+                <span>Total Effective BV</span><span>{effectLeft.toFixed(0)}</span>
+              </div>
+            </div>
+          )}
         </div>
         <div className="rounded-xl p-3" style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.18)" }}>
           <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "#a78bfa" }}>Right Business</p>
@@ -577,14 +596,27 @@ function BusinessOverviewCard({ legBreakdown, teamBusiness, loading }: { legBrea
           <div className="h-1.5 w-full rounded-full overflow-hidden mt-2" style={{ background: "rgba(255,255,255,0.08)" }}>
             <div className="h-full rounded-full" style={{ width: `${(rightBusiness / totalMax) * 100}%`, background: "linear-gradient(90deg,#a78bfa,#7c3aed)" }} />
           </div>
-          <p className="text-[10px] mt-1.5" style={{ color: "hsl(var(--muted-foreground))" }}>
-            Carry Fwd (BV): {loading ? "—" : carryRight.toFixed(0)}
-          </p>
+          {/* BV breakdown — Sprint 34A: organic carry-fwd + power */}
+          {!loading && (
+            <div className="mt-2 space-y-0.5">
+              <div className="flex justify-between text-[9px]" style={{ color: "hsl(var(--muted-foreground))" }}>
+                <span>Organic BV</span><span>{carryRight.toFixed(0)}</span>
+              </div>
+              {powerRight > 0 && (
+                <div className="flex justify-between text-[9px]" style={{ color: "rgba(245,158,11,0.75)" }}>
+                  <span>Power BV</span><span>+{powerRight.toFixed(0)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-[9px] font-semibold" style={{ color: "#a78bfa", borderTop: "1px solid rgba(167,139,250,0.12)", paddingTop: 2 }}>
+                <span>Total Effective BV</span><span>{effectRight.toFixed(0)}</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       <p className="text-[10px] mt-3" style={{ color: "hsl(var(--muted-foreground))" }}>
-        Business reflects the sum of active investments in each leg. BV shown separately for matching income calculations.
+        Team Business is the sum of active investments in each leg. Power Business is included in BV and participates in Binary Matching, Binary Orbit, Salary and Rank calculations.
       </p>
     </div>
   );

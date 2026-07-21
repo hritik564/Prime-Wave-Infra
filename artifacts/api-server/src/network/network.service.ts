@@ -88,7 +88,7 @@ export async function getNetworkStats(userId: string) {
 export async function getLegBreakdown(userId: string) {
   const user = await prisma.user.findUnique({
     where:  { id: userId },
-    select: { leftBV: true, rightBV: true, directReferralCount: true },
+    select: { leftBV: true, rightBV: true, powerLeftBV: true, powerRightBV: true, directReferralCount: true },
   });
   if (!user) throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "NOT_FOUND");
 
@@ -142,8 +142,13 @@ export async function getLegBreakdown(userId: string) {
       : Promise.resolve(0),
   ]);
 
-  const leftBV  = Number(user.leftBV);
-  const rightBV = Number(user.rightBV);
+  const leftBV      = Number(user.leftBV);
+  const rightBV     = Number(user.rightBV);
+  const powerLeftBV = Number(user.powerLeftBV);
+  const powerRightBV = Number(user.powerRightBV);
+  // Effective BV = Organic + Power (used by all bonus engines)
+  const effectiveLeftBV  = leftBV  + powerLeftBV;
+  const effectiveRightBV = rightBV + powerRightBV;
 
   const leftBusiness  = Number(leftBusinessAgg._sum.amount  ?? 0);
   const rightBusiness = Number(rightBusinessAgg._sum.amount ?? 0);
@@ -156,12 +161,18 @@ export async function getLegBreakdown(userId: string) {
     rightActiveCount,
     leftBV:          leftBV.toFixed(2),
     rightBV:         rightBV.toFixed(2),
+    powerLeftBV:     powerLeftBV.toFixed(2),
+    powerRightBV:    powerRightBV.toFixed(2),
+    effectiveLeftBV: effectiveLeftBV.toFixed(2),
+    effectiveRightBV: effectiveRightBV.toFixed(2),
     leftInvestments,
     rightInvestments,
     leftWeeklyNew,
     rightWeeklyNew,
-    powerLeg:        leftBV >= rightBV ? "LEFT" : "RIGHT",
-    weakLeg:         leftBV <  rightBV ? "LEFT" : "RIGHT",
+    // powerLeg/weakLeg now derived from effective BV (organic + power) so they
+    // reflect actual bonus-engine behaviour.
+    powerLeg:        effectiveLeftBV >= effectiveRightBV ? "LEFT" : "RIGHT",
+    weakLeg:         effectiveLeftBV <  effectiveRightBV ? "LEFT" : "RIGHT",
     carryForwardLeft:  Number(lastMatch?.carryForwardLeft  ?? 0).toFixed(2),
     carryForwardRight: Number(lastMatch?.carryForwardRight ?? 0).toFixed(2),
     directReferrals: user.directReferralCount,

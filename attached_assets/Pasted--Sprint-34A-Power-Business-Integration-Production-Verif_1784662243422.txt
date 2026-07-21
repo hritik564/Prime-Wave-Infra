@@ -1,0 +1,277 @@
+# Sprint 34A — Power Business Integration & Production Verification
+
+Sprint Goal
+
+Power Business should behave exactly like normal Team Business throughout the platform except for ONE rule:
+
+Power Business MUST NEVER generate Direct Referral Income or Level Income.
+
+For all other business calculations, it should behave exactly like organic business.
+
+This sprint must verify production behaviour and align the UI.
+
+Do NOT change any investment, payout or compensation percentages.
+
+--------------------------------------------------
+BUSINESS RULES
+--------------------------------------------------
+
+Power Business is virtual business assigned by Super Admin.
+
+Once assigned, it should behave exactly like normal Team Business.
+
+Power Business MUST contribute to:
+
+✓ Team Business
+
+✓ Left Team Business
+
+✓ Right Team Business
+
+✓ Binary Matching
+
+✓ Binary Orbit
+
+✓ Salary Qualification
+
+✓ Rank Qualification
+
+✓ Business Progress
+
+✓ Matching Calculations
+
+✓ BV Flush
+
+✓ Carry Forward
+
+Power Business MUST NOT contribute to:
+
+✗ Direct Referral Income
+
+✗ Level Income
+
+Direct and Level Income must always be generated only from real investments.
+
+--------------------------------------------------
+PART 1 — Production Verification
+--------------------------------------------------
+
+Using Mahakal (or another suitable production member):
+
+Current example:
+
+Organic Left BV = 0
+
+Organic Right BV = 5
+
+Assign:
+
+Left Power BV = 200
+
+Run one Binary Matching cycle.
+
+Verify:
+
+✓ Team Business immediately increases.
+
+✓ Left Team Business increases.
+
+✓ Matching candidate generated.
+
+✓ computeBVFlush() executes.
+
+✓ Matched BV = 5.
+
+✓ Organic Right BV becomes 0.
+
+✓ Power Left BV becomes 195.
+
+✓ Matching Income credited.
+
+✓ Wallet updated.
+
+✓ Binary Orbit updated correctly.
+
+✓ Salary business updated correctly.
+
+Return database evidence.
+
+--------------------------------------------------
+PART 2 — Team Business Integration
+--------------------------------------------------
+
+Power Business must be included inside Team Business.
+
+Update all Team Business calculations so that:
+
+Team Business = Organic Business + Power Business
+
+Update every page where Team Business is displayed.
+
+Examples include (not limited to):
+
+• Member Dashboard
+
+• Admin User Details
+
+• Network Tree
+
+• Business Summary
+
+• Rank Progress
+
+• Binary Pages
+
+• Team Statistics
+
+Ensure every Team Business number is consistent throughout the application.
+
+--------------------------------------------------
+PART 3 — Business Breakdown
+--------------------------------------------------
+
+Although Team Business now includes Power Business,
+
+keep a detailed breakdown available.
+
+Display:
+
+Organic Left BV
+
+Organic Right BV
+
+Power Left BV
+
+Power Right BV
+
+Total Left BV
+
+Total Right BV
+
+Administrators must always be able to distinguish between:
+
+Organic Business
+
+Power Business
+
+Combined Business
+
+--------------------------------------------------
+PART 4 — Remove Incorrect Messaging
+--------------------------------------------------
+
+Remove the outdated message:
+
+"Effective BV is display only — bonus engines do not use Power BV yet."
+
+Replace it with:
+
+"Power Business is included in Team Business and participates in Binary Matching, Binary Orbit, Salary and Rank calculations. Direct Referral Income and Level Income are generated only from real investments."
+
+--------------------------------------------------
+PART 5 — Admin Ledger
+--------------------------------------------------
+
+Retain the complete audit trail.
+
+For every Power Business action record:
+
+Timestamp
+
+Administrator
+
+Target User
+
+Left / Right
+
+Amount
+
+Reason
+
+Running Balance
+
+No ledger functionality should be removed.
+
+--------------------------------------------------
+PART 6 — Regression Verification
+--------------------------------------------------
+
+Verify that after Team Business includes Power Business:
+
+✓ Binary Matching still works.
+
+✓ Binary Orbit still works.
+
+✓ Salary calculations still work.
+
+✓ Rank calculations still work.
+
+✓ Carry Forward still works.
+
+✓ BV Flush still works.
+
+✓ Direct Referral Income remains based only on investments.
+
+✓ Level Income remains based only on investments.
+
+--------------------------------------------------
+PART 7 — No Functional Changes Outside Scope
+--------------------------------------------------
+
+Do NOT modify:
+
+Investment processing
+
+Deposit approval
+
+Withdrawal logic
+
+ROI engine
+
+Binary payout percentages
+
+Level percentages
+
+Direct percentages
+
+Wallet logic
+
+Only integrate Power Business into Team Business and verify that all compensation engines continue behaving correctly.
+
+--------------------------------------------------
+FINAL REPORT
+--------------------------------------------------
+
+Provide:
+
+1. Before/After Team Business values.
+
+2. Before/After Power Business values.
+
+3. Before/After Binary Matching.
+
+4. Before/After BV Flush.
+
+5. Wallet evidence.
+
+6. Database evidence.
+
+7. Updated UI screenshots.
+
+8. Confirmation that:
+
+• Team Business now includes Power Business.
+
+• Direct Referral Income ignores Power Business.
+
+• Level Income ignores Power Business.
+
+• Binary Matching uses Power Business.
+
+• Binary Orbit uses Power Business.
+
+• Salary uses Power Business.
+
+• Rank calculations use Power Business.
+
+Mark the sprint PASS only if all production verification succeeds.

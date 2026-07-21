@@ -1479,6 +1479,12 @@ export interface LegBreakdown {
   rightActiveCount: number;
   leftBV:           string;
   rightBV:          string;
+  // Power BV — admin-assigned; included in all bonus engines (Sprint 34A)
+  powerLeftBV:      string;
+  powerRightBV:     string;
+  // Effective BV = Organic + Power (what the bonus engines actually use)
+  effectiveLeftBV:  string;
+  effectiveRightBV: string;
   leftInvestments:  number;
   rightInvestments: number;
   leftWeeklyNew:    number;

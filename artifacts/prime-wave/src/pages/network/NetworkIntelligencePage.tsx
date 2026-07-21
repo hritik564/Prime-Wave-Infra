@@ -770,8 +770,9 @@ export default function NetworkIntelligencePage() {
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const totalPages  = Math.max(1, Math.ceil(memberTotal / 5));
-  const leftBV      = Number(bvSummary?.leftBV  ?? stats?.leftBV  ?? 0);
-  const rightBV     = Number(bvSummary?.rightBV ?? stats?.rightBV ?? 0);
+  // Effective BV = organic + power — use legBreakdown when available (Sprint 34A), fall back to bvSummary
+  const leftBV      = Number(legBreakdown?.effectiveLeftBV  ?? bvSummary?.leftBV  ?? stats?.leftBV  ?? 0);
+  const rightBV     = Number(legBreakdown?.effectiveRightBV ?? bvSummary?.rightBV ?? stats?.rightBV ?? 0);
   const totalBV     = leftBV + rightBV;
   const leftPct     = totalBV > 0 ? (leftBV  / totalBV) * 100 : 50;
   const rightPct    = totalBV > 0 ? (rightBV / totalBV) * 100 : 50;
@@ -951,7 +952,9 @@ export default function NetworkIntelligencePage() {
                 const members  = isLeft ? (legBreakdown?.leftMembers ?? stats?.leftTeam ?? 0) : (legBreakdown?.rightMembers ?? stats?.rightTeam ?? 0);
                 const activeCount = Number(isLeft ? (legBreakdown?.leftActiveCount ?? 0) : (legBreakdown?.rightActiveCount ?? 0));
                 const inactiveCount = Math.max(0, Number(members) - activeCount);
-                const carryFwd = Number(isLeft ? (legBreakdown?.carryForwardLeft ?? 0) : (legBreakdown?.carryForwardRight ?? 0));
+                const carryFwd  = Number(isLeft ? (legBreakdown?.carryForwardLeft ?? 0) : (legBreakdown?.carryForwardRight ?? 0));
+                const powerBV   = Number(isLeft ? (legBreakdown?.powerLeftBV    ?? 0) : (legBreakdown?.powerRightBV    ?? 0));
+                const totalBVLeg = carryFwd + powerBV;
                 const isStrong = leftBusinessTotal !== rightBusinessTotal && business === Math.max(leftBusinessTotal, rightBusinessTotal);
                 const isWeak   = leftBusinessTotal !== rightBusinessTotal && business === Math.min(leftBusinessTotal, rightBusinessTotal);
                 return (
@@ -970,11 +973,13 @@ export default function NetworkIntelligencePage() {
                     {loading
                       ? <div className="space-y-2 animate-pulse">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-4 rounded" style={{ background: "rgba(255,255,255,0.05)" }} />)}</div>
                       : <>
-                          <LegRow label="Business"  value={fmtUSD(business)} color={GOLD_L} />
-                          <LegRow label="Members"   value={members}          color={color} />
-                          <LegRow label="Active Members"   value={activeCount}   color="#34d399" />
-                          <LegRow label="Inactive Members" value={inactiveCount} color={MUTED} />
-                          <LegRow label="Carry Fwd (BV)"   value={carryFwd.toFixed(0)} />
+                          <LegRow label="Business"           value={fmtUSD(business)} color={GOLD_L} />
+                          <LegRow label="Members"            value={members}          color={color} />
+                          <LegRow label="Active Members"     value={activeCount}      color="#34d399" />
+                          <LegRow label="Inactive Members"   value={inactiveCount}    color={MUTED} />
+                          <LegRow label="Organic BV"         value={carryFwd.toFixed(0)} />
+                          {powerBV > 0 && <LegRow label="Power BV" value={`+${powerBV.toFixed(0)}`} color="rgba(245,158,11,0.85)" />}
+                          <LegRow label="Total Effective BV" value={totalBVLeg.toFixed(0)} color={color} />
                         </>
                     }
                   </div>

@@ -1580,8 +1580,8 @@ function PowerBvTab({ m }: { m: DrawerMember }) {
             </div>
           ))}
         </div>
-        <div style={{ padding: "6px 8px", background: "rgba(245,158,11,0.05)", border: "1px solid rgba(245,158,11,0.18)", borderRadius: 6, fontSize: 10, color: "rgba(245,158,11,0.75)" }}>
-          ⚡ Effective BV is display only — bonus engines do not use Power BV yet.
+        <div style={{ padding: "6px 8px", background: "rgba(52,211,153,0.05)", border: "1px solid rgba(52,211,153,0.18)", borderRadius: 6, fontSize: 10, color: "rgba(52,211,153,0.75)", lineHeight: 1.5 }}>
+          ✓ Power Business is included in Team Business and participates in Binary Matching, Binary Orbit, Salary and Rank calculations. Direct Referral Income and Level Income are generated only from real investments.
         </div>
       </Card>
 
