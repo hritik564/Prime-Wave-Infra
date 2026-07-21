@@ -4,6 +4,7 @@ import {
   getSalarySummaryHandler,
   getSalaryAchievementsHandler,
   getSalaryQualificationsHandler,
+  getUpcomingRunHandler,
 } from "./salary.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 import { validate } from "../middleware/validate.middleware";
@@ -45,5 +46,9 @@ router.get(
   validate(salarySummaryQuerySchema, "query"),
   getSalaryQualificationsHandler,
 );
+
+// GET /api/salary/upcoming-run
+// Returns the current active salary run + the user's income record, or null.
+router.get("/upcoming-run", getUpcomingRunHandler);
 
 export default router;

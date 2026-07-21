@@ -1,0 +1,553 @@
+# Sprint 33X – Salary Progress & Visualization (Member Salary Center)
+
+This sprint focuses entirely on the member experience.
+
+No compensation rules shall be changed.
+
+No business calculations shall be modified.
+
+No qualification logic shall be altered.
+
+No payout logic shall be changed.
+
+The backend already contains all required business data.
+
+This sprint exposes that information in a beautiful, motivational and easy-to-understand experience for every PrimeWave member.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Transform the existing Salary page into a complete Salary Center where members can clearly understand:
+
+• Their current salary position
+
+• Their qualification progress
+
+• Locked business
+
+• Unlocked business
+
+• Salary history
+
+• Upcoming salary
+
+• What is required to reach the next salary rank
+
+Everything displayed must come directly from the canonical backend services.
+
+No duplicated calculations.
+
+--------------------------------------------------
+SECTION 1
+
+SALARY OVERVIEW
+--------------------------------------------------
+
+Display at the top:
+
+Current Salary Rank
+
+Monthly Salary
+
+Qualification Status
+
+Current Salary Cycle Status
+
+Examples:
+
+Qualified
+
+Pending
+
+Generating
+
+Approved
+
+Paid
+
+If the member has never qualified:
+
+Display:
+
+Not Yet Qualified
+
+--------------------------------------------------
+SECTION 2
+
+CURRENT RANK CARD
+--------------------------------------------------
+
+Beautiful hero card.
+
+Display:
+
+Current Rank
+
+Monthly Salary
+
+Qualification Date
+
+Highest Rank Achieved
+
+If no qualification:
+
+Display:
+
+Not Yet Qualified
+
+--------------------------------------------------
+SECTION 3
+
+SALARY BUSINESS BREAKDOWN
+--------------------------------------------------
+
+Always display:
+
+Direct Business
+
+Downline Business
+
+Power Business
+
+Effective Business
+
+Rules:
+
+--------------------------------------------------
+
+BEFORE GOLD
+
+--------------------------------------------------
+
+Effective Business
+
+=
+
+Direct Business ONLY
+
+Display:
+
+Direct Business
+
+$
+
+xxx
+
+Team Business
+
+$
+
+xxx
+
+🔒 Locked
+
+Display message:
+
+"Your Team Business is already accumulating.
+
+Reach GOLD to unlock it for salary qualification."
+
+Power Business
+
+$
+
+xxx
+
+Also display as:
+
+🔒 Locked
+
+Display:
+
+Effective Business
+
+=
+
+Direct Business
+
+--------------------------------------------------
+
+AFTER GOLD
+
+--------------------------------------------------
+
+Display:
+
+Direct Business
+
+$
+
+xxx
+
+Downline Business
+
+$
+
+xxx
+
+Power Business
+
+$
+
+xxx
+
+Effective Business
+
+$
+
+xxx
+
+Display:
+
+✅ Unlocked
+
+No lock messages.
+
+--------------------------------------------------
+SECTION 4
+
+NEXT RANK PROGRESS
+--------------------------------------------------
+
+Display:
+
+Current Rank
+
+↓
+
+Next Rank
+
+Required Business
+
+Current Effective Business
+
+Remaining Business
+
+Large animated progress bar.
+
+Example:
+
+██████████████░░░░
+
+82%
+
+Display:
+
+Need only
+
+$
+
+18,500
+
+more business to reach Platinum.
+
+--------------------------------------------------
+SECTION 5
+
+LOCKED BUSINESS CARD
+--------------------------------------------------
+
+Only visible BEFORE GOLD.
+
+Display prominently.
+
+Example:
+
+Accumulated Team Business
+
+$
+
+186,500
+
+🔒 LOCKED
+
+Subtitle:
+
+"This business is already accumulated.
+
+It will automatically unlock immediately after you qualify for GOLD."
+
+This should motivate members to continue.
+
+--------------------------------------------------
+SECTION 6
+
+WHY AM I NOT QUALIFIED?
+--------------------------------------------------
+
+If member has not reached next rank:
+
+Show:
+
+Current Business
+
+Required Business
+
+Difference
+
+Reason
+
+Example:
+
+Need
+
+$
+
+32,000
+
+more Effective Business
+
+or
+
+Need
+
+$
+
+2,500
+
+more Direct Business
+
+depending on qualification rules.
+
+--------------------------------------------------
+SECTION 7
+
+SALARY HISTORY
+--------------------------------------------------
+
+Show every SalaryIncome record.
+
+Columns:
+
+Month
+
+Rank
+
+Amount
+
+Status
+
+Reference
+
+Paid Date
+
+Status badges:
+
+Pending
+
+Approved
+
+Paid
+
+No Records
+
+if empty.
+
+--------------------------------------------------
+SECTION 8
+
+UPCOMING SALARY
+--------------------------------------------------
+
+If an active SalaryRun exists:
+
+Display:
+
+Current Salary Run
+
+Status
+
+Estimated Amount
+
+Expected Payment
+
+If none exists:
+
+Display:
+
+"No salary run is currently active."
+
+--------------------------------------------------
+SECTION 9
+
+BUSINESS EXPLANATION TOOLTIPS
+--------------------------------------------------
+
+Every business metric should include an information tooltip.
+
+Examples:
+
+Direct Business
+
+"Business generated from your personally referred members."
+
+Downline Business
+
+"Business generated by your entire network after qualification."
+
+Power Business
+
+"Business awarded by the administrator through the Power BV system."
+
+Effective Business
+
+"The business currently used for salary qualification."
+
+Locked Business
+
+"This business is already accumulated but will only contribute after achieving GOLD."
+
+--------------------------------------------------
+SECTION 10
+
+RESPONSIVE DESIGN
+--------------------------------------------------
+
+Must look premium on:
+
+390px
+
+430px
+
+Tablet
+
+Desktop
+
+Cards should stack naturally.
+
+Large touch targets.
+
+Readable typography.
+
+--------------------------------------------------
+SECTION 11
+
+REAL-TIME REFRESH
+--------------------------------------------------
+
+When qualification changes:
+
+Page should refresh automatically.
+
+No hard reload required.
+
+Progress bars should animate smoothly.
+
+Salary status badges should update automatically.
+
+--------------------------------------------------
+SECTION 12
+
+EMPTY STATES
+--------------------------------------------------
+
+Design premium empty states.
+
+Never show blank tables.
+
+Examples:
+
+"No salary history yet."
+
+"Reach Bronze to begin earning monthly salary."
+
+"No active salary run."
+
+--------------------------------------------------
+SECTION 13
+
+PERFORMANCE
+--------------------------------------------------
+
+No unnecessary API calls.
+
+Reuse existing salary endpoints.
+
+No duplicated calculations.
+
+No client-side business calculations.
+
+Everything should originate from canonical backend services.
+
+--------------------------------------------------
+DO NOT MODIFY
+--------------------------------------------------
+
+Do NOT modify:
+
+SalaryBusinessSummary
+
+SalaryBusinessEvent
+
+SalaryRun
+
+SalaryIncome
+
+SalaryQualification
+
+SalaryApproval
+
+SalaryPayout
+
+Wallets
+
+Binary
+
+Power BV
+
+Business calculations
+
+Qualification logic
+
+Monthly salary generation
+
+This sprint is UI/UX only.
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1.
+
+Complete Salary Center UI.
+
+2.
+
+Responsive screenshots.
+
+3.
+
+APIs consumed.
+
+4.
+
+Components created.
+
+5.
+
+Progress calculation source.
+
+6.
+
+Tooltip content.
+
+7.
+
+Empty state implementation.
+
+8.
+
+Responsive verification.
+
+9.
+
+Performance summary.
+
+10.
+
+Confirmation that every displayed value comes directly from the canonical compensation engine.
+
+The goal is for every member to instantly understand their salary journey, stay motivated by their progress, and clearly see exactly what is required to reach the next salary rank without needing support assistance.

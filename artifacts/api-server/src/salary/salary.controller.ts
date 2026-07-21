@@ -4,6 +4,7 @@ import {
   getSalarySummary,
   getSalaryAchievements,
   getSalaryQualificationSummary,
+  getUpcomingRun,
 } from "./salary.service";
 import { sendSuccess } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
@@ -55,5 +56,15 @@ export async function getSalaryAchievementsHandler(
     const query    = getParsed<SalaryAchievementsQuery>(res, "query");
     const result   = await getSalaryAchievements(query.userId ?? user.sub, query);
     sendSuccess(res, result, "Salary achievements fetched successfully");
+  } catch (err) { next(err); }
+}
+
+export async function getUpcomingRunHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const result   = await getUpcomingRun(user.sub);
+    sendSuccess(res, result, "Upcoming salary run fetched successfully");
   } catch (err) { next(err); }
 }

@@ -157,6 +157,11 @@ export interface SalaryQualificationSummary {
   nextRequiredBusiness: string | null;
   remaining:            string;
   progressPct:          number;
+  directBusiness:       string;
+  downlineBusiness:     string;
+  powerBusiness:        string;
+  effectiveBusiness:    string;
+  isGoldUnlocked:       boolean;
 }
 
 export interface SalarySummaryData {
@@ -176,6 +181,64 @@ export function getSalaryQualifications() {
 
 export function getSalarySummary() {
   return request<SalarySummaryData>("/api/salary/summary");
+}
+
+export interface SalaryAchievementItem {
+  id:            string;
+  rankName:      string;
+  achievedAt:    string;
+  expiresAt:     string | null;
+  monthlyAmount: string;
+  isActive:      boolean;
+  createdAt:     string;
+}
+
+export function getSalaryAchievements(params?: { isActive?: boolean }) {
+  const q = params?.isActive !== undefined ? `?isActive=${params.isActive}` : "";
+  return request<SalaryAchievementItem[]>(`/api/salary/achievements${q}`);
+}
+
+export interface MemberSalaryHistoryItem {
+  id:            string;
+  rankName:      string;
+  month:         number;
+  year:          number;
+  amount:        string;
+  status:        string;
+  reference:     string | null;
+  approvedAt:    string | null;
+  approvedBy:    string | null;
+  paidAt:        string | null;
+  transactionId: string | null;
+  createdAt:     string;
+}
+
+export function getSalaryHistoryMember(params?: { page?: number; limit?: number; rankName?: string; year?: number; month?: number }) {
+  const q = new URLSearchParams();
+  if (params?.page)     q.set("page",     String(params.page));
+  if (params?.limit)    q.set("limit",    String(params.limit));
+  if (params?.rankName) q.set("rankName", params.rankName);
+  if (params?.year)     q.set("year",     String(params.year));
+  if (params?.month)    q.set("month",    String(params.month));
+  const qs = q.toString();
+  return request<{ data: MemberSalaryHistoryItem[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } }>(`/api/salary/history${qs ? `?${qs}` : ""}`);
+}
+
+export interface SalaryUpcomingRun {
+  runId:           string;
+  month:           number;
+  year:            number;
+  status:          string;
+  startedAt:       string | null;
+  generatedCount:  number;
+  estimatedAmount: string | null;
+  incomeStatus:    string | null;
+  rankName:        string | null;
+  paidAt:          string | null;
+}
+
+export function getSalaryUpcomingRun() {
+  return request<SalaryUpcomingRun | null>("/api/salary/upcoming-run");
 }
 
 /* ── Investments ──────────────────────────────────────────────────── */

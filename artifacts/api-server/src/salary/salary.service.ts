@@ -10,12 +10,18 @@ import type {
 // ── History ───────────────────────────────────────────────────────────────────
 
 const historySelect = {
-  id:        true,
-  rankName:  true,
-  month:     true,
-  year:      true,
-  amount:    true,
-  createdAt: true,
+  id:            true,
+  rankName:      true,
+  month:         true,
+  year:          true,
+  amount:        true,
+  status:        true,
+  reference:     true,
+  approvedAt:    true,
+  approvedBy:    true,
+  paidAt:        true,
+  transactionId: true,
+  createdAt:     true,
 } as const;
 
 export async function getSalaryHistory(
@@ -242,6 +248,26 @@ export async function getSalaryQualificationSummary(userId: string) {
     progressPct = 100; // all milestones unlocked
   }
 
+  // ── SalaryBusinessSummary data (for member breakdown display) ──────────────
+  const summaryRow = await prisma.salaryBusinessSummary.findUnique({
+    where:  { userId },
+    select: { directBusiness: true, downlineBusiness: true, powerBusiness: true },
+  });
+  const directBusiness   = summaryRow?.directBusiness   ?? new Prisma.Decimal(0);
+  const downlineBusiness = summaryRow?.downlineBusiness ?? new Prisma.Decimal(0);
+  const powerBusiness    = summaryRow?.powerBusiness    ?? new Prisma.Decimal(0);
+
+  // Gold unlock: once a Gold achievement is active, ALL_BUSINESS pools unlock
+  const goldAchievement = await prisma.salaryAchievement.findFirst({
+    where:  { userId, rankName: "Gold", isActive: true },
+    select: { id: true },
+  });
+  const isGoldUnlocked = goldAchievement !== null;
+
+  const effectiveBusiness = isGoldUnlocked
+    ? directBusiness.plus(downlineBusiness).plus(powerBusiness)
+    : directBusiness;
+
   return {
     totalBusinessUSD,
     leftBusinessUSD,
@@ -252,6 +278,56 @@ export async function getSalaryQualificationSummary(userId: string) {
     nextRequiredBusiness: nextThreshold,
     remaining,
     progressPct,
+    directBusiness,
+    downlineBusiness,
+    powerBusiness,
+    effectiveBusiness,
+    isGoldUnlocked,
+  };
+}
+
+// ── Upcoming Run (member-facing) ──────────────────────────────────────────────
+
+/**
+ * Returns the most recent non-terminal salary run (if one exists) along with
+ * the requesting user's income record for that run.  Returns null when no
+ * active run is in progress.
+ */
+export async function getUpcomingRun(userId: string) {
+  await assertUserExists(userId);
+
+  const run = await prisma.salaryRun.findFirst({
+    where:   { status: { notIn: ["COMPLETED", "FAILED"] } },
+    orderBy: [{ year: "desc" }, { month: "desc" }, { createdAt: "desc" }],
+    select: {
+      id:             true,
+      month:          true,
+      year:           true,
+      status:         true,
+      startedAt:      true,
+      generatedCount: true,
+      totalAmount:    true,
+    },
+  });
+
+  if (!run) return null;
+
+  const income = await prisma.salaryIncome.findFirst({
+    where:  { salaryRunId: run.id, userId },
+    select: { amount: true, status: true, rankName: true, paidAt: true },
+  });
+
+  return {
+    runId:           run.id,
+    month:           run.month,
+    year:            run.year,
+    status:          run.status,
+    startedAt:       run.startedAt,
+    generatedCount:  run.generatedCount,
+    estimatedAmount: income?.amount   ?? null,
+    incomeStatus:    income?.status   ?? null,
+    rankName:        income?.rankName ?? null,
+    paidAt:          income?.paidAt   ?? null,
   };
 }
 
