@@ -1,0 +1,282 @@
+# Sprint 33W – Legacy Compensation Cleanup & Finalization
+
+This sprint permanently removes every obsolete salary execution path that was superseded by the new SalaryRun architecture.
+
+No new features.
+
+No business logic changes.
+
+No database redesign.
+
+The objective is to eliminate deprecated code, simplify the codebase, and ensure there is only ONE canonical compensation engine.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Following the successful completion of Sprint 33V (PASS), remove every remaining legacy salary execution path while preserving the current production behaviour.
+
+The application must continue to function exactly the same after cleanup.
+
+--------------------------------------------------
+PRE-CLEANUP VERIFICATION
+--------------------------------------------------
+
+Before deleting anything, perform a repository-wide search for the following identifiers:
+
+runSalaryCycle
+
+processAllAchievements
+
+salary-cron.engine
+
+salary-cycle
+
+evaluate-all
+
+triggerSalary
+
+Document every occurrence.
+
+For each occurrence:
+
+• File
+• Line
+• Purpose
+• Is it still referenced?
+
+Do not remove anything until all remaining references have been identified.
+
+--------------------------------------------------
+REMOVE LEGACY ADMIN ROUTES
+--------------------------------------------------
+
+Remove:
+
+POST /api/admin/trigger/salary-cycle
+
+POST /api/admin/trigger/full-cycle
+
+POST /api/admin/salary/evaluate-all
+
+Confirm there are no remaining route registrations.
+
+--------------------------------------------------
+REMOVE LEGACY CONTROLLER METHODS
+--------------------------------------------------
+
+Delete:
+
+triggerSalaryCycle()
+
+triggerFullCycle()
+
+triggerSalaryEvaluateAll()
+
+Remove all associated imports.
+
+Ensure there are no remaining references.
+
+--------------------------------------------------
+REMOVE LEGACY SALARY ENGINE
+--------------------------------------------------
+
+Delete:
+
+salary-cron.engine.ts
+
+Only delete after confirming:
+
+No remaining imports
+
+No remaining references
+
+No remaining execution paths
+
+The SalaryRun architecture must become the sole monthly salary generation mechanism.
+
+--------------------------------------------------
+REMOVE UNUSED IMPORTS
+--------------------------------------------------
+
+Remove every import made obsolete by the cleanup.
+
+Examples include:
+
+runSalaryCycle
+
+processAllAchievements
+
+and any related helper imports.
+
+Verify successful TypeScript compilation afterwards.
+
+--------------------------------------------------
+REMOVE DEVTOOLS LEGACY ACTIONS
+--------------------------------------------------
+
+Remove obsolete developer buttons:
+
+Run Monthly Salary
+
+Run Salary Cycle
+
+Remove any related frontend API calls.
+
+Remove any dead client functions.
+
+--------------------------------------------------
+UPDATE UI WORDING
+--------------------------------------------------
+
+Replace outdated salary wording.
+
+Current wording references:
+
+"salary rewards stack across multiple achievements"
+
+This is no longer correct.
+
+Replace with wording consistent with the new architecture, for example:
+
+"Your monthly salary is calculated using your highest qualified salary rank."
+
+Review the application for any similar legacy wording and update where necessary.
+
+--------------------------------------------------
+POST-CLEANUP VERIFICATION
+--------------------------------------------------
+
+Perform another repository-wide search.
+
+Confirm ZERO remaining references to:
+
+runSalaryCycle
+
+processAllAchievements
+
+salary-cron.engine
+
+salary-cycle
+
+evaluate-all
+
+triggerSalary
+
+If any references remain, document them and explain why they cannot yet be removed.
+
+--------------------------------------------------
+REGRESSION CHECK
+--------------------------------------------------
+
+Verify the following still function correctly after cleanup:
+
+✓ Investments
+
+✓ Direct Income
+
+✓ Level Income
+
+✓ Binary Matching
+
+✓ Binary Orbit
+
+✓ Power BV
+
+✓ Salary Qualification
+
+✓ SalaryRun Generation
+
+✓ Salary Approval
+
+✓ Salary Payout
+
+✓ Withdrawals
+
+✓ Member Dashboard
+
+✓ Admin Dashboard
+
+No functional behaviour should change.
+
+--------------------------------------------------
+DO NOT MODIFY
+--------------------------------------------------
+
+Do NOT modify:
+
+SalaryBusinessSummary
+
+SalaryBusinessEvent
+
+SalaryAchievement
+
+SalaryIncome
+
+SalaryRun
+
+Wallet models
+
+Business logic
+
+Database schema
+
+Qualification rules
+
+Power BV calculations
+
+Monthly salary calculations
+
+Approval workflow
+
+Payout workflow
+
+These are now the canonical implementation.
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1.
+
+Repository search report showing every legacy reference discovered.
+
+2.
+
+List of every deleted file.
+
+3.
+
+List of every deleted route.
+
+4.
+
+List of every deleted controller method.
+
+5.
+
+List of every deleted frontend action.
+
+6.
+
+List of every deleted import.
+
+7.
+
+Confirmation that TypeScript compiles successfully.
+
+8.
+
+Confirmation that all automated tests still pass.
+
+9.
+
+Confirmation that no legacy salary execution paths remain.
+
+10.
+
+Final architecture summary showing that SalaryRun is now the only monthly salary execution engine.
+
+The objective is to leave the repository with a single, clean, maintainable compensation engine and eliminate all obsolete salary execution paths introduced prior to the SalaryRun redesign.

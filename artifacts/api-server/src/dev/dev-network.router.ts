@@ -6,7 +6,6 @@ import { placeUser } from "../binary/binary.service";
 import { createInvestment } from "../investments/investments.service";
 import { processMatchingCycle } from "../binary/matching.service";
 import { processOrbitCycle } from "../binary/orbit.service";
-import { runSalaryCycle } from "../salary";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import { sendSuccess } from "../shared/response";
@@ -482,17 +481,8 @@ networkRouter.post("/run", async (req, res, next) => {
         rewards:         r.totalRewards,
         walletUpdated:   r.processed,
       };
-    } else if (engine === "salary") {
-      const before = await prisma.salaryIncome.count();
-      await runSalaryCycle(cycleStart);
-      const after  = await prisma.salaryIncome.count();
-      result = {
-        engine:         "Salary",
-        newPayouts:     after - before,
-        walletUpdated:  after - before,
-      };
     } else {
-      throw new AppError("Unknown engine. Use: matching|orbit|salary", HTTP_STATUS.BAD_REQUEST, "BAD_REQUEST");
+      throw new AppError("Unknown engine. Use: matching|orbit", HTTP_STATUS.BAD_REQUEST, "BAD_REQUEST");
     }
 
     const execMs = Date.now() - startTime;

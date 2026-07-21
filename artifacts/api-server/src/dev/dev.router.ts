@@ -4,7 +4,6 @@ import { prisma } from "../config/prisma";
 import { processRoiCycle } from "../cron/roi.engine";
 import { runMatchingCycle } from "../binary/matching.engine";
 import { runOrbitCycle } from "../binary/orbit.engine";
-import { runSalaryCycle } from "../salary";
 import { approveDeposit, rejectDeposit } from "../admin/admin-deposits.service";
 import { approveWithdrawal, rejectWithdrawal } from "../admin/admin-withdrawals.service";
 import { notificationService } from "../notifications/notifications.service";
@@ -424,17 +423,6 @@ devRouter.post("/binary/orbit", async (_req, res, next) => {
       carryFwdRight:   result?.totalCarryFwdRight.toFixed(2)     ?? "0.00",
       rewards:         result?.totalRewards     ?? 0,
     });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// ── POST /api/dev/binary/salary ──────────────────────────────────────────────
-devRouter.post("/binary/salary", async (_req, res, next) => {
-  try {
-    const t = Date.now();
-    await runSalaryCycle();
-    sendSuccess(res, { executionMs: Date.now() - t });
   } catch (err) {
     next(err);
   }

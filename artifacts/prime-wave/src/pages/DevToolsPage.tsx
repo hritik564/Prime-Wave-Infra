@@ -605,10 +605,6 @@ export default function DevToolsPage() {
                       };
                     })}
                   loading={busy["orbit"]} />
-                <DevBtn label="Run Monthly Salary" icon={Play} variant="ghost"
-                  onClick={() => void simpleAction("salary", "Run Monthly Salary",
-                    async () => { const r = await devApi.runSalary(); return { "exec time": fmtMs(r.executionMs) }; })}
-                  loading={busy["salary"]} />
               </div>
               <p className="mt-3 text-xs" style={{ color: "#475569" }}>
                 Level Income is event-driven — triggered automatically during investment creation. No standalone cycle exists.
@@ -753,8 +749,6 @@ export default function DevToolsPage() {
                     loading={busy["net_matching"]} icon={Play} />
                   <DevBtn label="Run Binary Orbit"    onClick={() => void runNetEngine("orbit",    "Run Binary Orbit")}
                     loading={busy["net_orbit"]}    icon={Play} variant="warning" />
-                  <DevBtn label="Run Salary Cycle"    onClick={() => void runNetEngine("salary",   "Run Salary Cycle")}
-                    loading={busy["net_salary"]}   icon={Play} variant="ghost" />
                 </div>
                 {netRunResult && <ResultBox data={netRunResult} />}
               </div>

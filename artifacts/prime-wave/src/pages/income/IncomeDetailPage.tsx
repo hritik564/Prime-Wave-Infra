@@ -1056,13 +1056,13 @@ function OrbitView() {
 const SALARY_TIPS = [
   "Grow your total team business volume — salary ranks are unlocked by total active investment on both legs.",
   "Help your team members invest to increase business volume on both sides.",
-  "Reach the next rank to unlock a higher monthly salary that stacks on top of your current earnings.",
+  "Reach the next rank to unlock a higher monthly salary.",
 ];
 
 const SALARY_FAQS = [
   { q: "When is salary credited?", a: "Salary is credited once per month at the start of each calendar month (midnight London time). You receive it for every active rank achievement you hold." },
   { q: "How are salary ranks determined?", a: "Salary ranks are based on the total active investment volume across your binary team legs. Each rank has a required minimum business volume." },
-  { q: "Can I hold multiple salary ranks?", a: "Yes. Salary rewards stack — if you qualify for multiple ranks simultaneously, you receive the monthly salary from all active rank achievements." },
+  { q: "Can I hold multiple salary ranks?", a: "Your monthly salary is calculated using your highest qualified salary rank. Achieving a higher rank upgrades your monthly amount." },
   { q: "What happens if my volume drops?", a: "Active achievements remain in place as long as they have not expired. Dropping below a rank's threshold prevents you from earning a new achievement for that rank but does not remove existing ones." },
 ];
 
@@ -1196,7 +1196,7 @@ function SalaryView() {
               <MetricRow label="Next Credit" value={new Date(data.nextSalaryAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} />
               {data.activeRanks.length > 1 && (
                 <MetricRow label="Active Rank Count" value={`${data.activeRanks.length} ranks`}
-                  sub="Salary stacks across all active rank achievements" />
+                  sub="Monthly salary reflects your highest active rank" />
               )}
             </>
           ) : (

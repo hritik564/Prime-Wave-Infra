@@ -1276,9 +1276,6 @@ export const devApi = {
       carryFwdLeft: string; carryFwdRight: string; rewards: number;
     }>("/api/dev/binary/orbit", { method: "POST" }),
 
-  runSalary: () =>
-    request<{ executionMs: number }>("/api/dev/binary/salary", { method: "POST" }),
-
   generateNotification: (userId: string) =>
     request<{ userId: string; type: string }>("/api/dev/notifications/generate", {
       method: "POST", body: JSON.stringify({ userId }),
