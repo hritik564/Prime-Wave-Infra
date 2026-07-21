@@ -1,0 +1,355 @@
+# Sprint 33V – End-to-End Compensation Verification
+
+No new development.
+
+No new features.
+
+No refactoring.
+
+No cleanup.
+
+This sprint exists for one purpose:
+
+Verify that every compensation engine works correctly after the Power BV and Salary redesign.
+
+Only after every verification passes will we permanently remove the legacy salary business implementation and read-only business counters.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Perform a complete business verification of the PrimeWave compensation engine.
+
+This is an audit sprint.
+
+Nothing should be modified unless a defect is found.
+
+--------------------------------------------------
+VERIFY MODULES
+--------------------------------------------------
+
+1.
+
+Investments
+
+✓ Investment creation
+
+✓ Investment cancellation
+
+✓ Investment maturity
+
+✓ Principal release
+
+✓ Wallet updates
+
+--------------------------------------------------
+
+2.
+
+Direct Income
+
+Verify:
+
+Correct sponsor
+
+Correct amount
+
+Correct wallet
+
+No duplicate credits
+
+--------------------------------------------------
+
+3.
+
+Level Income
+
+Verify:
+
+Correct levels
+
+Correct percentages
+
+Correct wallet
+
+Stops at configured level
+
+--------------------------------------------------
+
+4.
+
+Binary Matching
+
+Verify:
+
+Organic BV
+
+Power BV
+
+Effective BV
+
+Flush logic
+
+Daily cap
+
+Matching ledger
+
+Wallet credit
+
+--------------------------------------------------
+
+5.
+
+Binary Orbit
+
+Verify:
+
+Power BV integration
+
+Matching requirements
+
+Orbit payout
+
+Orbit ledger
+
+Wallet credit
+
+--------------------------------------------------
+
+6.
+
+Power BV
+
+Verify:
+
+Admin add
+
+Admin remove
+
+Ledger
+
+No sponsor propagation
+
+Matching integration
+
+Orbit integration
+
+Salary integration
+
+--------------------------------------------------
+
+7.
+
+Salary Business
+
+Verify:
+
+SalaryBusinessSummary
+
+Direct Business
+
+Downline Business
+
+Power Business
+
+Sponsor propagation
+
+Debit handling
+
+Immutable events
+
+--------------------------------------------------
+
+8.
+
+Salary Qualification
+
+Verify:
+
+Bronze
+
+Silver
+
+Gold
+
+DIRECT_ONLY
+
+Platinum+
+
+ALL_BUSINESS
+
+Gold unlock
+
+Duplicate prevention
+
+Permanent achievements
+
+--------------------------------------------------
+
+9.
+
+Monthly Salary
+
+Verify:
+
+Snapshot generation
+
+Highest rank
+
+Duplicate prevention
+
+Monthly uniqueness
+
+SalaryRun linkage
+
+--------------------------------------------------
+
+10.
+
+Salary Approval
+
+Verify:
+
+PENDING
+
+↓
+
+APPROVED
+
+No backwards transition
+
+--------------------------------------------------
+
+11.
+
+Salary Payout
+
+Verify:
+
+APPROVED
+
+↓
+
+PAID
+
+Withdrawal wallet
+
+WalletTransaction
+
+SalaryPayoutEvent
+
+Atomic transaction
+
+--------------------------------------------------
+
+12.
+
+Withdrawals
+
+Verify:
+
+Salary payout withdrawable
+
+Correct wallet
+
+Approval flow
+
+--------------------------------------------------
+
+13.
+
+Member Dashboard
+
+Verify every displayed value matches backend calculations.
+
+--------------------------------------------------
+
+14.
+
+Admin Dashboard
+
+Verify:
+
+Power BV
+
+Salary
+
+Payroll
+
+Wallets
+
+Investments
+
+Reports
+
+--------------------------------------------------
+DATABASE VERIFICATION
+--------------------------------------------------
+
+Confirm there are NO remaining reads or writes to the legacy salary business implementation.
+
+Identify:
+
+Unused tables
+
+Unused columns
+
+Unused services
+
+Unused APIs
+
+Unused UI
+
+Legacy calculations
+
+Dead code
+
+Produce a complete cleanup checklist.
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1. Verification report for every module.
+
+2. Any defects found.
+
+3. Severity of each defect.
+
+4. Files requiring fixes.
+
+5. Confirmation that all compensation calculations match the business rules.
+
+6. List every remaining legacy component that is safe to remove.
+
+7. Recommendation:
+
+PASS
+
+or
+
+FAIL
+
+If PASS:
+
+The next sprint will be:
+
+Sprint 33W – Legacy Compensation Cleanup
+
+That sprint will permanently remove:
+
+• Legacy read-only salary business fields
+
+• Legacy salary calculations
+
+• Dead services
+
+• Dead APIs
+
+• Dead UI
+
+• Dead database columns
+
+Only begin cleanup after this verification passes.
