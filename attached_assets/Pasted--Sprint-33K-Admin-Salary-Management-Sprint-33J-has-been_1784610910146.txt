@@ -1,0 +1,358 @@
+# Sprint 33K – Admin Salary Management
+
+Sprint 33J has been approved.
+
+This is the final sprint of the Salary module.
+
+The Salary Engine is complete.
+
+This sprint adds a lightweight Admin interface for operating the monthly salary process.
+
+⚠️ IMPORTANT
+
+This sprint MUST NOT modify any salary business logic.
+
+Do NOT change:
+
+- Salary Qualification
+- Salary Scheduler
+- Salary Generation
+- Salary Approval
+- Salary Payout
+- SalaryRun
+- Wallet logic
+- Business rules
+
+This sprint is UI and operational management only.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Build a simple Admin Salary Management page.
+
+The page should allow administrators to:
+
+• View Salary Runs
+
+• View Monthly Payroll
+
+• Review Payroll Status
+
+• Approve Payroll
+
+• Execute Payroll
+
+• Retry failed member payouts
+
+• View Member Salary History
+
+• Download payroll CSV
+
+No new business logic.
+
+Only consume existing backend services.
+
+--------------------------------------------------
+PAGE
+--------------------------------------------------
+
+Create:
+
+Admin
+
+↓
+
+Finance
+
+↓
+
+Salary Management
+
+--------------------------------------------------
+SECTION 1
+
+Salary Runs
+--------------------------------------------------
+
+Display:
+
+Month
+
+Year
+
+Status
+
+Generated
+
+Approved
+
+Paid
+
+Failed
+
+Total Amount
+
+Started
+
+Completed
+
+Actions
+
+View
+
+Approve
+
+Pay
+
+Download CSV
+
+--------------------------------------------------
+SECTION 2
+
+Payroll Details
+--------------------------------------------------
+
+For selected SalaryRun display:
+
+Member
+
+Username
+
+Rank
+
+Salary
+
+Status
+
+Generated
+
+Approved
+
+Paid
+
+Transaction
+
+Search
+
+Filter
+
+Pagination
+
+--------------------------------------------------
+SECTION 3
+
+Member Salary History
+--------------------------------------------------
+
+Search:
+
+Username
+
+Member ID
+
+Display:
+
+Month
+
+Rank
+
+Salary
+
+Status
+
+Transaction
+
+--------------------------------------------------
+SECTION 4
+
+Failed Payments
+--------------------------------------------------
+
+Show:
+
+Failed members
+
+Failure reason
+
+Retry button
+
+Retry ONLY that member.
+
+Do NOT rerun the entire payroll.
+
+--------------------------------------------------
+SECTION 5
+
+CSV Export
+--------------------------------------------------
+
+Use existing export service.
+
+Buttons:
+
+Payroll Summary
+
+Payroll Details
+
+Member Salary History
+
+--------------------------------------------------
+STATUS BADGES
+--------------------------------------------------
+
+SalaryRun
+
+GENERATING
+
+GENERATED
+
+APPROVING
+
+APPROVED
+
+PAYING
+
+COMPLETED
+
+FAILED
+
+SalaryIncome
+
+PENDING
+
+APPROVED
+
+PAID
+
+--------------------------------------------------
+ACTIONS
+--------------------------------------------------
+
+Approve Payroll
+
+↓
+
+Calls existing approval service.
+
+Pay Payroll
+
+↓
+
+Calls existing payout service.
+
+Retry Member
+
+↓
+
+Calls existing single-member payout.
+
+No business logic in UI.
+
+--------------------------------------------------
+SEARCH
+--------------------------------------------------
+
+Support:
+
+Member ID
+
+Username
+
+Month
+
+Year
+
+Status
+
+Rank
+
+--------------------------------------------------
+PERMISSIONS
+--------------------------------------------------
+
+Visible only to:
+
+Super Admin
+
+Finance Admin
+
+Read-only admins may view but not approve or pay.
+
+--------------------------------------------------
+TESTING
+--------------------------------------------------
+
+Verify:
+
+✓ Salary Runs load correctly.
+
+✓ Payroll details load.
+
+✓ Member search works.
+
+✓ CSV downloads work.
+
+✓ Approve button calls existing service.
+
+✓ Pay button calls existing service.
+
+✓ Retry failed member works.
+
+✓ Status badges update correctly.
+
+✓ No salary calculations occur in frontend.
+
+--------------------------------------------------
+DO NOT TOUCH
+--------------------------------------------------
+
+Do NOT modify:
+
+SalaryBusinessSummary
+
+SalaryBusinessEvent
+
+SalaryQualification
+
+SalaryScheduler
+
+SalaryIncome
+
+SalaryApproval
+
+SalaryPayout
+
+SalaryRun
+
+Wallet
+
+Compensation logic
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1. Files added.
+
+2. Files modified.
+
+3. Admin page screenshots.
+
+4. Components created.
+
+5. Existing APIs consumed.
+
+6. Search & filters.
+
+7. CSV integration.
+
+8. Permission checks.
+
+9. Test results.
+
+10. Confirmation that no salary business logic was modified.
+
+This completes the Salary module.

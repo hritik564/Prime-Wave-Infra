@@ -156,6 +156,35 @@ import {
   memberExportQuerySchema,
 } from "./reports/member-reports.schema";
 import { depositAuditHandler } from "./reports/deposit-audit.controller";
+import {
+  listSalaryRunsHandler,
+  getSalaryRunDetailHandler,
+  createSalaryRunHandler,
+  triggerGenerationHandler,
+  triggerApprovalHandler,
+  triggerPayoutHandler,
+  failRunHandler,
+  listRunIncomesHandler,
+  retryIncomeHandler,
+  getMemberHistoryHandler,
+  searchMembersHandler,
+  getPayrollTotalsHandler,
+  exportSummaryHandler,
+  exportDetailHandler,
+  exportMemberHistoryHandler,
+  exportRankDistributionHandler,
+} from "../salary/admin-salary.controller";
+import {
+  listRunsQuerySchema,
+  runIdParamSchema,
+  createRunBodySchema,
+  failRunBodySchema,
+  listRunIncomesQuerySchema,
+  incomeIdParamSchema,
+  memberIdParamSchema,
+  exportQuerySchema,
+  exportMemberQuerySchema,
+} from "../salary/admin-salary.schema";
 import { validate } from "../middleware/validate.middleware";
 import { requireAdminAuth, requireAdminRoles } from "../middleware/auth.middleware";
 import { authLimiter, adminLimiter } from "../middleware/rateLimiter.middleware";
@@ -744,6 +773,89 @@ router.post("/blockchain/simulate",          adminLimiter, superAdminGuard, simu
 
 // ── Power BV Management — FINANCE_ADMIN+ (write), any admin (read) ────────────
 router.use("/power-bv", powerBvRouter);
+
+// ── Salary Management — SUPER_ADMIN and FINANCE_ADMIN ────────────────────────
+router.get(  "/salary/runs",
+  adminLimiter, financeAdminGuard,
+  validate(listRunsQuerySchema, "query"),
+  listSalaryRunsHandler,
+);
+router.post( "/salary/runs",
+  adminLimiter, financeAdminGuard,
+  validate(createRunBodySchema),
+  createSalaryRunHandler,
+);
+router.get(  "/salary/runs/:runId",
+  adminLimiter, financeAdminGuard,
+  validate(runIdParamSchema, "params"),
+  getSalaryRunDetailHandler,
+);
+router.post( "/salary/runs/:runId/generate",
+  adminLimiter, financeAdminGuard,
+  validate(runIdParamSchema, "params"),
+  triggerGenerationHandler,
+);
+router.post( "/salary/runs/:runId/approve",
+  adminLimiter, financeAdminGuard,
+  validate(runIdParamSchema, "params"),
+  triggerApprovalHandler,
+);
+router.post( "/salary/runs/:runId/pay",
+  adminLimiter, financeAdminGuard,
+  validate(runIdParamSchema, "params"),
+  triggerPayoutHandler,
+);
+router.post( "/salary/runs/:runId/fail",
+  adminLimiter, superAdminGuard,
+  validate(runIdParamSchema, "params"),
+  validate(failRunBodySchema),
+  failRunHandler,
+);
+router.get(  "/salary/runs/:runId/incomes",
+  adminLimiter, financeAdminGuard,
+  validate(runIdParamSchema, "params"),
+  validate(listRunIncomesQuerySchema, "query"),
+  listRunIncomesHandler,
+);
+router.post( "/salary/incomes/:incomeId/retry",
+  adminLimiter, financeAdminGuard,
+  validate(incomeIdParamSchema, "params"),
+  retryIncomeHandler,
+);
+router.get(  "/salary/members/search",
+  adminLimiter, financeAdminGuard,
+  searchMembersHandler,
+);
+router.get(  "/salary/members/:userId/history",
+  adminLimiter, financeAdminGuard,
+  validate(memberIdParamSchema, "params"),
+  getMemberHistoryHandler,
+);
+router.get(  "/salary/totals",
+  adminLimiter, financeAdminGuard,
+  validate(exportQuerySchema, "query"),
+  getPayrollTotalsHandler,
+);
+router.get(  "/salary/export/summary",
+  adminLimiter, financeAdminGuard,
+  validate(exportQuerySchema, "query"),
+  exportSummaryHandler,
+);
+router.get(  "/salary/export/detail",
+  adminLimiter, financeAdminGuard,
+  validate(exportQuerySchema, "query"),
+  exportDetailHandler,
+);
+router.get(  "/salary/export/member-history",
+  adminLimiter, financeAdminGuard,
+  validate(exportMemberQuerySchema, "query"),
+  exportMemberHistoryHandler,
+);
+router.get(  "/salary/export/rank-distribution",
+  adminLimiter, financeAdminGuard,
+  validate(exportQuerySchema, "query"),
+  exportRankDistributionHandler,
+);
 
 // ── Treasury & Financial Integrity — SUPER_ADMIN only ─────────────────────────
 router.get(  "/treasury/dashboard",             adminLimiter, superAdminGuard, getTreasuryDashboardHandler);

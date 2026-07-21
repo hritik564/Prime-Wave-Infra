@@ -2952,6 +2952,181 @@ export async function getDiscrepancies(params?: { status?: string; severity?: st
   return request<DiscrepancyRow[]>(`/api/admin/treasury/discrepancies?${q.toString()}`);
 }
 
+// ── Admin Salary Management ───────────────────────────────────────────────────
+
+export interface SalaryRunListItem {
+  id:             string;
+  month:          number;
+  year:           number;
+  status:         string;
+  generatedCount: number;
+  approvedCount:  number;
+  paidCount:      number;
+  failedCount:    number;
+  totalAmount:    string;
+  createdBy:      string | null;
+  notes:          string | null;
+  startedAt:      string;
+  completedAt:    string | null;
+  createdAt:      string;
+}
+
+export interface SalaryRunListResponse {
+  data: SalaryRunListItem[];
+  meta: { page: number; limit: number; total: number; totalPages: number };
+}
+
+export interface SalaryRunAuditItem {
+  id:          string;
+  action:      string;
+  performedBy: string | null;
+  metadata:    unknown;
+  createdAt:   string;
+}
+
+export interface SalaryRunDetail {
+  run:     SalaryRunListItem;
+  summary: unknown;
+  audits:  SalaryRunAuditItem[];
+}
+
+export interface RunIncomeItem {
+  id:            string;
+  userId:        string;
+  username:      string | null;
+  rankName:      string;
+  amount:        string;
+  status:        string;
+  approvedAt:    string | null;
+  paidAt:        string | null;
+  transactionId: string | null;
+  createdAt:     string;
+}
+
+export interface RunIncomeListResponse {
+  data: RunIncomeItem[];
+  meta: { page: number; limit: number; total: number; totalPages: number };
+}
+
+export interface SalaryHistoryItem {
+  id:            string;
+  rankName:      string;
+  month:         number;
+  year:          number;
+  amount:        string;
+  status:        string;
+  approvedAt:    string | null;
+  paidAt:        string | null;
+  transactionId: string | null;
+  createdAt:     string;
+}
+
+export interface PayrollTotals {
+  month:         number;
+  year:          number;
+  memberCount:   number;
+  totalPayroll:  string;
+  averageSalary: string;
+  highestSalary: string;
+  lowestSalary:  string;
+  pendingCount:  number;
+  approvedCount: number;
+  paidCount:     number;
+}
+
+export async function adminListSalaryRuns(params?: {
+  month?: number; year?: number; status?: string; page?: number; limit?: number;
+}): Promise<SalaryRunListResponse> {
+  const q = new URLSearchParams();
+  if (params?.month  !== undefined) q.set("month",  String(params.month));
+  if (params?.year   !== undefined) q.set("year",   String(params.year));
+  if (params?.status)               q.set("status", params.status);
+  if (params?.page   !== undefined) q.set("page",   String(params.page));
+  if (params?.limit  !== undefined) q.set("limit",  String(params.limit));
+  return request<SalaryRunListResponse>(`/api/admin/salary/runs?${q}`);
+}
+
+export async function adminGetSalaryRunDetail(runId: string): Promise<SalaryRunDetail> {
+  return request<SalaryRunDetail>(`/api/admin/salary/runs/${runId}`);
+}
+
+export async function adminCreateSalaryRun(month: number, year: number, notes?: string): Promise<{ status: string; run: SalaryRunListItem }> {
+  return request<{ status: string; run: SalaryRunListItem }>("/api/admin/salary/runs", {
+    method: "POST",
+    body: JSON.stringify({ month, year, notes }),
+  });
+}
+
+export async function adminTriggerSalaryGeneration(runId: string): Promise<unknown> {
+  return request<unknown>(`/api/admin/salary/runs/${runId}/generate`, { method: "POST" });
+}
+
+export async function adminTriggerSalaryApproval(runId: string): Promise<unknown> {
+  return request<unknown>(`/api/admin/salary/runs/${runId}/approve`, { method: "POST" });
+}
+
+export async function adminTriggerSalaryPayout(runId: string): Promise<unknown> {
+  return request<unknown>(`/api/admin/salary/runs/${runId}/pay`, { method: "POST" });
+}
+
+export async function adminFailSalaryRun(runId: string, reason?: string): Promise<unknown> {
+  return request<unknown>(`/api/admin/salary/runs/${runId}/fail`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function adminListRunIncomes(runId: string, params?: {
+  search?: string; status?: string; rank?: string; page?: number; limit?: number;
+}): Promise<RunIncomeListResponse> {
+  const q = new URLSearchParams();
+  if (params?.search) q.set("search", params.search);
+  if (params?.status) q.set("status", params.status);
+  if (params?.rank)   q.set("rank",   params.rank);
+  if (params?.page  !== undefined) q.set("page",  String(params.page));
+  if (params?.limit !== undefined) q.set("limit", String(params.limit));
+  return request<RunIncomeListResponse>(`/api/admin/salary/runs/${runId}/incomes?${q}`);
+}
+
+export async function adminRetryIncomePayment(incomeId: string): Promise<unknown> {
+  return request<unknown>(`/api/admin/salary/incomes/${incomeId}/retry`, { method: "POST" });
+}
+
+export async function adminGetMemberSalaryHistory(userId: string): Promise<{ data: SalaryHistoryItem[] }> {
+  return request<{ data: SalaryHistoryItem[] }>(`/api/admin/salary/members/${userId}/history`);
+}
+
+export async function adminSearchSalaryMembers(search: string, page?: number, limit?: number): Promise<{ data: { id: string; username: string }[] }> {
+  const q = new URLSearchParams({ search });
+  if (page  !== undefined) q.set("page",  String(page));
+  if (limit !== undefined) q.set("limit", String(limit));
+  return request<{ data: { id: string; username: string }[] }>(`/api/admin/salary/members/search?${q}`);
+}
+
+export async function adminGetPayrollTotals(month: number, year: number): Promise<PayrollTotals> {
+  const q = new URLSearchParams({ month: String(month), year: String(year) });
+  return request<PayrollTotals>(`/api/admin/salary/totals?${q}`);
+}
+
+export function adminSalaryExportSummaryUrl(month: number, year: number): string {
+  const q = new URLSearchParams({ month: String(month), year: String(year) });
+  return `/api/admin/salary/export/summary?${q}`;
+}
+
+export function adminSalaryExportDetailUrl(month: number, year: number): string {
+  const q = new URLSearchParams({ month: String(month), year: String(year) });
+  return `/api/admin/salary/export/detail?${q}`;
+}
+
+export function adminSalaryExportMemberHistoryUrl(userId: string): string {
+  return `/api/admin/salary/export/member-history?userId=${encodeURIComponent(userId)}`;
+}
+
+export function adminSalaryExportRankDistributionUrl(month: number, year: number): string {
+  const q = new URLSearchParams({ month: String(month), year: String(year) });
+  return `/api/admin/salary/export/rank-distribution?${q}`;
+}
+
 export async function updateDiscrepancy(
   id: string,
   status: "UNDER_REVIEW" | "RESOLVED",
