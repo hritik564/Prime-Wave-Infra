@@ -1,0 +1,146 @@
+# Sprint 33X Investigation – Legacy Read-Only Business Volume
+
+A production test shows that Mahakal's account still displays the legacy read-only business volume.
+
+This is an investigation only.
+
+Do NOT modify code.
+
+Do NOT deploy fixes.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Determine exactly where the displayed value originates.
+
+--------------------------------------------------
+STEP 1 – Inspect Salary Center API calls
+--------------------------------------------------
+
+Open the browser network log for Mahakal's Salary Center.
+
+List every API request made.
+
+For each response, identify whether it contains:
+
+- directBusiness
+- downlineBusiness
+- powerBusiness
+- effectiveBusiness
+- salaryBusiness
+- readOnlyBusiness
+- teamBusiness
+- legacy business fields
+
+--------------------------------------------------
+STEP 2 – Trace the rendered value
+--------------------------------------------------
+
+Find the exact React component and property used to render the value shown on screen.
+
+Trace it back to:
+
+Component
+↓
+
+Hook
+↓
+
+API response
+↓
+
+Backend service
+↓
+
+Database field
+
+--------------------------------------------------
+STEP 3 – Repository search
+--------------------------------------------------
+
+Search the entire repository for:
+
+readOnlyBusiness
+
+salaryBusiness
+
+teamBusiness
+
+lockedBusiness
+
+effectiveBusiness
+
+downlineBusiness
+
+salary_business
+
+SalaryBusinessSummary
+
+Identify every remaining UI reference.
+
+--------------------------------------------------
+STEP 4 – Backend trace
+--------------------------------------------------
+
+Trace the endpoint supplying Mahakal's page.
+
+Verify whether it reads from:
+
+SalaryBusinessSummary ✅
+
+or any legacy table/field ❌
+
+--------------------------------------------------
+STEP 5 – Database verification
+--------------------------------------------------
+
+For Mahakal specifically, report:
+
+Direct Business
+
+Downline Business
+
+Power Business
+
+Effective Business
+
+Current Rank
+
+Gold unlocked?
+
+Confirm whether any legacy column is still being queried.
+
+--------------------------------------------------
+STEP 6 – Root Cause
+--------------------------------------------------
+
+State the exact reason the old value appears.
+
+Classify it as one of:
+
+A. Frontend rendering old property
+
+B. Backend returning old property
+
+C. Legacy query
+
+D. Cached build
+
+E. Other (explain)
+
+--------------------------------------------------
+DELIVERABLES
+--------------------------------------------------
+
+Return:
+
+1. API trace
+2. Component trace
+3. Backend trace
+4. Database values
+5. Repository search results
+6. Root cause
+7. Recommended fix
+
+Do not implement the fix yet.
