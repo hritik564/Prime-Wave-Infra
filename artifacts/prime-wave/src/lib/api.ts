@@ -1557,6 +1557,17 @@ export function getLegBreakdown() {
 // Team Business (Sprint 30I) — cumulative APPROVED deposit volume per binary leg.
 // Read-only reporting metric, sourced independently of BV/investment/wallet data.
 export interface TeamBusiness {
+  // Organic — sum of approved deposits in binary downline
+  leftOrganicBusiness:  string;
+  rightOrganicBusiness: string;
+  totalOrganicBusiness: string;
+  // Power Business — remaining Power BV × $100 (Sprint 34A.1)
+  leftPowerBusiness:    string;
+  rightPowerBusiness:   string;
+  totalPowerBusiness:   string;
+  leftPowerBV:          string;
+  rightPowerBV:         string;
+  // Combined totals (organic + power) — use these for all Team Business displays
   leftBusiness:  string;
   rightBusiness: string;
   totalBusiness: string;

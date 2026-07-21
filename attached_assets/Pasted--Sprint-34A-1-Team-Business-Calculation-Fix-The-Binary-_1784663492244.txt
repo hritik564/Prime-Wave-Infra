@@ -1,0 +1,209 @@
+# Sprint 34A.1 — Team Business Calculation Fix
+
+The Binary Matching engine is working correctly.
+
+Power BV is being consumed correctly by the compensation engine.
+
+However, the member's Total Team Business still ignores Power BV.
+
+--------------------------------------------------
+CURRENT EXAMPLE
+--------------------------------------------------
+
+Mahakal
+
+Organic Team Business
+
+$1,900
+
+(19 BV)
+
+Power BV assigned
+
+200 BV
+
+Equivalent Business
+
+$20,000
+
+One Binary Match completed
+
+15 BV consumed
+
+Remaining Power BV
+
+185 BV
+
+Equivalent Remaining Power Business
+
+$18,500
+
+Expected Total Team Business
+
+Organic Business
+
++
+
+Remaining Power Business
+
+=
+
+$20,400
+
+(204 BV)
+
+Actual Team Business shown
+
+$1,900
+
+This is incorrect.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Power BV is now an official part of Team Business.
+
+Therefore:
+
+Total Team Business must always include:
+
+Organic Business
+
++
+
+Remaining Power Business
+
+across the entire application.
+
+--------------------------------------------------
+TASKS
+--------------------------------------------------
+
+1.
+
+Locate every calculation used for:
+
+- Team Business
+- Total Business
+- Business Volume
+- Network Business
+
+Identify the API, service, query and React components responsible.
+
+2.
+
+Update the calculation.
+
+Current logic:
+
+Team Business = Organic Business
+
+Replace with:
+
+Team Business = Organic Business + Remaining Power Business
+
+Where:
+
+Remaining Power Business = Remaining Power BV × 100
+
+(1 BV = $100)
+
+3.
+
+Update every Team Business display.
+
+Including:
+
+- Dashboard
+- Member Dashboard
+- Admin Member Drawer
+- User Profile
+- Network Tree
+- Network Intelligence
+- Team Summary cards
+- Business widgets
+- Any page displaying Team Business
+
+All must display the same value.
+
+4.
+
+Retain the business breakdown.
+
+Example:
+
+Organic Team Business
+
+$1,900
+
+Power Business
+
+$18,500
+
+(185 BV)
+
+────────────────────────
+
+Total Team Business
+
+$20,400
+
+(204 BV)
+
+5.
+
+Do NOT modify:
+
+- Binary Matching
+- Binary Orbit
+- Salary
+- Rank
+- Direct Income
+- Level Income
+- Wallets
+- Power BV Ledger
+
+This sprint is only fixing Team Business reporting.
+
+--------------------------------------------------
+VERIFICATION
+--------------------------------------------------
+
+Using Mahakal:
+
+Organic Business
+
+$1,900
+
+Power Business
+
+$18,500
+
+Total Team Business
+
+$20,400
+
+(204 BV)
+
+Verify this value appears consistently on every page.
+
+--------------------------------------------------
+FINAL REPORT
+--------------------------------------------------
+
+Provide:
+
+1. Root cause.
+
+2. Files changed.
+
+3. Before/After screenshots.
+
+4. Confirmation that:
+
+Total Team Business now equals:
+
+Organic Business + Remaining Power Business
+
+throughout the application.

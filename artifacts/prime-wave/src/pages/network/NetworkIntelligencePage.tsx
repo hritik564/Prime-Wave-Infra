@@ -928,7 +928,14 @@ export default function NetworkIntelligencePage() {
               <p style={{ fontSize: 34, fontWeight: 900, color: GOLD_L, lineHeight: 1.1, marginTop: 8 }}>
                 {loading ? "—" : fmtUSD(totalBusinessTotal)}
               </p>
-              <p style={{ fontSize: 10, color: MUTED, marginTop: 4 }}>Cumulative approved deposit volume across your entire network</p>
+              {!loading && (Number(teamBusiness?.totalPowerBusiness ?? 0) > 0) && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 6, fontSize: 10 }}>
+                  <span style={{ color: MUTED }}>Organic {fmtUSD(Number(teamBusiness?.totalOrganicBusiness ?? totalBusinessTotal))}</span>
+                  <span style={{ color: "rgba(245,158,11,0.5)" }}>+</span>
+                  <span style={{ color: "rgba(245,158,11,0.85)" }}>Power {fmtUSD(Number(teamBusiness?.totalPowerBusiness ?? 0))}</span>
+                </div>
+              )}
+              <p style={{ fontSize: 10, color: MUTED, marginTop: 4 }}>Organic deposits + Power Business across your entire network</p>
             </div>
 
             {/* Distribution bar */}
