@@ -1,0 +1,159 @@
+# HOTFIX Verification — Level Income (Production)
+
+The Level Income configuration hotfix has been applied.
+
+Now verify that the production system is paying the correct Level Income percentages.
+
+Do NOT modify any code.
+
+Do NOT modify any database records.
+
+Verification only.
+
+--------------------------------------------------
+STEP 1 — Read Current Configuration
+--------------------------------------------------
+
+Read the current value of:
+
+system_settings.key = 'level.config'
+
+Return the exact JSON.
+
+Expected:
+
+Level 1 = 1%
+Level 2 = 1%
+Level 3 = 1%
+Level 4 = 1%
+Level 5 = 1%
+
+--------------------------------------------------
+STEP 2 — Cache Verification
+--------------------------------------------------
+
+Verify that the API server is currently using the updated configuration.
+
+Do not only read the database.
+
+Confirm the runtime configuration loaded by the Level Income service.
+
+--------------------------------------------------
+STEP 3 — Test Investment
+--------------------------------------------------
+
+Use the most recent investment created AFTER the hotfix.
+
+If none exists, clearly state that no post-hotfix investment exists yet.
+
+Do not fabricate test data.
+
+--------------------------------------------------
+STEP 4 — Verify Every Upline
+--------------------------------------------------
+
+For the investment, return:
+
+Investor
+
+Investment Amount
+
+Then list every Level Income generated.
+
+For each recipient show:
+
+- Username
+- Level
+- Percentage Used
+- Amount Paid
+
+Expected:
+
+1%
+
+1%
+
+1%
+
+1%
+
+1%
+
+--------------------------------------------------
+STEP 5 — Mathematical Verification
+--------------------------------------------------
+
+For each recipient calculate:
+
+Expected Amount
+
+Actual Amount
+
+Difference
+
+Example:
+
+Investment:
+$1000
+
+Expected:
+
+Level 1
+1%
+$10
+
+Level 2
+1%
+$10
+
+etc.
+
+--------------------------------------------------
+STEP 6 — Database Verification
+--------------------------------------------------
+
+Verify the actual rows inserted into:
+
+level_income
+
+Confirm every row matches:
+
+percentage = 1
+
+No historical rows should be modified.
+
+Only verify new rows.
+
+--------------------------------------------------
+STEP 7 — Historical Protection
+--------------------------------------------------
+
+Confirm:
+
+The hotfix affects ONLY future investments.
+
+No historical Level Income rows were edited.
+
+No wallet balances were modified retroactively.
+
+--------------------------------------------------
+FINAL REPORT
+--------------------------------------------------
+
+Return:
+
+Current configuration
+
+Runtime configuration
+
+Investment ID tested
+
+Every Level Income recipient
+
+Expected amount
+
+Actual amount
+
+PASS or FAIL
+
+If any recipient receives anything other than 1%, identify the exact source immediately.
