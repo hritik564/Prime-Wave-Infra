@@ -1,0 +1,217 @@
+# Sprint 34B — Admin Transaction Ledger Audit & Unification
+
+The Admin → Member → Transactions tab must become the definitive financial ledger for every member.
+
+Currently, transactions are inconsistent.
+
+Example:
+
+A user successfully withdrew 26 USDT.
+
+The wallet balance updated correctly.
+
+The withdrawal request completed successfully.
+
+However, the transaction does NOT appear in the member's Transactions tab.
+
+This indicates the transaction history is incomplete.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Every financial event affecting a member must create exactly one transaction record and appear in the Transactions tab.
+
+The Transactions page must become the single source of truth for account history.
+
+--------------------------------------------------
+STEP 1 — Audit Every Financial Event
+--------------------------------------------------
+
+Verify that the following ALWAYS create transaction entries:
+
+✓ Deposit
+
+✓ Investment Purchase
+
+✓ Daily ROI
+
+✓ Direct Referral Income
+
+✓ Level Income
+
+✓ Binary Matching Bonus
+
+✓ Binary Orbit Bonus
+
+✓ Rank Salary
+
+✓ Principal Return
+
+✓ Withdrawal
+
+✓ Wallet Transfer
+
+✓ Manual Admin Credit
+
+✓ Manual Admin Debit
+
+✓ Refunds
+
+✓ Reversals
+
+✓ Future bonus types
+
+Nothing that changes a wallet balance should bypass the transaction ledger.
+
+--------------------------------------------------
+STEP 2 — Trace Missing Withdrawals
+--------------------------------------------------
+
+Investigate why the completed 26 USDT withdrawal does not appear.
+
+Identify:
+
+• API endpoint
+
+• Service
+
+• Database write
+
+• Transaction creation
+
+• UI query
+
+Find the exact point where the transaction disappears.
+
+--------------------------------------------------
+STEP 3 — Unify Transaction Sources
+--------------------------------------------------
+
+The Transactions page must read from one canonical transaction table/service.
+
+Do NOT mix:
+
+Wallet history
+
+Withdrawal history
+
+Deposit history
+
+Investment history
+
+Each financial event should create one ledger record.
+
+The UI should simply display that ledger.
+
+--------------------------------------------------
+STEP 4 — Verify Totals
+--------------------------------------------------
+
+Lifetime Credits
+
+must equal
+
+SUM(all positive ledger entries)
+
+Lifetime Debits
+
+must equal
+
+SUM(all negative ledger entries)
+
+Verify against production data.
+
+--------------------------------------------------
+STEP 5 — Transaction Types
+--------------------------------------------------
+
+Ensure every transaction has:
+
+Timestamp
+
+Transaction Type
+
+Amount
+
+Credit / Debit
+
+Wallet affected
+
+Reference ID
+
+Description
+
+Status
+
+Source module
+
+--------------------------------------------------
+STEP 6 — UI
+--------------------------------------------------
+
+Ensure filters correctly support every type:
+
+Deposit
+
+Investment
+
+Daily ROI
+
+Direct Income
+
+Level Income
+
+Binary Bonus
+
+Binary Orbit
+
+Rank Salary
+
+Withdrawal
+
+Transfer
+
+Principal Return
+
+Admin Adjustment
+
+Refund
+
+Reversal
+
+Unknown transaction types must never be silently hidden.
+
+--------------------------------------------------
+STEP 7 — Regression
+--------------------------------------------------
+
+Execute one of each transaction type.
+
+Verify:
+
+Wallet updated
+
+Ledger row created
+
+Transaction appears immediately
+
+Lifetime totals updated
+
+CSV export includes the transaction
+
+--------------------------------------------------
+FINAL REPORT
+--------------------------------------------------
+
+Provide:
+
+1. Root cause of the missing 26 USDT withdrawal.
+
+2. Files changed.
+
+3. Before/After screenshots.
+
+4. Confirmation that every wallet movement now creates exactly one ledger record.
+
+5. Confirmation that the Transactions tab is now the canonical financial history for every member.

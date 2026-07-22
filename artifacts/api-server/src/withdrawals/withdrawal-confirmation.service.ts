@@ -176,15 +176,53 @@ async function completeWithdrawal(
 ): Promise<void> {
   const explorerUrl = `https://bscscan.com/tx/${txHash}`;
 
-  await prisma.withdrawalRequest.update({
-    where: { id },
-    data: {
-      status:            "COMPLETED",
-      completedAt:       new Date(),
-      confirmationBlock,
-      confirmationCount,
-      explorerUrl,
-    },
+  // Fetch withdrawal details needed for the wallet ledger entry
+  const wr = await prisma.withdrawalRequest.findUnique({
+    where:  { id },
+    select: { userId: true, amount: true, walletAddress: true, network: true },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    await tx.withdrawalRequest.update({
+      where: { id },
+      data: {
+        status:            "COMPLETED",
+        completedAt:       new Date(),
+        confirmationBlock,
+        confirmationCount,
+        explorerUrl,
+      },
+    });
+
+    if (wr) {
+      // Release the locked balance and record the wallet ledger entry so the
+      // transaction appears in the member's Transaction History tab.
+      const wallet = await tx.wallet.update({
+        where:  { userId: wr.userId },
+        data:   { lockedWithdrawalBalance: { decrement: wr.amount } },
+        select: { id: true },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          walletId:    wallet.id,
+          userId:      wr.userId,
+          type:        "WITHDRAWAL",
+          status:      "SUCCESS",
+          amount:      wr.amount,
+          description: `Withdrawal completed — ${wr.network} to ${wr.walletAddress.slice(0, 10)}…`,
+          metadata:    {
+            withdrawalId:      id,
+            network:           wr.network,
+            walletAddress:     wr.walletAddress,
+            txHash,
+            confirmationBlock,
+            confirmationCount,
+            source:            "auto",
+          },
+        },
+      });
+    }
   });
 
   await logWithdrawalEvent(id, "CONFIRMED", {

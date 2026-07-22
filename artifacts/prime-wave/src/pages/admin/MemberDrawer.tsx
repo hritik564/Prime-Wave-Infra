@@ -99,8 +99,8 @@ const TX_CFG: Record<string, TxCfg> = {
   INVESTMENT:        { emoji: "💰", label: "Investment Purchase",  filterLabel: "Investment"       },
   ROI_CLAIM:         { emoji: "📈", label: "Daily ROI",            filterLabel: "Daily ROI"        },
   PRINCIPAL_RELEASE: { emoji: "💰", label: "Principal Return",     filterLabel: "Principal Return" },
-  BINARY_MATCH:      { emoji: "⚖",  label: "Binary Orbit Bonus",   filterLabel: "Binary Bonus"     },
-  BINARY_ORBIT:      { emoji: "⚖",  label: "Binary Orbit Bonus",   filterLabel: "Binary Bonus"     },
+  BINARY_MATCH:      { emoji: "⚖",  label: "Binary Matching Bonus", filterLabel: "Binary Matching"  },
+  BINARY_ORBIT:      { emoji: "🔄", label: "Binary Orbit Bonus",   filterLabel: "Binary Orbit"     },
   LEVEL_INCOME:      { emoji: "👥", label: "Level Income",         filterLabel: "Level Income"     },
   SALARY:            { emoji: "🏆", label: "Rank Salary",          filterLabel: "Rank Salary"      },
   WITHDRAWAL:        { emoji: "💸", label: "Withdrawal",           filterLabel: "Withdrawal"       },
@@ -108,7 +108,7 @@ const TX_CFG: Record<string, TxCfg> = {
 };
 const TX_FILTER_OPTIONS = [
   "All","Deposit","Investment","Daily ROI","Level Income",
-  "Binary Bonus","Rank Salary","Withdrawal","Transfer","Principal Return",
+  "Binary Matching","Binary Orbit","Rank Salary","Withdrawal","Transfer","Principal Return",
 ];
 
 function txLabel(type: string)   { return TX_CFG[type]?.label      ?? type.replace(/_/g, " "); }

@@ -374,8 +374,8 @@ function FAQSection({ faqs, color }: { faqs: Array<{ q: string; a: string }>; co
 
 const TX_TYPE_META: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   ROI_CLAIM:    { label: "ROI Credit",       color: "#D4AF37", bg: "rgba(212,175,55,0.12)",  icon: TrendingUp },
-  BINARY_MATCH: { label: "Binary Match",     color: "#a78bfa", bg: "rgba(167,139,250,0.12)", icon: GitMerge   },
-  BINARY_ORBIT: { label: "Orbit Reward",     color: "#60a5fa", bg: "rgba(96,165,250,0.12)",  icon: RefreshCw  },
+  BINARY_MATCH: { label: "Binary Matching Bonus", color: "#a78bfa", bg: "rgba(167,139,250,0.12)", icon: GitMerge  },
+  BINARY_ORBIT: { label: "Binary Orbit Bonus",    color: "#60a5fa", bg: "rgba(96,165,250,0.12)",  icon: RefreshCw },
   SALARY:       { label: "Salary Credit",    color: "#fb923c", bg: "rgba(251,146,60,0.12)",  icon: DollarSign },
   LEVEL_INCOME: { label: "Level Commission", color: "#34d399", bg: "rgba(52,211,153,0.12)",  icon: Users      },
 };

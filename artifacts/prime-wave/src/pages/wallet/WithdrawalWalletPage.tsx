@@ -35,8 +35,8 @@ const TYPE_CONFIG: Record<string, {
   Icon: React.ElementType;
   credit: boolean;
 }> = {
-  BINARY_MATCH:      { label: "Binary Matching",  color: "#D4AF37", bg: "rgba(212,175,55,0.1)",  Icon: GitMerge,        credit: true  },
-  BINARY_ORBIT:      { label: "Binary Orbit",     color: "#a78bfa", bg: "rgba(167,139,250,0.1)", Icon: RefreshCw,       credit: true  },
+  BINARY_MATCH:      { label: "Binary Matching Bonus", color: "#D4AF37", bg: "rgba(212,175,55,0.1)",  Icon: GitMerge,  credit: true },
+  BINARY_ORBIT:      { label: "Binary Orbit Bonus",    color: "#a78bfa", bg: "rgba(167,139,250,0.1)", Icon: RefreshCw, credit: true },
   LEVEL_INCOME:      { label: "Level Income",     color: "#34d399", bg: "rgba(52,211,153,0.1)",  Icon: Users,           credit: true  },
   SALARY:            { label: "Salary Payout",    color: "#60a5fa", bg: "rgba(96,165,250,0.1)",  Icon: DollarSign,      credit: true  },
   INCOME_TRANSFER:   { label: "Income Transfer",  color: "#fb923c", bg: "rgba(251,146,60,0.1)",  Icon: ArrowLeftRight,  credit: true  },

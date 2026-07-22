@@ -24,8 +24,8 @@ const TYPE_CONFIG: Record<string, {
   icon: React.ElementType; short: string;
 }> = {
   ROI_CLAIM:    { label: "ROI Income",   color: "#D4AF37", bg: "rgba(212,175,55,0.12)",  icon: TrendingUp, short: "ROI"    },
-  BINARY_MATCH: { label: "Binary Match", color: "#a78bfa", bg: "rgba(167,139,250,0.12)", icon: GitMerge,   short: "Binary" },
-  BINARY_ORBIT: { label: "Orbit Income", color: "#60a5fa", bg: "rgba(96,165,250,0.12)",  icon: RefreshCw,  short: "Orbit"  },
+  BINARY_MATCH: { label: "Binary Matching Bonus", color: "#a78bfa", bg: "rgba(167,139,250,0.12)", icon: GitMerge,  short: "Matching" },
+  BINARY_ORBIT: { label: "Binary Orbit Bonus",    color: "#60a5fa", bg: "rgba(96,165,250,0.12)",  icon: RefreshCw, short: "Orbit"    },
   LEVEL_INCOME: { label: "Level Income", color: "#34d399", bg: "rgba(52,211,153,0.12)",  icon: Users,      short: "Level"  },
   SALARY:       { label: "Salary",       color: "#fb923c", bg: "rgba(251,146,60,0.12)",  icon: DollarSign, short: "Salary" },
 };
