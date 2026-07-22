@@ -34,8 +34,25 @@ export const powerBvLedgerQuerySchema = z.object({
   side:  z.enum(["LEFT", "RIGHT"]).optional(),
 });
 
+// ── Global queries (Sprint 35) ────────────────────────────────────────────────
+
+export const powerBvGlobalLedgerQuerySchema = z.object({
+  page:      z.coerce.number().int().positive().default(1),
+  limit:     z.coerce.number().int().min(1).max(200).default(50),
+  side:      z.enum(["LEFT", "RIGHT"]).optional(),
+  operation: z.enum(["ADD", "REMOVE"]).optional(),
+  search:    z.string().optional(),
+});
+
+export const powerBvSearchQuerySchema = z.object({
+  q:     z.string().min(1, "search query is required"),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
 // ── Inferred types ────────────────────────────────────────────────────────────
 
-export type PowerBvAddInput    = z.infer<typeof powerBvAddSchema>;
-export type PowerBvRemoveInput = z.infer<typeof powerBvRemoveSchema>;
-export type PowerBvLedgerQuery = z.infer<typeof powerBvLedgerQuerySchema>;
+export type PowerBvAddInput         = z.infer<typeof powerBvAddSchema>;
+export type PowerBvRemoveInput      = z.infer<typeof powerBvRemoveSchema>;
+export type PowerBvLedgerQuery      = z.infer<typeof powerBvLedgerQuerySchema>;
+export type GlobalPowerLedgerQuery  = z.infer<typeof powerBvGlobalLedgerQuerySchema>;
+export type PowerBvSearchQuery      = z.infer<typeof powerBvSearchQuerySchema>;

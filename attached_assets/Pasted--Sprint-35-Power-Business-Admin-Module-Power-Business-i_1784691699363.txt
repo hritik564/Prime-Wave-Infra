@@ -1,0 +1,229 @@
+# Sprint 35 — Power Business Admin Module
+
+Power Business is now a core component of the PrimeWave compensation engine.
+
+It deserves its own dedicated module in the Admin Control Center.
+
+This sprint creates a standalone Power Business section.
+
+Do NOT change any compensation logic.
+
+This is an admin management module only.
+
+--------------------------------------------------
+SIDEBAR
+--------------------------------------------------
+
+Add a new top-level navigation item:
+
+⚡ Power Business
+
+Place it under:
+
+Income Engine
+
+or
+
+Binary Network
+
+(use the position that best fits the current sidebar layout).
+
+--------------------------------------------------
+PAGE 1 — Dashboard
+--------------------------------------------------
+
+Create a landing page for Power Business.
+
+Display:
+
+• Total Active Power BV
+
+• Total Power Business ($ equivalent)
+
+• Total Members with Power BV
+
+• Total Power BV Assigned
+
+• Total Power BV Consumed
+
+• Remaining Active Power BV
+
+• Today's Assignments
+
+• Last 7 Days Assignments
+
+--------------------------------------------------
+PAGE 2 — Search Member
+--------------------------------------------------
+
+Search by:
+
+• Username
+
+• User ID
+
+• Name
+
+Display:
+
+Current Power BV
+
+Left Power BV
+
+Right Power BV
+
+Power Business ($)
+
+Organic Team Business
+
+Total Team Business
+
+Quick link to Member Profile
+
+--------------------------------------------------
+PAGE 3 — Assign Power BV
+--------------------------------------------------
+
+Move the existing Power BV assignment functionality into this module.
+
+Support:
+
+• Left Power BV
+
+• Right Power BV
+
+• Reason (required)
+
+• Notes (optional)
+
+• Preview before assignment
+
+Show equivalent business value:
+
+Example:
+
+185 BV
+
+=
+
+$18,500 Team Business
+
+--------------------------------------------------
+PAGE 4 — Power Ledger
+--------------------------------------------------
+
+Show complete immutable audit history.
+
+Columns:
+
+Timestamp
+
+Member
+
+Username
+
+Admin
+
+Side
+
+BV
+
+Business Equivalent
+
+Action
+
+Reason
+
+Running Balance
+
+Search
+
+Filter
+
+CSV Export
+
+--------------------------------------------------
+PAGE 5 — Member Summary
+--------------------------------------------------
+
+When selecting a member show:
+
+Organic Team Business
+
+Power Business
+
+Total Team Business
+
+Left Power BV
+
+Right Power BV
+
+Power Assigned
+
+Power Consumed
+
+Remaining Power
+
+Last Assignment
+
+Last Matching Consumption
+
+--------------------------------------------------
+PAGE 6 — Analytics
+--------------------------------------------------
+
+Display:
+
+Top Members by Power BV
+
+Largest Assignments
+
+Largest Remaining Power
+
+Most Consumed
+
+Power Assigned Today
+
+Power Consumed Today
+
+Daily Trend
+
+--------------------------------------------------
+RULES
+--------------------------------------------------
+
+No compensation logic changes.
+
+No Binary Matching changes.
+
+No Orbit changes.
+
+No Salary changes.
+
+No Rank changes.
+
+No Direct Income changes.
+
+No Level Income changes.
+
+Use existing Power BV services and ledger.
+
+This sprint is purely an administrative module.
+
+--------------------------------------------------
+FINAL REPORT
+--------------------------------------------------
+
+Provide:
+
+1. Sidebar screenshot.
+
+2. Dashboard screenshot.
+
+3. Assignment page screenshot.
+
+4. Ledger screenshot.
+
+5. Member summary screenshot.
+
+6. Confirmation that all existing Power BV functionality now resides inside the dedicated Power Business module without changing engine behaviour.

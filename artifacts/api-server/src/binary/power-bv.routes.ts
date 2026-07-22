@@ -7,12 +7,19 @@ import {
   removePowerBVHandler,
   getPowerSummaryHandler,
   getPowerLedgerHandler,
+  getGlobalStatsHandler,
+  getGlobalLedgerHandler,
+  getGlobalLedgerCsvHandler,
+  getGlobalAnalyticsHandler,
+  searchMembersHandler,
 } from "./power-bv.controller.js";
 import {
   powerBvUserIdParamSchema,
   powerBvAddSchema,
   powerBvRemoveSchema,
   powerBvLedgerQuerySchema,
+  powerBvGlobalLedgerQuerySchema,
+  powerBvSearchQuerySchema,
 } from "./power-bv.schema.js";
 
 const router = Router();
@@ -22,6 +29,44 @@ const writeGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN");
 
 // Any authenticated admin — read operations
 const readGuard = requireAdminAuth;
+
+// ── GET /api/admin/power-bv/stats ─────────────────────────────────────────────
+router.get(
+  "/stats",
+  adminLimiter, readGuard,
+  getGlobalStatsHandler,
+);
+
+// ── GET /api/admin/power-bv/ledger ────────────────────────────────────────────
+router.get(
+  "/ledger",
+  adminLimiter, readGuard,
+  validate(powerBvGlobalLedgerQuerySchema, "query"),
+  getGlobalLedgerHandler,
+);
+
+// ── GET /api/admin/power-bv/ledger/csv ───────────────────────────────────────
+router.get(
+  "/ledger/csv",
+  adminLimiter, readGuard,
+  validate(powerBvGlobalLedgerQuerySchema, "query"),
+  getGlobalLedgerCsvHandler,
+);
+
+// ── GET /api/admin/power-bv/analytics ────────────────────────────────────────
+router.get(
+  "/analytics",
+  adminLimiter, readGuard,
+  getGlobalAnalyticsHandler,
+);
+
+// ── GET /api/admin/power-bv/search ────────────────────────────────────────────
+router.get(
+  "/search",
+  adminLimiter, readGuard,
+  validate(powerBvSearchQuerySchema, "query"),
+  searchMembersHandler,
+);
 
 // ── GET /api/admin/power-bv/:userId ──────────────────────────────────────────
 router.get(

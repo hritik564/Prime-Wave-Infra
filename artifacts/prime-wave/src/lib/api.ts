@@ -1577,6 +1577,128 @@ export function getTeamBusiness() {
   return request<TeamBusiness>("/api/network/team-business");
 }
 
+/* ── Admin Power Business (Sprint 35) ─────────────────────────────────────── */
+
+export interface PowerGlobalStats {
+  totalActivePowerBV:             string;
+  totalPowerBusiness:             string;
+  totalMembersWithPowerBV:        number;
+  totalPowerBVAssigned:           string;
+  totalPowerBVAdminRemoved:       string;
+  totalPowerBVConsumedByMatching: string;
+  totalLedgerEntries:             number;
+  todayAssignments:               number;
+  last7DaysAssignments:           number;
+}
+
+export interface PowerLedgerEntry {
+  id:            string;
+  createdAt:     string;
+  userId:        string;
+  adminId:       string;
+  side:          "LEFT" | "RIGHT";
+  operation:     "ADD" | "REMOVE";
+  bv:            string;
+  balanceBefore: string;
+  balanceAfter:  string;
+  reason:        string;
+  user:  { id: string; username: string; email: string; firstName: string | null; lastName: string | null };
+  admin: { id: string; email: string; role: string; firstName: string | null; lastName: string | null };
+}
+
+export interface PowerGlobalLedgerResponse {
+  records:    PowerLedgerEntry[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+export interface PowerTopMember {
+  id:           string;
+  username:     string;
+  email:        string;
+  powerLeftBV:  string;
+  powerRightBV: string;
+  totalPowerBV: string;
+}
+
+export interface PowerGlobalAnalytics {
+  topByPowerBV:         PowerTopMember[];
+  largestAssignments:   (PowerLedgerEntry & { user: { id: string; username: string }; admin: { email: string } })[];
+  dailyTrend:           { date: string; count: number; bv: string }[];
+  todayAssignedBV:      string;
+  todayAssignmentCount: number;
+}
+
+export interface PowerMemberSearchResult {
+  id:            string;
+  username:      string;
+  email:         string;
+  firstName:     string | null;
+  lastName:      string | null;
+  powerLeftBV:   string;
+  powerRightBV:  string;
+  totalPowerBV:  string;
+  powerBusiness: string;
+}
+
+export interface AdminPowerSummary {
+  userId:           string;
+  username:         string;
+  organicLeftBV:    string;
+  organicRightBV:   string;
+  powerLeftBV:      string;
+  powerRightBV:     string;
+  effectiveLeftBV:  string;
+  effectiveRightBV: string;
+}
+
+export function getPowerGlobalStats() {
+  return request<PowerGlobalStats>("/api/admin/power-bv/stats");
+}
+
+export function getPowerGlobalLedger(params: {
+  page?: number; limit?: number; side?: string; operation?: string; search?: string;
+} = {}) {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== "") qs.set(k, String(v)); });
+  const q = qs.toString();
+  return request<PowerGlobalLedgerResponse>(`/api/admin/power-bv/ledger${q ? `?${q}` : ""}`);
+}
+
+export function getPowerGlobalAnalytics() {
+  return request<PowerGlobalAnalytics>("/api/admin/power-bv/analytics");
+}
+
+export function searchPowerMembers(q: string) {
+  return request<PowerMemberSearchResult[]>(`/api/admin/power-bv/search?q=${encodeURIComponent(q)}`);
+}
+
+export function adminGetPowerSummary(userId: string) {
+  return request<AdminPowerSummary>(`/api/admin/power-bv/${userId}`);
+}
+
+export function adminGetPowerLedger(userId: string, params: { page?: number; limit?: number; side?: string } = {}) {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => { if (v !== undefined) qs.set(k, String(v)); });
+  const q = qs.toString();
+  return request<PowerGlobalLedgerResponse>(`/api/admin/power-bv/${userId}/ledger${q ? `?${q}` : ""}`);
+}
+
+export function adminAddPowerBV(userId: string, body: { side: "LEFT" | "RIGHT"; bv: number; reason: string }) {
+  return request<{ userId: string }>(`/api/admin/power-bv/${userId}/add`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function adminRemovePowerBV(userId: string, body: { side: "LEFT" | "RIGHT"; bv: number; reason: string }) {
+  return request<{ userId: string }>(`/api/admin/power-bv/${userId}/remove`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 /* ── Admin Investments ─────────────────────────────────────────────────────── */
 
 export type AdminInvStatus = "ACTIVE" | "MATURED" | "COMPLETED";

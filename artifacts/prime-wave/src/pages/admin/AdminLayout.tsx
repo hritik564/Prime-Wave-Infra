@@ -7,7 +7,7 @@ import {
   Settings, LogOut, Bell, Search, Activity, Menu, X, Shield,
   ArrowRight, ArrowDownToLine, FlaskConical, Wifi, BadgeDollarSign,
   ChevronDown, ChevronRight as ChevronRightIcon, Link, FlaskRound,
-  DollarSign,
+  DollarSign, Bolt,
 } from "lucide-react";
 import { adminSearchUsers, type AdminUserListItem } from "@/lib/api";
 import { SkeletonStyle, Skeleton } from "@/components/admin/Skeleton";
@@ -47,8 +47,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "ENGINE",
     items: [
-      { icon: GitBranch, label: "Binary Network", path: "/admin/binary" },
-      { icon: Zap,       label: "Income Engine",  path: "/admin/income" },
+      { icon: GitBranch, label: "Binary Network",  path: "/admin/binary"          },
+      { icon: Zap,       label: "Income Engine",   path: "/admin/income"          },
+      { icon: Bolt,      label: "Power Business",  path: "/admin/power-business"  },
     ],
   },
   {

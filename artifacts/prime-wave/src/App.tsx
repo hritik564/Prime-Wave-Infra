@@ -40,6 +40,7 @@ const AdminBlockchainHealthPage  = lazy(() => import("@/pages/admin/BlockchainHe
 const AdminBlockchainTesterPage  = lazy(() => import("@/pages/admin/BlockchainTesterPage"));
 const AdminTreasuryPage          = lazy(() => import("@/pages/admin/TreasuryIntegrityPage"));
 const AdminSalaryPage            = lazy(() => import("@/pages/admin/AdminSalaryManagementPage"));
+const AdminPowerBusinessPage     = lazy(() => import("@/pages/admin/AdminPowerBusinessPage"));
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
@@ -227,6 +228,9 @@ function AppRoutes() {
       </Route>
       <Route path="/admin/income">
         <RequireAdmin><Suspense fallback={null}><AdminIncomeEnginePage /></Suspense></RequireAdmin>
+      </Route>
+      <Route path="/admin/power-business">
+        <RequireAdmin><Suspense fallback={null}><AdminPowerBusinessPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/plans">
         <RequireAdmin><Suspense fallback={null}><AdminPlansPage /></Suspense></RequireAdmin>
