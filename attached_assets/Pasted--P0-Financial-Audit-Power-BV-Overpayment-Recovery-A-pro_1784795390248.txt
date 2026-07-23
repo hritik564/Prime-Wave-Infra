@@ -1,0 +1,264 @@
+# P0 Financial Audit — Power BV Overpayment Recovery
+
+A production incident occurred.
+
+An administrator accidentally assigned Power BV to BOTH legs for the following users:
+
+• minaxi
+• rd0013
+
+The Power BV assignment was later removed.
+
+However, during the time it existed, Binary Matching generated income that should never have been earned.
+
+This is a financial integrity incident.
+
+DO NOT deduct any money until the exact overpayment has been calculated.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Determine:
+
+1. What Binary Matching income SHOULD have been.
+
+2. What Binary Matching income WAS actually paid.
+
+3. Calculate the exact overpayment.
+
+4. Recover ONLY the overpaid amount.
+
+No other income should be affected.
+
+--------------------------------------------------
+STEP 1 — Build Timeline
+--------------------------------------------------
+
+For BOTH users:
+
+minaxi
+
+rd0013
+
+Produce a chronological timeline containing:
+
+Timestamp
+
+Power BV assignment
+
+Power BV removal
+
+Binary Matching cycles
+
+Binary Orbit cycles
+
+Wallet credits
+
+Carry Forward
+
+BV balances before each cycle
+
+BV balances after each cycle
+
+--------------------------------------------------
+STEP 2 — Reconstruct Correct Matching
+--------------------------------------------------
+
+Using production data,
+
+re-run every Binary Matching cycle logically WITHOUT the accidental Power BV.
+
+Determine:
+
+Expected matched BV
+
+Expected matching income
+
+Expected carry forward
+
+Expected remaining BV
+
+--------------------------------------------------
+STEP 3 — Compare Against Reality
+--------------------------------------------------
+
+For every matching cycle produce:
+
+Cycle
+
+Actual matched BV
+
+Expected matched BV
+
+Actual income
+
+Expected income
+
+Difference
+
+Only differences are recoverable.
+
+--------------------------------------------------
+STEP 4 — Binary Orbit
+--------------------------------------------------
+
+Verify whether the accidental Power BV also generated:
+
+Binary Orbit bonuses
+
+If yes,
+
+calculate:
+
+Expected Orbit
+
+Actual Orbit
+
+Difference
+
+Do NOT assume.
+
+Verify using production data.
+
+--------------------------------------------------
+STEP 5 — Salary
+--------------------------------------------------
+
+Verify whether the accidental Power BV changed:
+
+Salary qualification
+
+Salary payout
+
+If yes,
+
+report it separately.
+
+Do NOT modify salary automatically.
+
+--------------------------------------------------
+STEP 6 — Rank Qualification
+--------------------------------------------------
+
+Verify whether temporary Power BV caused:
+
+Rank unlock
+
+Rank advancement
+
+If yes,
+
+report separately.
+
+Do not automatically downgrade.
+
+--------------------------------------------------
+STEP 7 — Recovery
+--------------------------------------------------
+
+Only after the audit is complete:
+
+Create recovery transactions ONLY for the excess income.
+
+Recovery must:
+
+Create walletTransaction entries.
+
+Use a dedicated transaction type:
+
+POWER_BV_RECOVERY
+
+Description:
+
+Recovery of excess Binary Matching income caused by accidental Power BV assignment.
+
+Never modify historical Binary Matching records.
+
+Never delete transactions.
+
+Never edit existing wallet transactions.
+
+Recovery must be performed as separate debit entries.
+
+--------------------------------------------------
+STEP 8 — Verification
+--------------------------------------------------
+
+Verify:
+
+Final wallet balance
+
+=
+
+Original balance
+
+−
+
+Recovered overpayment
+
+No other wallet entries should change.
+
+--------------------------------------------------
+FINAL REPORT
+--------------------------------------------------
+
+For BOTH users provide:
+
+1.
+
+Timeline.
+
+2.
+
+Power BV assigned.
+
+3.
+
+Power BV removed.
+
+4.
+
+Expected Binary Matching.
+
+5.
+
+Actual Binary Matching.
+
+6.
+
+Expected Binary Orbit.
+
+7.
+
+Actual Binary Orbit.
+
+8.
+
+Overpaid amount.
+
+9.
+
+Recovery amount.
+
+10.
+
+Final wallet balance.
+
+11.
+
+Recovery transaction IDs.
+
+12.
+
+Confirmation that:
+
+No Direct Income affected.
+
+No Level Income affected.
+
+No ROI affected.
+
+No investments affected.
+
+No legitimate Binary Matching income was removed.
