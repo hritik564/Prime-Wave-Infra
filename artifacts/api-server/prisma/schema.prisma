@@ -81,6 +81,7 @@ enum TransactionType {
   LEVEL_INCOME
   SALARY
   WITHDRAWAL
+  POWER_BV_RECOVERY
 }
 
 enum TransactionStatus {
@@ -1182,6 +1183,7 @@ enum LedgerTransactionType {
   WITHDRAWAL_REFUND
   WITHDRAWAL_CANCELLATION
   MANUAL_ADJUSTMENT
+  POWER_BV_RECOVERY
 }
 
 enum DebitCredit {

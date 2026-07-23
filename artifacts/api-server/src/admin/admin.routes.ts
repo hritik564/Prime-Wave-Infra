@@ -66,6 +66,7 @@ import {
   getWalletAuditLogsHandler,
 } from "./admin-users.controller";
 import { walletAdjustmentHandler } from "./admin-wallet-adjustments.controller";
+import { p0PowerBvRecoveryHandler } from "./admin-p0-recovery.controller";
 import {
   getBlockchainHealthHandler,
   validateAddressHandler,
@@ -508,6 +509,14 @@ router.post(
   adminLimiter,
   superAdminGuard,
   resetLockedBalanceHandler,
+);
+
+// ── P0 Power BV Recovery — SUPER_ADMIN only ──────────────────────────────────
+router.post(
+  "/p0/power-bv-recovery",
+  adminLimiter,
+  superAdminGuard,
+  p0PowerBvRecoveryHandler,
 );
 
 // ── Wallet adjustments — SUPER_ADMIN + FINANCE_ADMIN ─────────────────────────
