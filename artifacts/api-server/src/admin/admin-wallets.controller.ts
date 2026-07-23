@@ -7,6 +7,7 @@ import {
   getAdminWalletStats,
   getAdminWalletById,
   saveWalletNotes,
+  resetLockedBalance,
 } from "./admin-wallets.service";
 import type {
   AdminWalletListQuery,
@@ -39,6 +40,18 @@ export async function getAdminWalletByIdHandler(
     const userId = String(req.params["userId"] ?? "");
     const result = await getAdminWalletById(userId);
     sendSuccess(res, result, "Wallet detail retrieved");
+  } catch (err) { next(err); }
+}
+
+export async function resetLockedBalanceHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const userId   = String(req.params["userId"] ?? "");
+    const reason   = String((req.body as { reason?: string }).reason ?? "Admin manual reset");
+    const result   = await resetLockedBalance(user.sub, userId, reason);
+    sendSuccess(res, result, "Locked balance reset to zero");
   } catch (err) { next(err); }
 }
 

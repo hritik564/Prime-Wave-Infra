@@ -78,6 +78,7 @@ import {
   getAdminWalletStatsHandler,
   getAdminWalletByIdHandler,
   saveWalletNotesHandler,
+  resetLockedBalanceHandler,
 } from "./admin-wallets.controller";
 import { adminWalletListQuerySchema, saveWalletNotesSchema } from "./admin-wallets.schema";
 import {
@@ -500,6 +501,13 @@ router.patch(
   financeAdminGuard,
   validate(saveWalletNotesSchema),
   saveWalletNotesHandler,
+);
+
+router.post(
+  "/wallets/:userId/reset-locked-balance",
+  adminLimiter,
+  superAdminGuard,
+  resetLockedBalanceHandler,
 );
 
 // ── Wallet adjustments — SUPER_ADMIN + FINANCE_ADMIN ─────────────────────────

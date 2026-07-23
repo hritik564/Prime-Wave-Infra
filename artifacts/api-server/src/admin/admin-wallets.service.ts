@@ -218,6 +218,60 @@ export async function getAdminWalletById(userId: string) {
 
 // ── Save admin notes ──────────────────────────────────────────────────────────
 
+export async function resetLockedBalance(
+  adminId: string,
+  userId:  string,
+  reason:  string,
+) {
+  const user = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: { id: true, username: true },
+  });
+  if (!user) {
+    throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
+  }
+
+  const wallet = await prisma.wallet.findUnique({
+    where:  { userId },
+    select: { id: true, lockedWithdrawalBalance: true },
+  });
+  if (!wallet) {
+    throw new AppError("Wallet not found", HTTP_STATUS.NOT_FOUND, "WALLET_NOT_FOUND");
+  }
+
+  const previousValue = wallet.lockedWithdrawalBalance;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.wallet.update({
+      where: { id: wallet.id },
+      data:  { lockedWithdrawalBalance: new Prisma.Decimal(0) },
+    });
+
+    await tx.adminLog.create({
+      data: {
+        adminId,
+        action:       "WALLET_ADJUSTMENT",
+        targetUserId: userId,
+        details: {
+          operation:     "reset_locked_balance",
+          previousValue: previousValue.toString(),
+          newValue:      "0",
+          reason,
+          username:      user.username,
+        },
+      },
+    });
+  });
+
+  return {
+    userId,
+    username:      user.username,
+    previousLockedBalance: previousValue,
+    newLockedBalance:      0,
+    reason,
+  };
+}
+
 export async function saveWalletNotes(
   adminId: string,
   userId:  string,
