@@ -1,6 +1,7 @@
 import { logger } from "../lib/logger";
 import { processRoiCycle } from "./roi.engine";
-import { runCombinedBinaryAndOrbitCycle } from "../binary/binary-combined-cycle";
+import { runMatchingCycle } from "../binary/matching.engine";
+import { runOrbitCycle } from "../binary/orbit.engine";
 import { processTransferReleases } from "./transfer.engine";
 import { APP_TIMEZONE } from "../config/timezone";
 import { startWithdrawalConfirmationPoller } from "../withdrawals/withdrawal-confirmation.service";
@@ -17,11 +18,11 @@ const CYCLE_MS = 12 * 60 * 60 * 1000; // 12 hours in ms
  *
  * Each cycle runs in series:
  *  1. ROI engine      — compounds/accrues ROI for all ACTIVE investments
- *  2. Binary matching — pays matching income to all qualified users
- *  3. Binary orbit    — pays orbit income to all qualified users
+ *  2. Binary matching — pays matching income from the independent matchingLeftBV/Right pool
+ *  3. Binary orbit    — pays orbit income from the independent orbitLeftBV/Right pool
  *
- * Series ordering ensures matching runs before orbit; both run after ROI has
- * accrued for the cycle.
+ * Matching and orbit now operate on fully separate BV pools so their ordering
+ * does not affect each other.  Both run after ROI has accrued for the cycle.
  *
  * Safe to call multiple times — idempotent.
  */
@@ -68,29 +69,19 @@ async function runCycle(): Promise<void> {
     logger.error({ err }, "Scheduler: unhandled error in ROI cycle");
   }
 
-  // Combined binary cycle — matching + orbit in one pass per user so that
-  // matching cannot deplete the BV pool before orbit reads it.
+  // Binary matching — reads/flushes matchingLeftBV / matchingRightBV only
   try {
-    const cycleEnd   = new Date();
-    const cycleStart = new Date(cycleEnd.getTime() - 12 * 60 * 60 * 1_000);
-    const result     = await runCombinedBinaryAndOrbitCycle(cycleStart, cycleEnd);
-    logger.info(
-      {
-        matchingProcessed:   result.matchingProcessed,
-        matchingSkipped:     result.matchingSkipped,
-        orbitProcessed:      result.orbitProcessed,
-        orbitSkipped:        result.orbitSkipped,
-        totalMatchingIncome: result.totalMatchingIncome.toFixed(2),
-        totalOrbitIncome:    result.totalOrbitIncome.toFixed(2),
-        totalMatchedBV:      result.totalMatchedBV.toFixed(2),
-        totalFlushedBV:      result.totalFlushedBV.toFixed(2),
-        cycleStart,
-        cycleEnd,
-      },
-      "Combined binary cycle: complete",
-    );
+    await runMatchingCycle();
   } catch (err) {
-    logger.error({ err }, "Scheduler: unhandled error in combined binary cycle");
+    logger.error({ err }, "Scheduler: unhandled error in binary matching cycle");
+  }
+
+  // Binary orbit — reads/flushes orbitLeftBV / orbitRightBV only
+  // Separate pool guarantees matching cannot deplete orbit's BV and vice versa.
+  try {
+    await runOrbitCycle();
+  } catch (err) {
+    logger.error({ err }, "Scheduler: unhandled error in binary orbit cycle");
   }
 }
 

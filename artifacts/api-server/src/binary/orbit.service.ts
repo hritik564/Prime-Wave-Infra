@@ -4,7 +4,8 @@ import { getNumericSetting } from "../config/settings";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { OrbitHistoryQuery } from "./orbit.schema";
-import { computeBVFlush } from "./bv-flush";
+// bv-flush.ts (computeBVFlush) is retained for its own unit tests.
+// The orbit engine uses its independent pool with simple min/subtract flush.
 import { notificationService } from "../notifications/notifications.service";
 import { logger } from "../lib/logger";
 import { writeLedgerEntry } from "../ledger/ledger.service";
@@ -46,18 +47,21 @@ export interface OrbitCycleResult {
  * Called by the cron scheduler at 00:00 and 12:00 Europe/London.
  *
  * Algorithm per qualifying user (settings read from SystemSettings):
- *   1. Qualification: directReferralCount >= minReferrals AND rewardCount > 0.
+ *   1. Qualification: ≥1 direct referral on each leg AND rewardCount > 0.
  *      Skip (preserve BV) if not qualified.
- *   2. matchedBV           = min(leftBV, rightBV)
+ *   2. matchedBV           = min(orbitLeftBV, orbitRightBV)
  *   3. rewardCount         = floor(matchedBV / bvPerReward)   — full orbits earned
  *   4. payableRewardCount  = min(rewardCount, maxPerCycle)    — capped at 1/cycle
  *   5. destroyedRewardCount= rewardCount - payableRewardCount — excess orbits
  *   6. incomeAmount        = payableRewardCount × incomePerReward
- *   7. flushedBV           = matchedBV     — ALL matched BV flushed, not just consumed
- *      carryForwardLeft    = leftBV  - matchedBV
- *      carryForwardRight   = rightBV - matchedBV
+ *   7. flushedBV           = matchedBV     — ALL matched BV flushed
+ *      carryForwardLeft    = orbitLeftBV  - matchedBV
+ *      carryForwardRight   = orbitRightBV - matchedBV
  *   8. Credit incomeAmount → withdrawalWallet.
  *   9. Insert BinaryOrbitIncome + WalletTransaction.
+ *
+ * NOTE: This engine reads/flushes ONLY orbitLeftBV / orbitRightBV.
+ * The matching engine has its own independent matchingLeftBV / matchingRightBV pool.
  *
  * Each user is processed in its own Prisma transaction — one failure is isolated.
  */
@@ -91,16 +95,14 @@ export async function processOrbitCycle(
         },
       },
       AND: [
-        { OR: [{ leftBV: { gt: 0 } }, { powerLeftBV: { gt: 0 } }] },
-        { OR: [{ rightBV: { gt: 0 } }, { powerRightBV: { gt: 0 } }] },
+        { orbitLeftBV:  { gt: 0 } },
+        { orbitRightBV: { gt: 0 } },
       ],
     },
     select: {
       id:           true,
-      leftBV:       true,
-      rightBV:      true,
-      powerLeftBV:  true,
-      powerRightBV: true,
+      orbitLeftBV:  true,
+      orbitRightBV: true,
     },
     orderBy: { id: "asc" },
   });
@@ -115,21 +117,12 @@ export async function processOrbitCycle(
   let totalRewards        = 0;
 
   for (const user of candidates) {
-    // ── Effective BV + organic-first flush ──────────────────────────────────
-    // effectiveLeft = leftBV + powerLeftBV, effectiveRight = rightBV + powerRightBV
-    // matchedBV = min(effectiveLeft, effectiveRight)
-    // Organic BV is consumed first; Power BV fills any remainder.
-    const flush = computeBVFlush(
-      { organicBV: user.leftBV,  powerBV: user.powerLeftBV },
-      { organicBV: user.rightBV, powerBV: user.powerRightBV },
-    );
-    const {
-      matchedBV,
-      organicLeftConsumed,   powerLeftConsumed,
-      organicRightConsumed,  powerRightConsumed,
-      carryForwardLeft,      carryForwardRight,
-      powerCarryForwardLeft, powerCarryForwardRight,
-    } = flush;
+    // ── Independent orbit-pool flush ────────────────────────────────────────
+    // matchedBV = min(orbitLeftBV, orbitRightBV)
+    // No organic/power split within this pool — it is a single running balance.
+    const matchedBV         = Prisma.Decimal.min(user.orbitLeftBV, user.orbitRightBV);
+    const carryForwardLeft  = user.orbitLeftBV.minus(matchedBV);
+    const carryForwardRight = user.orbitRightBV.minus(matchedBV);
 
     const rewardCount = Math.floor(matchedBV.div(decBvPerReward).toNumber());
 
@@ -147,14 +140,12 @@ export async function processOrbitCycle(
 
     try {
       await prisma.$transaction(async (tx) => {
-        // Update user BV balances — organic-first flush; power remainder preserved
+        // Flush the orbit pool only — matching pool is untouched
         await tx.user.update({
           where: { id: user.id },
           data:  {
-            leftBV:       carryForwardLeft,
-            rightBV:      carryForwardRight,
-            powerLeftBV:  powerCarryForwardLeft,
-            powerRightBV: powerCarryForwardRight,
+            orbitLeftBV:  carryForwardLeft,
+            orbitRightBV: carryForwardRight,
           },
         });
 
@@ -191,17 +182,13 @@ export async function processOrbitCycle(
             amount:      incomeAmount,
             description: `Binary orbit income — ${payableRewardCount} orbit × $${incomePerReward} (cycle ${cycleStart.toISOString()})`,
             metadata: {
-              matchedBV:            matchedBV.toFixed(8),
+              matchedBV:         matchedBV.toFixed(8),
               rewardCount,
               payableRewardCount,
               destroyedRewardCount,
-              flushedBV:            flushedBV.toFixed(8),
-              carryForwardLeft:     carryForwardLeft.toFixed(8),
-              carryForwardRight:    carryForwardRight.toFixed(8),
-              organicLeftConsumed:  organicLeftConsumed.toFixed(8),
-              organicRightConsumed: organicRightConsumed.toFixed(8),
-              powerLeftConsumed:    powerLeftConsumed.toFixed(8),
-              powerRightConsumed:   powerRightConsumed.toFixed(8),
+              flushedBV:         flushedBV.toFixed(8),
+              carryForwardLeft:  carryForwardLeft.toFixed(8),
+              carryForwardRight: carryForwardRight.toFixed(8),
               bvPerReward,
               cycleStart,
               cycleEnd,
@@ -334,10 +321,8 @@ export async function getOrbitSummary(userId: string) {
         select: {
           id:                  true,
           username:            true,
-          leftBV:              true,
-          rightBV:             true,
-          powerLeftBV:         true,
-          powerRightBV:        true,
+          orbitLeftBV:         true,
+          orbitRightBV:        true,
           directReferralCount: true,
           directLeftCount:     true,
           directRightCount:    true,
@@ -358,11 +343,11 @@ export async function getOrbitSummary(userId: string) {
     throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
   }
 
-  // Use effective BV (organic + power) — mirrors the cron engine exactly
-  const effectiveLeft  = user.leftBV.plus(user.powerLeftBV);
-  const effectiveRight = user.rightBV.plus(user.powerRightBV);
-  const matchedBV      = Prisma.Decimal.min(effectiveLeft, effectiveRight);
-  const rewardCount    = Math.floor(matchedBV.div(new Prisma.Decimal(bvPerReward)).toNumber());
+  // Read directly from the independent orbit pool — mirrors the cron engine
+  const currentLeft  = user.orbitLeftBV;
+  const currentRight = user.orbitRightBV;
+  const matchedBV    = Prisma.Decimal.min(currentLeft, currentRight);
+  const rewardCount  = Math.floor(matchedBV.div(new Prisma.Decimal(bvPerReward)).toNumber());
 
   // Qualification mirrors the cron: one direct referral on EACH leg
   const isQualified        = user.directLeftCount >= 1 && user.directRightCount >= 1;
@@ -374,8 +359,8 @@ export async function getOrbitSummary(userId: string) {
     username:            user.username,
     directReferralCount: user.directReferralCount,
     isQualified,
-    currentLeftBV:       effectiveLeft,
-    currentRightBV:      effectiveRight,
+    currentLeftBV:       currentLeft,
+    currentRightBV:      currentRight,
     pendingRewardCount,
     pendingIncome,
     settings: {

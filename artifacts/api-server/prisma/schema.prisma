@@ -134,10 +134,25 @@ model User {
   position              BinaryPosition?
   leftDeepestNodeId     String?
   rightDeepestNodeId    String?
+  // ── Shared organic BV counters (lifetime; used by salary engine & admin reports)
+  // These columns are NEVER flushed by the matching or orbit engines.
+  // TODO (later migration): rename to organicLeftBV / organicRightBV once all
+  //      callers are audited.
   leftBV                Decimal         @default(0) @db.Decimal(18, 8)
   rightBV               Decimal         @default(0) @db.Decimal(18, 8)
+  // Power BV counters (admin-assigned; lifetime; used by salary/admin reports)
+  // TODO (later migration): rename to powerOrganicLeftBV / powerOrganicRightBV
+  //      once callers are audited.
   powerLeftBV           Decimal         @default(0) @db.Decimal(18, 8)
   powerRightBV          Decimal         @default(0) @db.Decimal(18, 8)
+
+  // ── Independent per-plan BV pools ────────────────────────────────────────
+  // Each engine reads and flushes ONLY its own pool.
+  // Both pools receive the same BV credit whenever propagateBV or addPowerBV runs.
+  matchingLeftBV        Decimal         @default(0) @db.Decimal(18, 8)
+  matchingRightBV       Decimal         @default(0) @db.Decimal(18, 8)
+  orbitLeftBV           Decimal         @default(0) @db.Decimal(18, 8)
+  orbitRightBV          Decimal         @default(0) @db.Decimal(18, 8)
 
   walletAddress String?
   telegramId    String?

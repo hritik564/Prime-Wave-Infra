@@ -73,17 +73,33 @@ export async function propagateBV(
 
   if (ancestors.length === 0) return; // Investor has no binary ancestors
 
-  // ── 2. Update User.leftBV / User.rightBV for each ancestor ────────────────
+  // ── 2. Update BV counters for each ancestor ───────────────────────────────
+  //
+  // Every ancestor receives the SAME bv credit on three parallel columns:
+  //   leftBV / rightBV      — lifetime organic counter (salary engine, admin reports)
+  //   matchingLeftBV / ...  — independent matching-engine pool
+  //   orbitLeftBV    / ...  — independent orbit-engine pool
+  //
+  // Keeping the three updates in one user.update per ancestor is atomic and
+  // guarantees all pools are always in sync after each investment event.
   for (const { ancestorId, side } of ancestors) {
     if (side === "LEFT") {
       await tx.user.update({
         where: { id: ancestorId },
-        data:  { leftBV:  { increment: bv } },
+        data:  {
+          leftBV:         { increment: bv }, // lifetime organic (salary/reports)
+          matchingLeftBV: { increment: bv }, // matching engine pool
+          orbitLeftBV:    { increment: bv }, // orbit engine pool
+        },
       });
     } else {
       await tx.user.update({
         where: { id: ancestorId },
-        data:  { rightBV: { increment: bv } },
+        data:  {
+          rightBV:         { increment: bv }, // lifetime organic (salary/reports)
+          matchingRightBV: { increment: bv }, // matching engine pool
+          orbitRightBV:    { increment: bv }, // orbit engine pool
+        },
       });
     }
   }

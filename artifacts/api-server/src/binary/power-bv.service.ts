@@ -41,11 +41,21 @@ export async function addPowerBV(
     const balanceBefore = side === "LEFT" ? user.powerLeftBV : user.powerRightBV;
     const balanceAfter  = balanceBefore.plus(decBv);
 
+    // Credit power BV to the legacy column (salary/reports) AND to both
+    // independent engine pools so matching and orbit receive equal credits.
     await tx.user.update({
       where: { id: userId },
       data:  side === "LEFT"
-        ? { powerLeftBV: balanceAfter }
-        : { powerRightBV: balanceAfter },
+        ? {
+            powerLeftBV:    balanceAfter,   // legacy power counter
+            matchingLeftBV: { increment: decBv }, // matching engine pool
+            orbitLeftBV:    { increment: decBv }, // orbit engine pool
+          }
+        : {
+            powerRightBV:    balanceAfter,
+            matchingRightBV: { increment: decBv },
+            orbitRightBV:    { increment: decBv },
+          },
     });
 
     const ledger = await tx.powerBvLedger.create({
@@ -120,11 +130,20 @@ export async function removePowerBV(
 
     const balanceAfter = balanceBefore.minus(decBv);
 
+    // Debit power BV from the legacy column AND from both independent engine pools.
     await tx.user.update({
       where: { id: userId },
       data:  side === "LEFT"
-        ? { powerLeftBV: balanceAfter }
-        : { powerRightBV: balanceAfter },
+        ? {
+            powerLeftBV:    balanceAfter,
+            matchingLeftBV: { decrement: decBv },
+            orbitLeftBV:    { decrement: decBv },
+          }
+        : {
+            powerRightBV:    balanceAfter,
+            matchingRightBV: { decrement: decBv },
+            orbitRightBV:    { decrement: decBv },
+          },
     });
 
     const ledger = await tx.powerBvLedger.create({
