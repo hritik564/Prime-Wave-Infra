@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
-    "build:prod": "prisma migrate resolve --applied 20260628182000_sprint25a_deposit_verification || true && prisma migrate resolve --applied 20260721000000_sprint33d_salary_foundation || true && prisma migrate resolve --applied 20260721120000_sprint33p_schema_sync || true && prisma migrate deploy && node ./build.mjs",
+    "build:prod": "prisma migrate resolve --applied 20260628182000_sprint25a_deposit_verification || true && prisma migrate resolve --applied 20260630120000_sprint26e_verification_delayed || true && prisma migrate resolve --applied 20260630125000_create_notification_type_enum || true && prisma migrate resolve --applied 20260630130000_sprint27_notification_types || true && prisma migrate resolve --applied 20260720000000_sprint32_production_catchup || true && prisma migrate resolve --applied 20260721000000_sprint33d_salary_foundation || true && prisma migrate resolve --applied 20260721120000_sprint33p_schema_sync || true && prisma migrate resolve --applied 20260721130000_sprint33z_remove_seeded_business || true && prisma migrate deploy && node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
