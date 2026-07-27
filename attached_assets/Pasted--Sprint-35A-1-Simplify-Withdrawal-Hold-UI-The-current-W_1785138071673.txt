@@ -1,0 +1,145 @@
+# Sprint 35A.1 — Simplify Withdrawal Hold UI
+
+The current Withdrawal Hold UI is functional but unnecessarily complex.
+
+We want to simplify the admin experience.
+
+--------------------------------------------------
+UI CHANGES
+--------------------------------------------------
+
+Remove completely:
+
+- "Reason (required to enable hold)"
+- The textarea
+- "Enable Withdrawal Hold" button
+
+Replace the entire section with a simple toggle.
+
+--------------------------------------------------
+NEW UI
+--------------------------------------------------
+
+Card Title:
+
+Withdrawal Control
+
+Display:
+
+Withdrawals
+
+🟢 Enabled
+
+or
+
+🔴 Paused
+
+Below this, add a single toggle switch.
+
+ON  = Withdrawals Enabled
+
+OFF = Withdrawals Paused
+
+--------------------------------------------------
+TOGGLE BEHAVIOUR
+--------------------------------------------------
+
+When toggled OFF:
+
+Show confirmation modal.
+
+Title:
+
+Pause Withdrawals?
+
+Message:
+
+This member will still be able to submit withdrawal requests.
+
+All new withdrawal requests will remain "Under Review"
+until withdrawals are enabled again.
+
+Buttons:
+
+Cancel
+
+Pause Withdrawals
+
+--------------------------------------------------
+
+When toggled ON:
+
+Show confirmation modal.
+
+Title:
+
+Enable Withdrawals?
+
+Message:
+
+Future withdrawal requests will be processed normally.
+
+Buttons:
+
+Cancel
+
+Enable Withdrawals
+
+--------------------------------------------------
+BACKEND
+--------------------------------------------------
+
+Reuse the existing withdrawalHold boolean.
+
+Do NOT change any backend logic.
+
+Do NOT change the withdrawal flow.
+
+Do NOT change UNDER_REVIEW behaviour.
+
+Only update the UI interaction.
+
+--------------------------------------------------
+AUDIT LOG
+--------------------------------------------------
+
+Continue recording:
+
+WITHDRAWAL_HOLD_ENABLED
+
+WITHDRAWAL_HOLD_DISABLED
+
+No reason is required anymore.
+
+If the backend currently requires a reason,
+make it optional instead of mandatory.
+
+--------------------------------------------------
+MEMBER EXPERIENCE
+--------------------------------------------------
+
+No changes.
+
+Members must continue seeing:
+
+Status:
+
+Under Review
+
+They must never see that their withdrawals are paused.
+
+--------------------------------------------------
+FINAL REPORT
+--------------------------------------------------
+
+Return:
+
+1. Updated UI screenshot
+
+2. Confirmation that the toggle controls the existing
+withdrawalHold boolean.
+
+3. Confirmation that no backend business logic changed.
+
+4. Confirmation that members still only see
+"Under Review".

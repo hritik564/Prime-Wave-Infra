@@ -822,13 +822,12 @@ function WithdrawalHoldPanel({ memberId }: { memberId: string }) {
     }>;
   }
 
-  const [data,       setData]       = useState<HoldData | null>(null);
-  const [loading,    setLoading]    = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [err,        setErr]        = useState<string | null>(null);
-  const [success,    setSuccess]    = useState<string | null>(null);
-  const [reason,     setReason]     = useState("");
-  const [showHistory,setShowHistory]= useState(false);
+  const [data,        setData]        = useState<HoldData | null>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [submitting,  setSubmitting]  = useState(false);
+  const [err,         setErr]         = useState<string | null>(null);
+  const [showModal,   setShowModal]   = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -844,26 +843,24 @@ function WithdrawalHoldPanel({ memberId }: { memberId: string }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const toggle = async () => {
+  const held = data?.withdrawalHold ?? false;
+
+  const confirm = async () => {
     if (!data) return;
-    const enabling = !data.withdrawalHold;
-    if (enabling && !reason.trim()) { setErr("Reason is required to enable hold"); return; }
     setSubmitting(true); setErr(null);
     try {
       const token = getAdminToken();
       const r = await fetch(`/api/admin/users/${memberId}/withdrawal-hold`, {
         method:  "POST",
         headers: { Authorization: `Bearer ${token ?? ""}`, "Content-Type": "application/json" },
-        body:    JSON.stringify({ hold: enabling, reason: enabling ? reason.trim() : "Hold removed" }),
+        body:    JSON.stringify({ hold: !held }),
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({})) as { message?: string };
         throw new Error(j.message ?? `HTTP ${r.status}`);
       }
-      setSuccess(enabling ? "Withdrawal hold enabled — new requests will go to UNDER_REVIEW" : "Hold removed — user can withdraw normally");
-      setReason("");
+      setShowModal(false);
       load();
-      setTimeout(() => setSuccess(null), 5000);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Operation failed");
     } finally { setSubmitting(false); }
@@ -871,133 +868,168 @@ function WithdrawalHoldPanel({ memberId }: { memberId: string }) {
 
   if (loading) return (
     <Card style={{ marginBottom: 14 }}>
-      <div style={{ textAlign: "center", padding: "16px 0", color: MUTED, fontSize: 12 }}>Loading hold status…</div>
+      <div style={{ textAlign: "center", padding: "16px 0", color: MUTED, fontSize: 12 }}>Loading…</div>
     </Card>
   );
 
-  const held = data?.withdrawalHold ?? false;
+  // Confirmation modal
+  const modal = showModal ? (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "rgba(0,0,0,0.65)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+      onClick={() => { if (!submitting) { setShowModal(false); setErr(null); } }}
+    >
+      <div
+        style={{
+          background: "#141627", border: `1px solid ${BORDER}`, borderRadius: 12,
+          padding: "24px 28px", maxWidth: 380, width: "90%",
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ fontSize: 15, fontWeight: 700, color: "rgba(255,255,255,0.92)", marginBottom: 10 }}>
+          {held ? "Enable Withdrawals?" : "Pause Withdrawals?"}
+        </div>
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: 1.65, marginBottom: 20 }}>
+          {held
+            ? "Future withdrawal requests will be processed normally."
+            : (
+              <>
+                This member will still be able to submit withdrawal requests.
+                <br /><br />
+                All new withdrawal requests will remain &ldquo;Under Review&rdquo; until withdrawals are enabled again.
+              </>
+            )
+          }
+        </div>
+        {err && (
+          <div style={{ fontSize: 11, color: "#f87171", marginBottom: 12 }}>{err}</div>
+        )}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button
+            onClick={() => { setShowModal(false); setErr(null); }}
+            disabled={submitting}
+            style={{
+              padding: "8px 18px", borderRadius: 7,
+              border: `1px solid ${BORDER}`,
+              background: "transparent", color: "rgba(255,255,255,0.6)",
+              fontSize: 12, cursor: submitting ? "not-allowed" : "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => void confirm()}
+            disabled={submitting}
+            style={{
+              padding: "8px 18px", borderRadius: 7,
+              border: held ? "1px solid rgba(52,211,153,0.4)" : "1px solid rgba(248,113,113,0.4)",
+              background: held ? "rgba(52,211,153,0.12)" : "rgba(248,113,113,0.12)",
+              color: held ? "#34d399" : "#f87171",
+              fontSize: 12, fontWeight: 600,
+              cursor: submitting ? "not-allowed" : "pointer",
+              opacity: submitting ? 0.6 : 1,
+            }}
+          >
+            {submitting ? "Processing…" : held ? "Enable Withdrawals" : "Pause Withdrawals"}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   return (
-    <Card style={{
-      marginBottom: 14,
-      border: held ? "1px solid rgba(248,113,113,0.35)" : "1px solid rgba(52,211,153,0.2)",
-    }}>
-      <SectionTitle title="WITHDRAWAL HOLD" />
+    <>
+      {modal}
+      <Card style={{
+        marginBottom: 14,
+        border: held ? "1px solid rgba(248,113,113,0.25)" : "1px solid rgba(52,211,153,0.15)",
+      }}>
+        <SectionTitle title="WITHDRAWAL CONTROL" />
 
-      {/* Status indicator */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{
-            width: 8, height: 8, borderRadius: "50%",
-            background: held ? "#f87171" : "#34d399",
-            boxShadow: `0 0 6px ${held ? "#f87171" : "#34d399"}80`,
-          }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: held ? "#f87171" : "#34d399" }}>
-            {held ? "On Hold" : "Active — No Hold"}
-          </span>
-        </div>
-        {held && data?.withdrawalHoldAt && (
-          <span style={{ fontSize: 10, color: MUTED }}>
-            {new Date(data.withdrawalHoldAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-          </span>
-        )}
-      </div>
-
-      {held && (
-        <div style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.15)", borderRadius: 8, padding: "8px 11px", marginBottom: 12 }}>
-          {data?.withdrawalHoldReason && (
-            <div style={{ fontSize: 11, color: "#f87171", marginBottom: 3 }}>
-              Reason: {data.withdrawalHoldReason}
+        {/* Status + toggle row */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 10, color: MUTED, marginBottom: 4 }}>Withdrawals</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: "50%",
+                background: held ? "#f87171" : "#34d399",
+                boxShadow: `0 0 6px ${held ? "#f87171" : "#34d399"}80`,
+              }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: held ? "#f87171" : "#34d399" }}>
+                {held ? "Paused" : "Enabled"}
+              </span>
             </div>
-          )}
-          {data?.withdrawalHoldBy && (
-            <div style={{ fontSize: 10, color: MUTED }}>Set by admin ID: <span style={{ fontFamily: "monospace", fontSize: 9 }}>{data.withdrawalHoldBy}</span></div>
-          )}
-        </div>
-      )}
+          </div>
 
-      {success && (
-        <div style={{ background: "rgba(52,211,153,0.07)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: 7, padding: "7px 10px", marginBottom: 10, fontSize: 11, color: "#34d399" }}>
-          ✓ {success}
-        </div>
-      )}
-
-      {!held && (
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 10, color: MUTED, marginBottom: 4 }}>Reason (required to enable hold)</div>
-          <textarea
-            value={reason}
-            onChange={e => { setReason(e.target.value); setErr(null); }}
-            placeholder="Describe why this user's withdrawals should be held for review…"
-            rows={2}
+          {/* Toggle switch — ON = enabled (!held), OFF = paused (held) */}
+          <div
+            role="switch"
+            aria-checked={!held}
+            onClick={() => setShowModal(true)}
+            title={held ? "Click to enable withdrawals" : "Click to pause withdrawals"}
             style={{
-              width: "100%", boxSizing: "border-box",
-              background: "rgba(255,255,255,0.03)",
-              border: `1px solid ${err ? "rgba(248,113,113,0.4)" : BORDER}`,
-              borderRadius: 7, padding: "8px 10px", color: "rgba(255,255,255,0.8)",
-              fontSize: 11, resize: "vertical", fontFamily: "inherit", outline: "none",
+              width: 44, height: 24, borderRadius: 12, flexShrink: 0,
+              background: held ? "rgba(248,113,113,0.18)" : "rgba(52,211,153,0.18)",
+              border: held ? "1px solid rgba(248,113,113,0.4)" : "1px solid rgba(52,211,153,0.4)",
+              position: "relative", cursor: "pointer",
+              transition: "background 0.2s, border-color 0.2s",
             }}
-          />
-        </div>
-      )}
-
-      {err && <div style={{ fontSize: 11, color: "#f87171", marginBottom: 8 }}>{err}</div>}
-
-      <button
-        onClick={() => void toggle()}
-        disabled={submitting || (!held && !reason.trim())}
-        style={{
-          width: "100%", padding: "8px 0", borderRadius: 7,
-          cursor: (submitting || (!held && !reason.trim())) ? "not-allowed" : "pointer",
-          border: held ? "1px solid rgba(52,211,153,0.35)" : "1px solid rgba(248,113,113,0.35)",
-          background: held ? "rgba(52,211,153,0.08)" : "rgba(248,113,113,0.08)",
-          color: held ? "#34d399" : "#f87171",
-          fontSize: 12, fontWeight: 600,
-          opacity: (submitting || (!held && !reason.trim())) ? 0.5 : 1,
-          transition: "opacity 0.15s",
-        }}
-      >
-        {submitting ? "Processing…" : held ? "Remove Hold" : "Enable Withdrawal Hold"}
-      </button>
-
-      {/* Audit history */}
-      {data && data.auditHistory.length > 0 && (
-        <div style={{ marginTop: 12 }}>
-          <button
-            onClick={() => setShowHistory(v => !v)}
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 10, color: "#60a5fa", padding: 0, display: "flex", alignItems: "center", gap: 3 }}
           >
-            {showHistory ? "Hide" : "Show"} History ({data.auditHistory.length})
-            <ChevronDown size={9} style={{ transform: showHistory ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
-          </button>
-          {showHistory && (
-            <div style={{ marginTop: 8 }}>
-              {data.auditHistory.slice(0, 10).map(e => {
-                const enabled = e.action === "WITHDRAWAL_HOLD_ENABLED";
-                return (
-                  <div key={e.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "7px 0", borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
-                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: enabled ? "#f87171" : "#34d399", marginTop: 3, flexShrink: 0 }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 10, color: enabled ? "#f87171" : "#34d399", fontWeight: 600, marginBottom: 1 }}>
-                        {enabled ? "Hold Enabled" : "Hold Removed"}
-                      </div>
-                      {(e.details["reason"] as string | undefined) && (
-                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", marginBottom: 1 }}>
-                          {e.details["reason"] as string}
+            <div style={{
+              width: 18, height: 18, borderRadius: "50%",
+              background: held ? "#f87171" : "#34d399",
+              position: "absolute", top: 2,
+              left: held ? 2 : 22,
+              transition: "left 0.2s, background 0.2s",
+              boxShadow: `0 1px 4px rgba(0,0,0,0.4)`,
+            }} />
+          </div>
+        </div>
+
+        <div style={{ fontSize: 10, color: MUTED, marginBottom: held ? 12 : 4 }}>
+          {held
+            ? "New requests remain \u201cUnder Review\u201d until withdrawals are re-enabled."
+            : "Withdrawal requests are processed normally."}
+        </div>
+
+        {/* Audit history */}
+        {data && data.auditHistory.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <button
+              onClick={() => setShowHistory(v => !v)}
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 10, color: "#60a5fa", padding: 0, display: "flex", alignItems: "center", gap: 3 }}
+            >
+              {showHistory ? "Hide" : "Show"} History ({data.auditHistory.length})
+              <ChevronDown size={9} style={{ transform: showHistory ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+            </button>
+            {showHistory && (
+              <div style={{ marginTop: 8 }}>
+                {data.auditHistory.slice(0, 10).map(e => {
+                  const paused = e.action === "WITHDRAWAL_HOLD_ENABLED";
+                  return (
+                    <div key={e.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "7px 0", borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: paused ? "#f87171" : "#34d399", marginTop: 3, flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10, color: paused ? "#f87171" : "#34d399", fontWeight: 600, marginBottom: 1 }}>
+                          {paused ? "Paused" : "Enabled"}
                         </div>
-                      )}
-                      <div style={{ fontSize: 9, color: MUTED }}>
-                        {e.admin ? `${e.admin.firstName} ${e.admin.lastName}` : "Admin"} · {new Date(e.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        <div style={{ fontSize: 9, color: MUTED }}>
+                          {e.admin ? `${e.admin.firstName} ${e.admin.lastName}` : "Admin"} · {new Date(e.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+    </>
   );
 }
 

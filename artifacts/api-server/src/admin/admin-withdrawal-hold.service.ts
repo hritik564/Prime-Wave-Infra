@@ -9,7 +9,7 @@ export async function setWithdrawalHold(
   adminId: string,
   userId:  string,
   hold:    boolean,
-  reason:  string,
+  reason = "",
 ) {
   const user = await prisma.user.findUnique({
     where:  { id: userId },
