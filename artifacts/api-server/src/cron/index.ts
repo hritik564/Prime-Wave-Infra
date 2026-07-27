@@ -1,7 +1,6 @@
 import { logger } from "../lib/logger";
 import { processRoiCycle } from "./roi.engine";
-import { runMatchingCycle } from "../binary/matching.engine";
-import { runOrbitCycle } from "../binary/orbit.engine";
+import { runCombinedBinaryAndOrbitCycle } from "../binary/binary-combined-cycle";
 import { processTransferReleases } from "./transfer.engine";
 import { APP_TIMEZONE } from "../config/timezone";
 import { startWithdrawalConfirmationPoller } from "../withdrawals/withdrawal-confirmation.service";
@@ -69,16 +68,29 @@ async function runCycle(): Promise<void> {
     logger.error({ err }, "Scheduler: unhandled error in ROI cycle");
   }
 
+  // Combined binary cycle — matching + orbit in one pass per user so that
+  // matching cannot deplete the BV pool before orbit reads it.
   try {
-    await runMatchingCycle();
+    const cycleEnd   = new Date();
+    const cycleStart = new Date(cycleEnd.getTime() - 12 * 60 * 60 * 1_000);
+    const result     = await runCombinedBinaryAndOrbitCycle(cycleStart, cycleEnd);
+    logger.info(
+      {
+        matchingProcessed:   result.matchingProcessed,
+        matchingSkipped:     result.matchingSkipped,
+        orbitProcessed:      result.orbitProcessed,
+        orbitSkipped:        result.orbitSkipped,
+        totalMatchingIncome: result.totalMatchingIncome.toFixed(2),
+        totalOrbitIncome:    result.totalOrbitIncome.toFixed(2),
+        totalMatchedBV:      result.totalMatchedBV.toFixed(2),
+        totalFlushedBV:      result.totalFlushedBV.toFixed(2),
+        cycleStart,
+        cycleEnd,
+      },
+      "Combined binary cycle: complete",
+    );
   } catch (err) {
-    logger.error({ err }, "Scheduler: unhandled error in binary matching cycle");
-  }
-
-  try {
-    await runOrbitCycle();
-  } catch (err) {
-    logger.error({ err }, "Scheduler: unhandled error in binary orbit cycle");
+    logger.error({ err }, "Scheduler: unhandled error in combined binary cycle");
   }
 }
 
