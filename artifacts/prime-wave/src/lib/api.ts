@@ -1122,6 +1122,13 @@ export function adminResetUserPassword(id: string, password: string) {
   );
 }
 
+export function adminDeleteUser(id: string) {
+  return request<{ id: string; username: string }>(
+    `/api/admin/users/${id}`,
+    { method: "DELETE" },
+  );
+}
+
 export interface RegisterPayload {
   email: string; username: string; password: string;
   firstName: string; lastName: string;

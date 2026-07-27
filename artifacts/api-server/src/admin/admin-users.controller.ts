@@ -2,7 +2,7 @@ import { type Request, type Response, type NextFunction } from "express";
 import { type AuthenticatedRequest } from "../shared/types";
 import { sendSuccess } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
-import { searchUsers, getAdminUserDetail, setUserStatus, adminUpdateUser, adminResetUserPassword, adminUpdateUserWallet, getWalletAuditLogs, type AdminUpdateUserInput } from "./admin-users.service";
+import { searchUsers, getAdminUserDetail, setUserStatus, adminUpdateUser, adminResetUserPassword, adminUpdateUserWallet, getWalletAuditLogs, deleteUser, type AdminUpdateUserInput } from "./admin-users.service";
 import type { UserSearchQuery } from "./admin-dashboard.schema";
 
 export async function searchUsersHandler(
@@ -99,6 +99,17 @@ export async function updateUserWalletHandler(
       ?? null;
     const result = await adminUpdateUserWallet(user.sub, userId, newWallet, reason, ipAddress);
     sendSuccess(res, result, "Withdrawal wallet updated successfully");
+  } catch (err) { next(err); }
+}
+
+export async function deleteUserHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const userId   = String(req.params["id"] ?? "");
+    const result   = await deleteUser(user.sub, userId);
+    sendSuccess(res, result, `User @${result.username} permanently deleted`);
   } catch (err) { next(err); }
 }
 

@@ -68,6 +68,7 @@ import {
   activateUserHandler,
   updateUserHandler,
   resetUserPasswordHandler,
+  deleteUserHandler,
   updateUserWalletHandler,
   getWalletAuditLogsHandler,
 } from "./admin-users.controller";
@@ -424,6 +425,13 @@ router.post(
   adminLimiter,
   superAdminGuard,
   resetUserPasswordHandler,
+);
+
+router.delete(
+  "/users/:id",
+  adminLimiter,
+  superAdminGuard,
+  deleteUserHandler,
 );
 
 router.post(

@@ -462,6 +462,55 @@ export async function adminUpdateUserWallet(
   return { userId, username: user.username, previousWallet, newWallet: trimmedWallet };
 }
 
+// ── Delete user ───────────────────────────────────────────────────────────────
+
+export async function deleteUser(adminId: string, userId: string): Promise<{ id: string; username: string }> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id:                  true,
+      username:            true,
+      directReferralCount: true,
+      _count: {
+        select: {
+          binaryChildren:    true,
+          investments:       true,
+          transactions:      true,
+          depositRequests:   true,
+          withdrawalRequests: true,
+        },
+      },
+    },
+  });
+
+  if (!user) throw new AppError("User not found", HTTP_STATUS.NOT_FOUND);
+
+  const blocking: string[] = [];
+  if (user.directReferralCount > 0)          blocking.push(`${user.directReferralCount} direct referral(s)`);
+  if (user._count.binaryChildren > 0)        blocking.push(`${user._count.binaryChildren} binary child(ren)`);
+  if (user._count.investments > 0)           blocking.push(`${user._count.investments} investment(s)`);
+  if (user._count.transactions > 0)          blocking.push(`${user._count.transactions} wallet transaction(s)`);
+  if (user._count.depositRequests > 0)       blocking.push(`${user._count.depositRequests} deposit request(s)`);
+  if (user._count.withdrawalRequests > 0)    blocking.push(`${user._count.withdrawalRequests} withdrawal request(s)`);
+
+  if (blocking.length > 0) {
+    throw new AppError(
+      `Cannot delete @${user.username}: has ${blocking.join(", ")}. Reassign or remove these records first.`,
+      HTTP_STATUS.CONFLICT,
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // ReferralHistory uses onDelete: Restrict on both sides — delete manually first
+    await tx.referralHistory.deleteMany({ where: { userId } });
+    // User delete cascades: Wallet, WalletAddress, Notification, SalaryBusinessSummary, PowerBvLedger
+    await tx.user.delete({ where: { id: userId } });
+  });
+
+  logger.info({ adminId, deletedUserId: userId, username: user.username }, "Admin permanently deleted user");
+  return { id: userId, username: user.username };
+}
+
 export async function getWalletAuditLogs(userId: string) {
   return prisma.walletChangeAuditLog.findMany({
     where:   { userId },

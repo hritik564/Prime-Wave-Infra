@@ -11,7 +11,7 @@ import {
 } from "./MemberDialogs";
 import {
   getAdminUserDetail, adminSuspendUser, adminActivateUser, adminBlockUser,
-  adminResetUserPassword,
+  adminResetUserPassword, adminDeleteUser,
   type AdminUserDetail,
 } from "@/lib/api";
 import { getAdminToken } from "@/lib/auth";
@@ -790,7 +790,22 @@ export default function MembersPage() {
       )}
       {deleteTarget && (
         <DeleteDialog member={deleteTarget} onClose={() => setDeleteTarget(null)}
-          onConfirm={() => toast("Delete member — coming soon", "info")} />
+          onConfirm={() => {
+            const target = deleteTarget;
+            adminDeleteUser(target.id)
+              .then(() => {
+                toast(`@${target.username} permanently deleted`, "success");
+                closeDrawer();
+                setData(prev => prev
+                  ? { ...prev, data: prev.data.filter(r => r.id !== target.id), meta: { ...prev.meta, total: Math.max(0, prev.meta.total - 1) } }
+                  : prev
+                );
+              })
+              .catch((err: unknown) => {
+                const msg = err instanceof Error ? err.message : "Failed to delete member";
+                toast(msg, "error");
+              });
+          }} />
       )}
       {resetTarget && (
         <ResetPasswordDialog member={resetTarget} onClose={() => setResetTarget(null)}
