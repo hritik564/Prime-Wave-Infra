@@ -1,0 +1,195 @@
+# P1 Architecture Fix — Separate BV Pools for Binary Matching & Binary Orbit
+
+We have identified a business logic flaw.
+
+This is NOT a race condition.
+
+It is an architecture issue.
+
+--------------------------------------------------
+CURRENT (INCORRECT)
+--------------------------------------------------
+
+Binary Matching and Binary Orbit share the same BV pool.
+
+Flow today:
+
+Business Volume
+        │
+        ▼
+Shared Left BV / Right BV
+        │
+        ├── Binary Matching
+        └── Binary Orbit
+
+When one engine flushes BV,
+the other engine loses eligibility.
+
+This violates the compensation plan.
+
+--------------------------------------------------
+REQUIRED BUSINESS RULE
+--------------------------------------------------
+
+Binary Matching and Binary Orbit are two completely independent compensation plans.
+
+They must NEVER consume each other's BV.
+
+Incoming business volume should be credited to BOTH plans independently.
+
+Example:
+
+150 BV Left
+150 BV Right
+
+↓
+
+Matching Pool
+Left = 150
+Right = 150
+
+Orbit Pool
+Left = 150
+Right = 150
+
+Matching may flush its own pool.
+
+Orbit must remain untouched.
+
+Likewise Orbit may flush its own pool without affecting Matching.
+
+--------------------------------------------------
+REQUIRED DESIGN
+--------------------------------------------------
+
+Create independent BV accounting.
+
+Matching BV
+
+Left
+Right
+
+Orbit BV
+
+Left
+Right
+
+Do NOT reuse the same columns.
+
+Do NOT use snapshot calculations as a workaround.
+
+The accounting itself must be separated.
+
+--------------------------------------------------
+BV PROPAGATION
+--------------------------------------------------
+
+Whenever BV propagates up the sponsor tree:
+
+Matching BV += propagated BV
+
+AND
+
+Orbit BV += propagated BV
+
+Both pools receive the same incoming BV.
+
+--------------------------------------------------
+MATCHING ENGINE
+--------------------------------------------------
+
+Read ONLY Matching BV.
+
+Calculate matching income.
+
+Flush ONLY Matching BV.
+
+Create matching ledger entries.
+
+Never touch Orbit BV.
+
+--------------------------------------------------
+ORBIT ENGINE
+--------------------------------------------------
+
+Read ONLY Orbit BV.
+
+Calculate orbit income.
+
+Flush ONLY Orbit BV.
+
+Create orbit ledger entries.
+
+Never touch Matching BV.
+
+--------------------------------------------------
+TRANSACTIONS
+--------------------------------------------------
+
+Each engine should execute its own atomic transaction.
+
+Matching transaction:
+
+- Calculate
+- Credit
+- Flush Matching BV
+- Ledger entries
+
+Orbit transaction:
+
+- Calculate
+- Credit
+- Flush Orbit BV
+- Ledger entries
+
+No shared flushes.
+
+--------------------------------------------------
+MIGRATION
+--------------------------------------------------
+
+Design the required schema changes.
+
+Prefer dedicated columns or dedicated ledger tables.
+
+Recommend the cleanest long-term solution.
+
+Include:
+
+- Prisma schema changes
+- Migration
+- Service updates
+- Scheduler updates
+- Audit implications
+
+--------------------------------------------------
+BACKWARD COMPATIBILITY
+--------------------------------------------------
+
+Do not lose existing BV.
+
+If migration is required,
+
+copy current Matching BV into the new Matching pool,
+
+copy current Orbit BV into the new Orbit pool,
+
+without affecting wallet balances or income history.
+
+--------------------------------------------------
+DELIVERABLE
+--------------------------------------------------
+
+Before writing any code,
+
+produce a technical implementation plan covering:
+
+1. Database design
+2. Migration strategy
+3. Services affected
+4. Cron changes
+5. Ledger changes
+6. Rollback strategy
+7. Estimated files to modify
+
+Do not implement until the design is complete and internally consistent.
