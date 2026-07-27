@@ -45,7 +45,7 @@ function parseReferral(referralCode: string, leg: "L" | "R"): { baseCode: string
 }
 
 export async function registerUser(input: RegisterInput) {
-  const { email, username, password, firstName, lastName, phone, referralCode: rawCode, leg } = input;
+  const { email, username, password, firstName, lastName, phone, referralCode: rawCode, leg, walletAddress } = input;
 
   const emailLower    = email.toLowerCase();
   const usernameLower = username.toLowerCase();
@@ -139,6 +139,18 @@ export async function registerUser(input: RegisterInput) {
 
     // Auto-place user in the binary tree using the leg from the referral link/code
     await placeUserTx(tx, sponsorId, newUser.id, position);
+
+    // Save BEP20 withdrawal wallet address if provided at registration
+    if (walletAddress) {
+      await tx.walletAddress.create({
+        data: {
+          userId:    newUser.id,
+          network:   "BEP20",
+          address:   walletAddress,
+          isPrimary: true,
+        },
+      });
+    }
 
     return newUser;
   }, { timeout: 30_000 });

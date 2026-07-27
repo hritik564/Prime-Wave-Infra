@@ -33,7 +33,7 @@ const registerSchema = z
       .max(20, "Must be 3–20 characters")
       .regex(/^[a-zA-Z0-9_]+$/, "Only letters, numbers, underscores"),
     email:        z.string().email("Enter a valid email address"),
-    phone:        z.string().min(7, "Enter a valid phone number"),
+    phone:        z.string().regex(/^\+?[1-9]\d{7,14}$/, "Include country code, e.g. +447911123456"),
     password:     z
       .string()
       .min(8, "Must be at least 8 characters")
@@ -45,6 +45,13 @@ const registerSchema = z
     agreeToTerms: z.boolean().refine((v) => v === true, {
       message: "You must agree to the Terms & Conditions",
     }),
+    walletAddress: z
+      .string()
+      .optional()
+      .refine(
+        (v) => !v || /^0x[0-9a-fA-F]{40}$/.test(v),
+        { message: "Enter a valid BEP20 address (0x + 40 hex characters)" }
+      ),
   })
   .refine((d) => d.password === d.confirmPassword, {
     message: "Passwords do not match",
@@ -64,12 +71,12 @@ type RegisterData = z.infer<typeof registerSchema>;
 
 type Step1Fields = "firstName" | "lastName" | "username" | "email" | "phone";
 type Step2Fields = "password" | "confirmPassword";
-type Step3Fields = "referralCode" | "leg" | "agreeToTerms";
+type Step3Fields = "referralCode" | "leg" | "agreeToTerms" | "walletAddress";
 
 const STEP_FIELDS: Record<number, (Step1Fields | Step2Fields | Step3Fields)[]> = {
   1: ["firstName", "lastName", "username", "email", "phone"],
   2: ["password", "confirmPassword"],
-  3: ["referralCode", "leg", "agreeToTerms"],
+  3: ["referralCode", "leg", "agreeToTerms", "walletAddress"],
 };
 
 const STEP_LABELS = ["Personal Info", "Security", "Account Setup"];
@@ -369,6 +376,7 @@ export default function RegisterPage() {
         password:     data.password,
         referralCode: baseCode || data.referralCode,
         leg:          data.leg as "L" | "R",
+        walletAddress: data.walletAddress?.trim() || undefined,
       });
       // Clear saved referral params on successful registration
       try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
@@ -486,13 +494,18 @@ export default function RegisterPage() {
                   <Input
                     id="phone"
                     type="tel"
-                    placeholder="+1 (555) 000-0000"
+                    placeholder="+447911123456"
                     autoComplete="tel"
                     aria-invalid={!!errors.phone}
                     {...register("phone")}
                   />
-                  {errors.phone && (
+                  {errors.phone ? (
                     <p className="text-xs" style={{ color: "#f87171" }}>{errors.phone.message}</p>
+                  ) : (
+                    <p className="text-xs flex items-start gap-1" style={{ color: "hsl(var(--muted-foreground))" }}>
+                      <Info className="h-3 w-3 mt-0.5 shrink-0" />
+                      Include country code, e.g. +447911123456 or +2348012345678
+                    </p>
                   )}
                 </div>
               </div>
@@ -689,6 +702,30 @@ export default function RegisterPage() {
                     )}
                   </div>
                 )}
+
+                {/* BEP20 Withdrawal Wallet */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="walletAddress">
+                    BEP20 Withdrawal Wallet{" "}
+                    <span className="font-normal text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
+                      (optional)
+                    </span>
+                  </Label>
+                  <Input
+                    id="walletAddress"
+                    placeholder="0x…"
+                    aria-invalid={!!errors.walletAddress}
+                    {...register("walletAddress")}
+                  />
+                  {errors.walletAddress ? (
+                    <p className="text-xs" style={{ color: "#f87171" }}>{errors.walletAddress.message}</p>
+                  ) : (
+                    <p className="text-xs flex items-start gap-1" style={{ color: "hsl(var(--muted-foreground))" }}>
+                      <Info className="h-3 w-3 mt-0.5 shrink-0" />
+                      Your BEP20 (BSC) USDT address for withdrawals. You can add or update this later.
+                    </p>
+                  )}
+                </div>
 
                 {/* Terms & Conditions */}
                 <div className="flex items-start gap-3 pt-1">

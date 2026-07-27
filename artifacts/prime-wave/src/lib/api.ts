@@ -78,6 +78,7 @@ export function register(data: {
   password: string;
   referralCode: string;
   leg: "L" | "R";
+  walletAddress?: string;
 }) {
   return request<AuthResponse>("/api/auth/register", {
     method: "POST",

@@ -30,6 +30,10 @@ export const registerSchema = z.object({
     required_error: "Placement leg is required (use a Left or Right referral link)",
     invalid_type_error: "Placement leg must be L or R",
   }),
+  walletAddress: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{40}$/, "Enter a valid BEP20 wallet address (0x + 40 hex characters)")
+    .optional(),
 });
 
 export const loginSchema = z.object({
