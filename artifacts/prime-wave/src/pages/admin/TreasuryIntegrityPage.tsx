@@ -361,7 +361,7 @@ export default function TreasuryIntegrityPage() {
                           </td>
                           <td style={{ padding: "8px 12px", color: MUTED, whiteSpace: "nowrap" }}>{fmtUsd(e.openingBalance)}</td>
                           <td style={{ padding: "8px 12px", color: "white", whiteSpace: "nowrap" }}>{fmtUsd(e.closingBalance)}</td>
-                          <td style={{ padding: "8px 12px", color: MUTED, fontFamily: "monospace", fontSize: 10 }}>{(e.withdrawalId || e.referenceId).slice(0,14)}…</td>
+                          <td style={{ padding: "8px 12px", color: MUTED, fontFamily: "monospace", fontSize: 10 }}>{e.referenceId ? `${e.referenceId.slice(0,14)}…` : "—"}</td>
                         </tr>
                       ))}
                     </tbody>

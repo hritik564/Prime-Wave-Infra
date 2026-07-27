@@ -288,16 +288,33 @@ async function failWithdrawal(
   amount:        import("@prisma/client").Prisma.Decimal,
   failureReason: string,
 ): Promise<void> {
+  const { Prisma } = await import("@prisma/client");
   await prisma.$transaction(async (tx) => {
     await tx.withdrawalRequest.update({
       where: { id },
       data:  { status: "FAILED", failureReason },
     });
+
+    // Guard: only release what is actually locked to prevent the locked balance
+    // from going further negative (can happen if a previous bug already drove it
+    // below zero). Always restore the full amount to withdrawalWallet since it
+    // was unconditionally decremented at request creation time.
+    const walletData = await tx.wallet.findUnique({
+      where:  { userId },
+      select: { lockedWithdrawalBalance: true },
+    });
+    const currentLocked = walletData?.lockedWithdrawalBalance ?? new Prisma.Decimal(0);
+    const releaseFromLocked = currentLocked.gte(amount)
+      ? amount
+      : currentLocked.gt(new Prisma.Decimal(0))
+        ? currentLocked
+        : new Prisma.Decimal(0);
+
     await tx.wallet.update({
       where: { userId },
       data:  {
         withdrawalWallet:        { increment: amount },
-        lockedWithdrawalBalance: { decrement: amount },
+        lockedWithdrawalBalance: { decrement: releaseFromLocked },
       },
     });
   });
@@ -481,10 +498,11 @@ async function signAndBroadcastWithdrawal(
       );
     }
 
-    await tx.wallet.update({
-      where: { userId: wr.userId },
-      data:  { lockedWithdrawalBalance: { decrement: amount } },
-    });
+    // NOTE: Do NOT decrement lockedWithdrawalBalance here.
+    // The confirmation service (withdrawal-confirmation.service.ts) releases it
+    // atomically when the on-chain tx is confirmed (CONFIRMING → COMPLETED).
+    // Decrementing twice caused every completed withdrawal to double-decrement
+    // the locked balance, driving it negative.
 
     await tx.withdrawalRequest.update({
       where: { id },
