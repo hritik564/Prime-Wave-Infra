@@ -1,0 +1,205 @@
+# P0 Withdrawal Failure Audit (SYSTEM-WIDE)
+
+We have identified a production issue.
+
+User:
+
+rd0013
+
+had approximately $17 available in the withdrawal wallet.
+
+They attempted withdrawals four times:
+
+£14
+£17
+£17
+£17
+
+All failed.
+
+A similar issue previously existed for Mahakal and was fixed.
+
+Do NOT patch rd0013 only.
+
+Investigate the withdrawal pipeline for every user and identify the root cause.
+
+READ-ONLY audit.
+
+DO NOT modify data.
+
+--------------------------------------------------
+1. RECONSTRUCT rd0013
+--------------------------------------------------
+
+For each withdrawal attempt return:
+
+- Withdrawal ID
+- Timestamp
+- Requested amount
+- Wallet balance before
+- Locked balance before
+- Available balance
+- Validation result
+- Failure reason
+- Status transition
+- Blockchain transaction hash (if created)
+- Error message
+- Stack trace (if available)
+
+--------------------------------------------------
+2. TRACE THE WITHDRAWAL PIPELINE
+--------------------------------------------------
+
+For one failed request follow the complete execution:
+
+Withdrawal Request
+
+↓
+
+Validation
+
+↓
+
+Wallet Lock
+
+↓
+
+Transaction Creation
+
+↓
+
+Blockchain Broadcast
+
+↓
+
+Confirmation
+
+↓
+
+Final Status
+
+Identify the exact stage where it failed.
+
+--------------------------------------------------
+3. COMPARE WITH MAHAKAL
+--------------------------------------------------
+
+Compare Mahakal's previously fixed issue.
+
+Determine:
+
+Was the root cause identical?
+
+Or a different failure?
+
+--------------------------------------------------
+4. GLOBAL AUDIT
+--------------------------------------------------
+
+Search ALL production withdrawals.
+
+Return:
+
+- FAILED
+- MANUAL_REVIEW
+- REJECTED
+- PROCESSING
+
+For each category provide:
+
+Count
+
+Common failure reason
+
+Oldest occurrence
+
+Newest occurrence
+
+--------------------------------------------------
+5. IDENTIFY PATTERNS
+--------------------------------------------------
+
+Check whether failures correlate with:
+
+- wallet balance
+- locked balance
+- minimum withdrawal
+- gas estimation
+- blockchain RPC
+- nonce management
+- transaction signing
+- concurrency
+- duplicate submissions
+- timeout
+- wallet locking
+- stale balance calculation
+
+--------------------------------------------------
+6. DATA INTEGRITY
+--------------------------------------------------
+
+Verify every failed withdrawal:
+
+Did withdrawalWallet remain correct?
+
+Did lockedWithdrawalBalance remain correct?
+
+Any funds permanently locked?
+
+Any duplicate debits?
+
+Any missing rollback?
+
+--------------------------------------------------
+7. AFFECTED USERS
+--------------------------------------------------
+
+Return every user experiencing the same root cause.
+
+Include:
+
+Username
+
+Withdrawal IDs
+
+Failure count
+
+Outstanding amount
+
+Current status
+
+--------------------------------------------------
+8. ROOT CAUSE
+--------------------------------------------------
+
+Identify ONE primary root cause.
+
+If multiple causes exist, rank them by impact.
+
+--------------------------------------------------
+9. FIX PLAN
+--------------------------------------------------
+
+Propose ONE permanent fix.
+
+The fix must eliminate the issue for every user.
+
+Avoid user-specific patches.
+
+--------------------------------------------------
+10. FINAL REPORT
+--------------------------------------------------
+
+Return:
+
+PASS / FAIL
+
+Production health score
+
+Estimated number of affected users
+
+Risk of recurrence
+
+DO NOT execute any repair.
+
+Audit only.
