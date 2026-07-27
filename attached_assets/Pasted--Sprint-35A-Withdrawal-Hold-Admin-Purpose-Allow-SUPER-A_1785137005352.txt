@@ -1,0 +1,240 @@
+# Sprint 35A — Withdrawal Hold (Admin)
+
+Purpose:
+
+Allow SUPER_ADMIN to temporarily prevent withdrawals for any member without revealing to the member that their account has been administratively restricted.
+
+This is for:
+
+• AML review
+• Fraud investigation
+• KYC verification
+• Security concerns
+• Chargeback investigation
+• Manual compliance review
+
+--------------------------------------------------
+DATABASE
+--------------------------------------------------
+
+Add to User:
+
+withdrawalHold BOOLEAN DEFAULT FALSE
+
+withdrawalHoldReason TEXT NULL
+
+withdrawalHoldBy UUID NULL
+
+withdrawalHoldAt TIMESTAMP NULL
+
+--------------------------------------------------
+ADMIN PANEL
+--------------------------------------------------
+
+Inside Member Profile
+
+Add:
+
+Withdrawal Hold
+
+Current Status
+
+🟢 Active
+
+or
+
+🔴 On Hold
+
+Buttons:
+
+Enable Hold
+
+Disable Hold
+
+Reason (required)
+
+Notes (optional)
+
+Show:
+
+Who enabled it
+
+Date
+
+Reason
+
+Audit history
+
+--------------------------------------------------
+WITHDRAWAL FLOW
+--------------------------------------------------
+
+Normal validation continues.
+
+Wallet balance displays normally.
+
+Available balance displays normally.
+
+User can still submit a withdrawal request.
+
+System creates the withdrawal request exactly as normal.
+
+Status:
+
+UNDER_REVIEW
+
+Instead of entering:
+
+QUEUED
+
+PROCESSING
+
+or
+
+BLOCKCHAIN
+
+The request remains in:
+
+UNDER_REVIEW
+
+No blockchain transaction is created.
+
+No signing.
+
+No broadcasting.
+
+No nonce allocation.
+
+No gas estimation.
+
+No wallet locking.
+
+No deduction from company wallet.
+
+--------------------------------------------------
+USER EXPERIENCE
+--------------------------------------------------
+
+User should NOT see:
+
+"Your account is locked."
+
+User should NOT see:
+
+"Withdrawal blocked."
+
+User simply sees:
+
+Status:
+
+UNDER REVIEW
+
+Exactly like any other manual review.
+
+--------------------------------------------------
+ADMIN VIEW
+--------------------------------------------------
+
+Admin can see:
+
+UNDER REVIEW
+
+Reason:
+
+Withdrawal Hold
+
+Buttons:
+
+Approve
+
+Reject
+
+Release Hold
+
+--------------------------------------------------
+WHEN HOLD IS REMOVED
+--------------------------------------------------
+
+Admin may:
+
+Approve existing request
+
+or
+
+Reject existing request
+
+Future withdrawals behave normally.
+
+--------------------------------------------------
+AUDIT LOG
+--------------------------------------------------
+
+Record:
+
+Hold Enabled
+
+Hold Disabled
+
+Reason
+
+Admin
+
+Timestamp
+
+IP
+
+Never delete history.
+
+--------------------------------------------------
+SECURITY
+--------------------------------------------------
+
+Only:
+
+SUPER_ADMIN
+
+can enable or disable Withdrawal Hold.
+
+--------------------------------------------------
+REPORT
+--------------------------------------------------
+
+Return:
+
+1. Database migration
+
+2. Admin UI
+
+3. Member UI
+
+4. Audit log
+
+5. Withdrawal flow screenshots
+
+6. Test showing:
+
+Normal user
+
+↓
+
+Withdrawal submitted
+
+↓
+
+UNDER REVIEW
+
+↓
+
+No blockchain transaction created
+
+↓
+
+Hold removed
+
+↓
+
+Admin approves
+
+↓
+
+Blockchain processing begins normally.

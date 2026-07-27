@@ -141,7 +141,7 @@ export async function createWithdrawal(
   }
 
   // ── Only one active withdrawal per user ───────────────────────────────────
-  const ACTIVE_STATUSES = ["PENDING", "VALIDATING", "QUEUED", "PROCESSING", "BROADCASTING", "CONFIRMING"] as const;
+  const ACTIVE_STATUSES = ["PENDING", "VALIDATING", "QUEUED", "PROCESSING", "BROADCASTING", "CONFIRMING", "UNDER_REVIEW"] as const;
   const existing = await prisma.withdrawalRequest.findFirst({
     where:  { userId, status: { in: [...ACTIVE_STATUSES] } },
     select: { id: true, status: true },
@@ -153,6 +153,13 @@ export async function createWithdrawal(
       "WITHDRAWAL_ALREADY_ACTIVE",
     );
   }
+
+  // ── Check withdrawal hold ─────────────────────────────────────────────────
+  const userRecord = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: { withdrawalHold: true },
+  });
+  const isOnHold = userRecord?.withdrawalHold ?? false;
 
   // ── Load wallet and check balance ─────────────────────────────────────────
   const wallet = await prisma.wallet.findUnique({
@@ -186,7 +193,7 @@ export async function createWithdrawal(
       },
     });
 
-    // 2. Create request
+    // 2. Create request (UNDER_REVIEW if user is on hold, else PENDING)
     const created = await tx.withdrawalRequest.create({
       data: {
         userId,
@@ -197,7 +204,7 @@ export async function createWithdrawal(
         walletAddressSnapshot: input.walletAddress,
         network:               input.network,
         currency:              "USDT",
-        status:                "PENDING",
+        status:                isOnHold ? "UNDER_REVIEW" : "PENDING",
       },
       select: { ...withdrawalSelect, seqId: true },
     });

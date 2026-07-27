@@ -285,7 +285,7 @@ export async function approveWithdrawal(
   if (!withdrawal) {
     throw new AppError("Withdrawal not found", HTTP_STATUS.NOT_FOUND, "WITHDRAWAL_NOT_FOUND");
   }
-  if (withdrawal.status !== "PENDING") {
+  if (withdrawal.status !== "PENDING" && withdrawal.status !== "UNDER_REVIEW") {
     throw new AppError(
       `Withdrawal is already ${withdrawal.status.toLowerCase()}`,
       HTTP_STATUS.CONFLICT,
@@ -450,9 +450,9 @@ export async function rejectWithdrawal(
   if (!withdrawal) {
     throw new AppError("Withdrawal not found", HTTP_STATUS.NOT_FOUND, "WITHDRAWAL_NOT_FOUND");
   }
-  if (withdrawal.status !== "PENDING" && withdrawal.status !== "APPROVED") {
+  if (withdrawal.status !== "PENDING" && withdrawal.status !== "APPROVED" && withdrawal.status !== "UNDER_REVIEW") {
     throw new AppError(
-      "Only PENDING or APPROVED withdrawals can be rejected",
+      "Only PENDING, UNDER_REVIEW, or APPROVED withdrawals can be rejected",
       HTTP_STATUS.CONFLICT,
       "WITHDRAWAL_NOT_REJECTABLE",
     );
@@ -520,4 +520,46 @@ export async function rejectWithdrawal(
   });
 
   return { withdrawalId, status: "REJECTED" };
+}
+
+// ── Release Hold (UNDER_REVIEW → PENDING) ────────────────────────────────────
+
+export async function releaseHoldWithdrawal(adminId: string, withdrawalId: string) {
+  const withdrawal = await prisma.withdrawalRequest.findUnique({
+    where:  { id: withdrawalId },
+    select: { id: true, userId: true, amount: true, status: true, network: true, walletAddress: true, withdrawalId: true },
+  });
+
+  if (!withdrawal) {
+    throw new AppError("Withdrawal not found", HTTP_STATUS.NOT_FOUND, "WITHDRAWAL_NOT_FOUND");
+  }
+  if (withdrawal.status !== "UNDER_REVIEW") {
+    throw new AppError(
+      "Only UNDER_REVIEW withdrawals can be released to the queue",
+      HTTP_STATUS.CONFLICT,
+      "WITHDRAWAL_NOT_UNDER_REVIEW",
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.withdrawalRequest.update({
+      where: { id: withdrawalId },
+      data:  { status: "PENDING" },
+    });
+
+    await tx.adminLog.create({
+      data: {
+        adminId,
+        action:       "WITHDRAWAL_HOLD_RELEASED",
+        targetUserId: withdrawal.userId,
+        details: {
+          withdrawalId,
+          amount:  withdrawal.amount.toString(),
+          network: withdrawal.network,
+        },
+      },
+    });
+  });
+
+  return { withdrawalId, status: "PENDING" };
 }

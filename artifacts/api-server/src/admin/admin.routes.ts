@@ -41,6 +41,7 @@ import {
   approveWithdrawalHandler,
   completeWithdrawalHandler,
   rejectWithdrawalHandler,
+  releaseHoldWithdrawalHandler,
   getAdminWithdrawalSettingsHandler,
   updateAdminWithdrawalSettingsHandler,
   getWithdrawalQueueHandler,
@@ -50,6 +51,11 @@ import {
   setWithdrawalEngineStatusHandler,
   getWithdrawalOperationalHealthHandler,
 } from "./admin-withdrawals.controller";
+import {
+  setWithdrawalHoldHandler,
+  getWithdrawalHoldHandler,
+} from "./admin-withdrawal-hold.controller";
+import { setWithdrawalHoldSchema } from "./admin-withdrawal-hold.schema";
 import {
   getDashboardHandler,
   getSystemHealthHandler,
@@ -446,6 +452,29 @@ router.get(
   adminLimiter,
   superAdminGuard,
   userIncomeSummaryHandler,
+);
+
+// ── Withdrawal Hold — SUPER_ADMIN only ───────────────────────────────────────
+router.post(
+  "/users/:id/withdrawal-hold",
+  adminLimiter,
+  superAdminGuard,
+  validate(setWithdrawalHoldSchema, "body"),
+  setWithdrawalHoldHandler,
+);
+
+router.get(
+  "/users/:id/withdrawal-hold",
+  adminLimiter,
+  superAdminGuard,
+  getWithdrawalHoldHandler,
+);
+
+router.post(
+  "/withdrawals/:id/release-hold",
+  adminLimiter,
+  superAdminGuard,
+  releaseHoldWithdrawalHandler,
 );
 
 // ── Withdrawal wallet management — SUPER_ADMIN only ───────────────────────────

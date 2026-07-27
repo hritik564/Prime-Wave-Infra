@@ -11,6 +11,7 @@ import {
   approveWithdrawal,
   completeWithdrawal,
   rejectWithdrawal,
+  releaseHoldWithdrawal,
 } from "./admin-withdrawals.service";
 import { getWithdrawalSettingsPublic, updateWithdrawalSettings } from "../withdrawals/withdrawals.service";
 import { getQueueItems } from "../withdrawals/withdrawal-queue.service";
@@ -206,5 +207,16 @@ export async function getWithdrawalOperationalHealthHandler(
   try {
     const result = await getOperationalHealth();
     sendSuccess(res, result, "Operational health retrieved");
+  } catch (err) { next(err); }
+}
+
+export async function releaseHoldWithdrawalHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user }     = req as AuthenticatedRequest;
+    const withdrawalId = String(req.params["id"] ?? "");
+    const result       = await releaseHoldWithdrawal(user.sub, withdrawalId);
+    sendSuccess(res, result, "Withdrawal released to queue");
   } catch (err) { next(err); }
 }

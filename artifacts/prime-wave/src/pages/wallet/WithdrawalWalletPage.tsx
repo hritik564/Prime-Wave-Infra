@@ -46,17 +46,19 @@ const TYPE_CONFIG: Record<string, {
 };
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "warning" | "success" | "destructive" | "secondary" }> = {
-  PENDING:     { label: "Pending",     variant: "warning"     },
-  VALIDATING:  { label: "Validating",  variant: "warning"     },
-  QUEUED:      { label: "Queued",      variant: "warning"     },
-  PROCESSING:  { label: "Processing",  variant: "warning"     },
-  BROADCASTING:{ label: "Broadcasting",variant: "warning"     },
-  CONFIRMING:  { label: "Confirming",  variant: "warning"     },
-  APPROVED:    { label: "Approved",    variant: "success"     },
-  COMPLETED:   { label: "Completed",   variant: "success"     },
-  FAILED:      { label: "Failed",      variant: "destructive" },
-  REJECTED:    { label: "Rejected",    variant: "destructive" },
-  CANCELLED:   { label: "Cancelled",   variant: "secondary"   },
+  PENDING:      { label: "Pending",      variant: "warning"     },
+  VALIDATING:   { label: "Validating",   variant: "warning"     },
+  QUEUED:       { label: "Queued",       variant: "warning"     },
+  PROCESSING:   { label: "Processing",   variant: "warning"     },
+  BROADCASTING: { label: "Broadcasting", variant: "warning"     },
+  CONFIRMING:   { label: "Confirming",   variant: "warning"     },
+  MANUAL_REVIEW:{ label: "Under Review", variant: "secondary"   },
+  UNDER_REVIEW: { label: "Under Review", variant: "secondary"   },
+  APPROVED:     { label: "Approved",     variant: "success"     },
+  COMPLETED:    { label: "Completed",    variant: "success"     },
+  FAILED:       { label: "Failed",       variant: "destructive" },
+  REJECTED:     { label: "Rejected",     variant: "destructive" },
+  CANCELLED:    { label: "Cancelled",    variant: "secondary"   },
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

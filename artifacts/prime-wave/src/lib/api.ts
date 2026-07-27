@@ -3336,3 +3336,41 @@ export async function updateDiscrepancy(
     body: JSON.stringify({ status, resolutionNotes: notes }),
   });
 }
+
+/* ── Withdrawal Hold ──────────────────────────────────────────────── */
+
+export interface WithdrawalHoldStatus {
+  userId:               string;
+  username:             string;
+  withdrawalHold:       boolean;
+  withdrawalHoldReason: string | null;
+  withdrawalHoldBy:     string | null;
+  withdrawalHoldAt:     string | null;
+  auditHistory: Array<{
+    id:        string;
+    action:    string;
+    createdAt: string;
+    details:   Record<string, unknown>;
+    admin:     { id: string; email: string; firstName: string; lastName: string } | null;
+  }>;
+}
+
+export function getWithdrawalHoldStatus(userId: string): Promise<WithdrawalHoldStatus> {
+  return request<WithdrawalHoldStatus>(`/api/admin/users/${userId}/withdrawal-hold`);
+}
+
+export function setWithdrawalHoldFlag(
+  userId: string,
+  body:   { hold: boolean; reason: string },
+): Promise<Omit<WithdrawalHoldStatus, "auditHistory">> {
+  return request<Omit<WithdrawalHoldStatus, "auditHistory">>(`/api/admin/users/${userId}/withdrawal-hold`, {
+    method: "POST",
+    body:   JSON.stringify(body),
+  });
+}
+
+export function releaseHoldWithdrawal(withdrawalId: string): Promise<{ withdrawalId: string; status: string }> {
+  return request<{ withdrawalId: string; status: string }>(`/api/admin/withdrawals/${withdrawalId}/release-hold`, {
+    method: "POST",
+  });
+}

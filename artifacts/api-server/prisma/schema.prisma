@@ -63,6 +63,7 @@ enum WithdrawalStatus {
   BROADCASTING
   CONFIRMING
   MANUAL_REVIEW
+  UNDER_REVIEW
   APPROVED
   COMPLETED
   FAILED
@@ -201,6 +202,12 @@ model User {
   depositVerifications DepositVerification[]
   walletAddresses      WalletAddress[]
   powerBvLedger        PowerBvLedger[]
+
+  // ── Withdrawal Hold — SUPER_ADMIN controlled ─────────────────────────────
+  withdrawalHold       Boolean   @default(false)
+  withdrawalHoldReason String?
+  withdrawalHoldBy     String?
+  withdrawalHoldAt     DateTime?
 
   @@map("users")
 }
