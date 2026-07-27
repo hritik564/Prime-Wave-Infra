@@ -336,7 +336,11 @@ export async function getOrbitSummary(userId: string) {
           username:            true,
           leftBV:              true,
           rightBV:             true,
+          powerLeftBV:         true,
+          powerRightBV:        true,
           directReferralCount: true,
+          directLeftCount:     true,
+          directRightCount:    true,
         },
       }),
       prisma.binaryOrbitIncome.aggregate({
@@ -354,10 +358,14 @@ export async function getOrbitSummary(userId: string) {
     throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
   }
 
-  const isQualified = user.directReferralCount >= minReferrals;
-  const matchedBV   = Prisma.Decimal.min(user.leftBV, user.rightBV);
-  const rewardCount = Math.floor(matchedBV.div(new Prisma.Decimal(bvPerReward)).toNumber());
+  // Use effective BV (organic + power) — mirrors the cron engine exactly
+  const effectiveLeft  = user.leftBV.plus(user.powerLeftBV);
+  const effectiveRight = user.rightBV.plus(user.powerRightBV);
+  const matchedBV      = Prisma.Decimal.min(effectiveLeft, effectiveRight);
+  const rewardCount    = Math.floor(matchedBV.div(new Prisma.Decimal(bvPerReward)).toNumber());
 
+  // Qualification mirrors the cron: one direct referral on EACH leg
+  const isQualified        = user.directLeftCount >= 1 && user.directRightCount >= 1;
   const pendingRewardCount = isQualified ? Math.min(rewardCount, maxRewardsPerCycle) : 0;
   const pendingIncome      = new Prisma.Decimal(pendingRewardCount).times(new Prisma.Decimal(incomePerReward));
 
@@ -366,8 +374,8 @@ export async function getOrbitSummary(userId: string) {
     username:            user.username,
     directReferralCount: user.directReferralCount,
     isQualified,
-    currentLeftBV:       user.leftBV,
-    currentRightBV:      user.rightBV,
+    currentLeftBV:       effectiveLeft,
+    currentRightBV:      effectiveRight,
     pendingRewardCount,
     pendingIncome,
     settings: {

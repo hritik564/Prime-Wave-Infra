@@ -345,7 +345,11 @@ export async function getMatchingSummary(userId: string) {
       username:            true,
       leftBV:              true,
       rightBV:             true,
+      powerLeftBV:         true,
+      powerRightBV:        true,
       directReferralCount: true,
+      directLeftCount:     true,
+      directRightCount:    true,
     },
   });
 
@@ -367,8 +371,13 @@ export async function getMatchingSummary(userId: string) {
     _count: true,
   });
 
-  const matchedBV      = user.leftBV.lte(user.rightBV) ? user.leftBV : user.rightBV;
-  const isQualified    = user.directReferralCount >= MIN_REFERRALS;
+  // Use effective BV (organic + power) — mirrors the cron engine exactly
+  const effectiveLeft  = user.leftBV.plus(user.powerLeftBV);
+  const effectiveRight = user.rightBV.plus(user.powerRightBV);
+  const matchedBV      = Prisma.Decimal.min(effectiveLeft, effectiveRight);
+
+  // Qualification mirrors the cron: one direct referral on EACH leg
+  const isQualified    = user.directLeftCount >= 1 && user.directRightCount >= 1;
   const pendingMatchBV = isQualified ? matchedBV : new Prisma.Decimal(0);
   const pendingIncome  = isQualified
     ? Prisma.Decimal.min(matchedBV, MAX_PAYABLE_BV).times(INCOME_PER_BV)
@@ -379,8 +388,8 @@ export async function getMatchingSummary(userId: string) {
     username:            user.username,
     directReferralCount: user.directReferralCount,
     isQualified,
-    currentLeftBV:       user.leftBV,
-    currentRightBV:      user.rightBV,
+    currentLeftBV:       effectiveLeft,
+    currentRightBV:      effectiveRight,
     pendingMatchBV,
     pendingIncome,
     allTime: {
