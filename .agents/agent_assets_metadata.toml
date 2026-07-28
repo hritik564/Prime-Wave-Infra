@@ -66,3 +66,15 @@ id = "eLO5--5siMcQWOImPxjON"
 uri = "file://artifacts/api-server/docs/salary-architecture-33c-r3.md"
 type = "text"
 title = "Sprint 33C Revision 3 — Final Architecture Review"
+
+[[outputs]]
+id = "LU8Z6vj7ifSJPHgbSVURz"
+uri = "file://level4-usernames.csv"
+type = "table"
+title = "Level 4 Usernames (32 accounts)"
+
+[[outputs]]
+id = "1Zocm1RJEDrVgY-lqAkCE"
+uri = "file://level4-accounts.xlsx"
+type = "table"
+title = "Level 4 Accounts — 32 Usernames"
