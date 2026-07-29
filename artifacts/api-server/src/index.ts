@@ -14,6 +14,7 @@ import { runFunder }    from "./admin/scripts/networkFunder";
 import { runSeed23B }                                      from "./dev/seed23b.fn";
 import { runPhase1HealthCheck, runPhase4Reconciliation, logPhase5Report } from "./dev/reconcile23b";
 import { loadLevelRules } from "./levelIncome/level-income.service";
+import { creditMissedOrbitIncome } from "./binary/orbit-backfill";
 
 // ── Synchronous boot logger ───────────────────────────────────────────────────
 // Uses fs.writeSync so the write is a direct OS syscall — survives pipe
@@ -179,6 +180,12 @@ const server = app.listen(port, () => {
 
   startWithdrawalRecovery().catch((e) =>
     logger.error({ e }, "startWithdrawalRecovery failed"),
+  );
+
+  // One-time backfill: credit master's missed orbit income from July 28 cycle.
+  // Idempotent — guarded by system_settings flag "orbit.backfill.2026-07-28.done".
+  creditMissedOrbitIncome().catch((e) =>
+    logger.error({ e }, "creditMissedOrbitIncome backfill failed"),
   );
 
   startScheduler();
