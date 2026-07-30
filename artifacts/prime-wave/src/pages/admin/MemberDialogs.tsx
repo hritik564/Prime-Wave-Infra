@@ -267,27 +267,49 @@ export function ActivateDialog({ member, onClose, onConfirm }: { member: BaseMem
 // ─────────────────────────────────────────────────────────────────────────────
 // 6. LoginAsUserDialog
 // ─────────────────────────────────────────────────────────────────────────────
-export function LoginAsUserDialog({ member, onClose, onConfirm }: { member: BaseMember; onClose: () => void; onConfirm: () => void }) {
+export function LoginAsUserDialog({ member, onClose, onConfirm }: { member: BaseMember; onClose: () => void; onConfirm: (reason?: string) => Promise<void> }) {
+  const [reason,  setReason]  = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleConfirm() {
+    setLoading(true);
+    try {
+      await onConfirm(reason.trim() || undefined);
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <ModalShell onClose={onClose}>
       <ModalHeader icon={LogIn} title="Login As User" subtitle={`Impersonate @${member.username}`} color={GOLD} bg="rgba(212,175,55,0.1)" onClose={onClose} />
       <div style={{ padding: "0 20px 20px" }}>
         <MemberChip m={member} />
-        <div style={{ background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.18)", borderRadius: 10, padding: "14px 14px", marginBottom: 6 }}>
+        <div style={{ background: "rgba(212,175,55,0.06)", border: "1px solid rgba(212,175,55,0.18)", borderRadius: 10, padding: "14px 14px", marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <AlertTriangle size={15} style={{ color: "#fbbf24", flexShrink: 0 }} />
             <span style={{ fontSize: 13, fontWeight: 700, color: "#fbbf24" }}>Admin Action Warning</span>
           </div>
           <p style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", lineHeight: 1.6, margin: 0 }}>
-            You are about to log in as <strong style={{ color: GOLD_L }}>@{member.username}</strong>. This action will be logged with your admin credentials, IP address, and timestamp. You will have full access to this member's account.
+            You are about to log in as <strong style={{ color: GOLD_L }}>@{member.username}</strong>. This action will be logged with your admin credentials, IP address, and timestamp. You will have full access to this member's account for up to 2 hours.
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", background: "rgba(255,255,255,0.025)", borderRadius: 8, marginBottom: 16 }}>
-          <span style={{ fontSize: 11, color: MUTED }}>🔒 This action will be logged.</span>
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: "block", fontSize: 11, color: MUTED, marginBottom: 5 }}>Reason (optional)</label>
+          <textarea
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            placeholder="e.g. Customer support — user reports missing income"
+            style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "8px 10px", color: "#fff", fontSize: 12, resize: "vertical", minHeight: 56, outline: "none", fontFamily: "inherit" }}
+          />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "rgba(255,255,255,0.025)", borderRadius: 8, marginBottom: 16 }}>
+          <span style={{ fontSize: 11, color: MUTED }}>🔒 This action will be fully audited. Session expires after 2 hours.</span>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <Btn label="Cancel" onClick={onClose} />
-          <Btn label="Login As User" onClick={() => { onConfirm(); onClose(); }} color={GOLD_L} bg="rgba(212,175,55,0.1)" border="rgba(212,175,55,0.3)" />
+          <Btn label={loading ? "Starting…" : "Login As User"} onClick={handleConfirm} disabled={loading} color={GOLD_L} bg="rgba(212,175,55,0.1)" border="rgba(212,175,55,0.3)" />
         </div>
       </div>
     </ModalShell>

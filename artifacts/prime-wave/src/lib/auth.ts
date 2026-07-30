@@ -63,6 +63,43 @@ export function getAdminRole(): string | null {
   } catch { return null; }
 }
 
+/* ── Impersonation helpers ─────────────────────────────────────────────────── */
+
+const IMP_PREV_USER_KEY = "pw:imp:prev:user";
+
+export function savePrevUser(user: StoredUser): void {
+  try { localStorage.setItem(IMP_PREV_USER_KEY, JSON.stringify(user)); } catch {}
+}
+
+export function getPrevUser(): StoredUser | null {
+  try {
+    const raw = localStorage.getItem(IMP_PREV_USER_KEY);
+    return raw ? (JSON.parse(raw) as StoredUser) : null;
+  } catch { return null; }
+}
+
+/** Remove the impersonation JWT and the saved admin-user backup, but leave pw:admin:token intact. */
+export function clearImpersonationState(): void {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(IMP_PREV_USER_KEY);
+  } catch {}
+}
+
+export function decodeTokenPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const padded = parts[1]!.replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(padded)) as Record<string, unknown>;
+  } catch { return null; }
+}
+
+export function isImpersonationToken(token: string): boolean {
+  const p = decodeTokenPayload(token);
+  return !!p && p["impersonated"] === true;
+}
+
 /* ── 401 interceptor hook ──────────────────────────────────────────────────── */
 
 let _onUnauthorized: (() => void) | null = null;

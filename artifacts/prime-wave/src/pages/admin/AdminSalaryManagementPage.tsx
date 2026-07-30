@@ -1016,12 +1016,12 @@ function BarChart2({ size, color }: { size?: number; color?: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function AdminSalaryManagementPage() {
-  const { admin }    = useAuth();
+  const { user }     = useAuth();
   const { toasts, toast, dismiss } = useToast();
   const [tab,        setTab]        = useState("Salary Runs");
   const [selectedRun, setSelectedRun] = useState<SalaryRunListItem | null>(null);
 
-  const canWrite = admin?.role === "SUPER_ADMIN" || admin?.role === "FINANCE_ADMIN";
+  const canWrite = user?.role === "SUPER_ADMIN" || user?.role === "FINANCE_ADMIN";
 
   function handleSelectRun(run: SalaryRunListItem) {
     setSelectedRun(run);

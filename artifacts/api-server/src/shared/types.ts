@@ -5,6 +5,10 @@ export interface AuthPayload {
   email: string;
   type: "user" | "admin";
   role?: string;
+  /** Present only on impersonation tokens */
+  impersonated?: true;
+  originalAdminId?: string;
+  sessionId?: string;
   iat?: number;
   exp?: number;
 }

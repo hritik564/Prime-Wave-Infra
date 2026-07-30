@@ -1,8 +1,11 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { type AuthenticatedRequest } from "../shared/types";
 import { sendSuccess } from "../shared/response";
+import { AppError } from "../middleware/error.middleware";
+import { HTTP_STATUS } from "../shared/constants";
 import { getParsed } from "../middleware/validate.middleware";
 import { searchUsers, getAdminUserDetail, setUserStatus, adminUpdateUser, adminResetUserPassword, adminUpdateUserWallet, getWalletAuditLogs, deleteUser, type AdminUpdateUserInput } from "./admin-users.service";
+import { startImpersonation } from "../auth/auth.service";
 import type { UserSearchQuery } from "./admin-dashboard.schema";
 
 export async function searchUsersHandler(
@@ -120,5 +123,30 @@ export async function getWalletAuditLogsHandler(
     const userId = String(req.params["id"] ?? "");
     const logs   = await getWalletAuditLogs(userId);
     sendSuccess(res, { logs }, "Wallet audit logs retrieved");
+  } catch (err) { next(err); }
+}
+
+export async function impersonateUserHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    // Block chaining: reject if calling token is itself an impersonation
+    if (user.impersonated) {
+      throw new AppError(
+        "Cannot start an impersonation session while already impersonating",
+        HTTP_STATUS.FORBIDDEN,
+        "FORBIDDEN",
+      );
+    }
+    const targetUserId = String(req.params["id"] ?? "");
+    const { reason }   = req.body as { reason?: string };
+    const ip            = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim()
+                          ?? req.socket.remoteAddress
+                          ?? "unknown";
+    const userAgent     = String(req.headers["user-agent"] ?? "unknown");
+
+    const result = await startImpersonation(user.sub, targetUserId, ip, userAgent, reason);
+    sendSuccess(res, result, "Impersonation session started");
   } catch (err) { next(err); }
 }

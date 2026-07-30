@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { register, login, changeUserPassword, logout } from "./auth.controller";
+import { register, login, changeUserPassword, logout, exitImpersonation } from "./auth.controller";
 import { validate } from "../middleware/validate.middleware";
 import { requireAuth } from "../middleware/auth.middleware";
 import { authLimiter } from "../middleware/rateLimiter.middleware";
@@ -20,5 +20,8 @@ router.post(
   changeUserPassword,
 );
 router.post("/logout", requireAuth, logout);
+
+// Impersonation exit (called by the frontend using the impersonation JWT)
+router.post("/impersonation/exit", requireAuth, exitImpersonation);
 
 export default router;

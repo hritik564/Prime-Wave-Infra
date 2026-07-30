@@ -1,6 +1,7 @@
 import Sidebar from "./Sidebar";
 import TopNavbar from "./TopNavbar";
 import BottomNav from "./BottomNav";
+import ImpersonationBanner from "./ImpersonationBanner";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -29,6 +30,7 @@ export default function AppLayout({
           pageTitle={pageTitle}
           notificationCount={notificationCount}
         />
+        <ImpersonationBanner />
         {/* pb-16 reserves space above the fixed bottom nav on mobile */}
         <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
           {children}

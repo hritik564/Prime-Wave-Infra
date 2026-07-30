@@ -207,6 +207,81 @@ export async function loginUser(input: LoginInput) {
   };
 }
 
+// ── Impersonation ─────────────────────────────────────────────────────────────
+
+function signImpersonationToken(payload: AuthPayload): string {
+  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: "2h" });
+}
+
+export async function startImpersonation(
+  adminId:    string,
+  targetUserId: string,
+  ip:         string,
+  userAgent:  string,
+  reason?:    string,
+): Promise<{ token: string; sessionId: string; user: { id: string; email: string; username: string; firstName: string; lastName: string } }> {
+  // Verify the admin is a SUPER_ADMIN
+  const admin = await prisma.admin.findUnique({ where: { id: adminId }, select: { id: true, role: true } });
+  if (!admin) throw new AppError("Admin not found", HTTP_STATUS.NOT_FOUND, "NOT_FOUND");
+  if (admin.role !== "SUPER_ADMIN") throw new AppError("Only SUPER_ADMIN may impersonate users", HTTP_STATUS.FORBIDDEN, "FORBIDDEN");
+
+  // Get target user
+  const target = await prisma.user.findUnique({
+    where:  { id: targetUserId },
+    select: { id: true, email: true, username: true, firstName: true, lastName: true },
+  });
+  if (!target) throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
+
+  // Create session + audit log atomically
+  const session = await prisma.$transaction(async (tx) => {
+    const sess = await tx.impersonationSession.create({
+      data: { adminId, targetUserId, ip, userAgent, reason: reason ?? null },
+    });
+    await tx.adminLog.create({
+      data: {
+        adminId,
+        action:       "ADMIN_IMPERSONATION_STARTED",
+        targetUserId,
+        details:      { sessionId: sess.id, ip, userAgent, reason: reason ?? null },
+      },
+    });
+    return sess;
+  });
+
+  const token = signImpersonationToken({
+    sub:             target.id,
+    email:           target.email,
+    type:            "user",
+    impersonated:    true,
+    originalAdminId: adminId,
+    sessionId:       session.id,
+  });
+
+  return { token, sessionId: session.id, user: { id: target.id, email: target.email, username: target.username, firstName: target.firstName, lastName: target.lastName } };
+}
+
+export async function endImpersonation(sessionId: string, adminId: string): Promise<void> {
+  const session = await prisma.impersonationSession.findUnique({ where: { id: sessionId } });
+  if (!session) throw new AppError("Impersonation session not found", HTTP_STATUS.NOT_FOUND, "NOT_FOUND");
+  if (session.endedAt) throw new AppError("Impersonation session already ended", HTTP_STATUS.BAD_REQUEST, "BAD_REQUEST");
+  if (session.adminId !== adminId) throw new AppError("Session belongs to a different admin", HTTP_STATUS.FORBIDDEN, "FORBIDDEN");
+
+  const now           = new Date();
+  const durationSeconds = Math.floor((now.getTime() - session.startedAt.getTime()) / 1000);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.impersonationSession.update({ where: { id: sessionId }, data: { endedAt: now } });
+    await tx.adminLog.create({
+      data: {
+        adminId,
+        action:       "ADMIN_IMPERSONATION_ENDED",
+        targetUserId: session.targetUserId,
+        details:      { sessionId, durationSeconds },
+      },
+    });
+  });
+}
+
 export async function changePassword(userId: string, input: ChangePasswordInput) {
   const user = await prisma.user.findUnique({
     where:  { id: userId },

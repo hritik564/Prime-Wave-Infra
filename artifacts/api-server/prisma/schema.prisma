@@ -171,8 +171,9 @@ model User {
   isTestUser Boolean  @default(false)
 
   wallet           Wallet?
-  adminLogs        AdminLog[]
-  transactions     WalletTransaction[]
+  adminLogs              AdminLog[]
+  impersonationSessions  ImpersonationSession[]
+  transactions           WalletTransaction[]
   investments      Investment[]
   roiLedger        RoiLedger[]
   referralHistory  ReferralHistory?  @relation("ReferralHistoryUser")
@@ -238,8 +239,9 @@ model Admin {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  logs             AdminLog[]
-  approvedDeposits DepositRequest[]
+  logs                  AdminLog[]
+  impersonationSessions ImpersonationSession[]
+  approvedDeposits      DepositRequest[]
 
   approvedWithdrawals  WithdrawalRequest[] @relation("WithdrawalApprover")
   completedWithdrawals WithdrawalRequest[] @relation("WithdrawalCompleter")
@@ -278,6 +280,24 @@ model AdminLog {
   @@index([adminId])
   @@index([targetUserId])
   @@map("admin_logs")
+}
+
+model ImpersonationSession {
+  id           String    @id @default(cuid())
+  adminId      String
+  targetUserId String
+  startedAt    DateTime  @default(now())
+  endedAt      DateTime?
+  ip           String
+  userAgent    String
+  reason       String?
+
+  admin      Admin @relation(fields: [adminId], references: [id], onDelete: Restrict)
+  targetUser User  @relation(fields: [targetUserId], references: [id], onDelete: Restrict)
+
+  @@index([adminId])
+  @@index([targetUserId])
+  @@map("impersonation_sessions")
 }
 
 model WalletTransaction {

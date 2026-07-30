@@ -1,0 +1,194 @@
+# P1 Feature — Secure Admin User Impersonation ("Login as User")
+
+We need to complete the existing "Login as User" feature.
+
+This is NOT a normal login.
+
+It is a secure administrator impersonation system.
+
+--------------------------------------------------
+OBJECTIVE
+--------------------------------------------------
+
+Allow Super Admin to temporarily enter a user's account for:
+
+- Customer support
+- Issue debugging
+- Account verification
+- Feature testing
+
+without knowing the user's password.
+
+--------------------------------------------------
+SECURITY REQUIREMENTS
+--------------------------------------------------
+
+Only SUPER_ADMIN may impersonate.
+
+Admins, Moderators and Support staff cannot.
+
+Every impersonation must be fully audited.
+
+--------------------------------------------------
+IMPLEMENTATION
+--------------------------------------------------
+
+When Super Admin clicks:
+
+"Login as User"
+
+Backend should:
+
+1. Verify current session belongs to SUPER_ADMIN.
+
+2. Generate a short-lived impersonation session.
+
+3. Remember:
+
+- original admin ID
+- target user ID
+- start timestamp
+- IP
+- browser
+- reason (optional)
+
+4. Issue an impersonation JWT.
+
+The JWT must contain:
+
+role = USER
+
+impersonated = true
+
+originalAdminId
+
+targetUserId
+
+sessionId
+
+This allows the frontend to behave exactly like a normal user account while still knowing it is an impersonation session.
+
+--------------------------------------------------
+FRONTEND
+--------------------------------------------------
+
+After success
+
+Automatically redirect to:
+
+/dashboard
+
+Display a persistent banner at the top of every page:
+
+"You are viewing this account as Super Admin."
+
+Background colour:
+
+Orange or Red.
+
+Show:
+
+Exit Impersonation
+
+button.
+
+This banner must never disappear while impersonating.
+
+--------------------------------------------------
+EXIT
+--------------------------------------------------
+
+Clicking
+
+Exit Impersonation
+
+must:
+
+Destroy impersonation session.
+
+Invalidate impersonation JWT.
+
+Restore original Super Admin session.
+
+Redirect back to Admin Panel.
+
+--------------------------------------------------
+AUDIT LOG
+--------------------------------------------------
+
+Create audit entries:
+
+ADMIN_IMPERSONATION_STARTED
+
+ADMIN_IMPERSONATION_ENDED
+
+Store:
+
+Admin ID
+
+Target User ID
+
+Timestamp
+
+IP
+
+Browser
+
+Duration
+
+Reason
+
+--------------------------------------------------
+PERMISSIONS
+--------------------------------------------------
+
+While impersonating
+
+The UI behaves exactly like the user.
+
+However,
+
+Actions that change security-sensitive settings should require extra care.
+
+At minimum, log all actions taken during impersonation.
+
+--------------------------------------------------
+VISIBLE INDICATOR
+--------------------------------------------------
+
+Every page should clearly indicate:
+
+Impersonated Session
+
+Never allow silent impersonation.
+
+--------------------------------------------------
+FILES EXPECTED TO CHANGE
+--------------------------------------------------
+
+- auth service
+- auth controller
+- jwt generation
+- auth middleware
+- admin controller
+- admin users service
+- frontend auth store
+- admin users page
+- dashboard layout
+- audit log service
+
+--------------------------------------------------
+DELIVERABLE
+--------------------------------------------------
+
+Before coding,
+
+explain:
+
+1. JWT changes
+2. Session flow
+3. Audit model
+4. Security considerations
+5. Files to modify
+
+Then implement.

@@ -1088,6 +1088,27 @@ export function getAdminUserDetail(id: string) {
   return request<AdminUserDetail>(`/api/admin/users/${id}`);
 }
 
+/* ── Admin — Impersonation ────────────────────────────────────────── */
+
+export interface ImpersonationResponse {
+  token: string;
+  sessionId: string;
+  user: {
+    id:        string;
+    email:     string;
+    username:  string;
+    firstName: string;
+    lastName:  string;
+  };
+}
+
+export function adminImpersonateUser(userId: string, reason?: string): Promise<ImpersonationResponse> {
+  return request<ImpersonationResponse>(`/api/admin/users/${userId}/impersonate`, {
+    method: "POST",
+    body:   JSON.stringify({ reason }),
+  });
+}
+
 export function adminSuspendUser(id: string) {
   return request<{ id: string; status: string }>(`/api/admin/users/${id}/suspend`, { method: "POST" });
 }

@@ -11,10 +11,11 @@ import {
 } from "./MemberDialogs";
 import {
   getAdminUserDetail, adminSuspendUser, adminActivateUser, adminBlockUser,
-  adminResetUserPassword, adminDeleteUser,
+  adminResetUserPassword, adminDeleteUser, adminImpersonateUser,
   type AdminUserDetail,
 } from "@/lib/api";
 import { getAdminToken } from "@/lib/auth";
+import { useAuth } from "@/providers/AuthProvider";
 import {
   Search, Filter, FileSpreadsheet, FileText,
   Users, UserCheck, UserPlus, Calendar, RefreshCw,
@@ -282,6 +283,7 @@ const RowActions = memo(function RowActions({ row, onView, onToggleStatus, onBlo
 const LIMIT = 50;
 
 export default function MembersPage() {
+  const { startImpersonating } = useAuth();
   const [filters,   setFilters]   = useState<Filters>(DEFAULT_FILTERS);
   const [applied,   setApplied]   = useState<Filters>(DEFAULT_FILTERS);
   const [page,      setPage]      = useState(1);
@@ -822,7 +824,18 @@ export default function MembersPage() {
       )}
       {loginAsTarget && (
         <LoginAsUserDialog member={loginAsTarget} onClose={() => setLoginAsTarget(null)}
-          onConfirm={() => toast("Impersonation — coming soon", "info")} />
+          onConfirm={async (reason) => {
+            const result = await adminImpersonateUser(loginAsTarget.id, reason);
+            const targetUser = {
+              id:        result.user.id,
+              email:     result.user.email,
+              username:  result.user.username,
+              firstName: result.user.firstName,
+              lastName:  result.user.lastName,
+              type:      "user" as const,
+            };
+            startImpersonating(result.token, targetUser);
+          }} />
       )}
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />

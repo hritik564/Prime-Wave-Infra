@@ -71,6 +71,7 @@ import {
   deleteUserHandler,
   updateUserWalletHandler,
   getWalletAuditLogsHandler,
+  impersonateUserHandler,
 } from "./admin-users.controller";
 import { walletAdjustmentHandler } from "./admin-wallet-adjustments.controller";
 import { p0PowerBvRecoveryHandler } from "./admin-p0-recovery.controller";
@@ -499,6 +500,13 @@ router.get(
   adminLimiter,
   superAdminGuard,
   getWalletAuditLogsHandler,
+);
+
+router.post(
+  "/users/:id/impersonate",
+  adminLimiter,
+  superAdminGuard,
+  impersonateUserHandler,
 );
 
 // ── Manual Wallet Credit — SUPER_ADMIN + FINANCE_ADMIN ───────────────────────
