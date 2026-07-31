@@ -11,6 +11,7 @@ import WalletTabs from "@/components/wallet/WalletTabs";
 import WalletHero from "@/components/wallet/WalletHero";
 import {
   getWallets,
+  getDepositWallets,
   getUserDepositVerificationHistory,
   submitDepositVerification,
   getDepositVerificationStatus,
@@ -21,7 +22,6 @@ import {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const DEPOSIT_ADDRESS = "0x543780EF4cda835F3541A1BdB305f4119f658BDb";
 const POLL_INTERVAL_MS = 5_000;
 
 // ── Status ordering for step logic ────────────────────────────────────────────
@@ -673,12 +673,12 @@ function VerificationTimeline({ status }: { status: DepositVerificationStatusRes
 
 // ── TransactionSummaryCard ────────────────────────────────────────────────────
 
-function TransactionSummaryCard({ status, lastPolled }: { status: DepositVerificationStatusResult; lastPolled: Date | null }) {
+function TransactionSummaryCard({ status, lastPolled, depositAddress }: { status: DepositVerificationStatusResult; lastPolled: Date | null; depositAddress: string }) {
   const rows: { label: string; value: string | null; mono?: boolean; copyable?: boolean }[] = [
     { label: "Transaction Hash",      value: status.txHash,            mono: true,  copyable: true },
     { label: "Network",               value: "BEP20 (BSC)",            mono: false },
     { label: "Sender Address",        value: status.senderAddress,     mono: true,  copyable: !!status.senderAddress },
-    { label: "Recipient Address",     value: status.recipientAddress ?? DEPOSIT_ADDRESS, mono: true, copyable: true },
+    { label: "Recipient Address",     value: status.recipientAddress ?? depositAddress, mono: true, copyable: true },
     { label: "Detected Amount",       value: status.blockchainAmount ? `${parseFloat(status.blockchainAmount).toFixed(2)} USDT` : null, mono: false },
     { label: "Confirmations",         value: `${status.confirmations} / ${status.requiredConfirmations}`, mono: false },
     { label: "Status",                value: statusLabel(status.verificationStatus), mono: false },
@@ -847,6 +847,7 @@ function FailureBanner({
 
 export default function DepositWalletPage() {
   const [balance,        setBalance]        = useState<string | null>(null);
+  const [depositAddress, setDepositAddress] = useState<string>("");
   const [deposits,       setDeposits]       = useState<DepositVerificationHistoryItem[]>([]);
   const [selectedItem,   setSelectedItem]   = useState<DepositVerificationHistoryItem | null>(null);
   const [loading,        setLoading]        = useState(true);
@@ -859,12 +860,15 @@ export default function DepositWalletPage() {
 
   const load = useCallback(async () => {
     try {
-      const [walletData, historyData] = await Promise.all([
+      const [walletData, historyData, depositWallets] = await Promise.all([
         getWallets(),
         getUserDepositVerificationHistory({ limit: 50 }),
+        getDepositWallets(),
       ]);
       setBalance(walletData.depositWallet);
       setDeposits(historyData.data);
+      const bep20 = depositWallets.find((w) => w.network === "BEP20");
+      if (bep20) setDepositAddress(bep20.walletAddress);
     } catch { /* keep whatever we have */ } finally {
       setLoading(false);
     }
@@ -966,8 +970,8 @@ export default function DepositWalletPage() {
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: "rgba(212,175,55,0.1)" }}>
               <ArrowDownToLine className="h-3.5 w-3.5" style={{ color: "#D4AF37" }} />
             </div>
-            <p className="font-mono text-xs text-foreground flex-1 break-all leading-relaxed">{DEPOSIT_ADDRESS}</p>
-            <CopyButton text={DEPOSIT_ADDRESS} size="md" />
+            <p className="font-mono text-xs text-foreground flex-1 break-all leading-relaxed">{depositAddress || "—"}</p>
+            <CopyButton text={depositAddress} size="md" />
           </div>
 
           <div className="flex gap-2 mb-3">
@@ -1021,7 +1025,7 @@ export default function DepositWalletPage() {
             {/* Two-column on desktop, stacked on mobile */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5 lg:mb-6">
               <VerificationTimeline status={verifStatus} />
-              <TransactionSummaryCard status={verifStatus} lastPolled={lastPolled} />
+              <TransactionSummaryCard status={verifStatus} lastPolled={lastPolled} depositAddress={depositAddress} />
             </div>
           </>
         )}
@@ -1030,14 +1034,14 @@ export default function DepositWalletPage() {
         {isCompleted && verifStatus && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5 lg:mb-6">
             <VerificationTimeline status={verifStatus} />
-            <TransactionSummaryCard status={verifStatus} lastPolled={lastPolled} />
+            <TransactionSummaryCard status={verifStatus} lastPolled={lastPolled} depositAddress={depositAddress} />
           </div>
         )}
 
         {/* ── Error tracking: show summary below failure banner ─────────────── */}
         {isError && verifStatus && (
           <div className="mb-5 lg:mb-6">
-            <TransactionSummaryCard status={verifStatus} lastPolled={lastPolled} />
+            <TransactionSummaryCard status={verifStatus} lastPolled={lastPolled} depositAddress={depositAddress} />
           </div>
         )}
 

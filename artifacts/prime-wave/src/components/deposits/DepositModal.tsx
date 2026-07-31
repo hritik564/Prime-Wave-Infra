@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Copy, CheckCheck, ArrowDownToLine, AlertCircle, Send, Loader2, CheckCircle2, ExternalLink } from "lucide-react";
-import { submitDepositVerification } from "@/lib/api";
+import { submitDepositVerification, getDepositWallets } from "@/lib/api";
 
-const DEPOSIT_ADDRESS = "0x543780EF4cda835F3541A1BdB305f4119f658BDb";
-const NETWORK_LABEL   = "BEP20 (BSC)";
+const NETWORK_LABEL = "BEP20 (BSC)";
 
 function CopyButton({ text, full = false }: { text: string; full?: boolean }) {
   const [copied, setCopied] = useState(false);
@@ -46,10 +45,20 @@ interface DepositModalProps {
 }
 
 export default function DepositModal({ onClose, onSuccess }: DepositModalProps) {
-  const [txHash,     setTxHash]     = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error,      setError]      = useState<string | null>(null);
-  const [submitted,  setSubmitted]  = useState(false);
+  const [txHash,         setTxHash]         = useState("");
+  const [submitting,     setSubmitting]     = useState(false);
+  const [error,          setError]          = useState<string | null>(null);
+  const [submitted,      setSubmitted]      = useState(false);
+  const [depositAddress, setDepositAddress] = useState<string>("");
+
+  useEffect(() => {
+    getDepositWallets()
+      .then((wallets) => {
+        const bep20 = wallets.find((w) => w.network === "BEP20");
+        if (bep20) setDepositAddress(bep20.walletAddress);
+      })
+      .catch(() => { /* keep empty — address will show as loading */ });
+  }, []);
 
   const isDuplicate = (msg: string) =>
     msg.toLowerCase().includes("duplicate") ||
@@ -168,12 +177,12 @@ export default function DepositModal({ onClose, onSuccess }: DepositModalProps) 
                   style={{ background: "rgba(0,0,0,0.2)" }}
                 >
                   <p className="flex-1 font-mono text-xs break-all" style={{ color: "rgba(255,255,255,0.85)" }}>
-                    {DEPOSIT_ADDRESS}
+                    {depositAddress || <span style={{ color: "rgba(170,179,197,0.4)" }}>Loading…</span>}
                   </p>
-                  <CopyButton text={DEPOSIT_ADDRESS} />
+                  <CopyButton text={depositAddress} />
                 </div>
 
-                <CopyButton text={DEPOSIT_ADDRESS} full />
+                <CopyButton text={depositAddress} full />
 
                 <div
                   className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs"

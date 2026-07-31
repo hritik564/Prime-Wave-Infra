@@ -531,6 +531,16 @@ export function getDepositHistory(params?: { page?: number; limit?: number; stat
   return request<{ data: DepositRequest[]; meta: ListMeta }>(`/api/deposits/history?${q}`);
 }
 
+export interface DepositWallet {
+  id: string;
+  network: string;
+  walletAddress: string;
+}
+
+export function getDepositWallets(): Promise<DepositWallet[]> {
+  return request<DepositWallet[]>("/api/deposits/wallets");
+}
+
 export type WithdrawalStatus =
   | "PENDING" | "VALIDATING" | "QUEUED" | "PROCESSING"
   | "BROADCASTING" | "CONFIRMING" | "APPROVED"
