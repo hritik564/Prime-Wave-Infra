@@ -24,7 +24,7 @@ const BG2    = "hsl(222 62% 10%)";
 type Status   = "ACTIVE" | "INACTIVE" | "SUSPENDED" | "BLOCKED";
 type Plan     = "STARTER" | "ALPHA" | "PREMIUM" | "VIP";
 type Position = "LEFT" | "RIGHT";
-type Rank     = "BRONZE" | "SILVER" | "GOLD" | "DIAMOND";
+type Rank     = "Bronze" | "Silver" | "Gold" | "Platinum" | "Sapphire" | "Ruby" | "Emerald" | "Diamond" | "Ambassador" | "Sovereign Crown";
 type KYC      = "VERIFIED" | "PENDING" | "REJECTED" | "UNSUBMITTED";
 
 export interface DrawerMember {
@@ -82,10 +82,16 @@ const PLAN_CFG: Record<string, { color: string; bg: string }> = {
   VIP:     { color: "#34d399", bg: "rgba(52,211,153,0.1)"  },
 };
 const RANK_NEXT: Record<Rank, { next: string; progress: number }> = {
-  BRONZE:  { next: "Silver",   progress: 35 },
-  SILVER:  { next: "Gold",     progress: 60 },
-  GOLD:    { next: "Diamond",  progress: 78 },
-  DIAMOND: { next: "—",        progress: 100 },
+  "Bronze":         { next: "Silver",         progress: 10  },
+  "Silver":         { next: "Gold",           progress: 25  },
+  "Gold":           { next: "Platinum",       progress: 40  },
+  "Platinum":       { next: "Sapphire",       progress: 55  },
+  "Sapphire":       { next: "Ruby",           progress: 65  },
+  "Ruby":           { next: "Emerald",        progress: 75  },
+  "Emerald":        { next: "Diamond",        progress: 83  },
+  "Diamond":        { next: "Ambassador",     progress: 90  },
+  "Ambassador":     { next: "Sovereign Crown",progress: 96  },
+  "Sovereign Crown":{ next: "—",              progress: 100 },
 };
 
 // ─── Transaction Timeline Config ──────────────────────────────────────────────
@@ -251,6 +257,13 @@ function ProgressBar({ value, color = GOLD, max = 100, label, sublabel }: { valu
 }
 
 // ─── Health Score ─────────────────────────────────────────────────────────────
+const RANK_ORDER: Rank[] = ["Bronze","Silver","Gold","Platinum","Sapphire","Ruby","Emerald","Diamond","Ambassador","Sovereign Crown"];
+function rankTier(r: string | null): number {
+  if (!r) return 0;
+  const idx = RANK_ORDER.indexOf(r as Rank);
+  return idx >= 0 ? idx + 1 : 0;
+}
+
 function computeHealth(m: DrawerMember) {
   const inv  = m.plan === "VIP" ? 25 : m.plan === "PREMIUM" ? 22 : m.plan === "ALPHA" ? 18 : m.plan === "STARTER" ? 12 : 0;
   const refs = Math.min(20, m.directReferrals * 2);
@@ -348,7 +361,8 @@ function FinancialSnapshot({ m }: { m: DrawerMember }) {
   const roi     = m.plan ? Math.round(m.investment * 0.4 * (m.plan === "VIP" ? 0.24 : m.plan === "PREMIUM" ? 0.18 : m.plan === "ALPHA" ? 0.12 : 0.08)) : 0;
   const binary  = seeded(m.directReferrals * 5 + 1, 4000);
   const level   = seeded(m.directReferrals * 7 + 2, 2000);
-  const salary  = m.rank === "DIAMOND" ? 2500 : m.rank === "GOLD" ? 1200 : 0;
+  const tier    = rankTier(m.rank);
+  const salary  = tier >= 8 ? 2500 : tier >= 7 ? 1500 : tier >= 6 ? 1000 : tier >= 5 ? 500 : tier >= 4 ? 250 : tier >= 3 ? 125 : 0;
   const pending = m.withdrawalWallet > 2000 ? Math.round(m.withdrawalWallet * 0.4) : 0;
   const rows = [
     { label: "Total Invested",          value: $(m.investment),            color: GOLD_L    },
@@ -378,7 +392,7 @@ function FinancialSnapshot({ m }: { m: DrawerMember }) {
 
 // ─── Network Snapshot ─────────────────────────────────────────────────────────
 function NetworkSnapshot({ m }: { m: DrawerMember }) {
-  const rankNext = m.rank ? RANK_NEXT[m.rank] : { next: "Bronze", progress: 20 };
+  const rankNext = m.rank ? (RANK_NEXT[m.rank] ?? { next: "—", progress: 0 }) : { next: "Bronze", progress: 20 };
   const bvTotal  = m.leftBV + m.rightBV;
   const lPct     = bvTotal > 0 ? Math.round((m.leftBV / bvTotal) * 100) : 50;
   return (
