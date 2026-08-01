@@ -3,8 +3,10 @@ import {
   ArrowUpFromLine, X, Wallet, Loader2, CheckCircle2,
   GitMerge, RefreshCw, Users, DollarSign, ArrowLeftRight,
   TrendingUp, Layers, HelpCircle, Plus, Trash2, Star,
-  Lock, ExternalLink, Copy, CheckCheck,
+  Lock, ExternalLink, Copy, CheckCheck, ChevronLeft, ChevronRight,
 } from "lucide-react";
+
+const TX_PAGE_SIZE = 10;
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import WalletTabs from "@/components/wallet/WalletTabs";
@@ -390,6 +392,7 @@ export default function WithdrawalWalletPage() {
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
   const [walletAddresses, setWalletAddresses]       = useState<WalletAddress[]>([]);
   const [loading, setLoading]     = useState(true);
+  const [txPage, setTxPage]       = useState(0);
   const [toasts, setToasts]       = useState<ToastItem[]>([]);
   const [addAddrOpen, setAddAddrOpen]   = useState(false);
   const [newAddr, setNewAddr]           = useState("");
@@ -408,6 +411,7 @@ export default function WithdrawalWalletPage() {
       ]);
       setBalance(parseFloat(walletData.withdrawalWallet));
       setTxHistory(txData.data);
+      setTxPage(0);
       setWithdrawalRequests(wrData.data);
       setWalletAddresses(addrData);
       setHoldMinutes(settings.holdMinutes);
@@ -605,41 +609,71 @@ export default function WithdrawalWalletPage() {
                 Credits from Binary Matching, Orbit, Level Income, Salary, and transfers will appear here.
               </p>
             </div>
-          ) : (
-            <div className="rounded-2xl overflow-hidden" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
-              {txHistory.map((tx, i) => {
-                const cfg = TYPE_CONFIG[tx.type] ?? {
-                  label: tx.type.replace(/_/g, " "),
-                  color: "#AAB3C5",
-                  bg: "rgba(170,179,197,0.1)",
-                  Icon: HelpCircle,
-                  credit: true,
-                };
-                const { label, color, bg, Icon, credit } = cfg;
-                const amount = parseFloat(tx.amount);
-                return (
-                  <div
-                    key={tx.id}
-                    className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.02]"
-                    style={{ borderBottom: i < txHistory.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}
-                  >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: bg }}>
-                      <Icon className="h-4 w-4" style={{ color }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{label}</p>
-                      <p className="text-xs mt-0.5 truncate" style={{ color: "rgba(170,179,197,0.5)" }}>
-                        {tx.description ?? label} · {timeAgo(tx.createdAt)}
-                      </p>
-                    </div>
-                    <span className="text-sm font-semibold font-mono shrink-0" style={{ color: credit ? "#34d399" : "#f87171" }}>
-                      {credit ? "+" : "-"}{fmt(amount)}
+          ) : (() => {
+            const totalPages = Math.ceil(txHistory.length / TX_PAGE_SIZE);
+            const pageItems  = txHistory.slice(txPage * TX_PAGE_SIZE, (txPage + 1) * TX_PAGE_SIZE);
+            return (
+              <>
+                <div className="rounded-2xl overflow-hidden" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
+                  {pageItems.map((tx, i) => {
+                    const cfg = TYPE_CONFIG[tx.type] ?? {
+                      label: tx.type.replace(/_/g, " "),
+                      color: "#AAB3C5",
+                      bg: "rgba(170,179,197,0.1)",
+                      Icon: HelpCircle,
+                      credit: true,
+                    };
+                    const { label, color, bg, Icon, credit } = cfg;
+                    const amount = parseFloat(tx.amount);
+                    return (
+                      <div
+                        key={tx.id}
+                        className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.02]"
+                        style={{ borderBottom: i < pageItems.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: bg }}>
+                          <Icon className="h-4 w-4" style={{ color }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{label}</p>
+                          <p className="text-xs mt-0.5 truncate" style={{ color: "rgba(170,179,197,0.5)" }}>
+                            {tx.description ?? label} · {timeAgo(tx.createdAt)}
+                          </p>
+                        </div>
+                        <span className="text-sm font-semibold font-mono shrink-0" style={{ color: credit ? "#34d399" : "#f87171" }}>
+                          {credit ? "+" : "-"}{fmt(amount)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-3 px-1">
+                    <button
+                      onClick={() => setTxPage((p) => Math.max(0, p - 1))}
+                      disabled={txPage === 0}
+                      className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all disabled:opacity-30"
+                      style={{ background: "rgba(255,255,255,0.05)", color: "hsl(var(--muted-foreground))" }}
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" /> Prev
+                    </button>
+                    <span className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
+                      Page {txPage + 1} of {totalPages}
                     </span>
+                    <button
+                      onClick={() => setTxPage((p) => Math.min(totalPages - 1, p + 1))}
+                      disabled={txPage >= totalPages - 1}
+                      className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all disabled:opacity-30"
+                      style={{ background: "rgba(255,255,255,0.05)", color: "hsl(var(--muted-foreground))" }}
+                    >
+                      Next <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                )}
+              </>
+            );
+          })()}
         </div>
 
         {/* ── Withdrawal Requests ───────────────────────────────────────── */}
