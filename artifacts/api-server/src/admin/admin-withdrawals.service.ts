@@ -523,7 +523,12 @@ export async function rejectWithdrawal(
   return { withdrawalId, status: "REJECTED" };
 }
 
-// ── Reprocess (PENDING | APPROVED | UNDER_REVIEW | MANUAL_REVIEW → QUEUED) ───
+// ── Reprocess (PENDING | APPROVED | UNDER_REVIEW | MANUAL_REVIEW → PENDING) ───
+//
+// Resets the withdrawal back to PENDING so the 30-second processor poller
+// picks it up and walks it through the full pipeline:
+// PENDING → VALIDATING → QUEUED → PROCESSING → SIGNING → BROADCASTING → CONFIRMING → COMPLETED
+// Setting it directly to QUEUED would skip the poller and leave it stuck.
 
 export async function reprocessWithdrawal(adminId: string, withdrawalId: string) {
   const withdrawal = await prisma.withdrawalRequest.findUnique({
@@ -547,7 +552,9 @@ export async function reprocessWithdrawal(adminId: string, withdrawalId: string)
   await prisma.$transaction(async (tx) => {
     await tx.withdrawalRequest.update({
       where: { id: withdrawalId },
-      data:  { status: "QUEUED", failureReason: null },
+      // Reset to PENDING so the processor poller picks it up automatically.
+      // Also clear requestedAt to bypass the hold-period filter immediately.
+      data:  { status: "PENDING", failureReason: null, requestedAt: new Date(Date.now() - 60 * 60 * 1_000) },
     });
 
     await tx.adminLog.create({
@@ -565,7 +572,7 @@ export async function reprocessWithdrawal(adminId: string, withdrawalId: string)
     });
   });
 
-  return { withdrawalId, status: "QUEUED" };
+  return { withdrawalId, status: "PENDING" };
 }
 
 // ── Release Hold (UNDER_REVIEW → PENDING) ────────────────────────────────────
