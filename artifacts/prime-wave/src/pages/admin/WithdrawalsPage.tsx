@@ -421,27 +421,55 @@ const ADMIN_REVIEWERS = ["alice@primewave.io","bob@primewave.io","compliance@pri
 const DEBOUNCE_MS = 400;
 
 // ─── Mobile card ─────────────────────────────────────────────────────────────
-function MobileWithdrawalCard({ w, onClick }: { w: AdminWithdrawalItem; onClick: () => void }) {
-  const sc = w.status === "APPROVED" || w.status === "COMPLETED" ? "#34d399"
-    : w.status === "REJECTED" || w.status === "CANCELLED" ? "#f87171" : "#fbbf24";
+function MobileWithdrawalCard({ w, onClick, onReprocess, onReject, onApprove }: {
+  w: AdminWithdrawalItem;
+  onClick: () => void;
+  onReprocess: (w: AdminWithdrawalItem) => void;
+  onReject: (w: AdminWithdrawalItem) => void;
+  onApprove: (w: AdminWithdrawalItem) => void;
+}) {
+  const cfg = STATUS_CFG[w.status] ?? STATUS_CFG.PENDING;
+  const sc = cfg.color;
   const priority = derivePriority(parseFloat(w.amount));
   const pc = priority === "URGENT" ? "#f87171" : priority === "VIP" ? "#a78bfa" : priority === "HIGH" ? "#fbbf24" : MUTED;
+  const isActionable = ["PENDING","APPROVED","UNDER_REVIEW","MANUAL_REVIEW"].includes(w.status);
   return (
-    <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderBottom: `1px solid ${BORDER}`, cursor: "pointer" }}>
-      <div style={{ width: 38, height: 38, borderRadius: 19, background: `${sc}12`, border: `1.5px solid ${sc}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: sc, flexShrink: 0 }}>
-        {(w.user.username?.[0] ?? "?").toUpperCase()}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>@{w.user.username}</span>
-          <span style={{ fontSize: 10, fontWeight: 700, color: sc, background: `${sc}1a`, padding: "1px 6px", borderRadius: 4 }}>{w.status}</span>
-          {priority !== "NORMAL" && <span style={{ fontSize: 10, color: pc }}>{priority}</span>}
+    <div style={{ borderBottom: `1px solid ${BORDER}` }}>
+      <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", cursor: "pointer" }}>
+        <div style={{ width: 38, height: 38, borderRadius: 19, background: `${sc}12`, border: `1.5px solid ${sc}50`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: sc, flexShrink: 0 }}>
+          {(w.user.username?.[0] ?? "?").toUpperCase()}
         </div>
-        <div style={{ display: "flex", gap: 10, fontSize: 11 }}>
-          <span style={{ color: GOLD, fontWeight: 700 }}>{$(parseFloat(w.amount))}</span>
-          <span style={{ color: MUTED }}>{w.network}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>@{w.user.username}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: sc, background: `${sc}1a`, padding: "1px 6px", borderRadius: 4 }}>{cfg.label}</span>
+            {priority !== "NORMAL" && <span style={{ fontSize: 10, color: pc }}>{priority}</span>}
+          </div>
+          <div style={{ display: "flex", gap: 10, fontSize: 11 }}>
+            <span style={{ color: GOLD, fontWeight: 700 }}>{$(parseFloat(w.amount))}</span>
+            <span style={{ color: MUTED }}>{w.network}</span>
+          </div>
         </div>
+        <ChevronRight size={14} style={{ color: MUTED, flexShrink: 0 }} />
       </div>
+      {isActionable && (
+        <div style={{ display: "flex", gap: 8, padding: "0 14px 12px" }}>
+          {w.status === "PENDING" && (
+            <button
+              onClick={e => { e.stopPropagation(); onApprove(w); }}
+              style={{ flex: 1, padding: "7px 0", background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.3)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#34d399" }}
+            >✓ Approve</button>
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); onReprocess(w); }}
+            style={{ flex: 1, padding: "7px 0", background: "rgba(96,165,250,0.12)", border: "1px solid rgba(96,165,250,0.3)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#60a5fa" }}
+          >↺ Re-process</button>
+          <button
+            onClick={e => { e.stopPropagation(); onReject(w); }}
+            style={{ flex: 1, padding: "7px 0", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#f87171" }}
+          >✕ Reject</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -789,7 +817,7 @@ export default function WithdrawalsPage() {
                 ))
               : withdrawals.length===0
                 ? <div style={{padding:"48px",textAlign:"center",color:MUTED,fontSize:12}}>{error ? "Error loading withdrawals." : "No withdrawals match your filters."}</div>
-                : withdrawals.map(w=><MobileWithdrawalCard key={w.id} w={w} onClick={()=>void openDrawer(w)}/>)
+                : withdrawals.map(w=><MobileWithdrawalCard key={w.id} w={w} onClick={()=>void openDrawer(w)} onReprocess={openReprocess} onReject={openReject} onApprove={openApprove}/>)
             }
           </div>
         ) : (
