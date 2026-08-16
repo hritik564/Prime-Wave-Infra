@@ -40,7 +40,7 @@ const CARD   = "hsl(222 62% 9%)";
 const BG     = "hsl(222 62% 7%)";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Status   = "PENDING" | "APPROVED" | "COMPLETED" | "REJECTED" | "CANCELLED";
+type Status   = "PENDING" | "APPROVED" | "UNDER_REVIEW" | "MANUAL_REVIEW" | "VALIDATING" | "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED" | "REJECTED" | "CANCELLED";
 type Priority = "NORMAL"  | "HIGH"     | "VIP"       | "URGENT";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -93,11 +93,17 @@ function mapToDrawerWithdrawal(item: AdminWithdrawalItem | AdminWithdrawalDetail
 
 // ─── Status & Priority configs ────────────────────────────────────────────────
 const STATUS_CFG: Record<string,{color:string;bg:string;label:string}> = {
-  PENDING:   {color:"#fbbf24",bg:"rgba(251,191,36,0.12)",  label:"Pending"},
-  APPROVED:  {color:"#34d399",bg:"rgba(52,211,153,0.12)",  label:"Approved"},
-  REJECTED:  {color:"#f87171",bg:"rgba(248,113,113,0.12)", label:"Rejected"},
-  CANCELLED: {color:MUTED,    bg:"rgba(170,179,197,0.08)", label:"Cancelled"},
-  COMPLETED: {color:"#60a5fa",bg:"rgba(96,165,250,0.12)",  label:"Completed"},
+  PENDING:      {color:"#fbbf24",bg:"rgba(251,191,36,0.12)",  label:"Pending"},
+  APPROVED:     {color:"#34d399",bg:"rgba(52,211,153,0.12)",  label:"Approved"},
+  REJECTED:     {color:"#f87171",bg:"rgba(248,113,113,0.12)", label:"Rejected"},
+  CANCELLED:    {color:MUTED,    bg:"rgba(170,179,197,0.08)", label:"Cancelled"},
+  COMPLETED:    {color:"#60a5fa",bg:"rgba(96,165,250,0.12)",  label:"Completed"},
+  UNDER_REVIEW: {color:"#f97316",bg:"rgba(249,115,22,0.12)",  label:"Under Review"},
+  MANUAL_REVIEW:{color:"#c084fc",bg:"rgba(192,132,252,0.12)", label:"Manual Review"},
+  VALIDATING:   {color:"#94a3b8",bg:"rgba(148,163,184,0.10)", label:"Validating"},
+  QUEUED:       {color:"#38bdf8",bg:"rgba(56,189,248,0.10)",  label:"Queued"},
+  PROCESSING:   {color:"#818cf8",bg:"rgba(129,140,248,0.10)", label:"Processing"},
+  FAILED:       {color:"#f87171",bg:"rgba(248,113,113,0.08)", label:"Failed"},
 };
 const PRI_CFG: Record<Priority,{color:string;bg:string}> = {
   NORMAL: {color:MUTED,     bg:"rgba(170,179,197,0.06)"},
@@ -729,7 +735,7 @@ export default function WithdrawalsPage() {
           </div>
           <select value={status} onChange={e=>{setStatus(e.target.value as AdminWithdrawalStatus|"");setPage(1);}} style={sel}>
             <option value="">All Statuses</option>
-            {(["PENDING","APPROVED","COMPLETED","REJECTED","CANCELLED"] as AdminWithdrawalStatus[]).map(s=><option key={s} value={s}>{s}</option>)}
+            {(["PENDING","APPROVED","UNDER_REVIEW","MANUAL_REVIEW","QUEUED","PROCESSING","COMPLETED","FAILED","REJECTED","CANCELLED"] as AdminWithdrawalStatus[]).map(s=><option key={s} value={s}>{STATUS_CFG[s]?.label ?? s}</option>)}
           </select>
           <select value={sortBy} onChange={e=>{setSortBy(e.target.value as "createdAt"|"amount");setPage(1);}} style={sel}>
             <option value="createdAt">Sort: Date</option>

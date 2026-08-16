@@ -543,7 +543,8 @@ export function getDepositWallets(): Promise<DepositWallet[]> {
 
 export type WithdrawalStatus =
   | "PENDING" | "VALIDATING" | "QUEUED" | "PROCESSING"
-  | "BROADCASTING" | "CONFIRMING" | "APPROVED"
+  | "SIGNED" | "BROADCASTING" | "CONFIRMING"
+  | "APPROVED" | "UNDER_REVIEW" | "MANUAL_REVIEW"
   | "COMPLETED" | "FAILED" | "REJECTED" | "CANCELLED";
 
 export interface WithdrawalRequest {
