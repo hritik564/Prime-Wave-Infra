@@ -41,6 +41,7 @@ import {
   approveWithdrawalHandler,
   completeWithdrawalHandler,
   rejectWithdrawalHandler,
+  reprocessWithdrawalHandler,
   releaseHoldWithdrawalHandler,
   getAdminWithdrawalSettingsHandler,
   updateAdminWithdrawalSettingsHandler,
@@ -711,6 +712,13 @@ router.post(
   withdrawalAdminGuard,
   validate(rejectWithdrawalSchema),
   rejectWithdrawalHandler,
+);
+
+router.post(
+  "/withdrawals/:id/reprocess",
+  adminLimiter,
+  withdrawalAdminGuard,
+  reprocessWithdrawalHandler,
 );
 
 router.post(

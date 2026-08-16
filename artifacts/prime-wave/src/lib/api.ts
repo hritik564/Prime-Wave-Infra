@@ -1954,6 +1954,13 @@ export function adminHoldWithdrawal(id: string, reason: string, reviewDate?: str
   );
 }
 
+export function adminReprocessWithdrawal(id: string) {
+  return request<{ withdrawalId: string; status: string }>(
+    `/api/admin/withdrawals/${id}/reprocess`,
+    { method: "POST" },
+  );
+}
+
 export function adminUpdateWithdrawalNotes(id: string, adminNotes: string) {
   return request<{ withdrawalId: string; adminNotes: string }>(
     `/api/admin/withdrawals/${id}/notes`,

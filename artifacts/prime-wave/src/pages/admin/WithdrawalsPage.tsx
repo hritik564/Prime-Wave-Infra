@@ -10,6 +10,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
+import { RotateCcw } from "lucide-react";
 import { useResponsive } from "@/hooks/useResponsive";
 import AdminLayout from "./AdminLayout";
 import WithdrawalDrawer, { type DrawerWithdrawal, type DrawerAuditLog } from "./WithdrawalDrawer";
@@ -21,6 +22,7 @@ import {
   getAdminWithdrawalById,
   adminApproveWithdrawal,
   adminRejectWithdrawal,
+  adminReprocessWithdrawal,
   adminHoldWithdrawal,
   adminUpdateWithdrawalNotes,
   type AdminWithdrawalItem,
@@ -211,18 +213,25 @@ function ProcessingQueue({stats}:{stats:AdminWithdrawalStats|null}) {
 }
 
 // ─── ActionDropdown ───────────────────────────────────────────────────────────
-function ActionDropdown({ w, onApprove, onReject, onHold, onView, onCancel, onAssign }: {
+function ActionDropdown({ w, onApprove, onReject, onReprocess, onHold, onView, onCancel, onAssign }: {
   w: AdminWithdrawalItem;
   onApprove:(w:AdminWithdrawalItem)=>void; onReject:(w:AdminWithdrawalItem)=>void;
+  onReprocess:(w:AdminWithdrawalItem)=>void;
   onHold:(w:AdminWithdrawalItem)=>void; onView:(w:AdminWithdrawalItem)=>void;
   onCancel:(w:AdminWithdrawalItem)=>void; onAssign:(w:AdminWithdrawalItem)=>void;
 }) {
   const [open,setOpen]=useState(false);
+  const isActionable = ["PENDING","APPROVED","UNDER_REVIEW","MANUAL_REVIEW"].includes(w.status);
   const items=[
     {icon:Eye,         label:"View Details",    color:"rgba(255,255,255,0.7)", fn:()=>onView(w)},
     ...(w.status==="PENDING"?[
       {icon:CheckCircle, label:"Approve",         color:"#34d399", fn:()=>onApprove(w)},
+    ]:[]),
+    ...(isActionable?[
+      {icon:RotateCcw,   label:"Re-process",      color:"#60a5fa", fn:()=>onReprocess(w)},
       {icon:X,           label:"Reject",          color:"#f87171", fn:()=>onReject(w)},
+    ]:[]),
+    ...(w.status==="PENDING"?[
       {icon:Clock,       label:"Hold",            color:"#fbbf24", fn:()=>onHold(w)},
     ]:[]),
     {icon:UserCheck,   label:"Assign Reviewer", color:"rgba(255,255,255,0.7)", fn:()=>onAssign(w)},
@@ -251,9 +260,11 @@ function ActionDropdown({ w, onApprove, onReject, onHold, onView, onCancel, onAs
 }
 
 // ─── Table Row (memoized) ─────────────────────────────────────────────────────
-const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowClick, onApprove, onReject, onHold, onCancel, onAssign, isHover, onHoverSet }: {
+const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowClick, onApprove, onReject, onReprocess, onHold, onCancel, onAssign, isHover, onHoverSet }: {
   w:AdminWithdrawalItem; checked:boolean; onToggle:()=>void; onRowClick:()=>void;
-  onApprove:(w:AdminWithdrawalItem)=>void; onReject:(w:AdminWithdrawalItem)=>void; onHold:(w:AdminWithdrawalItem)=>void;
+  onApprove:(w:AdminWithdrawalItem)=>void; onReject:(w:AdminWithdrawalItem)=>void;
+  onReprocess:(w:AdminWithdrawalItem)=>void;
+  onHold:(w:AdminWithdrawalItem)=>void;
   onCancel:(w:AdminWithdrawalItem)=>void; onAssign:(w:AdminWithdrawalItem)=>void;
   isHover:boolean; onHoverSet:(id:string|null)=>void;
 }) {
@@ -304,7 +315,7 @@ const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowC
         </span>
       </td>
       <td style={{padding:"11px 8px"}} onClick={e=>e.stopPropagation()}>
-        <ActionDropdown w={w} onApprove={onApprove} onReject={onReject} onHold={onHold} onView={onRowClick as never} onCancel={onCancel} onAssign={onAssign}/>
+        <ActionDropdown w={w} onApprove={onApprove} onReject={onReject} onReprocess={onReprocess} onHold={onHold} onView={onRowClick as never} onCancel={onCancel} onAssign={onAssign}/>
       </td>
     </tr>
   );
@@ -398,7 +409,7 @@ function AnalyticsSection({data, stats}:{data:AdminWithdrawalItem[];stats:AdminW
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
-type ModalKind = "approve" | "reject" | "hold" | "cancel" | "assign" | null;
+type ModalKind = "approve" | "reject" | "reprocess" | "hold" | "cancel" | "assign" | null;
 const ROWS_OPTIONS = [25, 50, 100];
 const ADMIN_REVIEWERS = ["alice@primewave.io","bob@primewave.io","compliance@primewave.io","finance@primewave.io"];
 const DEBOUNCE_MS = 400;
@@ -532,8 +543,9 @@ export default function WithdrawalsPage() {
   const closeDrawer = useCallback(() => { setDrawerW(null); setDrawerDetail(null); }, []);
 
   // ── Action handlers ────────────────────────────────────────────────────────
-  const openApprove = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("approve");},[]);
-  const openReject  = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("reject");},[]);
+  const openApprove    = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("approve");},[]);
+  const openReject     = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("reject");},[]);
+  const openReprocess  = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("reprocess");},[]);
   const openHold    = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("hold");},[]);
   const openCancel  = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("cancel");},[]);
   const openAssign  = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("assign");},[]);
@@ -607,6 +619,21 @@ export default function WithdrawalsPage() {
       await refreshRowAndStats(modalW.id);
     } catch (e: unknown) {
       toast(e instanceof Error ? e.message : "Hold failed", "error");
+    } finally {
+      setActionLoading(false);
+    }
+  }, [modalW, closeModal, toast, refreshRowAndStats]);
+
+  const confirmReprocess = useCallback(async () => {
+    if (!modalW) return;
+    setActionLoading(true);
+    try {
+      await adminReprocessWithdrawal(modalW.id);
+      toast(`Withdrawal queued for reprocessing`, "success");
+      closeModal();
+      await refreshRowAndStats(modalW.id);
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : "Reprocess failed", "error");
     } finally {
       setActionLoading(false);
     }
@@ -792,7 +819,7 @@ export default function WithdrawalsPage() {
                     checked={selected.has(w.id)}
                     onToggle={()=>toggleRow(w.id)}
                     onRowClick={()=>void openDrawer(w)}
-                    onApprove={openApprove} onReject={openReject} onHold={openHold} onCancel={openCancel} onAssign={openAssign}
+                    onApprove={openApprove} onReject={openReject} onReprocess={openReprocess} onHold={openHold} onCancel={openCancel} onAssign={openAssign}
                     isHover={hovered===w.id}
                     onHoverSet={setHovered}
                   />
@@ -864,6 +891,28 @@ export default function WithdrawalsPage() {
           onClose={closeModal}
           onConfirm={(reason,date)=>void confirmHold(reason,date)}
         />
+      )}
+
+      {/* Reprocess confirm */}
+      {modal==="reprocess"&&modalW&&(
+        <div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.6)"}}>
+          <div style={{background:"hsl(222 62% 8%)",border:`1px solid ${BORDER}`,borderRadius:14,padding:24,width:380,boxShadow:"0 24px 60px rgba(0,0,0,0.7)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+              <div style={{width:36,height:36,borderRadius:10,background:"rgba(96,165,250,0.1)",display:"flex",alignItems:"center",justifyContent:"center"}}><RotateCcw size={18} style={{color:"#60a5fa"}}/></div>
+              <div>
+                <div style={{fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.9)"}}>Re-process Withdrawal</div>
+                <div style={{fontSize:11,color:MUTED}}>@{modalW.user.username} · {$(parseFloat(modalW.amount))} · {modalW.status}</div>
+              </div>
+            </div>
+            <p style={{fontSize:12,color:MUTED,lineHeight:1.6,margin:"0 0 16px"}}>
+              This will push the withdrawal into the automated queue (<span style={{color:"#60a5fa",fontWeight:600}}>QUEUED</span>) so the engine picks it up for processing. The member's funds remain locked until it completes or is rejected.
+            </p>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={closeModal} style={{flex:1,padding:"9px 0",background:"rgba(255,255,255,0.04)",border:`1px solid ${BORDER}`,borderRadius:8,cursor:"pointer",fontSize:12,color:MUTED}}>Back</button>
+              <button onClick={()=>void confirmReprocess()} style={{flex:2,padding:"9px 0",background:"rgba(96,165,250,0.12)",border:"1px solid rgba(96,165,250,0.3)",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:600,color:"#60a5fa"}}>Re-process Withdrawal</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Cancel confirm */}

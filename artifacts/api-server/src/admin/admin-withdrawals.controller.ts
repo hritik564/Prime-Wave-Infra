@@ -11,6 +11,7 @@ import {
   approveWithdrawal,
   completeWithdrawal,
   rejectWithdrawal,
+  reprocessWithdrawal,
   releaseHoldWithdrawal,
 } from "./admin-withdrawals.service";
 import { getWithdrawalSettingsPublic, updateWithdrawalSettings } from "../withdrawals/withdrawals.service";
@@ -138,6 +139,17 @@ export async function rejectWithdrawalHandler(
     const input        = req.body as RejectWithdrawalInput;
     const result       = await rejectWithdrawal(user.sub, withdrawalId, input);
     sendSuccess(res, result, "Withdrawal rejected");
+  } catch (err) { next(err); }
+}
+
+export async function reprocessWithdrawalHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user }     = req as AuthenticatedRequest;
+    const withdrawalId = String(req.params["id"] ?? "");
+    const result       = await reprocessWithdrawal(user.sub, withdrawalId);
+    sendSuccess(res, result, "Withdrawal queued for reprocessing");
   } catch (err) { next(err); }
 }
 

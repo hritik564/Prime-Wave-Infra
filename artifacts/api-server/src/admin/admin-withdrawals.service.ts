@@ -450,9 +450,10 @@ export async function rejectWithdrawal(
   if (!withdrawal) {
     throw new AppError("Withdrawal not found", HTTP_STATUS.NOT_FOUND, "WITHDRAWAL_NOT_FOUND");
   }
-  if (withdrawal.status !== "PENDING" && withdrawal.status !== "APPROVED" && withdrawal.status !== "UNDER_REVIEW") {
+  const REJECTABLE = ["PENDING", "APPROVED", "UNDER_REVIEW", "MANUAL_REVIEW"] as const;
+  if (!REJECTABLE.includes(withdrawal.status as typeof REJECTABLE[number])) {
     throw new AppError(
-      "Only PENDING, UNDER_REVIEW, or APPROVED withdrawals can be rejected",
+      "Only PENDING, UNDER_REVIEW, MANUAL_REVIEW, or APPROVED withdrawals can be rejected",
       HTTP_STATUS.CONFLICT,
       "WITHDRAWAL_NOT_REJECTABLE",
     );
@@ -520,6 +521,51 @@ export async function rejectWithdrawal(
   });
 
   return { withdrawalId, status: "REJECTED" };
+}
+
+// ── Reprocess (PENDING | APPROVED | UNDER_REVIEW | MANUAL_REVIEW → QUEUED) ───
+
+export async function reprocessWithdrawal(adminId: string, withdrawalId: string) {
+  const withdrawal = await prisma.withdrawalRequest.findUnique({
+    where:  { id: withdrawalId },
+    select: { id: true, userId: true, amount: true, status: true, network: true },
+  });
+
+  if (!withdrawal) {
+    throw new AppError("Withdrawal not found", HTTP_STATUS.NOT_FOUND, "WITHDRAWAL_NOT_FOUND");
+  }
+
+  const REPROCESSABLE = ["PENDING", "APPROVED", "UNDER_REVIEW", "MANUAL_REVIEW"] as const;
+  if (!REPROCESSABLE.includes(withdrawal.status as typeof REPROCESSABLE[number])) {
+    throw new AppError(
+      "Only PENDING, APPROVED, UNDER_REVIEW, or MANUAL_REVIEW withdrawals can be reprocessed",
+      HTTP_STATUS.CONFLICT,
+      "WITHDRAWAL_NOT_REPROCESSABLE",
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.withdrawalRequest.update({
+      where: { id: withdrawalId },
+      data:  { status: "QUEUED", failureReason: null },
+    });
+
+    await tx.adminLog.create({
+      data: {
+        adminId,
+        action:       "WITHDRAWAL_REPROCESSED",
+        targetUserId: withdrawal.userId,
+        details: {
+          withdrawalId,
+          previousStatus: withdrawal.status,
+          amount:         withdrawal.amount.toString(),
+          network:        withdrawal.network,
+        },
+      },
+    });
+  });
+
+  return { withdrawalId, status: "QUEUED" };
 }
 
 // ── Release Hold (UNDER_REVIEW → PENDING) ────────────────────────────────────
