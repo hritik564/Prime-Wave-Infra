@@ -9,7 +9,7 @@ export const placeUserSchema = z.object({
 
 export const treeQuerySchema = z.object({
   userId: z.string().optional(),
-  depth:  z.coerce.number().int().min(1).max(5).default(5),
+  depth:  z.coerce.number().int().min(1).max(12).default(5),
 });
 
 export const nodeQuerySchema = z.object({

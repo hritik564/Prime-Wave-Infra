@@ -239,28 +239,33 @@ function TreeInnerControls({
       </div>
 
       {/* Level + action controls — top right */}
-      <div style={{ position: "absolute", top: 10, right: 10, zIndex: 10, display: "flex", gap: 6 }}>
-        {/* Level selector */}
-        <div style={{ ...panelBase, display: "flex", padding: 3, gap: 2 }}>
-          {([1, 2, 3, 4] as const).map((d) => (
-            <button key={d} onClick={() => setDepth(d)}
-              style={{
-                padding: "4px 10px", borderRadius: 7, fontSize: 11, fontWeight: 700,
-                cursor: "pointer", border: "none", transition: "all 0.18s",
-                background: depth === d ? "rgba(212,175,55,0.18)" : "transparent",
-                color: depth === d ? GOLD : MUTED,
-                outline: depth === d ? `1px solid rgba(212,175,55,0.35)` : "1px solid transparent",
-              }}>
-              L{d}
-            </button>
-          ))}
+      <div style={{ position: "absolute", top: 10, right: 10, zIndex: 10, display: "flex", gap: 6, alignItems: "center" }}>
+        {/* Level dropdown */}
+        <div style={{ ...panelBase, display: "flex", alignItems: "center", gap: 6, padding: "0 10px", height: 34 }}>
+          <GitBranch style={{ width: 11, height: 11, color: GOLD, flexShrink: 0 }} />
+          <select
+            value={depth}
+            onChange={e => setDepth(Number(e.target.value))}
+            style={{
+              background: "transparent", border: "none", outline: "none",
+              color: GOLD, fontSize: 11, fontWeight: 700, cursor: "pointer",
+              appearance: "none", WebkitAppearance: "none",
+              paddingRight: 4,
+            }}
+          >
+            {Array.from({ length: 12 }, (_, i) => i + 1).map(d => (
+              <option key={d} value={d} style={{ background: "hsl(222 62% 8%)", color: "rgba(255,255,255,0.85)" }}>
+                Level {d}
+              </option>
+            ))}
+          </select>
         </div>
         {/* Fit view action */}
         <button onClick={handleFit}
           title="Fit view"
           style={{
             ...panelBase, display: "flex", alignItems: "center", gap: 5,
-            padding: "0 10px", cursor: "pointer", fontSize: 10, fontWeight: 600,
+            padding: "0 10px", height: 34, cursor: "pointer", fontSize: 10, fontWeight: 600,
             color: MUTED, border: "none",
           }}>
           <Maximize2 style={{ width: 11, height: 11 }} />
@@ -728,17 +733,32 @@ export default function NetworkIntelligencePage() {
 
   // ── Node select callback ───────────────────────────────────────────────────
   const handleNodeSelect = useCallback((data: TreeNodeData) => {
-    setSelectedMember({
+    // Show partial data immediately so the drawer opens without delay
+    const partial: NetworkMember = {
       id: data.id, username: data.username,
       firstName: data.firstName, lastName: data.lastName,
-      status: data.status, operationalStatus: "INACTIVE",
+      status: data.status,
+      operationalStatus: data.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
       position: data.position,
       joinedAt: new Date().toISOString(),
       directReferrals: data.directReferralCount,
       activeInvestments: 0, investedAmount: "0",
       plans: [], isSponsored: false,
-    });
-  }, []);
+    };
+    // Check if already in loaded members list for instant full data
+    const existing = members.find(m => m.id === data.id);
+    setSelectedMember(existing ?? partial);
+    // If not in loaded list, fetch full details in background
+    if (!existing) {
+      getNetworkMembers({ page: 1, limit: 5, search: data.username })
+        .then(res => {
+          const match = res.members.find(m => m.id === data.id)
+            ?? res.members.find(m => m.username === data.username);
+          if (match) setSelectedMember(match);
+        })
+        .catch(() => {});
+    }
+  }, [members]);
 
   // ── Flow elements ──────────────────────────────────────────────────────────
   const { nodes: flowNodes, edges: flowEdges } = useMemo(() => {
@@ -1053,7 +1073,12 @@ export default function NetworkIntelligencePage() {
         {/* ── BINARY TREE ───────────────────────────────────────────────────── */}
         <Section title="Binary Tree" icon={<GitBranch style={{ width: 15, height: 15, color: GOLD }} />}>
           <div className="rounded-2xl overflow-hidden"
-            style={{ height: "clamp(340px, 55vh, 580px)", background: "hsl(221 59% 9%)", border: "1px solid hsl(var(--border))", position: "relative" }}>
+            style={{
+              height: treeDepth <= 4 ? "clamp(340px, 55vh, 540px)"
+                    : treeDepth <= 7 ? "clamp(480px, 65vh, 660px)"
+                    : "clamp(580px, 75vh, 800px)",
+              background: "hsl(221 59% 9%)", border: "1px solid hsl(var(--border))", position: "relative",
+            }}>
             {loading
               ? <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", flexDirection: "column", gap: 12 }}>
                   <div className="animate-spin h-8 w-8 rounded-full"

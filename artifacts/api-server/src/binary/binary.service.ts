@@ -6,7 +6,7 @@ import type { PlaceUserInput } from "./binary.schema";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const MAX_TREE_DEPTH = 5;
+const MAX_TREE_DEPTH = 12;
 
 // ── Tree node type (returned by all tree/parent/children endpoints) ────────────
 
