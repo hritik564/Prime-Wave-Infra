@@ -1,0 +1,121 @@
+Sprint 1 Status: COMPLETED ✅
+Technology Decisions (Locked)
+Layer	Technology
+Smart contracts	Solidity 0.8.28, Hardhat 2.29, TypeScript
+Contract library	OpenZeppelin Contracts v5
+Ethers integration	ethers.js v6 + TypeChain (ethers-v6 target)
+Testing	Mocha + Chai (via @nomicfoundation/hardhat-toolbox)
+Deployment modules	Hardhat Ignition (Sprint 2+)
+Frontend	React 19 + Vite 7 + Tailwind CSS v4 + shadcn/ui + wouter
+Backend API	Express 5 + pino logging
+Database	PostgreSQL + Drizzle ORM (Replit-provisioned)
+Indexer	Node.js + ethers.js v6 + pino
+API contracts	OpenAPI spec → Orval codegen (React Query hooks + Zod)
+Monorepo	pnpm workspaces, Node.js 24, TypeScript 5.9
+Repository Structure (Final)
+pwswap/
+├── artifacts/
+│   ├── api-server/        ✅ running — Express API, /api/healthz responding
+│   ├── frontend/          ✅ running — React app shell, 5 pages, web3 stubs
+│   ├── indexer/           ✅ starts — offline mode (RPC TBD)
+│   └── mockup-sandbox/    ✅ running — design sandbox (preserved)
+│
+├── contracts/
+│   ├── contracts/         ✅ PWSwapPlaceholder.sol (compiler verification)
+│   ├── test/              ✅ PWSwapPlaceholder.test.ts
+│   ├── scripts/           ✅ deploy.ts placeholder
+│   ├── ignition/modules/  ✅ ready for Sprint 2+ modules
+│   ├── config/
+│   │   ├── addresses.ts   ✅ ContractAddresses struct, all environments
+│   │   └── networks.ts    ✅ NetworkConfig struct, all TBD values documented
+│   ├── hardhat.config.ts  ✅ Solidity 0.8.28, TypeChain, network stubs
+│   ├── package.json       ✅ all peer deps explicit (autoInstallPeers=false)
+│   └── tsconfig.json      ✅ standalone CommonJS (does NOT extend tsconfig.base)
+│
+├── lib/
+│   ├── api-client-react/  ✅ generated React Query hooks
+│   ├── api-spec/          ✅ OpenAPI spec
+│   ├── api-zod/           ✅ generated Zod schemas
+│   └── db/                ✅ Drizzle ORM, schema ready (empty for now)
+│
+├── docs/
+│   ├── architecture.md    ✅
+│   ├── development.md     ✅
+│   ├── environments.md    ✅
+│   └── contracts.md       ✅
+│
+├── .env.example           ✅ all variables documented
+├── .gitignore             ✅ env, private keys, contract artifacts excluded
+├── pnpm-workspace.yaml    ✅ contracts added, keccak/secp256k1 build allowed
+└── replit.md              ✅ updated with full project context
+
+Contracts ✅
+Hardhat loads and compiles Solidity 0.8.28 successfully
+TypeChain generates 6 TypeScript type files
+PWSwapPlaceholder.sol compiles cleanly
+Tests: 6/6 passing (deploy, constants, staticCall return, event emission)
+OpenZeppelin v5 available
+Networks primewave_testnet and primewave_mainnet stubbed with TBD env vars
+One gotcha documented in memory: Hardhat's telemetry consent file lives at $PROJECT/.config/hardhat-nodejs/telemetry-consent.json (resolved via env-paths), not ~/.hardhat/. Must be pre-written in any non-TTY environment.
+
+Backend ✅
+API server running at /api
+/api/healthz → {"status":"ok"} confirmed
+Database connection confirmed (provisioned: true)
+No fake blockchain data created
+Indexer ✅
+Starts cleanly with structured pino logging
+Configuration loads; DATABASE_URL required, PRIMEWAVE_RPC_URL optional
+Runs in offline mode when RPC is not configured (warning logged, no crash)
+Graceful shutdown on SIGTERM/SIGINT confirmed
+No fabricated events
+Frontend ✅
+React app running at /
+Dark professional DeFi aesthetic — deep ocean + teal palette
+5 placeholder pages: Swap (default), Liquidity, Pools, Analytics, Transactions
+/ redirects to /swap
+"Connect Wallet" button present but disabled — tooltip "Coming in Sprint 6"
+src/web3/config, contracts, wallet, hooks stubs created
+No fake balances, prices, or market data anywhere
+Framer Motion page transitions active
+Environment ✅
+.env.example documents every variable. The following PrimeWave Chain parameters remain TBD — awaiting confirmed PrimeWave Chain configuration:
+
+Parameter	Status
+PRIMEWAVE_CHAIN_ID	TBD
+PRIMEWAVE_RPC_URL	TBD (local dev: Hardhat http://127.0.0.1:8545)
+PRIMEWAVE_TESTNET_RPC_URL	TBD
+PRIMEWAVE_MAINNET_RPC_URL	TBD
+PRIMEWAVE_EXPLORER_URL	TBD
+PRIMEWAVE_EXPLORER_API_KEY	TBD
+PWUSD_CONTRACT_ADDRESS	TBD
+Native currency name/symbol/decimals	TBD
+Wallet ecosystem compatibility	TBD
+Tests
+Area	Result
+pnpm workspace installs	✅
+Hardhat loads	✅
+Solidity compiles	✅
+Contract tests	✅ 6/6 passing
+OpenZeppelin available	✅
+API starts + healthz	✅
+Database connection	✅
+Indexer starts	✅ (offline mode, no fake data)
+Frontend starts + renders	✅
+No wallet connection	✅
+No fake market data	✅
+.env.example exists	✅
+No secrets committed	✅
+Network values TBD	✅
+Existing functionality intact	✅
+Problems Encountered
+Hardhat telemetry prompt in non-TTY — Hardhat's first-run telemetry consent prompt crashes readline when there's no interactive terminal. Fixed by pre-writing {"consent":true} to $PROJECT/.config/hardhat-nodejs/telemetry-consent.json. Documented in memory.
+autoInstallPeers: false in workspace — All @nomicfoundation/hardhat-toolbox peer deps had to be declared explicitly in contracts/package.json. Working correctly.
+keccak/secp256k1 native builds — Required adding both to onlyBuiltDependencies in pnpm-workspace.yaml.
+contracts/tsconfig.json must not extend tsconfig.base.json — The base config uses ESNext/bundler module resolution which conflicts with Hardhat's CommonJS requirement. Standalone tsconfig used.
+Design subagent first attempt failed — Re-launched with a more precise brief; second run succeeded.
+Recommendations Before Sprint 2
+Confirm PrimeWave Chain parameters — Chain ID, RPC URL, explorer, and native currency configuration are all required before Sprint 2 can be finalized for testnet/mainnet. Contract architecture can proceed without them, but wallet integration cannot.
+Pre-write the Hardhat telemetry file at session start — already documented in .agents/memory/.
+The contracts package.json explicitly pins all hardhat-toolbox peer deps. If upgrading hardhat-toolbox in the future, update these manually.
+Sprint 1 is complete. Waiting for explicit authorization to begin Sprint 2.
