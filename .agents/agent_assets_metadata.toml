@@ -78,3 +78,17 @@ id = "1Zocm1RJEDrVgY-lqAkCE"
 uri = "file://level4-accounts.xlsx"
 type = "table"
 title = "Level 4 Accounts — 32 Usernames"
+
+[[outputs]]
+id = "NIwyu8-PaTzaPjUb5jJSx"
+uri = "file://screenshots/rd0018-binary-tree.svg"
+type = "image"
+title = "@rd0018 Binary Tree"
+description = "Binary tree from production database — 23 nodes across 12 levels"
+
+[[outputs]]
+id = "9FjyO_W7o6lCA4fz5WAaL"
+uri = "file://screenshots/rd0018-binary-tree.html"
+type = "text"
+title = "@rd0018 Binary Tree — Production"
+description = "Full binary tree from production DB · 23 nodes · 12 levels deep"
