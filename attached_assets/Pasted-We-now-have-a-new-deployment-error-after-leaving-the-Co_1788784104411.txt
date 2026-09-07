@@ -1,0 +1,64 @@
+We now have a new deployment error after leaving the "Copy your development database to production database" option OFF.
+
+The Replit Publish page now reports:
+
+"Could not find run command"
+
+The publishing pipeline reaches the Build stage and fails there.
+
+IMPORTANT: This is now a RUN-COMMAND / DEPLOYMENT-CONFIGURATION investigation. Do not modify the Production database.
+
+Do NOT:
+- publish again
+- approve any database migration
+- execute any database SQL
+- drop or recreate _prisma_migrations
+- run prisma migrate reset
+- run prisma migrate resolve
+- copy development data to Production
+- change DNS
+- enable blockchain operations
+
+The project already has a production artifact configuration and the intended production build/runtime is:
+
+Production build:
+prisma migrate deploy
+prisma generate
+node ./build.mjs
+
+Production runtime:
+node --enable-source-maps artifacts/api-server/dist/index.mjs
+
+The project is intended to deploy as a Replit Autoscale web application.
+
+Investigate READ-ONLY first:
+
+1. Inspect the current .replit configuration.
+2. Inspect the production artifact configuration.
+3. Inspect the API package scripts.
+4. Inspect the workspace/package configuration.
+5. Determine exactly why Replit Publishing says "Could not find run command".
+6. Determine whether the production artifact's run command is actually being recognized by Replit Publishing.
+7. Determine whether there is a conflict between the root project configuration, artifact.toml, workflows, or package scripts.
+8. Check whether the previous failed Publish/build changed or removed any deployment configuration.
+9. Check the deployment logs and identify the exact point where Replit failed to resolve the run command.
+10. Determine the minimal project-side fix required.
+
+Do not make changes during the investigation.
+
+Also verify that fixing the run-command problem will NOT re-enable:
+- development database → Production database copying
+- destructive schema synchronization
+- DROP TABLE "_prisma_migrations"
+
+We already have a verified Replit Production database containing the migrated PrimeWave production data and its 31-row _prisma_migrations history. That database must remain untouched.
+
+After investigation, report:
+
+A. Why "Could not find run command" is happening.
+B. Which configuration Replit expects for an Autoscale deployment.
+C. What is currently missing or conflicting.
+D. The minimal safe project-side change.
+E. Whether that change affects the Production database in any way.
+
+Do not change anything until you have identified the exact cause.
