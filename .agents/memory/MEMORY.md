@@ -30,3 +30,4 @@
 - [Rank names case mismatch crashes MemberDrawer](rank-names-case-mismatch.md) — DB rankName is title-case ("Gold","Diamond" etc., 10 tiers); RANK_NEXT must cover all; missing entry → undefined → TypeError crash.
 - [Cross-database timestamp normalization](cross-db-timestamp-normalization.md) — normalize snapshot boundaries and timestamps to UTC when comparing Netcup and Replit.
 - [Publish metadata-table drift](publish-metadata-table-drift.md) — Publish diffs live dev/prod catalogs; db push dev without Prisma metadata can yield destructive _prisma_migrations drop.
+- [Publish development-data copy](publish-development-data-copy.md) — Replit’s optional publish data setup copies all dev state to Production and can overwrite existing rows; keep it disabled for an existing authoritative DB.
