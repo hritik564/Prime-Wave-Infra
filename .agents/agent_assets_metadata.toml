@@ -6,78 +6,91 @@ id = "_jGfvmtVT6Rh52yoZdyYV"
 uri = "file://seed-users.xlsx"
 type = "table"
 title = "seed-users.xlsx — Sprint 23B (63 accounts)"
+logical_id = "6c43a233-a6a6-47d9-b4f9-1bbca6cb67e9"
 
 [[outputs]]
 id = "90ypdghey_Jn9o8lvq8tH"
 uri = "file://seed-users-127.xlsx"
 type = "table"
 title = "seed-users-127.xlsx — All 127 Seed Accounts"
+logical_id = "129bf532-3485-4cc4-b9c6-51a457a98377"
 
 [[outputs]]
 id = "E6XCe3qeDZMTLMX-_gmmd"
 uri = "file://generated/PrimeWave_Network.xlsx"
 type = "table"
 title = "PrimeWave_Network.xlsx — Infrastructure + RD + Statistics"
+logical_id = "8720696c-c2a4-40ba-bdd4-deaee1bc2027"
 
 [[outputs]]
 id = "LOl9-Hfndf24YeG8-uJVk"
 uri = "file://generated/PrimeWave_Credentials.xlsx"
 type = "table"
 title = "PrimeWave_Credentials.xlsx — All 6527 Accounts"
+logical_id = "e127d4e4-35d3-4e09-925f-7f844aa86eb5"
 
 [[outputs]]
 id = "WlrcjWA1K8X5KvchnjV_r"
 uri = "file://generated/PrimeWave_All_Accounts.xlsx"
 type = "table"
 title = "PrimeWave_All_Accounts.xlsx — 6,528 rows"
+logical_id = "96c9a58c-a94d-49b2-af3a-5720234f8d02"
 
 [[outputs]]
 id = "J7v8Ykgi0KbyXsWvPwMzg"
 uri = "file://generated/PrimeWave_RD_Accounts.xlsx"
 type = "table"
 title = "PrimeWave_RD_Accounts.xlsx — 64 rows"
+logical_id = "457c5586-46be-4e94-aade-2a717b679d9f"
 
 [[outputs]]
 id = "L3dR7_wvOrzrqLPw7JJJb"
 uri = "file://generated/PrimeWave_Funded_Accounts.xlsx"
 type = "table"
 title = "PrimeWave_Funded_Accounts.xlsx — 128 rows"
+logical_id = "be117ad5-9428-4b40-a61e-4e34bb4d4263"
 
 [[outputs]]
 id = "V_cHHqn9LvZqS_M7dBzkT"
 uri = "file://PrimeWave_MI_Audit.xlsx"
 type = "table"
 title = "PrimeWave_MI_Audit.xlsx"
+logical_id = "2142db22-107d-46cf-a186-0c3453a12023"
 
 [[outputs]]
 id = "BgEhjO_b7jXyL2jPa-rCH"
 uri = "file://artifacts/api-server/docs/salary-architecture-33c.md"
 type = "text"
 title = "Sprint 33C — Salary Engine Architecture & Data Flow"
+logical_id = "86ec946a-b57d-41bd-9354-006c0b9c40e4"
 
 [[outputs]]
 id = "QVQ4HBOaSY9hV8tF_w6Bc"
 uri = "file://artifacts/api-server/docs/salary-architecture-33c-r2.md"
 type = "text"
 title = "Sprint 33C Revision 2 — Salary Engine Architecture"
+logical_id = "339e5181-9b4e-4cd8-afa6-4590403ed9b3"
 
 [[outputs]]
 id = "eLO5--5siMcQWOImPxjON"
 uri = "file://artifacts/api-server/docs/salary-architecture-33c-r3.md"
 type = "text"
 title = "Sprint 33C Revision 3 — Final Architecture Review"
+logical_id = "1bf2e7a3-5acb-4360-996c-f4826f55f888"
 
 [[outputs]]
 id = "LU8Z6vj7ifSJPHgbSVURz"
 uri = "file://level4-usernames.csv"
 type = "table"
 title = "Level 4 Usernames (32 accounts)"
+logical_id = "cad0504e-d70e-4622-a3f5-5ccd55a0351b"
 
 [[outputs]]
 id = "1Zocm1RJEDrVgY-lqAkCE"
 uri = "file://level4-accounts.xlsx"
 type = "table"
 title = "Level 4 Accounts — 32 Usernames"
+logical_id = "6f781975-da51-4218-8845-9692de7abd17"
 
 [[outputs]]
 id = "NIwyu8-PaTzaPjUb5jJSx"
@@ -85,6 +98,7 @@ uri = "file://screenshots/rd0018-binary-tree.svg"
 type = "image"
 title = "@rd0018 Binary Tree"
 description = "Binary tree from production database — 23 nodes across 12 levels"
+logical_id = "3a28f119-d564-48dd-8d4f-f7dd35034948"
 
 [[outputs]]
 id = "9FjyO_W7o6lCA4fz5WAaL"
@@ -92,3 +106,5 @@ uri = "file://screenshots/rd0018-binary-tree.html"
 type = "text"
 title = "@rd0018 Binary Tree — Production"
 description = "Full binary tree from production DB · 23 nodes · 12 levels deep"
+logical_id = "dd4f5ce3-c62c-453b-9b6c-194d216a3c20"
+content_type = "text/html"

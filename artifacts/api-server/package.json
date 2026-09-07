@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "export NODE_ENV=development BLOCKCHAIN_DRY_RUN=true JWT_SECRET=\"${JWT_SECRET:-$SESSION_SECRET}\" && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
-    "build:prod": "prisma migrate deploy && prisma generate && node ./build.mjs",
+    "build:prod": "pnpm --filter @workspace/prime-wave run build && prisma migrate deploy && prisma generate && node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",

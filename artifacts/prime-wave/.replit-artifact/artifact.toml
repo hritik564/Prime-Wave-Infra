@@ -18,13 +18,22 @@ localPort = 23022
 run = "pnpm --filter @workspace/prime-wave run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/prime-wave", "run", "build" ]
-publicDir = "artifacts/prime-wave/dist/public"
-serve = "static"
 
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
+[services.production.build]
+args = ["pnpm", "--filter", "@workspace/api-server", "run", "build:prod"]
+
+[services.production.build.env]
+NODE_ENV = "production"
+
+[services.production.run]
+args = ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
+
+[services.production.run.env]
+PORT = "8080"
+NODE_ENV = "production"
+
+[services.production.health.startup]
+path = "/api"
 
 [services.env]
 PORT = "23022"

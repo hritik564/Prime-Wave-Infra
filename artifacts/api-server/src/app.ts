@@ -1,4 +1,5 @@
 import express, { type Express } from "express";
+import path from "node:path";
 import helmet from "helmet";
 import cors from "cors";
 import morgan from "morgan";
@@ -87,6 +88,26 @@ app.use(globalLimiter);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api", router);
+
+// ── Production frontend ──────────────────────────────────────────────────────
+// The production Autoscale service is the API process.  It also serves the
+// already-built Vite output so the frontend and /api share one deployment.
+if (env.NODE_ENV === "production") {
+  const frontendDistDir = path.resolve(process.cwd(), "artifacts/prime-wave/dist/public");
+  const frontendIndex = path.join(frontendDistDir, "index.html");
+
+  app.use(express.static(frontendDistDir));
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      next();
+      return;
+    }
+
+    res.sendFile(frontendIndex, (err) => {
+      if (err) next(err);
+    });
+  });
+}
 
 // ── Centralized error handler (must be last) ──────────────────────────────────
 app.use(errorMiddleware);
