@@ -1,0 +1,113 @@
+We now need to resolve the Autoscale artifact/run-command problem.
+
+The previous investigation established:
+
+- The root artifact `artifacts/prime-wave` is a static web artifact.
+- The API artifact `artifacts/api-server` has the valid production runtime command.
+- The root project is configured for Autoscale.
+- Replit Publish is selecting the root web artifact for the Autoscale deployment, causing:
+  "Could not find run command"
+- Simply adding a root start script is NOT necessarily sufficient because the frontend and API are currently separate artifacts.
+
+IMPORTANT PRODUCTION SAFETY:
+
+The Replit Production PostgreSQL database has already been migrated and verified.
+
+Do NOT:
+- publish
+- republish
+- rebuild the deployment
+- copy development data to Production
+- execute any Production SQL
+- modify the Production database
+- drop/recreate _prisma_migrations
+- run prisma migrate reset
+- run prisma migrate resolve
+- change DNS
+- enable blockchain operations
+
+The current Publish database setting "Copy your development database to production database" must remain OFF.
+
+The current Production database must remain untouched.
+
+TASK:
+
+First inspect the actual production application architecture and determine how the frontend and API are supposed to operate together in production.
+
+Specifically inspect:
+
+1. How `artifacts/api-server` serves the frontend, if at all.
+2. Whether the API production server already has static-file serving or frontend routing capability.
+3. What `build.mjs` actually produces.
+4. Whether the frontend production build output can be served by the API artifact.
+5. How `/api/*` routes are handled.
+6. How non-API frontend routes are handled.
+7. Whether the frontend currently depends on a separate static artifact in production.
+8. Whether the two artifacts are intentionally independent or whether they are supposed to be combined for deployment.
+9. What Replit expects the actual Autoscale deployment unit to be for this project.
+10. Whether the current artifact configuration can be corrected without changing application behavior.
+
+Then determine the MINIMAL correct project-side solution.
+
+Our desired production architecture is:
+
+Replit Autoscale
+    |
+    +-- frontend
+    |
+    +-- /api -> PrimeWave API
+    |
+    +-- existing Replit Production PostgreSQL
+
+The deployed application must use the existing Production DATABASE_URL.
+
+The production build must retain:
+
+prisma migrate deploy
+prisma generate
+node ./build.mjs
+
+Do NOT remove prisma migrate deploy just to make deployment work.
+
+Do NOT alter the Prisma schema to solve this.
+
+Do NOT alter the Production database to solve this.
+
+If the correct solution requires combining the frontend and API into one production artifact, determine exactly how to do that while preserving the existing application behavior.
+
+If the correct solution instead requires changing which existing artifact is selected for Autoscale deployment, determine whether Replit supports that and implement the minimal supported configuration.
+
+Before changing anything, verify that the proposed architecture will:
+- expose the frontend;
+- expose `/api`;
+- use the production runtime command;
+- listen on the correct PORT;
+- bind appropriately for Autoscale;
+- preserve the existing health check;
+- continue using Production DATABASE_URL.
+
+Then MAKE the minimal project-side changes required.
+
+Do not publish after making the changes.
+
+Afterward verify:
+- frontend production build succeeds;
+- API production build succeeds without executing against Production;
+- development preview still works;
+- production runtime configuration is internally consistent;
+- no database SQL was executed;
+- no Production database was modified;
+- the development-data-copy setting remains OFF;
+- no configuration was added that could cause development data to overwrite Production.
+
+Finally report:
+
+A. Exact files/configuration changed.
+B. Why those changes are correct.
+C. How frontend + API will run in Autoscale.
+D. What production run command will execute.
+E. What database operation will occur during production build.
+F. Whether the Publish UI should now resolve the run-command error.
+G. Whether any database migration/destructive operation is still pending.
+
+Do not publish. Stop after the project-side fix and verification.
