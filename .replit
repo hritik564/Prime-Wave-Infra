@@ -11,6 +11,43 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Prime Wave API"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Prime Wave Web"
+
+[[workflows.workflow]]
+name = "Prime Wave API"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
+waitForPort = 8080
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Prime Wave Web"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=23022 pnpm --filter @workspace/prime-wave run dev"
+waitForPort = 23022
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
@@ -29,11 +66,4 @@ channel = "stable-25_05"
 [userenv.development]
 
 [userenv.shared]
-BLOCKCHAIN_DRY_RUN = "false"
-HOT_WALLET_ADDRESS = "0xA9A3c4E171636D167D16B2dBE93029f5C3FF0dC7"
-BSC_CONFIRMATIONS_REQUIRED = "3"
-HOT_WALLET_PRIVATE_KEY = "8371c12c2570bd4703a570cbc33cba3abcdbba0b8c4b25d34aa4fe9d491a55d7"
-MIN_HOT_WALLET_BNB = "0.0009"
-MIN_HOT_WALLET_USDT = "1"
-ADMIN_RESET_PASSWORD = ""
-JWT_SECRET = "vaE-fPHlMfxlCkypPyas2fRUV1HM1ev6LxXPJbPWNe8fHwWgYiczftzKbmLjwk31"
+BLOCKCHAIN_DRY_RUN = "true"

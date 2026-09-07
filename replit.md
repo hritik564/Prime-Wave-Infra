@@ -1,16 +1,22 @@
-# Prime Wave — Backend API
+# Prime Wave Platform
 
-Production-grade Express/TypeScript/Prisma backend for the Prime Wave platform.
+Full-stack Prime Wave platform with a React/Vite frontend and an Express/TypeScript/Prisma backend.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — build + start the API server (port 5000)
+- Replit runs two managed artifact workflows:
+  - `artifacts/prime-wave: web` — React/Vite frontend at `/`
+  - `artifacts/api-server: API Server` — Express API routed at `/api`
+- `pnpm --filter @workspace/prime-wave run dev` — start the frontend manually
+- `pnpm --filter @workspace/api-server run dev` — build + start the API manually (requires `PORT`)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-server run db:generate` — regenerate Prisma client after schema changes
 - `pnpm --filter @workspace/api-server run db:push` — push schema changes to DB (dev only)
 - `pnpm --filter @workspace/api-server run db:migrate` — create a named migration (production-safe)
-- Required env: `DATABASE_URL`, `JWT_SECRET`
+- Required runtime values: Replit development `DATABASE_URL` and secure `SESSION_SECRET`.
+- Development startup maps `SESSION_SECRET` to `JWT_SECRET` when a dedicated JWT secret is absent.
+- Development always sets `BLOCKCHAIN_DRY_RUN=true`; no hot-wallet private key is required or loaded.
 
 ## Stack
 
