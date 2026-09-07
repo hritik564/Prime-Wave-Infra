@@ -1,0 +1,70 @@
+We have discovered a potentially more important deployment issue in the failed Autoscale build.
+
+The build log showed:
+
+"Preparing development database data"
+"Successfully copied development database data to production database"
+
+before the production build started.
+
+The verified Replit Production database contains the migrated PrimeWave production data, including 6,627 users and the verified Prisma migration history. The development database is essentially an empty application database with 41 application tables and no _prisma_migrations table.
+
+I need you to investigate this deployment data-copy behavior before we attempt ANY further Publish/Republish.
+
+DO NOT make any changes.
+DO NOT publish.
+DO NOT rebuild.
+DO NOT copy any database data.
+DO NOT execute any SQL that changes Production.
+DO NOT drop/recreate _prisma_migrations.
+DO NOT run prisma migrate reset or prisma migrate resolve.
+
+Investigate READ-ONLY:
+
+1. Determine exactly what Replit means by the build-log step:
+   "Preparing development database data"
+   "Successfully copied development database data to production database"
+
+2. Determine whether this is a standard Replit deployment behavior, a project configuration behavior, or something specific to this project's database setup.
+
+3. Determine exactly WHICH data is copied:
+   - schema only?
+   - development rows?
+   - selected tables?
+   - all development tables?
+   - migration metadata?
+   - something else?
+
+4. Determine the direction of the copy with certainty:
+   development → Production
+   or Production → development
+   or an intermediate deployment database → Production.
+
+5. Determine whether the copy happens on EVERY Publish/Republish or only when Replit detects certain database changes.
+
+6. Determine whether the copy happens BEFORE or AFTER Replit's Publish schema-diff approval.
+
+7. Determine whether this data-copy stage can overwrite existing Production rows.
+
+8. Determine whether there is a supported Replit setting, deployment configuration, database configuration, or workflow setting that disables or bypasses this development-to-Production data copy for this project.
+
+9. Determine whether this behavior is responsible for the observed P3005 error.
+
+10. Explain the exact sequence of operations that occurred during failed build 5ea83af7-84a7-4b65-a4ab-b1e9614c0081, from database preparation through the P3005 failure.
+
+11. Most importantly, tell me whether the statement "Successfully copied development database data to production database" means that the verified Production database may have been overwritten during that failed build.
+
+If there is ANY possibility that the failed build modified or replaced Production data, do not attempt to repair it automatically. Report exactly what can be verified read-only.
+
+Our Production database is the authoritative migrated database and must remain intact.
+
+At the end, give me:
+
+A. Exact meaning of the data-copy stage.
+B. Exact source and destination.
+C. Whether it can overwrite Production.
+D. Whether the failed build actually changed Production.
+E. Whether the behavior can be disabled.
+F. The safest supported deployment architecture for our situation.
+
+Do not make any changes while investigating.
