@@ -1,0 +1,345 @@
+We need to perform a READ-ONLY production database migration verification for PrimeWave.
+
+IMPORTANT:
+- DO NOT modify, insert, update, delete, truncate, migrate, reset, seed, or alter either database.
+- DO NOT run Prisma migrations against either database.
+- DO NOT change DNS.
+- DO NOT publish/deploy anything.
+- DO NOT change application code unless absolutely necessary to create a temporary/local verification script, and preferably create the verifier as a standalone script that is not part of the production runtime.
+- DO NOT expose, print, log, echo, or return any database credentials/secrets.
+- Netcup is the AUTHORITATIVE SOURCE OF TRUTH.
+- Replit Production PostgreSQL is the TARGET being verified.
+- Blockchain operations must remain disabled/dry-run.
+- This is a live production system, so the Netcup database must be treated as strictly READ ONLY.
+
+AVAILABLE DATABASE CONNECTIONS:
+
+1. Replit Production PostgreSQL:
+   Use the existing production DATABASE_URL / production database connection available to the application.
+
+2. Netcup Production PostgreSQL:
+   A new Replit Secret named NETCUP_DATABASE_URL will be provided.
+   It will contain a dedicated READ-ONLY PostgreSQL connection to the Netcup PrimeWave database.
+   NEVER display its value or credentials.
+
+GOAL:
+
+Build and run a temporary, read-only database verification utility that compares the Netcup production database against the Replit Production PostgreSQL database.
+
+The verifier must inspect the actual PostgreSQL schema and data rather than relying only on Prisma schema files.
+
+STEP 1 — CONNECTION TEST
+
+Verify that both database connections work.
+
+For each connection, safely retrieve only:
+- database name
+- PostgreSQL server version
+- current schema
+- current user
+
+Do NOT print connection strings, passwords, tokens, or secret values.
+
+Confirm that:
+- NETCUP_DATABASE_URL connects to the Netcup PrimeWave production DB.
+- DATABASE_URL connects to Replit Production PostgreSQL.
+
+STEP 2 — SCHEMA INVENTORY
+
+Read PostgreSQL metadata from both databases using information_schema / pg_catalog.
+
+Compare:
+
+- schemas
+- application tables
+- columns
+- column names
+- PostgreSQL data types
+- nullable status
+- defaults where relevant
+- primary keys
+- foreign keys
+- unique constraints
+- indexes
+- PostgreSQL enum types
+
+The PrimeWave application currently has 41 public application tables.
+
+Report:
+- tables present on both
+- tables missing from either side
+- unexpected tables
+- column differences
+- constraint/index differences
+
+Do NOT attempt to fix any difference.
+
+STEP 3 — ROW COUNTS
+
+For every application table in public schema:
+
+Compare:
+Netcup row count
+vs
+Replit row count
+
+Produce a table:
+
+TABLE | NETCUP ROWS | REPLIT ROWS | STATUS
+
+STATUS should be:
+MATCH
+MISMATCH
+EMPTY_ON_BOTH
+
+Do not stop after finding a mismatch. Complete the entire report.
+
+STEP 4 — DETERMINISTIC DATA FINGERPRINTS
+
+For every table where safe and practical, generate a deterministic record-level fingerprint.
+
+Requirements:
+- Sort records deterministically by primary key.
+- Include all relevant columns.
+- Handle NULL values deterministically.
+- Convert values to a stable text/byte representation.
+- For JSON/JSONB, use a deterministic representation.
+- Do not rely on PostgreSQL physical row order.
+- Use a cryptographic hash such as MD5 or SHA-256.
+- Do NOT transmit or display the actual contents of sensitive records unnecessarily.
+
+For each table report:
+
+TABLE | NETCUP ROWS | REPLIT ROWS | NETCUP FINGERPRINT | REPLIT FINGERPRINT | STATUS
+
+A matching row count alone is NOT sufficient.
+
+STEP 5 — IMPORTANT TABLES
+
+Pay particular attention to these financially/security critical tables:
+
+users
+wallets
+wallet_transactions
+investments
+roi_ledger
+financial_ledger
+income_transfers
+income_transfer_releases
+withdrawal_requests
+withdrawal_events
+deposit_requests
+deposit_verifications
+bv_history
+match_bv_ledger
+orbit_bv_ledger
+salary_bv_ledger
+power_bv_ledger
+level_income
+referral_history
+salary_business_summary
+salary_business_event
+notifications
+system_settings
+company_wallets
+wallet_addresses
+admins
+admin_logs
+impersonation_sessions
+financial_discrepancies
+reconciliation_reports
+
+For these tables, insist on deterministic record-level comparison wherever technically possible.
+
+STEP 6 — SEQUENCE CHECKS
+
+For sequence-backed columns, compare sequence state where appropriate.
+
+In particular inspect:
+- withdrawal_requests.seqId sequence
+- all other application sequences discovered from pg_catalog
+
+Do not modify sequence values.
+
+Report current sequence state separately from row-data fingerprints.
+
+STEP 7 — PRISMA MIGRATION METADATA
+
+Compare public._prisma_migrations on both databases.
+
+Expected current state from the authoritative Netcup database:
+
+- 31 rows
+- 30 distinct migration names
+- one historical unfinished/failed record for the initial sprint migration
+- later successful application of that same migration
+- all 30 checked-in migration names represented successfully
+
+Do NOT run prisma migrate.
+Do NOT resolve migrations.
+Do NOT alter migration metadata.
+
+Just compare and report.
+
+STEP 8 — POST-SNAPSHOT DIFFERENCES
+
+IMPORTANT CONTEXT:
+
+The initial migration snapshot was taken while Netcup production remained live.
+
+After the snapshot, three INCOME_TRANSFER transactions occurred on Netcup:
+
+1. 0.02951389
+2. 1.90305556
+3. 0.53361111
+
+Total:
+2.46618056
+
+These affected withdrawalWallet balances.
+
+The current Netcup wallet totals were later observed as:
+
+depositWallet:
+556.00000000
+
+incomeWallet:
+119.38415552
+
+withdrawalWallet:
+6300.27304257
+
+lockedWithdrawalBalance:
+100.36000000
+
+The Replit snapshot had:
+
+depositWallet:
+556.00000000
+
+incomeWallet:
+119.38415552
+
+withdrawalWallet:
+6297.80686201
+
+lockedWithdrawalBalance:
+100.36000000
+
+Difference:
+2.46618056
+
+This difference is EXPECTED because those three transactions occurred after the original snapshot.
+
+Do NOT modify either database because of this.
+Do NOT copy those records yet.
+Report whether current Netcup differences can be explained by post-snapshot activity.
+
+STEP 9 — PREVIOUSLY VERIFIED FINGERPRINTS
+
+These have already been independently verified and MUST be used as known-good reference points:
+
+investments:
+rows = 193
+fingerprint = bc6f97c3530db434f31d4d8de7eb9144
+
+roi_ledger:
+rows = 19816
+fingerprint = a1a3066bc223dd0e34e31f300b575f88
+
+financial_ledger:
+rows = 433
+fingerprint = b5ff60572aad9e518da176109141dfbc
+
+withdrawal_requests:
+rows = 121
+fingerprint = 5ed422746311f5072fd60f59690404d6
+
+withdrawal_events:
+rows = 920
+fingerprint = 6701f058efc23e5467170c6f32b4e804
+
+These exact fingerprints were obtained independently from Netcup and then matched against Replit.
+
+STEP 10 — DO NOT TREAT EXPECTED LIVE DELTA AS MIGRATION FAILURE
+
+The verifier should distinguish:
+
+A. MIGRATION MISMATCH
+Data that should have been identical at the original snapshot but is not.
+
+B. POST-SNAPSHOT LIVE CHANGE
+Data that changed on Netcup after the migration snapshot.
+
+C. SCHEMA DIFFERENCE
+Structural difference between the databases.
+
+D. EXACT MATCH
+Identical data/schema.
+
+If possible, use timestamps such as createdAt/updatedAt to identify records created or changed after the original migration snapshot.
+
+Original snapshot timing was approximately:
+2026-09-07 10:28:26 IST
+
+Do not assume every later change is safe; report evidence.
+
+STEP 11 — SECURITY
+
+The verifier must:
+- use parameterized SQL where applicable
+- never print secrets
+- never print full connection URLs
+- never log passwords
+- never log private keys
+- never enable blockchain functionality
+- never use root SSH access
+- never modify Netcup
+- never modify Replit Production
+- never call Prisma migrate deploy
+- never call Prisma migrate reset
+- never call seed/reset scripts
+
+STEP 12 — FINAL REPORT
+
+After completing the entire read-only comparison, produce one concise but comprehensive report:
+
+1. CONNECTION STATUS
+2. SCHEMA STATUS
+3. TABLE COUNT
+4. ROW COUNT COMPARISON
+5. DATA FINGERPRINT COMPARISON
+6. FINANCIAL TABLE STATUS
+7. WITHDRAWAL STATUS
+8. DEPOSIT STATUS
+9. PRISMA MIGRATION STATUS
+10. SEQUENCE STATUS
+11. POST-SNAPSHOT LIVE CHANGES
+12. MISMATCHES REQUIRING INVESTIGATION
+13. OVERALL MIGRATION VERDICT
+
+Use clear statuses:
+
+PASS
+EXPECTED LIVE DELTA
+MISMATCH
+NOT CHECKED
+ERROR
+
+IMPORTANT FINAL RULE:
+
+DO NOT FIX ANYTHING.
+
+This task is verification only.
+
+If any mismatch is found, report:
+- table
+- row counts
+- fingerprints
+- relevant primary keys if needed
+- likely category
+- evidence
+
+but DO NOT modify the data.
+
+The final answer should tell me whether Replit Production is an accurate snapshot of Netcup Production and exactly what remains to be reconciled before DNS cutover.
