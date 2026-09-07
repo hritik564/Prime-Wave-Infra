@@ -1,0 +1,89 @@
+We need to resolve the current Replit Production deployment blocker. Treat this as a production-safety task.
+
+CURRENT STATE:
+
+The live PrimeWave application is still running on the Netcup production server. Netcup remains the source of truth and must NOT be interrupted or modified as part of this task.
+
+The Replit Production PostgreSQL database has already been migrated from the live Netcup PrimeWave database and independently verified.
+
+Replit Production currently contains:
+- 41 application tables
+- public._prisma_migrations
+- 31 rows in _prisma_migrations
+- 30 distinct migration names
+- all 30 checked-in Prisma migrations represented
+- matching migration checksums/statuses after timestamp normalization
+- verified production application data
+
+The Replit development database is different:
+- Database: heliumdb
+- 41 application tables
+- no public._prisma_migrations table
+
+The checked-in Prisma schema contains the 41 application models and does NOT define _prisma_migrations. This is normal because _prisma_migrations is Prisma engine metadata, not an application model.
+
+The development database was created/synchronized using the db push path, so it has no Prisma migration-history table.
+
+Replit Publish compares the live development database against the live Production database. Because Production contains _prisma_migrations and development does not, Publish currently proposes this destructive operation:
+
+DROP TABLE "_prisma_migrations" CASCADE;
+
+THIS MUST NOT HAPPEN.
+
+HARD SAFETY RULES:
+
+1. Do NOT approve or execute the currently proposed Publish migration.
+2. Do NOT drop _prisma_migrations.
+3. Do NOT recreate _prisma_migrations.
+4. Do NOT modify or delete any Production application data.
+5. Do NOT run prisma migrate reset.
+6. Do NOT run prisma migrate resolve.
+7. Do NOT add _prisma_migrations to schema.prisma as an application model.
+8. Do NOT alter the verified Production database to make the Publish diff disappear.
+9. Do NOT change DNS.
+10. Do NOT enable blockchain operations or add live blockchain credentials.
+11. Do NOT publish the application yet.
+12. Do NOT make any destructive database change.
+
+GOAL:
+
+Find and implement the safest supported project/deployment configuration that allows the PrimeWave application to deploy against the already-migrated Replit Production PostgreSQL database WITHOUT Replit Publish applying the development-vs-production schema diff that wants to delete _prisma_migrations.
+
+The production build already uses Prisma migration deployment. Keep that behavior intact. Production already has all checked-in migrations, so prisma migrate deploy should be a no-op against the verified Production database.
+
+Investigate the Replit deployment configuration, build configuration, workflow configuration, and any supported deployment settings that affect how the Production database schema is synchronized during Publish.
+
+We specifically need to determine whether Replit can deploy the application without using the development database schema as a destructive source of truth for Production.
+
+If there is a supported project-side configuration that prevents this destructive schema synchronization, implement it.
+
+If there is NOT a supported project-side solution, do not invent one and do not modify the database. Instead, identify the exact limitation and the safest deployment procedure available in Replit.
+
+IMPORTANT:
+
+Do not simply tell me the root cause again. We already know the root cause.
+
+I need you to actually investigate the project and make the safest project-side changes that are possible.
+
+After making any changes:
+- verify the development application still starts correctly;
+- verify the production build configuration remains valid;
+- verify prisma migrate deploy remains part of the production build path;
+- verify no destructive database operation was executed;
+- verify no Production database data was changed.
+
+Do NOT publish after making the changes.
+
+At the end, give me a concise report containing:
+
+1. What you changed.
+2. Why you changed it.
+3. What you verified.
+4. Whether the current Publish operation is now safe.
+5. If Publish is still unsafe, exactly what I should do next in the Replit UI.
+
+The most important requirement is:
+
+KEEP THE VERIFIED PRODUCTION DATABASE AND ITS _prisma_migrations HISTORY INTACT.
+
+Do not trade database safety for making the Publish button work.
