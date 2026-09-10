@@ -1,0 +1,37 @@
+READ-ONLY — Recover/identify existing BSC RPC configuration
+
+Before we manually obtain a new BSC RPC provider, investigate whether PrimeWave already has an existing BSC RPC configuration that can be reused.
+
+Do not modify anything, do not publish, do not restart production, and do not expose any secret values.
+
+Check:
+
+The current project configuration/code for all BSC RPC environment variable names:
+BSC_RPC_PRIMARY
+BSC_RPC_SECONDARY
+BSC_RPC_TERTIARY
+any legacy BSC/RPC variable names
+Check whether the previous Netcup deployment configuration/code references an existing BSC RPC provider or environment variable name.
+Check whether any BSC RPC secret is already configured in the current Replit project/environment. Do not print its value. Only report whether it exists and which environment/scope it belongs to.
+Check whether the project previously used a public BSC RPC, QuickNode, Ankr, Chainstack, Alchemy, Infura, or another provider. Do not expose API keys or secret URLs.
+Check whether the current Replit production environment already has a usable BSC RPC secret under a different variable name.
+Determine whether Replit itself provides any connected BSC/RPC service for this project that the application is already configured to use.
+
+Also inspect the Git history/configuration where appropriate to determine what RPC provider/environment variable was used by the previous working production deployment.
+
+Security requirements:
+
+Never print secret values.
+Never print API keys/tokens.
+Never modify secrets.
+Never create or delete secrets.
+Never change production configuration.
+Never connect to or broadcast a blockchain transaction.
+
+Final report should state:
+
+Whether an existing usable BSC RPC configuration was found.
+The variable name where it exists, without revealing its value.
+Whether it is production-scoped or development-scoped.
+What the previous working deployment used, if determinable.
+If nothing reusable exists, clearly state that we need to obtain a new BSC RPC endpoint.
