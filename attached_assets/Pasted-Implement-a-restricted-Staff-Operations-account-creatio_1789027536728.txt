@@ -1,0 +1,75 @@
+Implement a restricted Staff Operations account-creation workflow
+
+We now need to create our first staff account using the existing STAFF_OPERATIONS role.
+
+Implement a secure Super Admin-only workflow for creating Admin accounts.
+
+Requirements:
+
+Only SUPER_ADMIN may create an Admin account.
+The new account must be created with role STAFF_OPERATIONS.
+The creator must not be able to select or assign SUPER_ADMIN, FINANCE_ADMIN, SUPPORT_ADMIN, or REWARD_MANAGER through this Staff-creation workflow.
+New Staff account must start with isActive = true.
+Require staff email and an initial password.
+Hash the password using the same secure Admin password hashing mechanism already used by the application.
+Never store or log plaintext passwords.
+Do not expose the password hash in API responses.
+Reject duplicate email addresses.
+Validate the email and password using appropriate existing validation rules.
+Set/update updatedAt normally.
+Do not modify any existing Admin accounts.
+Do not modify Users, wallets, deposits, withdrawals, investments, settings, or other financial data.
+
+Staff permissions must remain exactly as already implemented:
+
+Staff may:
+
+Dashboard — view
+Members — search/view and permitted support operations
+Investments — view
+Deposits — monitor/view only
+Auto Deposits — monitor/view only
+Withdrawals — monitor/view only
+W. Queue — read-only
+W. Ops Health — read-only
+Wallets — read-only
+
+Staff must NOT:
+
+manually create/approve/reject deposits
+manually credit wallets
+perform wallet adjustments
+approve/complete/reject/reprocess withdrawals
+hold/release withdrawals
+control withdrawal engines/settings/queues
+modify company wallet addresses
+access Manual Credit
+access Power Business sensitive financial data
+access Plans & Config
+access Salary Management
+access Integrity/Treasury
+access Chain Health/Tester
+access Dev Tools
+modify arbitrary system settings
+impersonate users
+change other Admin accounts
+
+Security requirements:
+
+Enforce creation authorization on the backend with the existing requireAdminRoles("SUPER_ADMIN") pattern.
+Frontend must hide the creation workflow from non-Super Admins.
+Do not rely on frontend hiding for authorization.
+Add tests proving a Staff/Finance/Support admin cannot create an Admin account through this endpoint.
+Add a test proving the created account has exactly STAFF_OPERATIONS and cannot be created with an elevated role.
+
+Important:
+
+Implement and test the workflow only.
+Do NOT create the actual staff account yet.
+Do NOT publish.
+Do NOT make production database changes.
+Do NOT ask me to provide a password in chat.
+
+Run API/frontend typechecks, relevant tests, production builds, and git diff --check.
+
+Report the implementation and test results when finished.
