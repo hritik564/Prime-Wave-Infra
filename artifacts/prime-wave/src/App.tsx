@@ -31,6 +31,7 @@ const AdminBinaryNetworkPage = lazy(() => import("@/pages/admin/BinaryNetworkPag
 const AdminIncomeEnginePage  = lazy(() => import("@/pages/admin/IncomeEnginePage"));
 const AdminPlansPage         = lazy(() => import("@/pages/admin/PlansPage"));
 const AdminOperationsPage    = lazy(() => import("@/pages/admin/OperationsPage"));
+const AdminSettingsPage      = lazy(() => import("@/pages/admin/AdminSettingsPage"));
 const AdminAutoDepositsPage  = lazy(() => import("@/pages/admin/AutoDepositsPage"));
 const AdminManualCreditPage      = lazy(() => import("@/pages/admin/ManualCreditPage"));
 const AdminCompanyWalletsPage    = lazy(() => import("@/pages/admin/CompanyWalletsPage"));
@@ -196,6 +197,9 @@ function AppRoutes() {
       {/* ── Admin Portal (admins only) ── */}
       <Route path="/admin">
         <RequireAdmin permission={PERMISSIONS.VIEW_DASHBOARD}><Suspense fallback={null}><AdminDashboardPage /></Suspense></RequireAdmin>
+      </Route>
+      <Route path="/admin/settings">
+        <RequireAdmin><Suspense fallback={null}><AdminSettingsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/members">
         <RequireAdmin permission={PERMISSIONS.VIEW_MEMBERS}><Suspense fallback={null}><AdminMembersPage /></Suspense></RequireAdmin>

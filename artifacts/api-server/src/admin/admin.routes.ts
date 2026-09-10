@@ -11,6 +11,7 @@ import {
   exportReconciliationCsvHandler,
 } from "./admin-treasury.controller";
 import {
+  changeAdminPasswordHandler,
   adminLogin,
   adminGetProfile,
   triggerMatchingCycle,
@@ -196,7 +197,7 @@ import {
 import { validate } from "../middleware/validate.middleware";
 import { requireAdminAuth, requireAdminRoles } from "../middleware/auth.middleware";
 import { authLimiter, adminLimiter } from "../middleware/rateLimiter.middleware";
-import { adminLoginSchema, updateUserWalletSchema } from "./admin.schema";
+import { adminLoginSchema, changeAdminPasswordSchema, updateUserWalletSchema } from "./admin.schema";
 import {
   adminDepositListQuerySchema,
   rejectDepositSchema,
@@ -245,6 +246,13 @@ router.post("/login", authLimiter, validate(adminLoginSchema), adminLogin);
 
 // ── Protected — any authenticated admin ───────────────────────────────────────
 router.get("/profile", adminLimiter, requireAdminAuth, adminGetProfile);
+router.post(
+  "/change-password",
+  authLimiter,
+  requireAdminAuth,
+  validate(changeAdminPasswordSchema, "body"),
+  changeAdminPasswordHandler,
+);
 
 // Manual cycle triggers — Super Admin only
 router.post("/trigger/matching",       adminLimiter, requireAdminRoles("SUPER_ADMIN"), triggerMatchingCycle);

@@ -58,6 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { icon: Package,   label: "Plans & Config", path: "/admin/plans", permission: PERMISSIONS.MANAGE_CONFIGURATION },
       { icon: Settings,  label: "Company Wallets",path: "/admin/company-wallets", permission: PERMISSIONS.VIEW_COMPANY_WALLETS },
+      { icon: Shield,    label: "Admin Settings", path: "/admin/settings" },
     ],
   },
   {

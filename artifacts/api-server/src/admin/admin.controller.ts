@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { loginAdmin, getAdminProfile } from "./admin.service";
+import { changeAdminPassword, loginAdmin, getAdminProfile } from "./admin.service";
 import { runMatchingCycle } from "../binary/matching.engine";
 import { runOrbitCycle } from "../binary/orbit.engine";
 import { processRoiCycle } from "../cron/roi.engine";
@@ -9,7 +9,7 @@ import { getAllSettings, setSetting } from "../config/settings";
 import { sendSuccess } from "../shared/response";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
-import type { AdminLoginInput } from "./admin.schema";
+import type { AdminLoginInput, ChangeAdminPasswordInput } from "./admin.schema";
 import type { AuthenticatedRequest } from "../shared/types";
 
 export async function adminLogin(
@@ -34,6 +34,20 @@ export async function adminGetProfile(
     const { user } = req as AuthenticatedRequest;
     const profile = await getAdminProfile(user.sub);
     sendSuccess(res, profile, "Profile fetched successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function changeAdminPasswordHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    await changeAdminPassword(user.sub, req.body as ChangeAdminPasswordInput);
+    sendSuccess(res, null, "Password changed successfully");
   } catch (err) {
     next(err);
   }

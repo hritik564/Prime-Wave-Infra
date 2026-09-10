@@ -69,6 +69,17 @@ export function adminLogin(email: string, password: string) {
   });
 }
 
+export function changeAdminPassword(currentPassword: string, newPassword: string) {
+  return request<null>("/api/admin/change-password", {
+    method: "POST",
+    body: JSON.stringify({
+      currentPassword,
+      newPassword,
+      confirmPassword: newPassword,
+    }),
+  });
+}
+
 export function register(data: {
   firstName: string;
   lastName: string;
