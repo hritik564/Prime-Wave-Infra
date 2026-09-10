@@ -5,6 +5,7 @@ import {
   ShieldAlert, ShieldX, AlertTriangle, DollarSign,
 } from "lucide-react";
 import AdminLayout from "./AdminLayout";
+import { useAuth } from "@/providers/AuthProvider";
 import {
   adminListDepositVerifications,
   adminRetryDepositVerification,
@@ -538,6 +539,8 @@ const TERMINAL_STATUSES = ["COMPLETED", "FAILED", "REJECTED", "EXPIRED"];
 const NO_CREDIT_STATUSES = ["COMPLETED", "CREDITED", "REJECTED"];
 
 export default function AutoDepositsPage() {
+  const { role } = useAuth();
+  const isStaffOperations = role === "STAFF_OPERATIONS";
   const [records,        setRecords]        = useState<AdminDepositVerificationItem[]>([]);
   const [meta,           setMeta]           = useState<ListMeta | null>(null);
   const [loading,        setLoading]        = useState(true);
@@ -587,6 +590,7 @@ export default function AutoDepositsPage() {
   };
 
   const handleRetry = async (id: string) => {
+    if (isStaffOperations) return;
     setRetryingId(id);
     try {
       await adminRetryDepositVerification(id);
@@ -597,6 +601,7 @@ export default function AutoDepositsPage() {
   };
 
   const handleRevalidate = async (id: string) => {
+    if (isStaffOperations) return;
     setRevalidatingId(id);
     try {
       await adminRevalidateDepositVerification(id);
@@ -608,16 +613,16 @@ export default function AutoDepositsPage() {
 
   return (
     <AdminLayout>
-      <ManualCreditDialog
+      {!isStaffOperations && <ManualCreditDialog
         target={approveTarget}
         onClose={() => setApproveTarget(null)}
         onSuccess={() => { void load(); }}
-      />
-      <ManualRejectDialog
+      />}
+      {!isStaffOperations && <ManualRejectDialog
         target={rejectTarget}
         onClose={() => setRejectTarget(null)}
         onSuccess={() => { void load(); }}
-      />
+      />}
 
       <div className="p-4 md:p-6 lg:p-8 max-w-7xl">
         {/* Header */}
@@ -773,7 +778,7 @@ export default function AutoDepositsPage() {
                           <td className="px-4 py-3.5">
                             <div className="flex flex-col gap-1.5">
                               {/* Retry: active non-failed states */}
-                              {isActive && !isFailed && (
+                              {!isStaffOperations && isActive && !isFailed && (
                                 <button
                                   onClick={() => { void handleRetry(r.id); }}
                                   disabled={retryingId === r.id}
@@ -791,7 +796,7 @@ export default function AutoDepositsPage() {
                               )}
 
                               {/* Re-Validate: FAILED, EXPIRED, VERIFICATION_DELAYED */}
-                              {isRevalidatable && (
+                               {!isStaffOperations && isRevalidatable && (
                                 <button
                                   onClick={() => { void handleRevalidate(r.id); }}
                                   disabled={revalidatingId === r.id}
@@ -805,7 +810,7 @@ export default function AutoDepositsPage() {
                               )}
 
                               {/* Manual Credit: any status that can still be credited */}
-                              {canCredit && (
+                               {!isStaffOperations && canCredit && (
                                 <button
                                   onClick={() => setApproveTarget(r)}
                                   className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap"
@@ -817,7 +822,7 @@ export default function AutoDepositsPage() {
                               )}
 
                               {/* Reject: FAILED, EXPIRED, VERIFICATION_DELAYED */}
-                              {isRevalidatable && (
+                               {!isStaffOperations && isRevalidatable && (
                                 <button
                                   onClick={() => setRejectTarget(r)}
                                   className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap"
@@ -896,7 +901,7 @@ export default function AutoDepositsPage() {
                       {/* Actions */}
                       <div className="mt-2 flex flex-wrap gap-2">
                         {/* Retry: active non-failed states */}
-                        {isActive && !isFailed && (
+                         {!isStaffOperations && isActive && !isFailed && (
                           <button
                             onClick={() => { void handleRetry(r.id); }}
                             disabled={retryingId === r.id}
@@ -913,7 +918,7 @@ export default function AutoDepositsPage() {
                         )}
 
                         {/* Re-Validate: FAILED, EXPIRED, VERIFICATION_DELAYED */}
-                        {isRevalidatable && (
+                         {!isStaffOperations && isRevalidatable && (
                           <button
                             onClick={() => { void handleRevalidate(r.id); }}
                             disabled={revalidatingId === r.id}
@@ -925,7 +930,7 @@ export default function AutoDepositsPage() {
                         )}
 
                         {/* Manual Credit: any status that can still be credited */}
-                        {canCredit && (
+                         {!isStaffOperations && canCredit && (
                           <button onClick={() => setApproveTarget(r)}
                             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
                             style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", color: "#34d399" }}>
@@ -934,7 +939,7 @@ export default function AutoDepositsPage() {
                         )}
 
                         {/* Reject: FAILED, EXPIRED, VERIFICATION_DELAYED */}
-                        {isRevalidatable && (
+                         {!isStaffOperations && isRevalidatable && (
                           <button onClick={() => setRejectTarget(r)}
                             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
                             style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", color: "#f87171" }}>

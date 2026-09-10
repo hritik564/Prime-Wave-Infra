@@ -340,10 +340,10 @@ function NotesTab({ notes, onSave }: { notes: string; onSave: (n: string) => voi
 const WalletDrawer = memo(function WalletDrawer({ wallet, onClose, onAdjust, onTransfer, onFreeze, onUnfreeze, onSaveNotes }: {
   wallet: DrawerWallet | null;
   onClose: () => void;
-  onAdjust:   (w: DrawerWallet) => void;
-  onTransfer: (w: DrawerWallet) => void;
-  onFreeze:   (w: DrawerWallet) => void;
-  onUnfreeze: (w: DrawerWallet) => void;
+  onAdjust?:  (w: DrawerWallet) => void;
+  onTransfer?: (w: DrawerWallet) => void;
+  onFreeze?:   (w: DrawerWallet) => void;
+  onUnfreeze?: (w: DrawerWallet) => void;
   onSaveNotes:(id: string, notes: string) => void;
 }) {
   const [tab, setTab] = useState("overview");
@@ -380,17 +380,17 @@ const WalletDrawer = memo(function WalletDrawer({ wallet, onClose, onAdjust, onT
           </div>
 
           {/* Quick action buttons */}
-          <div style={{ display: "flex", gap: 6 }}>
+          {(onAdjust || onTransfer || onFreeze || onUnfreeze) && <div style={{ display: "flex", gap: 6 }}>
             {[
-              { label: "Adjust", onClick: () => onAdjust(wallet), color: GOLD, border: "rgba(212,175,55,0.3)", bg: "rgba(212,175,55,0.08)" },
-              { label: "Transfer", onClick: () => onTransfer(wallet), color: "#60a5fa", border: "rgba(96,165,250,0.3)", bg: "rgba(96,165,250,0.08)" },
-              { label: isFrozen ? "Unfreeze" : "Freeze", onClick: () => isFrozen ? onUnfreeze(wallet) : onFreeze(wallet), color: isFrozen ? "#34d399" : "#f87171", border: isFrozen ? "rgba(52,211,153,0.3)" : "rgba(248,113,113,0.3)", bg: isFrozen ? "rgba(52,211,153,0.08)" : "rgba(248,113,113,0.08)" },
+              ...(onAdjust ? [{ label: "Adjust", onClick: () => onAdjust(wallet), color: GOLD, border: "rgba(212,175,55,0.3)", bg: "rgba(212,175,55,0.08)" }] : []),
+              ...(onTransfer ? [{ label: "Transfer", onClick: () => onTransfer(wallet), color: "#60a5fa", border: "rgba(96,165,250,0.3)", bg: "rgba(96,165,250,0.08)" }] : []),
+              ...((onFreeze || onUnfreeze) ? [{ label: isFrozen ? "Unfreeze" : "Freeze", onClick: () => isFrozen ? onUnfreeze?.(wallet) : onFreeze?.(wallet), color: isFrozen ? "#34d399" : "#f87171", border: isFrozen ? "rgba(52,211,153,0.3)" : "rgba(248,113,113,0.3)", bg: isFrozen ? "rgba(52,211,153,0.08)" : "rgba(248,113,113,0.08)" }] : []),
             ].map(btn => (
               <button key={btn.label} onClick={btn.onClick} style={{ flex: 1, padding: "7px 0", background: btn.bg, border: `1px solid ${btn.border}`, borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: btn.color }}>
                 {btn.label}
               </button>
             ))}
-          </div>
+          </div>}
         </div>
 
         {/* Tabs */}

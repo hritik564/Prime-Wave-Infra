@@ -5,6 +5,7 @@ import {
   Activity, AlertTriangle, ArrowDownToLine, SlidersHorizontal,
 } from "lucide-react";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useAuth } from "@/providers/AuthProvider";
 import AdminLayout from "./AdminLayout";
 import DepositDrawer from "./DepositDrawer";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
@@ -85,17 +86,18 @@ function NetBadge({ n }: { n: string }) {
 }
 
 // ─── Action dropdown ─────────────────────────────────────────────────────────
-function ActionMenu({ item, onApprove, onReject, onConfirm, onView }: {
+function ActionMenu({ item, onApprove, onReject, onConfirm, onView, canMutate = true }: {
   item: AdminDepositItem;
   onApprove: (id: string) => void;
   onReject:  (id: string) => void;
   onConfirm: (id: string) => void;
   onView:    (id: string) => void;
+  canMutate?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const canAct  = item.status === "PENDING" || item.status === "CONFIRMING";
-  const canConf = item.status === "PENDING";
+  const canAct  = canMutate && (item.status === "PENDING" || item.status === "CONFIRMING");
+  const canConf = canMutate && item.status === "PENDING";
 
   useEffect(() => {
     if (!open) return;
@@ -133,15 +135,16 @@ function ActionMenu({ item, onApprove, onReject, onConfirm, onView }: {
 }
 
 // ─── Mobile deposit card ──────────────────────────────────────────────────────
-function MobileDepositCard({ item, onView, onApprove, onReject, onConfirm }: {
+function MobileDepositCard({ item, onView, onApprove, onReject, onConfirm, canMutate = true }: {
   item:      AdminDepositItem;
   onView:    (id: string) => void;
   onApprove: (id: string) => void;
   onReject:  (id: string) => void;
   onConfirm: (id: string) => void;
+  canMutate?: boolean;
 }) {
-  const canAct  = item.status === "PENDING" || item.status === "CONFIRMING";
-  const canConf = item.status === "PENDING";
+  const canAct  = canMutate && (item.status === "PENDING" || item.status === "CONFIRMING");
+  const canConf = canMutate && item.status === "PENDING";
   return (
     <div onClick={() => onView(item.id)} style={{ background: CARD, borderRadius: 10, padding: 14, border: `1px solid ${BORDER}`, marginBottom: 8, cursor: "pointer" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
@@ -218,6 +221,8 @@ function RejectModal({ open, onClose, onConfirm, loading }: {
 export default function DepositsPage() {
   const { isMobile }  = useResponsive();
   const { toast, toasts, dismiss } = useToast();
+  const { role } = useAuth();
+  const isStaffOperations = role === "STAFF_OPERATIONS";
 
   // Data state
   const [deposits, setDeposits] = useState<AdminDepositItem[]>([]);
@@ -295,6 +300,7 @@ export default function DepositsPage() {
   // ── Actions ────────────────────────────────────────────────────────────────
 
   const handleApprove = useCallback(async (id: string) => {
+    if (isStaffOperations) return;
     setActionLoading(id);
     try {
       await adminApproveDeposit(id);
@@ -307,9 +313,10 @@ export default function DepositsPage() {
     } finally {
       setActionLoading(null);
     }
-  }, [fetchDeposits, fetchStats, drawerDepositId, toast]);
+  }, [fetchDeposits, fetchStats, drawerDepositId, toast, isStaffOperations]);
 
   const handleConfirm = useCallback(async (id: string) => {
+    if (isStaffOperations) return;
     setActionLoading(id);
     try {
       await adminMarkDepositConfirming(id);
@@ -322,14 +329,16 @@ export default function DepositsPage() {
     } finally {
       setActionLoading(null);
     }
-  }, [fetchDeposits, fetchStats, drawerDepositId, toast]);
+  }, [fetchDeposits, fetchStats, drawerDepositId, toast, isStaffOperations]);
 
   const handleRejectStart = useCallback((id: string) => {
+    if (isStaffOperations) return;
     setRejectTargetId(id);
     if (drawerDepositId) setDrawerDepositId(null);
-  }, [drawerDepositId]);
+  }, [drawerDepositId, isStaffOperations]);
 
   const handleRejectConfirm = useCallback(async (reason: string) => {
+    if (isStaffOperations) return;
     if (!rejectTargetId) return;
     const id = rejectTargetId;
     setActionLoading(id);
@@ -344,7 +353,7 @@ export default function DepositsPage() {
     } finally {
       setActionLoading(null);
     }
-  }, [rejectTargetId, fetchDeposits, fetchStats, toast]);
+  }, [rejectTargetId, fetchDeposits, fetchStats, toast, isStaffOperations]);
 
   // ── Columns ────────────────────────────────────────────────────────────────
   const cols: Array<{ key: string; label: string; width?: number }> = [
@@ -480,6 +489,7 @@ export default function DepositsPage() {
                 onApprove={handleApprove}
                 onReject={handleRejectStart}
                 onConfirm={handleConfirm}
+                canMutate={!isStaffOperations}
               />
             ))}
           </div>
@@ -548,6 +558,7 @@ export default function DepositsPage() {
                           onApprove={handleApprove}
                           onReject={handleRejectStart}
                           onConfirm={handleConfirm}
+                           canMutate={!isStaffOperations}
                         />
                       </td>
                     </tr>
@@ -584,19 +595,19 @@ export default function DepositsPage() {
       <DepositDrawer
         depositId={drawerDepositId}
         onClose={() => setDrawerDepositId(null)}
-        onApprove={handleApprove}
-        onReject={handleRejectStart}
-        onConfirm={handleConfirm}
+         onApprove={isStaffOperations ? undefined : handleApprove}
+         onReject={isStaffOperations ? undefined : handleRejectStart}
+         onConfirm={isStaffOperations ? undefined : handleConfirm}
         actionLoading={actionLoading}
       />
 
       {/* Reject Modal */}
-      <RejectModal
+      {!isStaffOperations && <RejectModal
         open={!!rejectTargetId}
         onClose={() => setRejectTargetId(null)}
         onConfirm={handleRejectConfirm}
         loading={actionLoading === rejectTargetId}
-      />
+      />}
 
       <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}} @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
     </AdminLayout>

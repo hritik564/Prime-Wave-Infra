@@ -6,6 +6,7 @@ import {
   AlertOctagon, Info, Server, Cpu, Timer, Lock, Unlock,
 } from "lucide-react";
 import AdminLayout from "./AdminLayout";
+import { useAuth } from "@/providers/AuthProvider";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
 import {
   getOperationalHealth,
@@ -179,10 +180,12 @@ function EngineToggle({
   enabled,
   loading,
   onToggle,
+  readOnly,
 }: {
   enabled: boolean;
   loading: boolean;
   onToggle: () => void;
+  readOnly?: boolean;
 }) {
   return (
     <div
@@ -211,7 +214,11 @@ function EngineToggle({
         </div>
       </div>
 
-      <button
+      {readOnly ? (
+        <span className="text-xs font-medium px-3 py-2 rounded-xl" style={{ color: MUTED, border: `1px solid ${BORDER}` }}>
+          Read-only monitoring
+        </span>
+      ) : <button
         onClick={onToggle}
         disabled={loading}
         className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all"
@@ -227,7 +234,7 @@ function EngineToggle({
           ? <Loader2 className="h-4 w-4 animate-spin" />
           : enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
         {loading ? "Updating…" : enabled ? "Pause Engine" : "Start Engine"}
-      </button>
+      </button>}
     </div>
   );
 }
@@ -237,6 +244,8 @@ const AUTO_REFRESH_MS = 30_000;
 
 export default function WithdrawalOperationalHealthPage() {
   const { toasts, toast: showToast, dismiss: dismissToast } = useToast();
+  const { role } = useAuth();
+  const isStaffOperations = role === "STAFF_OPERATIONS";
   const [health, setHealth]       = useState<OperationalHealth | null>(null);
   const [loading, setLoading]     = useState(true);
   const [toggling, setToggling]   = useState(false);
@@ -260,6 +269,7 @@ export default function WithdrawalOperationalHealthPage() {
   }, [load]);
 
   const handleToggleEngine = async () => {
+    if (isStaffOperations) return;
     if (!health) return;
     setToggling(true);
     try {
@@ -329,6 +339,7 @@ export default function WithdrawalOperationalHealthPage() {
               enabled={health.engine.enabled}
               loading={toggling}
               onToggle={() => void handleToggleEngine()}
+              readOnly={isStaffOperations}
             />
 
             {/* ── Hot Wallet ── */}

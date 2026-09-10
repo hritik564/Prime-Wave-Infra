@@ -396,9 +396,9 @@ export default function WithdrawalDrawer({
 }: {
   withdrawal:  DrawerWithdrawal | null;
   onClose:     () => void;
-  onApprove:   (w: DrawerWithdrawal) => void;
-  onReject:    (w: DrawerWithdrawal) => void;
-  onHold:      (w: DrawerWithdrawal) => void;
+  onApprove?:  (w: DrawerWithdrawal) => void;
+  onReject?:   (w: DrawerWithdrawal) => void;
+  onHold?:     (w: DrawerWithdrawal) => void;
   adminLogs?:  DrawerAuditLog[];
   onSaveNote?: (text: string) => Promise<void>;
 }) {
@@ -426,10 +426,10 @@ export default function WithdrawalDrawer({
                   <div style={{fontSize:12,color:MUTED}}>@{withdrawal.username} · {withdrawal.country}</div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  {withdrawal.status==="PENDING"&&(
+                  {withdrawal.status==="PENDING" && (onApprove || onReject) && (
                     <>
-                      <button onClick={()=>onApprove(withdrawal)} style={{padding:"5px 12px",background:"rgba(52,211,153,0.1)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:700,color:"#34d399"}}>Approve</button>
-                      <button onClick={()=>onReject(withdrawal)}  style={{padding:"5px 12px",background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:700,color:"#f87171"}}>Reject</button>
+                      {onApprove && <button onClick={()=>onApprove(withdrawal)} style={{padding:"5px 12px",background:"rgba(52,211,153,0.1)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:700,color:"#34d399"}}>Approve</button>}
+                      {onReject && <button onClick={()=>onReject(withdrawal)}  style={{padding:"5px 12px",background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:700,color:"#f87171"}}>Reject</button>}
                     </>
                   )}
                   <button onClick={onClose} style={{background:"rgba(255,255,255,0.05)",border:`1px solid ${BORDER}`,borderRadius:7,cursor:"pointer",color:MUTED,padding:"5px 8px",display:"flex"}}><X size={14}/></button>

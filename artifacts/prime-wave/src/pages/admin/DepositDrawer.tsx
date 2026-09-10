@@ -90,9 +90,9 @@ type Tab = "summary" | "member" | "wallet" | "payment" | "timeline";
 interface DrawerProps {
   depositId:  string | null;
   onClose:    () => void;
-  onApprove:  (id: string) => void;
-  onReject:   (id: string) => void;
-  onConfirm:  (id: string) => void;
+  onApprove?: (id: string) => void;
+  onReject?:  (id: string) => void;
+  onConfirm?: (id: string) => void;
   actionLoading: string | null;
 }
 
@@ -173,25 +173,25 @@ const DepositDrawer = memo(function DepositDrawer({
         {!loading && d && (
           <>
             {/* Action buttons */}
-            {canAct && (
+            {canAct && (onApprove || onReject || onConfirm) && (
               <div style={{ padding: "12px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", gap: 8, flexShrink: 0 }}>
-                <ActionBtn
+                {onApprove && <ActionBtn
                   label="Approve" color="#34d399" bg="rgba(52,211,153,0.1)"
                   onClick={() => onApprove(d.id)}
                   loading={busy}
-                />
-                {canConf && (
+                />}
+                {canConf && onConfirm && (
                   <ActionBtn
                     label="Confirming" color="#60a5fa" bg="rgba(96,165,250,0.1)"
                     onClick={() => onConfirm(d.id)}
                     loading={busy}
                   />
                 )}
-                <ActionBtn
+                {onReject && <ActionBtn
                   label="Reject" color="#f87171" bg="rgba(248,113,113,0.1)"
                   onClick={() => onReject(d.id)}
                   loading={busy}
-                />
+                />}
               </div>
             )}
 

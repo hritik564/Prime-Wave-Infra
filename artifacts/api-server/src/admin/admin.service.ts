@@ -42,6 +42,7 @@ export async function loginAdmin(input: AdminLoginInput) {
     email: admin.email,
     type: "admin",
     role: admin.role,
+    adminUpdatedAt: admin.updatedAt.getTime(),
   });
 
   return {

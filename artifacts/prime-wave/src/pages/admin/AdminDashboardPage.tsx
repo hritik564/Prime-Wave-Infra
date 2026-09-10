@@ -5,6 +5,7 @@ import {
   Minus, ChevronRight, Zap, Settings, Bell, UserCog, Plus, RefreshCw,
 } from "lucide-react";
 import AdminLayout from "./AdminLayout";
+import { useAuth } from "@/providers/AuthProvider";
 import {
   getAdminDashboard, getAdminSystemHealth, getAdminPendingOps,
   getAdminDailyBusiness, adminSearchUsers,
@@ -405,6 +406,8 @@ const quickActions = [
 
 // ── Main Dashboard Page ────────────────────────────────────────────────────────
 export default function AdminDashboardPage() {
+  const { role } = useAuth();
+  const isStaffOperations = role === "STAFF_OPERATIONS";
   const { data, loading, lastFetch, refresh } = useDashboard();
   const { stats, health, pending, business, users } = data;
 
@@ -708,14 +711,14 @@ export default function AdminDashboardPage() {
 
       {/* ── Quick Actions + Platform Health ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 14 }}>
-        <Card style={{ padding: "16px 18px" }}>
+        {!isStaffOperations && <Card style={{ padding: "16px 18px" }}>
           <SectionHeader title="Quick Actions" />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
             {quickActions.map(a => (
               <QuickActionCard key={a.label} icon={a.icon} label={a.label} color={a.color} bg={a.bg} />
             ))}
           </div>
-        </Card>
+        </Card>}
 
         <Card style={{ padding: "16px 18px", minWidth: 280 }}>
           <SectionHeader title="Platform Health" />

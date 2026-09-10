@@ -1,5 +1,6 @@
 import { useState, useMemo, memo, useCallback, useEffect, useRef } from "react";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useAuth } from "@/providers/AuthProvider";
 import AdminLayout from "./AdminLayout";
 import { SkeletonRows } from "@/components/admin/Skeleton";
 import WalletDrawer, {
@@ -206,24 +207,25 @@ function KpiCard({ icon: Icon, label, value, sub, color }: { icon: React.Element
 }
 
 // ─── Row action dropdown ───────────────────────────────────────────────────────
-const RowActions = memo(function RowActions({ w, onView, onAdjust, onTransfer, onFreeze, onUnfreeze }: {
+const RowActions = memo(function RowActions({ w, onView, onAdjust, onTransfer, onFreeze, onUnfreeze, canMutate = true }: {
   w: DrawerWallet;
   onView:      (w: DrawerWallet) => void;
   onAdjust:    (w: DrawerWallet) => void;
   onTransfer:  (w: DrawerWallet) => void;
   onFreeze:    (w: DrawerWallet) => void;
   onUnfreeze:  (w: DrawerWallet) => void;
+  canMutate?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const isFrozen = w.status === "FROZEN";
 
   const items = [
     { label: "View Wallet",       onClick: () => onView(w),           color: "rgba(255,255,255,0.75)" },
-    { label: "Adjust Balance",    onClick: () => onAdjust(w),         color: GOLD_L                   },
+    ...(canMutate ? [{ label: "Adjust Balance",    onClick: () => onAdjust(w),         color: GOLD_L                   },
     { label: "Transfer Funds",    onClick: () => onTransfer(w),       color: "#60a5fa"                },
     { label: isFrozen ? "Unfreeze Wallet" : "Freeze Wallet",
                                   onClick: () => isFrozen ? onUnfreeze(w) : onFreeze(w),
-                                  color: isFrozen ? "#34d399" : "#f87171"                             },
+                                  color: isFrozen ? "#34d399" : "#f87171"                             }] : []),
     { label: "View Transactions", onClick: () => onView(w),           color: "rgba(255,255,255,0.75)" },
     { label: "Audit Log",         onClick: () => onView(w),           color: "rgba(255,255,255,0.75)" },
   ];
@@ -250,7 +252,7 @@ const RowActions = memo(function RowActions({ w, onView, onAdjust, onTransfer, o
 });
 
 // ─── Table row ────────────────────────────────────────────────────────────────
-const WalletRow = memo(function WalletRow({ w, onView, onAdjust, onTransfer, onFreeze, onUnfreeze, hovered, onHover }: {
+const WalletRow = memo(function WalletRow({ w, onView, onAdjust, onTransfer, onFreeze, onUnfreeze, hovered, onHover, canMutate = true }: {
   w: DrawerWallet;
   onView:     (w: DrawerWallet) => void;
   onAdjust:   (w: DrawerWallet) => void;
@@ -259,6 +261,7 @@ const WalletRow = memo(function WalletRow({ w, onView, onAdjust, onTransfer, onF
   onUnfreeze: (w: DrawerWallet) => void;
   hovered: boolean;
   onHover: (id: string | null) => void;
+  canMutate?: boolean;
 }) {
   const fmtDate = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   const tdStyle: React.CSSProperties = { padding: "12px 14px", fontSize: 12, color: "rgba(255,255,255,0.75)", whiteSpace: "nowrap" };
@@ -288,7 +291,7 @@ const WalletRow = memo(function WalletRow({ w, onView, onAdjust, onTransfer, onF
       <td style={{ ...tdStyle, color: MUTED, fontSize: 11 }}>{fmtDate(w.lastTx)}</td>
       <td style={tdStyle}><StatusBadge status={w.status} /></td>
       <td style={{ ...tdStyle, padding: "12px 18px 12px 14px" }} onClick={e => e.stopPropagation()}>
-        <RowActions w={w} onView={onView} onAdjust={onAdjust} onTransfer={onTransfer} onFreeze={onFreeze} onUnfreeze={onUnfreeze} />
+        <RowActions w={w} onView={onView} onAdjust={onAdjust} onTransfer={onTransfer} onFreeze={onFreeze} onUnfreeze={onUnfreeze} canMutate={canMutate} />
       </td>
     </tr>
   );
@@ -328,6 +331,8 @@ function MobileWalletCard({ w, onView }: { w: DrawerWallet; onView: (w: DrawerWa
 export default function WalletsPage() {
   const { toasts, toast, dismiss } = useToast();
   const { isMobile } = useResponsive();
+  const { role } = useAuth();
+  const isStaffOperations = role === "STAFF_OPERATIONS";
 
   // ── Server data state ────────────────────────────────────────────────────────
   const [wallets,       setWallets]       = useState<DrawerWallet[]>([]);
@@ -637,6 +642,7 @@ export default function WalletsPage() {
                         onTransfer={setTrfTarget}
                         onFreeze={handleFreeze}
                         onUnfreeze={handleUnfreeze}
+                        canMutate={!isStaffOperations}
                         hovered={hovered === w.id}
                         onHover={setHovered}
                       />
@@ -680,15 +686,15 @@ export default function WalletsPage() {
       <WalletDrawer
         wallet={liveDrawer}
         onClose={() => setDrawer(null)}
-        onAdjust={w => { setDrawer(null); setAdjTarget(w); }}
-        onTransfer={w => { setDrawer(null); setTrfTarget(w); }}
-        onFreeze={w => { handleFreeze(w); }}
-        onUnfreeze={w => { handleUnfreeze(w); }}
+        onAdjust={isStaffOperations ? undefined : w => { setDrawer(null); setAdjTarget(w); }}
+        onTransfer={isStaffOperations ? undefined : w => { setDrawer(null); setTrfTarget(w); }}
+        onFreeze={isStaffOperations ? undefined : w => { handleFreeze(w); }}
+        onUnfreeze={isStaffOperations ? undefined : w => { handleUnfreeze(w); }}
         onSaveNotes={handleSaveNotes}
       />
 
       {/* Modals */}
-      {liveAdj && (
+      {!isStaffOperations && liveAdj && (
         <AdjustmentModal
           wallet={liveAdj}
           onClose={() => setAdjTarget(null)}
@@ -698,7 +704,7 @@ export default function WalletsPage() {
           }}
         />
       )}
-      {liveTrf && (
+      {!isStaffOperations && liveTrf && (
         <TransferModal
           wallet={liveTrf}
           onClose={() => setTrfTarget(null)}

@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env";
+import { prisma } from "../config/prisma";
 import { AppError } from "./error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { AuthPayload, AuthenticatedRequest } from "../shared/types";
@@ -35,7 +36,31 @@ export function requireAdminAuth(req: Request, res: Response, next: NextFunction
       next(new AppError("Admin access required", HTTP_STATUS.FORBIDDEN, "FORBIDDEN"));
       return;
     }
-    next();
+
+    void prisma.admin.findUnique({
+      where: { id: authedReq.user.sub },
+      select: { isActive: true, role: true, updatedAt: true },
+    }).then((admin) => {
+      if (!admin) {
+        next(new AppError("Admin session is no longer valid", HTTP_STATUS.UNAUTHORIZED, "ADMIN_SESSION_INVALID"));
+        return;
+      }
+      if (!admin.isActive) {
+        next(new AppError("Admin account is disabled", HTTP_STATUS.FORBIDDEN, "ACCOUNT_DISABLED"));
+        return;
+      }
+      if (
+        authedReq.user.adminUpdatedAt === undefined ||
+        authedReq.user.adminUpdatedAt !== admin.updatedAt.getTime() ||
+        authedReq.user.role !== admin.role
+      ) {
+        next(new AppError("Admin session is stale", HTTP_STATUS.UNAUTHORIZED, "ADMIN_SESSION_STALE"));
+        return;
+      }
+      next();
+    }).catch(() => {
+      next(new AppError("Unable to validate admin session", HTTP_STATUS.UNAUTHORIZED, "ADMIN_SESSION_INVALID"));
+    });
   });
 }
 

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth, requireAdminAuth } from "../middleware/auth.middleware";
+import { requireAuth, requireAdminRoles } from "../middleware/auth.middleware";
 import { validate } from "../middleware/validate.middleware";
 import {
   submitVerificationSchema,
@@ -56,10 +56,12 @@ userRouter.get(
 // ── Admin routes (/api/admin/deposit-verifications) ───────────────────────────
 
 const adminRouter = Router();
+const adminReadGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN", "STAFF_OPERATIONS");
+const adminMutationGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN");
 
 adminRouter.get(
   "/",
-  requireAdminAuth,
+  adminReadGuard,
   validate(adminListVerificationsSchema, "query"),
   adminListVerifications,
 );
@@ -67,27 +69,27 @@ adminRouter.get(
 // /metrics must be declared BEFORE /:id so Express doesn't match "metrics" as an id param
 adminRouter.get(
   "/metrics",
-  requireAdminAuth,
+  adminReadGuard,
   adminGetMetrics,
 );
 
 adminRouter.post(
   "/:id/retry",
-  requireAdminAuth,
+  adminMutationGuard,
   validate(adminRetryVerificationSchema, "params"),
   adminRetryVerification,
 );
 
 adminRouter.post(
   "/:id/re-validate",
-  requireAdminAuth,
+  adminMutationGuard,
   validate(adminRevalidateParamsSchema, "params"),
   adminRevalidateVerification,
 );
 
 adminRouter.post(
   "/:id/manual-approve",
-  requireAdminAuth,
+  adminMutationGuard,
   validate(adminManualApproveParamsSchema, "params"),
   validate(adminManualApproveBodySchema, "body"),
   adminManualApproveVerification,
@@ -95,7 +97,7 @@ adminRouter.post(
 
 adminRouter.post(
   "/:id/reject",
-  requireAdminAuth,
+  adminMutationGuard,
   validate(adminRejectParamsSchema, "params"),
   validate(adminRejectBodySchema, "body"),
   adminRejectVerification,
@@ -103,7 +105,7 @@ adminRouter.post(
 
 adminRouter.get(
   "/:id",
-  requireAdminAuth,
+  adminReadGuard,
   validate(adminGetVerificationSchema, "params"),
   adminGetVerification,
 );

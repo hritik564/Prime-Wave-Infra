@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAdminAuth, requireAdminRoles } from "../middleware/auth.middleware.js";
+import { requireAdminRoles } from "../middleware/auth.middleware.js";
 import { adminLimiter } from "../middleware/rateLimiter.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
 import {
@@ -24,23 +24,20 @@ import {
 
 const router = Router();
 
-// SUPER_ADMIN + FINANCE_ADMIN — write operations
-const writeGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN");
-
-// Any authenticated admin — read operations
-const readGuard = requireAdminAuth;
+// Power Business contains sensitive financial/member-level data and controls.
+const powerBusinessGuard = requireAdminRoles("SUPER_ADMIN");
 
 // ── GET /api/admin/power-bv/stats ─────────────────────────────────────────────
 router.get(
   "/stats",
-  adminLimiter, readGuard,
+  adminLimiter, powerBusinessGuard,
   getGlobalStatsHandler,
 );
 
 // ── GET /api/admin/power-bv/ledger ────────────────────────────────────────────
 router.get(
   "/ledger",
-  adminLimiter, readGuard,
+  adminLimiter, powerBusinessGuard,
   validate(powerBvGlobalLedgerQuerySchema, "query"),
   getGlobalLedgerHandler,
 );
@@ -48,7 +45,7 @@ router.get(
 // ── GET /api/admin/power-bv/ledger/csv ───────────────────────────────────────
 router.get(
   "/ledger/csv",
-  adminLimiter, readGuard,
+  adminLimiter, powerBusinessGuard,
   validate(powerBvGlobalLedgerQuerySchema, "query"),
   getGlobalLedgerCsvHandler,
 );
@@ -56,14 +53,14 @@ router.get(
 // ── GET /api/admin/power-bv/analytics ────────────────────────────────────────
 router.get(
   "/analytics",
-  adminLimiter, readGuard,
+  adminLimiter, powerBusinessGuard,
   getGlobalAnalyticsHandler,
 );
 
 // ── GET /api/admin/power-bv/search ────────────────────────────────────────────
 router.get(
   "/search",
-  adminLimiter, readGuard,
+  adminLimiter, powerBusinessGuard,
   validate(powerBvSearchQuerySchema, "query"),
   searchMembersHandler,
 );
@@ -72,7 +69,7 @@ router.get(
 router.get(
   "/:userId",
   adminLimiter,
-  readGuard,
+  powerBusinessGuard,
   validate(powerBvUserIdParamSchema, "params"),
   getPowerSummaryHandler,
 );
@@ -81,7 +78,7 @@ router.get(
 router.get(
   "/:userId/ledger",
   adminLimiter,
-  readGuard,
+  powerBusinessGuard,
   validate(powerBvUserIdParamSchema, "params"),
   validate(powerBvLedgerQuerySchema, "query"),
   getPowerLedgerHandler,
@@ -91,7 +88,7 @@ router.get(
 router.post(
   "/:userId/add",
   adminLimiter,
-  writeGuard,
+  powerBusinessGuard,
   validate(powerBvUserIdParamSchema, "params"),
   validate(powerBvAddSchema),
   addPowerBVHandler,
@@ -101,7 +98,7 @@ router.post(
 router.post(
   "/:userId/remove",
   adminLimiter,
-  writeGuard,
+  powerBusinessGuard,
   validate(powerBvUserIdParamSchema, "params"),
   validate(powerBvRemoveSchema),
   removePowerBVHandler,

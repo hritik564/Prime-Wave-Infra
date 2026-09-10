@@ -6,6 +6,7 @@ import {
   CheckSquare, ArrowRight, Wifi, WifiOff, BarChart2, AlertOctagon,
 } from "lucide-react";
 import AdminLayout from "./AdminLayout";
+import { useAuth } from "@/providers/AuthProvider";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
 import {
   getWithdrawalQueue,
@@ -350,6 +351,8 @@ const PAGE_SIZE = 25;
 
 export default function WithdrawalQueuePage() {
   const { toasts, toast: showToast, dismiss: dismissToast } = useToast();
+  const { role } = useAuth();
+  const isStaffOperations = role === "STAFF_OPERATIONS";
   const [items, setItems]               = useState<WithdrawalQueueItem[]>([]);
   const [loading, setLoading]           = useState(true);
   const [processing, setProcessing]     = useState(false);
@@ -374,6 +377,7 @@ export default function WithdrawalQueuePage() {
   useEffect(() => { void load(); }, [load]);
 
   const handleProcess = async () => {
+    if (isStaffOperations) return;
     setProcessing(true);
     try {
       const result = await triggerProcessQueue();
@@ -435,7 +439,7 @@ export default function WithdrawalQueuePage() {
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </button>
-            <button
+            {!isStaffOperations && <button
               onClick={() => void handleProcess()}
               disabled={processing || loading}
               className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all"
@@ -449,7 +453,7 @@ export default function WithdrawalQueuePage() {
                 ? <Loader2 className="h-4 w-4 animate-spin" />
                 : <Play className="h-4 w-4" />}
               {processing ? "Processing…" : "Process Queue"}
-            </button>
+            </button>}
           </div>
         </div>
 

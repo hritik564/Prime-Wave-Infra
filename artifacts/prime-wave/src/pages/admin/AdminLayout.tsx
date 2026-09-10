@@ -12,6 +12,7 @@ import {
 import { adminSearchUsers, type AdminUserListItem } from "@/lib/api";
 import { SkeletonStyle, Skeleton } from "@/components/admin/Skeleton";
 import { useResponsive } from "@/hooks/useResponsive";
+import { PERMISSIONS, type Permission } from "@/lib/permissions";
 
 const GOLD   = "#D4AF37";
 const GOLD_L = "#F3D37A";
@@ -19,64 +20,64 @@ const MUTED  = "rgba(170,179,197,0.48)";
 const BORDER = "rgba(255,255,255,0.07)";
 const BG_SIDEBAR = "hsl(222 62% 5%)";
 
-interface NavChild  { icon: React.ElementType; label: string; path: string }
-interface NavItem   { icon: React.ElementType; label: string; path: string; children?: NavChild[] }
+interface NavChild  { icon: React.ElementType; label: string; path: string; permission?: Permission }
+interface NavItem   { icon: React.ElementType; label: string; path: string; permission?: Permission; children?: NavChild[] }
 interface NavGroup  { label: string; items: NavItem[] }
 
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "OVERVIEW",
     items: [
-      { icon: LayoutDashboard, label: "Dashboard",      path: "/admin" },
+      { icon: LayoutDashboard, label: "Dashboard",      path: "/admin", permission: PERMISSIONS.VIEW_DASHBOARD },
     ],
   },
   {
     label: "MANAGEMENT",
     items: [
-      { icon: Users,           label: "Members",        path: "/admin/members" },
-      { icon: TrendingUp,      label: "Investments",    path: "/admin/investments" },
-      { icon: ArrowDownToLine, label: "Deposits",       path: "/admin/deposits" },
-      { icon: Wifi,            label: "Auto Deposits",  path: "/admin/auto-deposits" },
-      { icon: BadgeDollarSign, label: "Manual Credit",  path: "/admin/manual-credit" },
-      { icon: ArrowDownLeft,   label: "Withdrawals",    path: "/admin/withdrawals" },
-      { icon: Zap,             label: "W. Queue",       path: "/admin/withdrawal-queue" },
-      { icon: Activity,        label: "W. Ops Health",  path: "/admin/withdrawal-ops" },
-      { icon: Wallet,          label: "Wallets",        path: "/admin/wallets" },
+      { icon: Users,           label: "Members",        path: "/admin/members", permission: PERMISSIONS.VIEW_MEMBERS },
+      { icon: TrendingUp,      label: "Investments",    path: "/admin/investments", permission: PERMISSIONS.VIEW_INVESTMENTS },
+      { icon: ArrowDownToLine, label: "Deposits",       path: "/admin/deposits", permission: PERMISSIONS.VIEW_DEPOSITS },
+      { icon: Wifi,            label: "Auto Deposits",  path: "/admin/auto-deposits", permission: PERMISSIONS.VIEW_AUTO_DEPOSITS },
+      { icon: BadgeDollarSign, label: "Manual Credit",  path: "/admin/manual-credit", permission: PERMISSIONS.MANAGE_WALLETS },
+      { icon: ArrowDownLeft,   label: "Withdrawals",    path: "/admin/withdrawals", permission: PERMISSIONS.VIEW_WITHDRAWALS },
+      { icon: Zap,             label: "W. Queue",       path: "/admin/withdrawal-queue", permission: PERMISSIONS.VIEW_WITHDRAWAL_QUEUE },
+      { icon: Activity,        label: "W. Ops Health",  path: "/admin/withdrawal-ops", permission: PERMISSIONS.VIEW_WITHDRAWAL_OPS },
+      { icon: Wallet,          label: "Wallets",        path: "/admin/wallets", permission: PERMISSIONS.VIEW_WALLETS },
     ],
   },
   {
     label: "ENGINE",
     items: [
-      { icon: GitBranch, label: "Binary Network",  path: "/admin/binary"          },
-      { icon: Zap,       label: "Income Engine",   path: "/admin/income"          },
-      { icon: Bolt,      label: "Power Business",  path: "/admin/power-business"  },
+      { icon: GitBranch, label: "Binary Network",  path: "/admin/binary", permission: PERMISSIONS.VIEW_BINARY },
+      { icon: Zap,       label: "Income Engine",   path: "/admin/income", permission: PERMISSIONS.MANAGE_INCOME_ENGINE },
+      { icon: Bolt,      label: "Power Business",  path: "/admin/power-business", permission: PERMISSIONS.VIEW_POWER_BUSINESS },
     ],
   },
   {
     label: "PLATFORM",
     items: [
-      { icon: Package,   label: "Plans & Config", path: "/admin/plans" },
-      { icon: Settings,  label: "Company Wallets",path: "/admin/company-wallets" },
+      { icon: Package,   label: "Plans & Config", path: "/admin/plans", permission: PERMISSIONS.MANAGE_CONFIGURATION },
+      { icon: Settings,  label: "Company Wallets",path: "/admin/company-wallets", permission: PERMISSIONS.VIEW_COMPANY_WALLETS },
     ],
   },
   {
     label: "FINANCE",
     items: [
-      { icon: DollarSign, label: "Salary Mgmt", path: "/admin/salary" },
-      { icon: Shield,     label: "Integrity",   path: "/admin/treasury" },
+      { icon: DollarSign, label: "Salary Mgmt", path: "/admin/salary", permission: PERMISSIONS.VIEW_SALARY },
+      { icon: Shield,     label: "Integrity",   path: "/admin/treasury", permission: PERMISSIONS.VIEW_TREASURY },
     ],
   },
   {
     label: "BLOCKCHAIN",
     items: [
-      { icon: Link,       label: "Chain Health",  path: "/admin/blockchain-health" },
-      { icon: FlaskRound, label: "Chain Tester",  path: "/admin/blockchain-tester" },
+      { icon: Link,       label: "Chain Health",  path: "/admin/blockchain-health", permission: PERMISSIONS.VIEW_BLOCKCHAIN },
+      { icon: FlaskRound, label: "Chain Tester",  path: "/admin/blockchain-tester", permission: PERMISSIONS.VIEW_BLOCKCHAIN },
     ],
   },
   {
     label: "DEVELOPER",
     items: [
-      { icon: FlaskConical, label: "Dev Tools", path: "/dev-tools" },
+      { icon: FlaskConical, label: "Dev Tools", path: "/dev-tools", permission: PERMISSIONS.MANAGE_DEV_TOOLS },
     ],
   },
 ];
@@ -573,6 +574,8 @@ function SidebarContent({
 }: {
   location: string; collapsed: boolean; onNavigate: () => void; onLogout: () => void;
 }) {
+  const { hasPermission } = useAuth();
+
   return (
     <>
       {/* Brand */}
@@ -601,7 +604,10 @@ function SidebarContent({
 
       {/* Nav groups */}
       <div style={{ flex: 1, padding: collapsed ? "8px 4px" : "8px 8px", overflowY: "auto" }}>
-        {NAV_GROUPS.map(group => (
+        {NAV_GROUPS.map(group => {
+          const visibleItems = group.items.filter(item => !item.permission || hasPermission(item.permission));
+          if (visibleItems.length === 0) return null;
+          return (
           <div key={group.label} style={{ marginBottom: 8 }} role="group" aria-label={group.label}>
             {!collapsed && (
               <div style={{
@@ -609,7 +615,7 @@ function SidebarContent({
                 color: "rgba(170,179,197,0.28)", padding: "6px 12px 4px",
               }}>{group.label}</div>
             )}
-            {group.items.map(item =>
+            {visibleItems.map(item =>
               item.children && item.children.length > 0 ? (
                 <SidebarExpandableItem
                   key={item.path}
@@ -634,7 +640,8 @@ function SidebarContent({
               )
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Logout */}

@@ -31,3 +31,4 @@
 - [Cross-database timestamp normalization](cross-db-timestamp-normalization.md) — normalize snapshot boundaries and timestamps to UTC when comparing Netcup and Replit.
 - [Publish metadata-table drift](publish-metadata-table-drift.md) — Publish diffs live dev/prod catalogs; db push dev without Prisma metadata can yield destructive _prisma_migrations drop.
 - [Publish development-data copy](publish-development-data-copy.md) — Replit’s optional publish data setup copies all dev state to Production and can overwrite existing rows; keep it disabled for an existing authoritative DB.
+- [Staff Operations role](staff-operations-role.md) — least-privilege operational access uses role/session-version checks without changing existing admins

@@ -246,24 +246,29 @@ router.post("/login", authLimiter, validate(adminLoginSchema), adminLogin);
 // ── Protected — any authenticated admin ───────────────────────────────────────
 router.get("/profile", adminLimiter, requireAdminAuth, adminGetProfile);
 
-// Manual cycle triggers
-router.post("/trigger/matching",       adminLimiter, requireAdminAuth, triggerMatchingCycle);
-router.post("/trigger/orbit",          adminLimiter, requireAdminAuth, triggerOrbitCycle);
+// Manual cycle triggers — Super Admin only
+router.post("/trigger/matching",       adminLimiter, requireAdminRoles("SUPER_ADMIN"), triggerMatchingCycle);
+router.post("/trigger/orbit",          adminLimiter, requireAdminRoles("SUPER_ADMIN"), triggerOrbitCycle);
 router.post("/trigger/roi",            adminLimiter, requireAdminRoles("SUPER_ADMIN"), triggerRoiCycle);
 router.post("/dev/seed-binary-tree",   adminLimiter, requireAdminRoles("SUPER_ADMIN"), triggerSeedBinaryTree);
 router.post("/dev/repair-seed-investments", adminLimiter, requireAdminRoles("SUPER_ADMIN"), triggerRepairSeedInvestments);
 
-// System settings
-router.get("/settings",        adminLimiter, requireAdminAuth, listSettings);
-router.patch("/settings/:key", adminLimiter, requireAdminAuth, updateSetting);
+// System settings — Super Admin only
+router.get("/settings",        adminLimiter, requireAdminRoles("SUPER_ADMIN"), listSettings);
+router.patch("/settings/:key", adminLimiter, requireAdminRoles("SUPER_ADMIN"), updateSetting);
 
 // ── Deposit admin — SUPER_ADMIN and FINANCE_ADMIN only ────────────────────────
 const financeAdminGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN");
+const staffReadGuard = requireAdminRoles("SUPER_ADMIN", "STAFF_OPERATIONS");
+const supportOperationsGuard = requireAdminRoles("SUPER_ADMIN", "SUPPORT_ADMIN", "STAFF_OPERATIONS");
+const depositReadGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN", "STAFF_OPERATIONS");
+const walletReadGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN", "STAFF_OPERATIONS");
+const withdrawalReadGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN", "STAFF_OPERATIONS");
 
 router.get(
   "/deposits",
   adminLimiter,
-  financeAdminGuard,
+  depositReadGuard,
   validate(adminDepositListQuerySchema, "query"),
   getAdminDepositsHandler,
 );
@@ -271,14 +276,14 @@ router.get(
 router.get(
   "/deposits/stats",
   adminLimiter,
-  financeAdminGuard,
+  depositReadGuard,
   getDepositStatsHandler,
 );
 
 router.get(
   "/deposits/pending",
   adminLimiter,
-  financeAdminGuard,
+  depositReadGuard,
   validate(adminDepositListQuerySchema, "query"),
   getPendingDepositsHandler,
 );
@@ -286,7 +291,7 @@ router.get(
 router.get(
   "/deposits/:id",
   adminLimiter,
-  financeAdminGuard,
+  depositReadGuard,
   getDepositByIdHandler,
 );
 
@@ -320,11 +325,12 @@ router.post(
   markDepositConfirmingHandler,
 );
 
-// ── Dashboard — SUPER_ADMIN only ──────────────────────────────────────────────
+// ── Dashboard — SUPER_ADMIN and STAFF_OPERATIONS read access ───────────────────
 const superAdminGuard = requireAdminRoles("SUPER_ADMIN");
+const dashboardReadGuard = requireAdminRoles("SUPER_ADMIN", "STAFF_OPERATIONS");
 
-router.get("/dashboard",     adminLimiter, superAdminGuard, getDashboardHandler);
-router.get("/system-health", adminLimiter, superAdminGuard, getSystemHealthHandler);
+router.get("/dashboard",     adminLimiter, dashboardReadGuard, getDashboardHandler);
+router.get("/system-health", adminLimiter, dashboardReadGuard, getSystemHealthHandler);
 
 // ── Reports — SUPER_ADMIN only ────────────────────────────────────────────────
 router.get(
@@ -336,7 +342,7 @@ router.get(
 
 router.get(
   "/reports/daily-business",
-  adminLimiter, superAdminGuard,
+  adminLimiter, dashboardReadGuard,
   validate(paginatedDateRangeSchema, "query"),
   dailyBusinessReportHandler,
 );
@@ -362,13 +368,13 @@ router.get(
   validate(dateRangeSchema, "query"),
   networkDistributionHandler,
 );
-router.get("/reports/pending",              adminLimiter, superAdminGuard, pendingOperationsHandler);
+router.get("/reports/pending",              adminLimiter, dashboardReadGuard, pendingOperationsHandler);
 router.get("/reports/risk",                 adminLimiter, superAdminGuard, riskReportHandler);
 
-// ── Member Reports — SUPER_ADMIN only ────────────────────────────────────────
+// ── Member Reports — read access for support/staff; exports remain SUPER_ADMIN ─
 router.get(
   "/reports/members",
-  adminLimiter, superAdminGuard,
+  adminLimiter, supportOperationsGuard,
   validate(memberReportQuerySchema, "query"),
   memberReportHandler,
 );
@@ -397,8 +403,8 @@ router.get("/reports/export/withdrawals",   adminLimiter, superAdminGuard, expor
 router.get("/reports/export/salary-income", adminLimiter, superAdminGuard, exportSalaryIncomeHandler);
 router.get("/reports/export/binary-income", adminLimiter, superAdminGuard, exportBinaryIncomeHandler);
 
-// ── User management — SUPER_ADMIN + SUPPORT_ADMIN ─────────────────────────────
-const supportAdminGuard = requireAdminRoles("SUPER_ADMIN", "SUPPORT_ADMIN");
+// ── User management — SUPER_ADMIN + SUPPORT_ADMIN + STAFF_OPERATIONS ───────────
+const supportAdminGuard = supportOperationsGuard;
 
 router.get(
   "/users/search",
@@ -523,7 +529,7 @@ router.post(
 router.get(
   "/wallets",
   adminLimiter,
-  financeAdminGuard,
+  walletReadGuard,
   validate(adminWalletListQuerySchema, "query"),
   getAdminWalletsHandler,
 );
@@ -531,14 +537,14 @@ router.get(
 router.get(
   "/wallets/stats",
   adminLimiter,
-  financeAdminGuard,
+  walletReadGuard,
   getAdminWalletStatsHandler,
 );
 
 router.get(
   "/wallets/:userId",
   adminLimiter,
-  financeAdminGuard,
+  walletReadGuard,
   getAdminWalletByIdHandler,
 );
 
@@ -604,31 +610,32 @@ router.patch(
 // ── Investment monitoring — SUPER_ADMIN only ──────────────────────────────────
 router.get(
   "/investments",
-  adminLimiter, superAdminGuard,
+  adminLimiter, staffReadGuard,
   validate(adminInvestmentListQuerySchema, "query"),
   listAdminInvestmentsHandler,
 );
 
 router.get(
   "/investments/:id",
-  adminLimiter, superAdminGuard,
+  adminLimiter, staffReadGuard,
   getAdminInvestmentHandler,
 );
 
-// ── Withdrawal admin — SUPER_ADMIN and FINANCE_ADMIN only ─────────────────────
+// ── Withdrawal admin — read access also includes STAFF_OPERATIONS ──────────────
 const withdrawalAdminGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN");
+const withdrawalViewGuard = withdrawalReadGuard;
 
 router.get(
   "/withdrawals/operational-health",
   adminLimiter,
-  withdrawalAdminGuard,
+  withdrawalViewGuard,
   getWithdrawalOperationalHealthHandler,
 );
 
 router.get(
   "/withdrawals/engine",
   adminLimiter,
-  withdrawalAdminGuard,
+  withdrawalViewGuard,
   getWithdrawalEngineStatusHandler,
 );
 
@@ -642,7 +649,7 @@ router.post(
 router.get(
   "/withdrawals/settings",
   adminLimiter,
-  withdrawalAdminGuard,
+  withdrawalViewGuard,
   getAdminWithdrawalSettingsHandler,
 );
 
@@ -657,7 +664,7 @@ router.put(
 router.get(
   "/withdrawals/queue",
   adminLimiter,
-  withdrawalAdminGuard,
+  withdrawalViewGuard,
   getWithdrawalQueueHandler,
 );
 
@@ -671,7 +678,7 @@ router.post(
 router.get(
   "/withdrawals",
   adminLimiter,
-  withdrawalAdminGuard,
+  withdrawalViewGuard,
   validate(adminWithdrawalListQuerySchema, "query"),
   getAdminWithdrawalsHandler,
 );
@@ -679,14 +686,14 @@ router.get(
 router.get(
   "/withdrawals/stats",
   adminLimiter,
-  withdrawalAdminGuard,
+  withdrawalViewGuard,
   getAdminWithdrawalStatsHandler,
 );
 
 router.get(
   "/withdrawals/:id",
   adminLimiter,
-  withdrawalAdminGuard,
+  withdrawalViewGuard,
   getAdminWithdrawalByIdHandler,
 );
 
@@ -740,7 +747,7 @@ router.patch(
 router.get(
   "/withdrawals/:id/events",
   adminLimiter,
-  withdrawalAdminGuard,
+  withdrawalViewGuard,
   getWithdrawalEventsHandler,
 );
 
@@ -820,8 +827,8 @@ router.patch(
   updateCompanyWalletHandler,
 );
 
-// ── Deposit Verification — SUPER_ADMIN and FINANCE_ADMIN ──────────────────────
-router.use("/deposit-verifications", adminLimiter, financeAdminGuard, adminDepositVerificationRouter);
+// ── Deposit Verification — read access includes Staff; mutations stay Finance ──
+router.use("/deposit-verifications", adminLimiter, depositReadGuard, adminDepositVerificationRouter);
 
 // ── Genesis Scripts — SUPER_ADMIN only ───────────────────────────────────────
 router.post("/scripts/rd-activation",      adminLimiter, superAdminGuard, rdActivationHandler);

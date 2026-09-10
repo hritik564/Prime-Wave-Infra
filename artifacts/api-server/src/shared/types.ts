@@ -5,6 +5,8 @@ export interface AuthPayload {
   email: string;
   type: "user" | "admin";
   role?: string;
+  /** Admin account updatedAt timestamp captured when the JWT was issued. */
+  adminUpdatedAt?: number;
   /** Present only on impersonation tokens */
   impersonated?: true;
   originalAdminId?: string;

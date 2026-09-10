@@ -222,11 +222,12 @@ function BlockDialog({ member, onClose, onConfirm }: { member: DrawerMember; onC
 // ─────────────────────────────────────────────────────────────────────────────
 // Row action buttons
 // ─────────────────────────────────────────────────────────────────────────────
-const RowActions = memo(function RowActions({ row, onView, onToggleStatus, onBlock }: {
+const RowActions = memo(function RowActions({ row, onView, onToggleStatus, onBlock, canMutate = true }: {
   row: ReportRow;
   onView: () => void;
   onToggleStatus: () => void;
   onBlock: () => void;
+  canMutate?: boolean;
 }) {
   const isBlocked   = row.accountStatus === "BLOCKED";
   const isSuspended = row.accountStatus === "SUSPENDED";
@@ -242,7 +243,7 @@ const RowActions = memo(function RowActions({ row, onView, onToggleStatus, onBlo
         <Eye size={11} />View
       </button>
 
-      {isActive ? (
+      {canMutate && isActive ? (
         <button
           onClick={e => { e.stopPropagation(); onToggleStatus(); }}
           title="Suspend member"
@@ -250,7 +251,7 @@ const RowActions = memo(function RowActions({ row, onView, onToggleStatus, onBlo
         >
           <ShieldX size={11} />Suspend
         </button>
-      ) : !isBlocked ? (
+      ) : canMutate && !isBlocked ? (
         <button
           onClick={e => { e.stopPropagation(); onToggleStatus(); }}
           title="Activate member"
@@ -260,7 +261,7 @@ const RowActions = memo(function RowActions({ row, onView, onToggleStatus, onBlo
         </button>
       ) : null}
 
-      {!isBlocked && (
+      {canMutate && !isBlocked && (
         <button
           onClick={e => { e.stopPropagation(); onBlock(); }}
           title="Block member"
@@ -283,6 +284,8 @@ const RowActions = memo(function RowActions({ row, onView, onToggleStatus, onBlo
 const LIMIT = 50;
 
 export default function MembersPage() {
+  const { role } = useAuth();
+  const isStaffOperations = role === "STAFF_OPERATIONS";
   const { startImpersonating } = useAuth();
   const [filters,   setFilters]   = useState<Filters>(DEFAULT_FILTERS);
   const [applied,   setApplied]   = useState<Filters>(DEFAULT_FILTERS);
@@ -397,6 +400,7 @@ export default function MembersPage() {
 
   const handleDrawerAction = useCallback((label: string) => {
     if (!drawer) return;
+    if (isStaffOperations && !["Suspend Member", "Activate Member", "Block Member"].includes(label)) return;
     if (label === "Suspend Member")  { setSuspendTarget(drawer);  return; }
     if (label === "Activate Member") { setActivateTarget(drawer); return; }
     if (label === "Block Member")    { setBlockTarget(drawer);    return; }
@@ -405,7 +409,7 @@ export default function MembersPage() {
     if (label === "Login As User")   { setLoginAsTarget(drawer);  return; }
     if (label === "Delete Member")   { setDeleteTarget(drawer);   return; }
     if (label === "Edit Member")     { setEditTarget(drawer);     return; }
-  }, [drawer]);
+  }, [drawer, isStaffOperations]);
 
   const updateRowStatus = useCallback((id: string, status: Status) => {
     setData(prev => {
@@ -665,6 +669,7 @@ export default function MembersPage() {
                           else if (row.accountStatus !== "BLOCKED") setActivateTarget(m);
                         }}
                         onBlock={() => setBlockTarget(mapRow(row))}
+                         canMutate={isStaffOperations || role === "SUPER_ADMIN" || role === "FINANCE_ADMIN" || role === "SUPPORT_ADMIN"}
                       />
                     </td>
                   </tr>
@@ -716,7 +721,7 @@ export default function MembersPage() {
       <MemberDrawer member={drawer} detail={drawerDetail} onClose={closeDrawer} onAction={handleDrawerAction} />
 
       {/* ── Create member modal ── */}
-      {createOpen && (
+      {!isStaffOperations && createOpen && (
         <MemberModal
           mode="create"
           onClose={() => setCreateOpen(false)}
@@ -725,7 +730,7 @@ export default function MembersPage() {
       )}
 
       {/* ── Edit member modal ── */}
-      {editTarget && (
+      {!isStaffOperations && editTarget && (
         <MemberModal
           mode="edit"
           userId={editTarget.id}
@@ -790,7 +795,7 @@ export default function MembersPage() {
           }}
         />
       )}
-      {deleteTarget && (
+      {!isStaffOperations && deleteTarget && (
         <DeleteDialog member={deleteTarget} onClose={() => setDeleteTarget(null)}
           onConfirm={() => {
             const target = deleteTarget;
@@ -809,7 +814,7 @@ export default function MembersPage() {
               });
           }} />
       )}
-      {resetTarget && (
+      {!isStaffOperations && resetTarget && (
         <ResetPasswordDialog member={resetTarget} onClose={() => setResetTarget(null)}
           onConfirm={async (pass) => {
             try {
@@ -818,11 +823,11 @@ export default function MembersPage() {
             } catch { toast("Failed to reset password", "error"); }
           }} />
       )}
-      {kycTarget && (
+      {!isStaffOperations && kycTarget && (
         <ApproveKYCDialog member={kycTarget} onClose={() => setKycTarget(null)}
           onConfirm={() => toast("KYC management — coming soon", "info")} />
       )}
-      {loginAsTarget && (
+      {!isStaffOperations && loginAsTarget && (
         <LoginAsUserDialog member={loginAsTarget} onClose={() => setLoginAsTarget(null)}
           onConfirm={async (reason) => {
             const result = await adminImpersonateUser(loginAsTarget.id, reason);

@@ -45,6 +45,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
 import { Inbox } from "lucide-react";
+import { PERMISSIONS, type Permission } from "@/lib/permissions";
 
 function ComingSoon({ title }: { title: string }) {
   return (
@@ -97,13 +98,13 @@ function RequireMember({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function RequireAdmin({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isAdmin } = useAuth();
+function RequireAdmin({ children, permission }: { children: React.ReactNode; permission?: Permission }) {
+  const { isAuthenticated, isAdmin, hasPermission } = useAuth();
 
   if (!isAuthenticated) {
     return <Redirect to="/login" />;
   }
-  if (!isAdmin) {
+  if (!isAdmin || (permission !== undefined && !hasPermission(permission))) {
     return <Redirect to="/access-denied" />;
   }
   return <>{children}</>;
@@ -194,72 +195,72 @@ function AppRoutes() {
 
       {/* ── Admin Portal (admins only) ── */}
       <Route path="/admin">
-        <RequireAdmin><Suspense fallback={null}><AdminDashboardPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_DASHBOARD}><Suspense fallback={null}><AdminDashboardPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/members">
-        <RequireAdmin><Suspense fallback={null}><AdminMembersPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_MEMBERS}><Suspense fallback={null}><AdminMembersPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/investments">
-        <RequireAdmin><Suspense fallback={null}><AdminInvestmentsPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_INVESTMENTS}><Suspense fallback={null}><AdminInvestmentsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/deposits">
-        <RequireAdmin><Suspense fallback={null}><AdminDepositsPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_DEPOSITS}><Suspense fallback={null}><AdminDepositsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/auto-deposits">
-        <RequireAdmin><Suspense fallback={null}><AdminAutoDepositsPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_AUTO_DEPOSITS}><Suspense fallback={null}><AdminAutoDepositsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/manual-credit">
-        <RequireAdmin><Suspense fallback={null}><AdminManualCreditPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.MANAGE_WALLETS}><Suspense fallback={null}><AdminManualCreditPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/withdrawals">
-        <RequireAdmin><Suspense fallback={null}><AdminWithdrawalsPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_WITHDRAWALS}><Suspense fallback={null}><AdminWithdrawalsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/withdrawal-queue">
-        <RequireAdmin><Suspense fallback={null}><AdminWithdrawalQueuePage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_WITHDRAWAL_QUEUE}><Suspense fallback={null}><AdminWithdrawalQueuePage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/withdrawal-ops">
-        <RequireAdmin><Suspense fallback={null}><AdminWithdrawalOpsPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_WITHDRAWAL_OPS}><Suspense fallback={null}><AdminWithdrawalOpsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/wallets">
-        <RequireAdmin><Suspense fallback={null}><AdminWalletsPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_WALLETS}><Suspense fallback={null}><AdminWalletsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/binary">
-        <RequireAdmin><Suspense fallback={null}><AdminBinaryNetworkPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_BINARY}><Suspense fallback={null}><AdminBinaryNetworkPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/income">
-        <RequireAdmin><Suspense fallback={null}><AdminIncomeEnginePage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.MANAGE_INCOME_ENGINE}><Suspense fallback={null}><AdminIncomeEnginePage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/power-business">
-        <RequireAdmin><Suspense fallback={null}><AdminPowerBusinessPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_POWER_BUSINESS}><Suspense fallback={null}><AdminPowerBusinessPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/plans">
-        <RequireAdmin><Suspense fallback={null}><AdminPlansPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.MANAGE_CONFIGURATION}><Suspense fallback={null}><AdminPlansPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/company-wallets">
-        <RequireAdmin><Suspense fallback={null}><AdminCompanyWalletsPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_COMPANY_WALLETS}><Suspense fallback={null}><AdminCompanyWalletsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/reports">
-        <RequireAdmin><Suspense fallback={null}><AdminOperationsPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_REPORTS}><Suspense fallback={null}><AdminOperationsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/blockchain-health">
-        <RequireAdmin><Suspense fallback={null}><AdminBlockchainHealthPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_BLOCKCHAIN}><Suspense fallback={null}><AdminBlockchainHealthPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/blockchain-tester">
-        <RequireAdmin><Suspense fallback={null}><AdminBlockchainTesterPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_BLOCKCHAIN}><Suspense fallback={null}><AdminBlockchainTesterPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/treasury">
-        <RequireAdmin><Suspense fallback={null}><AdminTreasuryPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_TREASURY}><Suspense fallback={null}><AdminTreasuryPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/salary">
-        <RequireAdmin><Suspense fallback={null}><AdminSalaryPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.VIEW_SALARY}><Suspense fallback={null}><AdminSalaryPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/:rest*">
-        <RequireAdmin><Suspense fallback={null}><AdminDashboardPage /></Suspense></RequireAdmin>
+        <Redirect to="/access-denied" />
       </Route>
 
       {/* ── Dev Toolkit (dev only) ── */}
       <Route path="/dev-tools">
-        <DevToolsPage />
+        <RequireAdmin permission={PERMISSIONS.MANAGE_DEV_TOOLS}><DevToolsPage /></RequireAdmin>
       </Route>
 
       {/* ── Root + catch-all → login ── */}

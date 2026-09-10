@@ -12,6 +12,7 @@ enum AdminRole {
   FINANCE_ADMIN
   SUPPORT_ADMIN
   REWARD_MANAGER
+  STAFF_OPERATIONS
 }
 
 enum UserStatus {

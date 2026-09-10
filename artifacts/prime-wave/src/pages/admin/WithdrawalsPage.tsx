@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { RotateCcw } from "lucide-react";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useAuth } from "@/providers/AuthProvider";
 import AdminLayout from "./AdminLayout";
 import WithdrawalDrawer, { type DrawerWithdrawal, type DrawerAuditLog } from "./WithdrawalDrawer";
 import { ApprovalModal, RejectModal, HoldModal } from "./WithdrawalModals";
@@ -219,28 +220,29 @@ function ProcessingQueue({stats}:{stats:AdminWithdrawalStats|null}) {
 }
 
 // ─── ActionDropdown ───────────────────────────────────────────────────────────
-function ActionDropdown({ w, onApprove, onReject, onReprocess, onHold, onView, onCancel, onAssign }: {
+function ActionDropdown({ w, onApprove, onReject, onReprocess, onHold, onView, onCancel, onAssign, canMutate = true }: {
   w: AdminWithdrawalItem;
   onApprove:(w:AdminWithdrawalItem)=>void; onReject:(w:AdminWithdrawalItem)=>void;
   onReprocess:(w:AdminWithdrawalItem)=>void;
   onHold:(w:AdminWithdrawalItem)=>void; onView:(w:AdminWithdrawalItem)=>void;
   onCancel:(w:AdminWithdrawalItem)=>void; onAssign:(w:AdminWithdrawalItem)=>void;
+  canMutate?: boolean;
 }) {
   const [open,setOpen]=useState(false);
   const isActionable = ["PENDING","APPROVED","UNDER_REVIEW","MANUAL_REVIEW"].includes(w.status);
   const items=[
     {icon:Eye,         label:"View Details",    color:"rgba(255,255,255,0.7)", fn:()=>onView(w)},
-    ...(w.status==="PENDING"?[
+    ...(canMutate && w.status==="PENDING"?[
       {icon:CheckCircle, label:"Approve",         color:"#34d399", fn:()=>onApprove(w)},
     ]:[]),
-    ...(isActionable?[
+    ...(canMutate && isActionable?[
       {icon:RotateCcw,   label:"Re-process",      color:"#60a5fa", fn:()=>onReprocess(w)},
       {icon:X,           label:"Reject",          color:"#f87171", fn:()=>onReject(w)},
     ]:[]),
-    ...(w.status==="PENDING"?[
+    ...(canMutate && w.status==="PENDING"?[
       {icon:Clock,       label:"Hold",            color:"#fbbf24", fn:()=>onHold(w)},
     ]:[]),
-    {icon:UserCheck,   label:"Assign Reviewer", color:"rgba(255,255,255,0.7)", fn:()=>onAssign(w)},
+    ...(canMutate ? [{icon:UserCheck,   label:"Assign Reviewer", color:"rgba(255,255,255,0.7)", fn:()=>onAssign(w)}] : []),
     {icon:Users,       label:"View Member",     color:"rgba(255,255,255,0.7)", fn:()=>{}},
     {icon:Shield,      label:"Audit Trail",     color:"rgba(255,255,255,0.7)", fn:()=>onView(w)},
   ];
@@ -266,13 +268,14 @@ function ActionDropdown({ w, onApprove, onReject, onReprocess, onHold, onView, o
 }
 
 // ─── Table Row (memoized) ─────────────────────────────────────────────────────
-const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowClick, onApprove, onReject, onReprocess, onHold, onCancel, onAssign, isHover, onHoverSet }: {
+const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowClick, onApprove, onReject, onReprocess, onHold, onCancel, onAssign, isHover, onHoverSet, canMutate = true }: {
   w:AdminWithdrawalItem; checked:boolean; onToggle:()=>void; onRowClick:()=>void;
   onApprove:(w:AdminWithdrawalItem)=>void; onReject:(w:AdminWithdrawalItem)=>void;
   onReprocess:(w:AdminWithdrawalItem)=>void;
   onHold:(w:AdminWithdrawalItem)=>void;
   onCancel:(w:AdminWithdrawalItem)=>void; onAssign:(w:AdminWithdrawalItem)=>void;
   isHover:boolean; onHoverSet:(id:string|null)=>void;
+  canMutate?: boolean;
 }) {
   const amt = parseFloat(w.amount);
   const pri = derivePriority(amt);
@@ -321,7 +324,7 @@ const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowC
         </span>
       </td>
       <td style={{padding:"11px 8px"}} onClick={e=>e.stopPropagation()}>
-        <ActionDropdown w={w} onApprove={onApprove} onReject={onReject} onReprocess={onReprocess} onHold={onHold} onView={onRowClick as never} onCancel={onCancel} onAssign={onAssign}/>
+        <ActionDropdown w={w} onApprove={onApprove} onReject={onReject} onReprocess={onReprocess} onHold={onHold} onView={onRowClick as never} onCancel={onCancel} onAssign={onAssign} canMutate={canMutate}/>
       </td>
     </tr>
   );
@@ -421,12 +424,13 @@ const ADMIN_REVIEWERS = ["alice@primewave.io","bob@primewave.io","compliance@pri
 const DEBOUNCE_MS = 400;
 
 // ─── Mobile card ─────────────────────────────────────────────────────────────
-function MobileWithdrawalCard({ w, onClick, onReprocess, onReject, onApprove }: {
+function MobileWithdrawalCard({ w, onClick, onReprocess, onReject, onApprove, canMutate = true }: {
   w: AdminWithdrawalItem;
   onClick: () => void;
   onReprocess: (w: AdminWithdrawalItem) => void;
   onReject: (w: AdminWithdrawalItem) => void;
   onApprove: (w: AdminWithdrawalItem) => void;
+  canMutate?: boolean;
 }) {
   const cfg = STATUS_CFG[w.status] ?? STATUS_CFG.PENDING;
   const sc = cfg.color;
@@ -452,7 +456,7 @@ function MobileWithdrawalCard({ w, onClick, onReprocess, onReject, onApprove }: 
         </div>
         <ChevronRight size={14} style={{ color: MUTED, flexShrink: 0 }} />
       </div>
-      {isActionable && (
+      {canMutate && isActionable && (
         <div style={{ display: "flex", gap: 8, padding: "0 14px 12px" }}>
           {w.status === "PENDING" && (
             <button
@@ -477,6 +481,8 @@ function MobileWithdrawalCard({ w, onClick, onReprocess, onReject, onApprove }: 
 export default function WithdrawalsPage() {
   const { isMobile } = useResponsive();
   const { toasts, toast, dismiss } = useToast();
+  const { role } = useAuth();
+  const isStaffOperations = role === "STAFF_OPERATIONS";
 
   // ── Data state ─────────────────────────────────────────────────────────────
   const [withdrawals, setWithdrawals] = useState<AdminWithdrawalItem[]>([]);
@@ -614,6 +620,7 @@ export default function WithdrawalsPage() {
   }, [drawerW, fetchStats]);
 
   const confirmApprove = useCallback(async (comment: string) => {
+    if (isStaffOperations) return;
     if (!modalW) return;
     setActionLoading(true);
     try {
@@ -626,9 +633,10 @@ export default function WithdrawalsPage() {
     } finally {
       setActionLoading(false);
     }
-  }, [modalW, closeModal, toast, refreshRowAndStats]);
+  }, [modalW, closeModal, toast, refreshRowAndStats, isStaffOperations]);
 
   const confirmReject = useCallback(async (reason: string, comment: string) => {
+    if (isStaffOperations) return;
     if (!modalW) return;
     setActionLoading(true);
     try {
@@ -641,9 +649,10 @@ export default function WithdrawalsPage() {
     } finally {
       setActionLoading(false);
     }
-  }, [modalW, closeModal, toast, refreshRowAndStats]);
+  }, [modalW, closeModal, toast, refreshRowAndStats, isStaffOperations]);
 
   const confirmHold = useCallback(async (reason: string, date: string) => {
+    if (isStaffOperations) return;
     if (!modalW) return;
     setActionLoading(true);
     try {
@@ -656,9 +665,10 @@ export default function WithdrawalsPage() {
     } finally {
       setActionLoading(false);
     }
-  }, [modalW, closeModal, toast, refreshRowAndStats]);
+  }, [modalW, closeModal, toast, refreshRowAndStats, isStaffOperations]);
 
   const confirmReprocess = useCallback(async () => {
+    if (isStaffOperations) return;
     if (!modalW) return;
     setActionLoading(true);
     try {
@@ -671,7 +681,7 @@ export default function WithdrawalsPage() {
     } finally {
       setActionLoading(false);
     }
-  }, [modalW, closeModal, toast, refreshRowAndStats]);
+  }, [modalW, closeModal, toast, refreshRowAndStats, isStaffOperations]);
 
   const confirmCancel = useCallback(() => {
     closeModal();
@@ -817,7 +827,7 @@ export default function WithdrawalsPage() {
                 ))
               : withdrawals.length===0
                 ? <div style={{padding:"48px",textAlign:"center",color:MUTED,fontSize:12}}>{error ? "Error loading withdrawals." : "No withdrawals match your filters."}</div>
-                : withdrawals.map(w=><MobileWithdrawalCard key={w.id} w={w} onClick={()=>void openDrawer(w)} onReprocess={openReprocess} onReject={openReject} onApprove={openApprove}/>)
+                : withdrawals.map(w=><MobileWithdrawalCard key={w.id} w={w} onClick={()=>void openDrawer(w)} onReprocess={openReprocess} onReject={openReject} onApprove={openApprove} canMutate={!isStaffOperations}/>)
             }
           </div>
         ) : (
@@ -854,6 +864,7 @@ export default function WithdrawalsPage() {
                     onToggle={()=>toggleRow(w.id)}
                     onRowClick={()=>void openDrawer(w)}
                     onApprove={openApprove} onReject={openReject} onReprocess={openReprocess} onHold={openHold} onCancel={openCancel} onAssign={openAssign}
+                    canMutate={!isStaffOperations}
                     isHover={hovered===w.id}
                     onHoverSet={setHovered}
                   />
@@ -897,29 +908,29 @@ export default function WithdrawalsPage() {
       <WithdrawalDrawer
         withdrawal={drawerW}
         onClose={closeDrawer}
-        onApprove={openDrawerApprove}
-        onReject={openDrawerReject}
-        onHold={openDrawerHold}
+         onApprove={isStaffOperations ? undefined : openDrawerApprove}
+         onReject={isStaffOperations ? undefined : openDrawerReject}
+         onHold={isStaffOperations ? undefined : openDrawerHold}
         adminLogs={drawerDetail?.adminLogs as DrawerAuditLog[] | undefined}
         onSaveNote={drawerDetail ? handleSaveNote : undefined}
       />
 
       {/* Modals */}
-      {modal==="approve"&&modalW&&(
+      {!isStaffOperations && modal==="approve"&&modalW&&(
         <ApprovalModal
           w={{id:modalW.id,amount:parseFloat(modalW.amount),fee:0,username:modalW.user.username,walletType:"WITHDRAWAL",network:modalW.network}}
           onClose={closeModal}
           onConfirm={(comment)=>void confirmApprove(comment)}
         />
       )}
-      {modal==="reject"&&modalW&&(
+      {!isStaffOperations && modal==="reject"&&modalW&&(
         <RejectModal
           w={{id:modalW.id,amount:parseFloat(modalW.amount),fee:0,username:modalW.user.username,walletType:"WITHDRAWAL",network:modalW.network}}
           onClose={closeModal}
           onConfirm={(reason,comment)=>void confirmReject(reason,comment)}
         />
       )}
-      {modal==="hold"&&modalW&&(
+      {!isStaffOperations && modal==="hold"&&modalW&&(
         <HoldModal
           w={{id:modalW.id,amount:parseFloat(modalW.amount),fee:0,username:modalW.user.username,walletType:"WITHDRAWAL",network:modalW.network}}
           onClose={closeModal}
@@ -928,7 +939,7 @@ export default function WithdrawalsPage() {
       )}
 
       {/* Reprocess confirm */}
-      {modal==="reprocess"&&modalW&&(
+      {!isStaffOperations && modal==="reprocess"&&modalW&&(
         <div style={{position:"fixed",inset:0,zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.6)"}}>
           <div style={{background:"hsl(222 62% 8%)",border:`1px solid ${BORDER}`,borderRadius:14,padding:24,width:380,boxShadow:"0 24px 60px rgba(0,0,0,0.7)"}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
