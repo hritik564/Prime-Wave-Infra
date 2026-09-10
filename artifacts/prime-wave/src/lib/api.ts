@@ -80,6 +80,23 @@ export function changeAdminPassword(currentPassword: string, newPassword: string
   });
 }
 
+export interface CreatedStaffAdmin {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: "STAFF_OPERATIONS";
+  isActive: true;
+  createdAt: string;
+}
+
+export function createStaffAdmin(email: string, password: string, confirmPassword: string) {
+  return request<CreatedStaffAdmin>("/api/admin/staff", {
+    method: "POST",
+    body: JSON.stringify({ email, password, confirmPassword }),
+  });
+}
+
 export function register(data: {
   firstName: string;
   lastName: string;

@@ -1,15 +1,24 @@
 import type { Request, Response, NextFunction } from "express";
-import { changeAdminPassword, loginAdmin, getAdminProfile } from "./admin.service";
+import {
+  changeAdminPassword,
+  createStaffAdmin,
+  loginAdmin,
+  getAdminProfile,
+} from "./admin.service";
 import { runMatchingCycle } from "../binary/matching.engine";
 import { runOrbitCycle } from "../binary/orbit.engine";
 import { processRoiCycle } from "../cron/roi.engine";
 import { seedBinaryTree } from "./admin-seed.service";
 import { repairSeedInvestments } from "./admin-repair.service";
 import { getAllSettings, setSetting } from "../config/settings";
-import { sendSuccess } from "../shared/response";
+import { sendCreated, sendSuccess } from "../shared/response";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
-import type { AdminLoginInput, ChangeAdminPasswordInput } from "./admin.schema";
+import type {
+  AdminLoginInput,
+  ChangeAdminPasswordInput,
+  CreateStaffAdminInput,
+} from "./admin.schema";
 import type { AuthenticatedRequest } from "../shared/types";
 
 export async function adminLogin(
@@ -48,6 +57,19 @@ export async function changeAdminPasswordHandler(
     const { user } = req as AuthenticatedRequest;
     await changeAdminPassword(user.sub, req.body as ChangeAdminPasswordInput);
     sendSuccess(res, null, "Password changed successfully");
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createStaffAdminHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const admin = await createStaffAdmin(req.body as CreateStaffAdminInput);
+    sendCreated(res, admin, "Staff Operations account created successfully");
   } catch (err) {
     next(err);
   }

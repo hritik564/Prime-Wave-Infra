@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const adminPasswordRules = z
+export const adminPasswordRules = z
   .string()
   .min(8, "Password must be at least 8 characters")
   .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
@@ -31,5 +31,17 @@ export const changeAdminPasswordSchema = z
     path: ["newPassword"],
   });
 
+export const createStaffAdminSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().email("Invalid email address"),
+    password: adminPasswordRules,
+    confirmPassword: z.string().min(1, "Please confirm the initial password"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
 export type AdminLoginInput = z.infer<typeof adminLoginSchema>;
 export type ChangeAdminPasswordInput = z.infer<typeof changeAdminPasswordSchema>;
+export type CreateStaffAdminInput = z.infer<typeof createStaffAdminSchema>;

@@ -12,6 +12,7 @@ import {
 } from "./admin-treasury.controller";
 import {
   changeAdminPasswordHandler,
+  createStaffAdminHandler,
   adminLogin,
   adminGetProfile,
   triggerMatchingCycle,
@@ -197,7 +198,12 @@ import {
 import { validate } from "../middleware/validate.middleware";
 import { requireAdminAuth, requireAdminRoles } from "../middleware/auth.middleware";
 import { authLimiter, adminLimiter } from "../middleware/rateLimiter.middleware";
-import { adminLoginSchema, changeAdminPasswordSchema, updateUserWalletSchema } from "./admin.schema";
+import {
+  adminLoginSchema,
+  changeAdminPasswordSchema,
+  createStaffAdminSchema,
+  updateUserWalletSchema,
+} from "./admin.schema";
 import {
   adminDepositListQuerySchema,
   rejectDepositSchema,
@@ -252,6 +258,13 @@ router.post(
   requireAdminAuth,
   validate(changeAdminPasswordSchema, "body"),
   changeAdminPasswordHandler,
+);
+router.post(
+  "/staff",
+  adminLimiter,
+  requireAdminRoles("SUPER_ADMIN"),
+  validate(createStaffAdminSchema, "body"),
+  createStaffAdminHandler,
 );
 
 // Manual cycle triggers — Super Admin only

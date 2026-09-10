@@ -4,8 +4,11 @@ import { prisma } from "../config/prisma";
 import { env } from "../config/env";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
-import type { AdminLoginInput } from "./admin.schema";
-import type { ChangeAdminPasswordInput } from "./admin.schema";
+import type {
+  AdminLoginInput,
+  ChangeAdminPasswordInput,
+  CreateStaffAdminInput,
+} from "./admin.schema";
 import type { AuthPayload } from "../shared/types";
 
 function signAdminToken(payload: AuthPayload): string {
@@ -104,4 +107,47 @@ export async function changeAdminPassword(
     where: { id: adminId },
     data: { passwordHash, updatedAt },
   });
+}
+
+export async function createStaffAdmin(input: CreateStaffAdminInput) {
+  const email = input.email.trim().toLowerCase();
+  const existing = await prisma.admin.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+
+  if (existing) {
+    throw new AppError(
+      "An Admin account with that email already exists",
+      HTTP_STATUS.CONFLICT,
+      "DUPLICATE_ADMIN_EMAIL",
+    );
+  }
+
+  const passwordHash = await bcrypt.hash(
+    input.password,
+    env.BCRYPT_ROUNDS ? Number(env.BCRYPT_ROUNDS) : 12,
+  );
+
+  const admin = await prisma.admin.create({
+    data: {
+      email,
+      passwordHash,
+      firstName: "Staff",
+      lastName: "Operations",
+      role: "STAFF_OPERATIONS",
+      isActive: true,
+    },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      isActive: true,
+      createdAt: true,
+    },
+  });
+
+  return admin;
 }
