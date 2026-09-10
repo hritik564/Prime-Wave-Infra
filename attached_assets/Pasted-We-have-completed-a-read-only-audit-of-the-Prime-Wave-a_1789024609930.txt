@@ -1,0 +1,287 @@
+We have completed a read-only audit of the Prime Wave admin system. Now implement the new least-privilege Staff/Operations role and fix the identified authorization gaps.
+
+IMPORTANT:
+- Do NOT modify, disable, delete, or reset any existing admin accounts in this task.
+- Do NOT change any existing Super Admin account credentials.
+- Do NOT publish/deploy automatically.
+- Preserve all existing Super Admin capabilities.
+- Do not alter production business logic unrelated to admin authorization.
+- This is an authorization/security change only.
+
+CURRENT ADMIN STATE
+
+There are currently 3 active admin accounts:
+- admin@primewave.io — SUPER_ADMIN — this is the account that will remain the sole Super Admin.
+- support@primewave.io — SUPPORT_ADMIN — will later be disabled.
+- admin@admin1.com — SUPER_ADMIN — will later be disabled.
+
+Do NOT modify these accounts yet.
+
+GOAL
+
+Create a proper reusable Staff/Operations role with explicit least-privilege permissions.
+
+Do NOT simply reuse SUPPORT_ADMIN or FINANCE_ADMIN.
+
+STAFF ALLOWED ACCESS
+
+1. Dashboard
+   - View dashboard.
+
+2. Members
+   - Search/view members.
+   - Support operations such as block/suspend/activate are allowed.
+   - No permanent deletion.
+   - No password reset.
+   - No impersonation.
+   - No wallet/address modification.
+   - No withdrawal-hold manipulation.
+   - No direct financial manipulation.
+
+3. Investments
+   - View investment information.
+   - No investment approval or mutation.
+   - No plan changes.
+   - No financial manipulation.
+
+4. Deposits
+   - View and monitor deposit records.
+   - No manual deposit creation.
+   - No deposit approval/rejection.
+   - No manual wallet crediting.
+
+5. Auto Deposits
+   - View/monitor automatic deposit verification activity.
+   - No retry/re-validation/manual-approval/rejection mutation unless explicitly determined to be safe and non-financial.
+   - In particular, Staff must NEVER have manual approval/credit capability.
+
+6. Withdrawals
+   - View withdrawal requests and details.
+   - View withdrawal events.
+   - No approval.
+   - No completion/payout.
+   - No rejection.
+   - No reprocessing.
+   - No hold/release controls.
+   - No notes mutation if it could expose or alter operational controls.
+   - No withdrawal engine control.
+   - No withdrawal settings changes.
+   - No queue processing.
+
+7. W. Queue
+   - Read-only monitoring.
+
+8. W. Ops Health
+   - Read-only monitoring.
+
+9. Wallets
+   - Read-only wallet information where necessary for support.
+   - No manual credits.
+   - No wallet adjustments.
+   - No balance resets.
+   - No wallet address changes.
+   - No financial mutations.
+
+STAFF MUST NOT ACCESS
+
+- Manual Credit
+- Manual deposit creation
+- Manual deposit approval
+- Manual deposit rejection
+- Direct wallet credit
+- Wallet adjustments
+- Company Wallets
+- Deposit/company wallet address changes
+- Withdrawal approval
+- Withdrawal completion/payout
+- Withdrawal rejection
+- Withdrawal reprocessing
+- Withdrawal hold/release controls
+- Withdrawal engine controls
+- Withdrawal settings
+- Withdrawal queue processing
+- Binary Network controls
+- Income Engine controls
+- Power Business financial mutation
+- Power Business sensitive financial reads unless specifically required for the approved Staff workflow
+- Plans & Config
+- Salary Management
+- Integrity/Treasury
+- Chain Health
+- Chain Tester
+- Dev Tools
+- Any developer/seed/test-data operation
+- Any arbitrary system configuration
+
+DEPOSIT POLICY
+
+The intended production policy is:
+
+Normal users:
+Automatic Deposit → blockchain transaction → automatic verification → automatic wallet credit.
+
+Staff:
+Can monitor automatic deposits but cannot manually approve or credit deposits.
+
+Super Admin:
+Can perform exceptional manual credits/manual deposit operations and can change the company deposit wallet.
+
+AUTHORIZATION HARDENING
+
+Fix these specific gaps identified by the audit:
+
+1. SYSTEM SETTINGS
+The current PATCH /api/admin/settings/:key allows any authenticated admin to modify arbitrary settings.
+
+Change this so only SUPER_ADMIN can modify platform/system settings.
+
+Staff must receive the normal authorization/forbidden response.
+
+2. MATCHING/ORBIT TRIGGERS
+The current manual matching and orbit trigger endpoints are available to any authenticated admin.
+
+Restrict these triggers to SUPER_ADMIN only.
+
+3. POWER BUSINESS
+Any authenticated admin can currently read Power Business financial data.
+
+Restrict sensitive Power Business financial/member-level reads to SUPER_ADMIN unless there is a clearly necessary read-only Staff operation. Do not expose financial data to Staff by default.
+
+Power Business add/remove operations must remain SUPER_ADMIN-only for the new Staff model.
+
+4. DEPOSIT VERIFICATION DUPLICATE ROUTE
+The audit identified duplicate mounting of the deposit-verification router, where one route definition uses weaker any-admin authorization.
+
+Remove the weaker duplicate path or otherwise ensure every deposit-verification endpoint has one consistent authorization boundary.
+
+Staff must never be able to reach manual approval/rejection/financial mutations through an alternate route.
+
+5. JWT ADMIN AUTHORIZATION
+The current middleware does not reload the admin database record for every request, meaning:
+- role changes remain effective until the JWT expires
+- deactivation does not immediately invalidate an existing admin JWT
+
+Improve admin session authorization so that disabling an admin account or changing its role prevents that account from continuing to perform protected operations with an already-issued token.
+
+Use a safe and efficient mechanism appropriate to the existing architecture. Do not unnecessarily add a database query to every request if a better existing session/token invalidation mechanism can be implemented.
+
+This is particularly important because we will shortly disable two existing admin accounts and rotate the Super Admin credentials.
+
+6. FRONTEND CONTROL CENTER
+The current Control Center navigation renders almost all sections for every authenticated admin even when the backend rejects them.
+
+Implement proper role/permission-based navigation for Staff.
+
+Staff should see only:
+
+OVERVIEW
+- Dashboard
+
+MANAGEMENT
+- Members
+- Investments
+- Deposits
+- Auto Deposits
+- Withdrawals
+- W. Queue
+- W. Ops Health
+- Wallets
+
+Everything else should be hidden from Staff.
+
+Also remove/hide mutation buttons that Staff cannot execute.
+
+Do NOT treat frontend hiding as security. Backend authorization remains mandatory.
+
+7. ADMIN ROUTE GUARDS
+The frontend currently allows any admin to navigate directly to /admin/... pages because RequireAdmin only checks user.type === admin.
+
+Add appropriate role/permission checks so Staff cannot directly access restricted Control Center pages.
+
+Unknown admin paths should not expose privileged page shells.
+
+8. DEV-TOOLS FRONTEND
+Ensure /dev-tools is protected by appropriate admin authorization in all environments, not merely hidden/redirected based on build mode.
+
+No unauthenticated or Staff user should receive privileged developer-tool UI.
+
+ROLE DESIGN
+
+Create a reusable explicit Staff/Operations role/permission model.
+
+Do not hard-code permissions for one specific email.
+
+The role must be assignable to future staff accounts.
+
+Preserve the existing roles:
+- SUPER_ADMIN
+- FINANCE_ADMIN
+- SUPPORT_ADMIN
+- REWARD_MANAGER
+
+Do not delete existing roles yet.
+
+Super Admin must retain all current capabilities.
+
+TESTING REQUIREMENTS
+
+After implementation:
+
+1. Run all relevant type checks, lint checks, and tests available in the project.
+
+2. Verify Super Admin still has full access.
+
+3. Verify Staff can access:
+   - Dashboard
+   - Members
+   - Investments
+   - Deposits
+   - Auto Deposits
+   - Withdrawals
+   - W. Queue
+   - W. Ops Health
+   - Wallets
+
+4. Verify Staff is denied server-side access to representative restricted operations:
+   - manual deposit creation
+   - deposit approval
+   - direct wallet credit
+   - wallet adjustment
+   - company wallet modification
+   - withdrawal approval
+   - withdrawal completion
+   - withdrawal rejection
+   - withdrawal reprocessing
+   - withdrawal engine control
+   - withdrawal settings
+   - queue processing
+   - system settings mutation
+   - matching trigger
+   - orbit trigger
+   - Power Business financial mutation
+   - plan/configuration mutation
+   - salary processing
+   - treasury/integrity operations
+   - blockchain operations
+   - developer operations
+
+5. Verify forbidden requests return the application's normal authorization response and do not mutate the database.
+
+6. Verify frontend navigation and pages reflect the Staff permissions.
+
+7. Verify an inactive admin or invalidated admin session can no longer execute protected admin operations using an old JWT.
+
+8. Do not create or modify any admin accounts during this task.
+
+9. Do not publish automatically.
+
+At the end, provide a concise implementation report containing:
+- Staff permissions implemented
+- Restricted permissions
+- Backend authorization changes
+- Frontend changes
+- JWT/session invalidation approach
+- Tests performed and results
+- Any remaining security gaps
+
+STOP after verification. Do not modify admin accounts and do not publish.
