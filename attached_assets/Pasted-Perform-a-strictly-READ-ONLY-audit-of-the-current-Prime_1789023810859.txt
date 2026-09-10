@@ -1,0 +1,98 @@
+Perform a strictly READ-ONLY audit of the current Prime Wave admin system.
+
+DO NOT modify anything:
+- No code changes
+- No database changes
+- No account changes
+- No permission changes
+- No credential changes
+- No deployment/publishing
+
+I need a complete inventory of the current administration system.
+
+Report:
+
+1. Total number of admin/staff accounts.
+
+2. For EVERY admin/staff account, report:
+   - Email/username or another safe identifier
+   - Current role
+   - Active/inactive status
+   - Any other non-sensitive administrative metadata that helps identify the account
+
+3. Identify which account appears to be the Super Admin.
+   - Do NOT modify it.
+   - Do NOT reset its password.
+
+4. Identify every existing role besides Super Admin.
+
+5. Explain how the current role/permission system is implemented:
+   - How roles are stored
+   - How permissions are determined
+   - How frontend access is controlled
+   - How backend/API authorization is enforced
+
+6. For every current role, map its access to the Control Center.
+
+Specifically audit these areas:
+
+- Dashboard
+- Members
+- Investments
+- Deposits
+- Auto Deposits
+- Manual Credit
+- Withdrawals
+- W. Queue
+- W. Ops Health
+- Wallets
+- Binary Network
+- Income Engine
+- Power Business
+- Plans & Config
+- Company Wallets
+- Salary Mgmt
+- Integrity
+- Chain Health
+- Chain Tester
+- Dev Tools
+
+For each area, clearly distinguish:
+- View/read access
+- Create/update access
+- Delete/destructive access
+- Financial/money-moving actions
+- Configuration/control actions
+
+7. Pay particular attention to these security-sensitive capabilities:
+- Manual deposit approval
+- Manual crediting of user balances
+- Company/deposit wallet address changes
+- Withdrawal approval
+- Withdrawal processing
+- Withdrawal engine controls
+- Platform configuration
+- Engine controls
+- Blockchain controls
+- Developer tools
+
+8. Identify the actual backend/API authorization checks protecting these sensitive operations.
+
+9. Identify any endpoints/actions that currently rely ONLY on frontend hiding rather than server-side authorization.
+
+10. Identify any permission gaps that could allow a future Staff account to perform an action that should be Super Admin-only.
+
+11. Do NOT expose:
+- Passwords
+- Password hashes
+- API keys
+- Tokens
+- Session secrets
+- Database connection strings
+- Private keys
+- Any other credentials/secrets
+
+Return a structured audit report only.
+
+IMPORTANT:
+This is an investigation before we implement the new Staff/Operations role. Do not implement anything yet and do not recommend that an account be deleted yet. I will use your report to decide the exact changes.
