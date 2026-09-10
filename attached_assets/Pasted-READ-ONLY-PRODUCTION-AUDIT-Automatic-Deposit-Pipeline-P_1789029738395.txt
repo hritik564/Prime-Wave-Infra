@@ -1,0 +1,125 @@
+READ-ONLY PRODUCTION AUDIT — Automatic Deposit Pipeline
+
+Perform a comprehensive **read-only audit of the PrimeWave production automatic-deposit system after the company deposit wallet address was changed.
+
+ABSOLUTE REQUIREMENTS
+
+Do NOT modify production data.
+Do NOT create, approve, reject, retry, re-validate, or manually credit any deposit.
+Do NOT send any blockchain transaction.
+Do NOT change wallet addresses.
+Do NOT change system settings.
+Do NOT enable/disable any engine or processing switch.
+Do NOT trigger deposit processing, matching, reconciliation, or any background job manually.
+Do NOT publish/redeploy.
+Do NOT modify code.
+Do NOT expose private keys, secrets, API keys, passwords, RPC credentials, or connection strings.
+All database queries must be SELECT/read-only.
+1. Company deposit wallet
+
+Verify from the production database/application configuration:
+
+Which company wallet is configured for automatic deposits.
+The blockchain/network associated with it.
+Whether the currently configured address is the newly changed address.
+Whether there are any other configuration records that still reference the previous deposit address.
+
+Do not print full sensitive wallet information unnecessarily; mask addresses where appropriate.
+
+2. Auto-deposit configuration
+
+Audit the production configuration for:
+
+automatic deposit enabled/disabled state;
+supported networks/chains;
+supported deposit assets/tokens;
+confirmation requirements;
+scanner/indexer configuration;
+deposit verification configuration;
+relevant feature flags/settings;
+any withdrawal configuration that could accidentally overlap with deposit wallet configuration.
+
+Report the effective configuration without changing it.
+
+3. Backend pipeline
+
+Trace the actual production code path from:
+
+company deposit wallet → blockchain monitoring/scanning → transaction detection → deposit verification → deposit request/crediting
+
+Confirm:
+
+which service/job performs each step;
+which wallet address it watches;
+which network/RPC it uses;
+how detected transactions are associated with users;
+how confirmations are handled;
+how duplicate transactions are prevented;
+what conditions cause a deposit to be credited;
+whether any manual approval is required.
+
+Do not trigger any of these processes.
+
+4. Database health
+
+Using read-only queries, inspect relevant production tables and report:
+
+recent automatic deposits;
+recent deposit verification records;
+pending/failed/stuck deposit records;
+duplicate transaction indicators;
+records awaiting confirmation;
+records awaiting processing;
+any obvious orphaned or inconsistent records.
+
+Compare recent activity against the existing schema and application logic.
+
+5. Wallet-address consistency
+
+Specifically search production configuration/code references for the previous company deposit address and the currently configured address.
+
+Determine whether the old address is still referenced anywhere that could cause deposits to be monitored at the wrong address.
+
+Do not reveal the full addresses in the report unless necessary; masked values are sufficient.
+
+6. Automatic-deposit safety policy
+
+Confirm whether normal users can currently:
+
+initiate automatic deposits;
+receive automatic verification/credit;
+manually approve their own deposit;
+bypass verification;
+receive duplicate credit from the same transaction.
+
+Confirm that Staff (STAFF_OPERATIONS) cannot manually approve or credit deposits.
+
+Confirm that only the appropriate Super/Finance permissions can perform any exceptional manual financial operation.
+
+7. Current operational status
+
+Determine whether the automatic-deposit pipeline appears:
+
+HEALTHY
+HEALTHY BUT NEEDS ATTENTION
+NOT READY
+
+Base this strictly on read-only evidence.
+
+If something cannot be verified without performing a real transaction or mutation, explicitly say NOT VERIFIED rather than guessing.
+
+Final report
+
+Return:
+
+Overall status
+Current deposit wallet configuration (masked)
+Auto-deposit configuration
+Pipeline components and flow
+Recent deposit/verification health
+Old-vs-new wallet reference check
+Staff permission check
+Any errors/warnings
+Anything that must be fixed before resuming normal operations
+
+This is an audit only. Do not make any changes.
