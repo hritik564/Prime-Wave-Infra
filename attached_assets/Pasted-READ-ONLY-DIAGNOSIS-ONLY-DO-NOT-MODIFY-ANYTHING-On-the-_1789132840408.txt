@@ -1,0 +1,68 @@
+READ-ONLY DIAGNOSIS ONLY — DO NOT MODIFY ANYTHING.
+
+On the production Admin Settings → Deposit Wallet Management → Add BEP20 wallet screen, uploading a PNG QR currently results in:
+
+"QR validation failed."
+"Load failed"
+
+Do NOT modify code, database data, production wallet profiles, App Storage objects, secrets, environment variables, or deployment. Do NOT publish anything. This is diagnosis only.
+
+Investigate the complete QR upload and validation flow and determine exactly why this is happening.
+
+Check all of the following:
+
+1. Frontend file-selection and upload implementation.
+2. Presigned App Storage upload flow.
+3. The uploaded object's URL/path returned to the frontend.
+4. Backend QR upload/validation endpoint.
+5. Server-side PNG QR decoder implementation.
+6. Whether the backend can actually download/read the uploaded QR object after upload.
+7. Whether the decoder supports the uploaded PNG format, dimensions, encoding, and color mode.
+8. The exact internal error being generated when the UI displays "QR validation failed" or "Load failed".
+9. Whether the failure occurs:
+   - before QR decoding,
+   - during image loading,
+   - during QR decoding,
+   - during QR payload parsing,
+   - or during BEP20 address comparison.
+10. Check for CORS, signed-URL expiry, object permissions, incorrect storage paths, content-type handling, or any other App Storage access problem.
+11. Check whether the QR decoder is receiving the actual uploaded image bytes or an invalid/unavailable URL.
+12. Check whether the frontend is sending the correct address and QR object reference to the backend.
+13. Check whether the backend expects a different QR payload format than the uploaded QR.
+14. Check the current active BEP20 company wallet and determine what address the validator expects.
+
+IMPORTANT:
+The address currently entered in the screenshot begins with:
+
+0x543780EF4cda835F3541A1BdB305...
+
+This may be an old/historical wallet. That is NOT inherently an error because saved profiles are allowed to contain historical wallets. The QR for that profile should simply encode the exact same BEP20 address.
+
+Determine whether the uploaded QR:
+
+A. cannot be decoded at all, OR
+B. decodes successfully but contains a different address, OR
+C. decodes successfully and contains the same address but validation still fails, OR
+D. fails because the uploaded image cannot be loaded/read by the backend.
+
+If the QR decodes successfully, report the decoded BEP20 address with the middle portion masked.
+
+Also report the entered address with the middle portion masked and whether they match.
+
+Return a concise diagnostic report containing:
+
+- Root cause
+- Exact frontend/backend code path involved
+- Exact internal error/message
+- Whether the QR image was successfully loaded
+- Whether QR decoding succeeded
+- Decoded QR address, masked
+- Entered address, masked
+- Whether addresses match
+- Storage/upload status
+- Most likely cause
+- Safest proposed fix
+
+DO NOT implement the fix yet.
+
+DO NOT modify or publish anything.
