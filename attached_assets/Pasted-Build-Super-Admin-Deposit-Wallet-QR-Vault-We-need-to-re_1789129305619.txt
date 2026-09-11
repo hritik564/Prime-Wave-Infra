@@ -1,0 +1,173 @@
+Build: Super Admin Deposit Wallet & QR Vault
+
+We need to replace the current simple Super Admin deposit-wallet change workflow with a secure saved-wallet management system.
+
+Do not modify withdrawal settings or withdrawal functionality.
+
+Requirements
+
+Build a Super Admin-only feature that allows up to 5 saved BEP20 deposit wallet profiles.
+
+Each saved profile must contain:
+
+BEP20 wallet address
+QR image — mandatory
+Active/current state
+createdAt
+updatedAt
+
+Treat wallet address + QR as a single atomic wallet profile.
+
+Authorization
+
+Only SUPER_ADMIN may:
+
+create a saved wallet profile
+edit a saved wallet profile
+delete an inactive saved wallet profile
+activate/switch the current wallet
+upload/replace its QR
+
+STAFF_OPERATIONS, FINANCE_ADMIN, SUPPORT_ADMIN, and REWARD_MANAGER must have no mutation access and must not receive these management controls in the UI.
+
+Enforce authorization at the backend route level; frontend hiding alone is insufficient.
+
+Five-profile limit
+
+The backend/database workflow must enforce a maximum of 5 saved profiles.
+
+A sixth profile must be rejected safely.
+
+QR requirement
+
+A profile cannot be saved without a QR image.
+
+When editing an existing profile, its existing QR must remain unless a replacement QR is explicitly supplied.
+
+Do not allow an address to be saved without its corresponding QR.
+
+Current wallet
+
+The existing production BEP20 deposit wallet currently in use must be migrated into this saved-wallet system as the current profile.
+
+Preserve its current QR and address.
+
+Do not change the current production address as part of this migration.
+
+The currently active profile must be exactly the wallet currently used by the automatic deposit verifier.
+
+Activation
+
+Only one profile may be active/current at a time.
+
+Switching profiles must be atomic:
+
+selected profile becomes current;
+previous current profile becomes inactive.
+
+The existing automatic-deposit verification pipeline must continue to resolve the recipient from the active company BEP20 wallet.
+
+Historical deposit verification records must remain unchanged and retain their original recipient snapshots.
+
+Do not rewrite historical deposit records when switching wallets.
+
+Safety
+
+Do not allow deletion of the currently active wallet.
+
+Do not allow an active wallet to become orphaned.
+
+Do not allow two active BEP20 wallets.
+
+Validate the BEP20 address using the project's existing address-validation conventions.
+
+QR/address consistency
+
+Inspect whether the existing project has a QR decoding library.
+
+If an existing decoder is available, decode uploaded QR images and verify that the QR payload contains the same wallet address being saved.
+
+Reject mismatched QR/address pairs.
+
+If QR decoding is not currently supported, do not silently invent a new dependency or weaken security. Report this before implementation or propose the smallest safe implementation.
+
+UI
+
+Add a Super Admin-only section to Admin Settings called:
+
+Deposit Wallet Management
+
+Display:
+
+Saved profiles count: X/5
+wallet address (masked)
+QR preview
+current/active status
+created/updated information
+Edit
+Make Current
+Delete for inactive profiles
+
+Provide an Add Wallet flow with:
+
+BEP20 wallet address
+mandatory QR upload
+QR preview
+validation result
+Save
+
+When switching the current wallet, show a confirmation explaining that new deposits will use the newly selected wallet while historical records remain unchanged.
+
+Existing functionality
+
+Inspect and reuse the existing:
+
+company wallet model/schema
+current deposit wallet API
+QR asset/storage mechanism
+automatic deposit verifier's active-wallet lookup
+existing Super Admin authorization guard
+
+Do not create duplicate competing wallet configuration systems.
+
+Database/migration
+
+Before implementing, inspect the current Prisma schema and determine the safest migration strategy.
+
+Preserve all existing production wallet data.
+
+Do not modify production data during development.
+
+Create a safe Prisma migration for the new saved-wallet capability.
+
+Testing
+
+Add tests for:
+
+Super Admin can create wallet profile
+non-Super Admin cannot create
+QR is mandatory
+maximum 5 profiles enforced
+only one active profile
+switching active profile
+active profile cannot be deleted
+inactive profile can be deleted
+address validation
+QR/address mismatch rejection if QR decoding is available
+existing current wallet remains current after migration
+automatic verifier continues using the active wallet
+historical recipient snapshots remain unchanged
+
+Run:
+
+API tests
+API typecheck
+frontend typecheck
+production builds
+git diff --check
+
+Important: Do not publish, do not apply production migrations, do not modify production database records, and do not change the current production wallet during implementation.
+
+First inspect the existing architecture and then implement the feature using the existing wallet system rather than creating a parallel configuration path.
+
+At the end, report exactly what was changed and whether any production action is required.
