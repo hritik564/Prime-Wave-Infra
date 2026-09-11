@@ -11,6 +11,7 @@ import {
   uploadCompanyWalletQr,
   updateCompanyWalletAddress,
 } from "./admin-company-wallets.service";
+import { getCompanyWalletQrObject } from "../deposits/deposits.service";
 import { parseCompanyWalletQrUpload } from "./admin-company-wallet-qr-upload";
 
 export async function listCompanyWalletsHandler(
@@ -21,6 +22,17 @@ export async function listCompanyWalletsHandler(
   try {
     const wallets = await listCompanyWallets();
     sendSuccess(res, { wallets });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getCompanyWalletQrHandler(
+  req: AuthenticatedRequest, res: Response, next: NextFunction,
+) {
+  try {
+    const bytes = await getCompanyWalletQrObject(String(req.params["id"] ?? ""), false);
+    res.type("png").set("Cache-Control", "private, max-age=300").send(bytes);
   } catch (err) {
     next(err);
   }

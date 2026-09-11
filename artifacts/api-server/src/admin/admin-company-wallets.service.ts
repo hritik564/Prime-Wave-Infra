@@ -5,7 +5,6 @@ import { logger }      from "../lib/logger";
 import { Prisma, type Prisma as PrismaNamespace } from "@prisma/client";
 import {
   createStoredQrObjectPath,
-  getQrReadUrl,
   isStoredQrObjectPath,
   LEGACY_QR_OBJECT_PATH,
   QR_MAX_BYTES,
@@ -58,7 +57,9 @@ async function serializeCompanyWallet(wallet: {
 }) {
   return {
     ...wallet,
-    qrUrl: await getQrReadUrl(wallet.qrObjectPath),
+    qrUrl: wallet.qrObjectPath === LEGACY_QR_OBJECT_PATH
+      ? null
+      : `/api/admin/company-wallets/${encodeURIComponent(wallet.id)}/qr`,
   };
 }
 

@@ -3,7 +3,7 @@ import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { DepositHistoryQuery } from "./deposits.schema";
 import type { Prisma as PrismaNamespace } from "@prisma/client";
-import { getQrReadUrl } from "../lib/company-wallet-qr";
+import { downloadQrObject, LEGACY_QR_OBJECT_PATH } from "../lib/company-wallet-qr";
 
 // ── Company wallets ───────────────────────────────────────────────────────────
 
@@ -14,12 +14,35 @@ export async function getActiveCompanyWallets() {
     orderBy: [{ network: "asc" }, { createdAt: "asc" }],
     select:  { id: true, network: true, walletAddress: true, qrObjectPath: true },
   });
-  return Promise.all(wallets.map(async (wallet) => ({
+  return wallets.map((wallet) => ({
     id: wallet.id,
     network: wallet.network,
     walletAddress: wallet.walletAddress,
-    qrUrl: await getQrReadUrl(wallet.qrObjectPath),
-  })));
+    qrUrl: wallet.qrObjectPath === LEGACY_QR_OBJECT_PATH
+      ? null
+      : `/api/deposits/wallets/${encodeURIComponent(wallet.id)}/qr`,
+  }));
+}
+
+export async function getCompanyWalletQrObject(walletId: string, activeOnly: boolean): Promise<Buffer> {
+  const wallet = await prisma.companyWallet.findFirst({
+    where: {
+      id: walletId,
+      network: "BEP20",
+      ...(activeOnly && { isActive: true }),
+    },
+    select: { qrObjectPath: true },
+  });
+
+  if (!wallet || wallet.qrObjectPath === LEGACY_QR_OBJECT_PATH) {
+    throw new AppError("Deposit wallet QR image not found", HTTP_STATUS.NOT_FOUND, "QR_NOT_FOUND");
+  }
+
+  try {
+    return await downloadQrObject(wallet.qrObjectPath);
+  } catch {
+    throw new AppError("Deposit wallet QR image is unavailable", HTTP_STATUS.NOT_FOUND, "QR_NOT_FOUND");
+  }
 }
 
 // ── Deposit history ───────────────────────────────────────────────────────────

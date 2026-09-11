@@ -42,35 +42,6 @@ function parseStoragePath(path: string): { bucketName: string; objectName: strin
   return { bucketName: parts[1], objectName: parts.slice(2).join("/") };
 }
 
-async function signObjectUrl(
-  path: string,
-  method: "GET",
-  ttlSeconds: number,
-): Promise<string> {
-  const { bucketName, objectName } = parseStoragePath(path);
-  const response = await fetch(`${SIDECAR_ENDPOINT}/object-storage/signed-object-url`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      bucket_name: bucketName,
-      object_name: objectName,
-      method,
-      expires_at: new Date(Date.now() + ttlSeconds * 1_000).toISOString(),
-    }),
-    signal: AbortSignal.timeout(30_000),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Object storage signing failed with status ${response.status}`);
-  }
-
-  const body = (await response.json()) as { signed_url?: unknown };
-  if (typeof body.signed_url !== "string" || !body.signed_url) {
-    throw new Error("Object storage did not return a signed URL");
-  }
-  return body.signed_url;
-}
-
 function objectEntityToStoragePath(objectPath: string): string {
   if (!OBJECT_PATH_RE.test(objectPath)) {
     throw new Error("Invalid QR object path");
@@ -103,7 +74,17 @@ export async function uploadQrObject(objectPath: string, bytes: Buffer): Promise
   });
 }
 
-export async function getQrReadUrl(objectPath: string): Promise<string | null> {
-  if (objectPath === LEGACY_QR_OBJECT_PATH) return null;
-  return signObjectUrl(objectEntityToStoragePath(objectPath), "GET", 15 * 60);
+/**
+ * Reads the private QR object through the API server. The browser should not
+ * receive a direct GCS URL: private signed URLs can fail in the proxied app
+ * preview and make the same image unreliable across dashboards.
+ */
+export async function downloadQrObject(objectPath: string): Promise<Buffer> {
+  const storagePath = objectEntityToStoragePath(objectPath);
+  const { bucketName, objectName } = parseStoragePath(storagePath);
+  const [bytes] = await objectStorageClient.bucket(bucketName).file(objectName).download();
+  if (bytes.length === 0 || bytes.length > QR_MAX_BYTES) {
+    throw new Error("Stored QR image is empty or exceeds the 2 MB limit");
+  }
+  return bytes;
 }

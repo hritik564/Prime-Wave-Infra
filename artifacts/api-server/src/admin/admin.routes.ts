@@ -234,6 +234,7 @@ import {
   activateCompanyWalletHandler,
   createCompanyWalletHandler,
   deleteCompanyWalletHandler,
+  getCompanyWalletQrHandler,
   listCompanyWalletsHandler,
   uploadCompanyWalletQrHandler,
   updateCompanyWalletHandler,
@@ -849,6 +850,14 @@ router.get(
   adminLimiter,
   superAdminGuard,
   listCompanyWalletsHandler,
+);
+
+router.get(
+  "/company-wallets/:id/qr",
+  adminLimiter,
+  superAdminGuard,
+  validate(updateCompanyWalletParamSchema, "params"),
+  getCompanyWalletQrHandler,
 );
 
 router.post(

@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import {
   getActiveCompanyWallets,
+  getCompanyWalletQrObject,
   getDepositHistory,
   getDepositById,
 } from "./deposits.service";
@@ -15,6 +16,15 @@ export async function getCompanyWalletsHandler(
   try {
     const wallets = await getActiveCompanyWallets();
     sendSuccess(res, wallets, "Company wallets fetched successfully");
+  } catch (err) { next(err); }
+}
+
+export async function getCompanyWalletQrHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const bytes = await getCompanyWalletQrObject(String(req.params["id"] ?? ""), true);
+    res.type("png").set("Cache-Control", "public, max-age=300").send(bytes);
   } catch (err) { next(err); }
 }
 

@@ -7,4 +7,4 @@ Private QR image uploads should go through the authenticated API and the Replit 
 
 **Why:** The browser upload-url request can succeed while the direct storage PUT fails with a WebKit-style `Load failed` before the API ever reaches PNG parsing or QR validation.
 
-**How to apply:** Keep the storage bucket private, generate object paths server-side, validate PNG/QR/address before and after storage read-back, and return only the object path—not signed URLs or storage credentials—to the browser.
+**How to apply:** Keep the storage bucket private, generate object paths server-side, and return only the object path—not signed URLs or storage credentials—to the browser. Serve the image through a same-origin authenticated/API route that reads the private object server-side; browser-side signed GCS URLs can fail in the proxied app preview.

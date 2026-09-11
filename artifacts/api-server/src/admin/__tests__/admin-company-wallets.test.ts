@@ -36,7 +36,6 @@ vi.mock("../../lib/company-wallet-qr", () => ({
   QR_CONTENT_TYPE: "image/png",
   QR_MAX_BYTES: 2 * 1024 * 1024,
   createStoredQrObjectPath: vi.fn().mockReturnValue("/objects/company-wallet-qr/new.png"),
-  getQrReadUrl: vi.fn().mockResolvedValue("/signed-qr-url"),
   isStoredQrObjectPath: vi.fn((value: string) => /^\/objects\/company-wallet-qr\/.+\.png$/.test(value)),
   uploadQrObject: vi.fn().mockResolvedValue(undefined),
 }));
@@ -83,7 +82,11 @@ describe("saved BEP20 deposit wallet profiles", () => {
 
     const result = await createCompanyWallet("admin-1", address, qrPath);
 
-    expect(result).toMatchObject({ id: "wallet-1", walletAddress: address, qrUrl: "/signed-qr-url" });
+    expect(result).toMatchObject({
+      id: "wallet-1",
+      walletAddress: address,
+      qrUrl: "/api/admin/company-wallets/wallet-1/qr",
+    });
     expect(mocks.companyWallet.create).toHaveBeenCalledWith({
       data: { network: "BEP20", walletAddress: address, qrObjectPath: qrPath, isActive: false },
     });

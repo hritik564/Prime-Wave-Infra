@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   getCompanyWalletsHandler,
+  getCompanyWalletQrHandler,
   getDepositHistoryHandler,
   getDepositByIdHandler,
 } from "./deposits.controller";
@@ -12,6 +13,7 @@ const router = Router();
 
 // Public — any user can see available deposit wallets
 router.get("/wallets", getCompanyWalletsHandler);
+router.get("/wallets/:id/qr", getCompanyWalletQrHandler);
 
 // Authenticated user routes
 router.use(requireAuth);
