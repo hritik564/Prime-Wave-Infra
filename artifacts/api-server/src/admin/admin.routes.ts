@@ -235,7 +235,7 @@ import {
   createCompanyWalletHandler,
   deleteCompanyWalletHandler,
   listCompanyWalletsHandler,
-  requestQrUploadUrlHandler,
+  uploadCompanyWalletQrHandler,
   updateCompanyWalletHandler,
 } from "./admin-company-wallets.controller";
 import {
@@ -244,7 +244,6 @@ import {
   reconcileCountersHandler,
 } from "./admin-scripts.controller";
 import {
-  companyWalletUploadUrlSchema,
   createCompanyWalletBodySchema,
   updateCompanyWalletParamSchema,
   updateCompanyWalletBodySchema,
@@ -839,11 +838,10 @@ router.patch(
 
 // ── Company Wallet Management — SUPER_ADMIN only ─────────────────────────────
 router.post(
-  "/company-wallets/qr-upload-url",
+  "/company-wallets/qr-upload",
   adminLimiter,
   superAdminGuard,
-  validate(companyWalletUploadUrlSchema),
-  requestQrUploadUrlHandler,
+  uploadCompanyWalletQrHandler,
 );
 
 router.get(

@@ -6,9 +6,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const isAdminPath = path.startsWith("/api/admin/") && path !== "/api/admin/login";
   const token = isAdminPath ? (getAdminToken() ?? getToken()) : getToken();
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...((init.headers as Record<string, string>) ?? {}),
   };
+  if (!(init.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const res = await fetch(BASE + path, { ...init, headers });
@@ -2962,19 +2964,25 @@ export async function adminUpdateCompanyWallet(id: string, data: { walletAddress
   return res.wallet;
 }
 
-export function adminRequestCompanyWalletQrUploadUrl(data: {
-  name: string;
-  size: number;
-  contentType: "image/png";
-}) {
-  return request<{
-    uploadURL: string;
-    objectPath: string;
-    contentType: "image/png";
-  }>("/api/admin/company-wallets/qr-upload-url", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
+export async function adminUploadCompanyWalletQr(file: File, walletAddress: string): Promise<string> {
+  const form = new FormData();
+  form.append("walletAddress", walletAddress);
+  form.append("qrImage", file, file.name);
+  try {
+    const response = await request<{ objectPath: string }>("/api/admin/company-wallets/qr-upload", {
+      method: "POST",
+      body: form,
+    });
+    return response.objectPath;
+  } catch (error) {
+    if (
+      error instanceof TypeError ||
+      (error instanceof Error && /^(Load failed|Failed to fetch|NetworkError)$/i.test(error.message))
+    ) {
+      throw new Error("QR upload failed. Please try again.");
+    }
+    throw error;
+  }
 }
 
 export function adminCreateCompanyWallet(data: {

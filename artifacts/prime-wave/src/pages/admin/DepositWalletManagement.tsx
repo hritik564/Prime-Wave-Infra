@@ -18,7 +18,7 @@ import {
   adminCreateCompanyWallet,
   adminDeleteCompanyWallet,
   adminGetCompanyWallets,
-  adminRequestCompanyWalletQrUploadUrl,
+  adminUploadCompanyWalletQr,
   adminUpdateCompanyWalletProfile,
   type CompanyWallet,
 } from "@/lib/api";
@@ -33,7 +33,7 @@ const MAX_PROFILES = 5;
 const MAX_QR_BYTES = 2 * 1024 * 1024;
 
 type EditorMode = "create" | "edit";
-type QrState = "idle" | "selected" | "validating" | "valid" | "invalid";
+type QrState = "idle" | "selected" | "validating" | "valid" | "upload-failed" | "validation-failed";
 
 function maskAddress(address: string): string {
   if (address.length <= 14) return address;
@@ -128,12 +128,12 @@ export default function DepositWalletManagement() {
     if (!file) return;
     if (file.type !== "image/png" || !file.name.toLowerCase().endsWith(".png")) {
       setFormError("Upload a PNG QR image.");
-      setQrState("invalid");
+       setQrState("validation-failed");
       return;
     }
     if (file.size > MAX_QR_BYTES) {
       setFormError("The QR image must be 2 MB or smaller.");
-      setQrState("invalid");
+      setQrState("validation-failed");
       return;
     }
     setFormError(null);
@@ -142,21 +142,8 @@ export default function DepositWalletManagement() {
     setQrState("selected");
   }
 
-  async function uploadQr(file: File): Promise<string> {
-    const upload = await adminRequestCompanyWalletQrUploadUrl({
-      name: file.name,
-      size: file.size,
-      contentType: "image/png",
-    });
-    const response = await fetch(upload.uploadURL, {
-      method: "PUT",
-      headers: { "Content-Type": "image/png" },
-      body: file,
-    });
-    if (!response.ok) {
-      throw new Error("QR image upload failed. Please try again.");
-    }
-    return upload.objectPath;
+  async function uploadQr(file: File, walletAddress: string): Promise<string> {
+    return adminUploadCompanyWalletQr(file, walletAddress);
   }
 
   async function saveProfile() {
@@ -168,14 +155,14 @@ export default function DepositWalletManagement() {
     }
     if (editorMode === "create" && !qrFile) {
       setFormError("A QR image is required for every saved wallet.");
-      setQrState("invalid");
+      setQrState("validation-failed");
       return;
     }
 
     setSaving(true);
     setQrState(qrFile ? "validating" : "idle");
     try {
-      const qrObjectPath = qrFile ? await uploadQr(qrFile) : undefined;
+      const qrObjectPath = qrFile ? await uploadQr(qrFile, trimmedAddress) : undefined;
       if (editorMode === "create") {
         if (!qrObjectPath) throw new Error("A QR image is required for every saved wallet.");
         await adminCreateCompanyWallet({ walletAddress: trimmedAddress, qrObjectPath });
@@ -191,8 +178,9 @@ export default function DepositWalletManagement() {
       closeEditor();
       await load();
     } catch (error) {
-      setQrState("invalid");
-      setFormError(error instanceof Error ? error.message : "Unable to save this wallet.");
+      const message = error instanceof Error ? error.message : "Unable to save this wallet.";
+      setQrState(message.startsWith("QR upload failed") ? "upload-failed" : "validation-failed");
+      setFormError(message);
     } finally {
       setSaving(false);
     }
@@ -275,8 +263,8 @@ export default function DepositWalletManagement() {
             {qrPreview ? (
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
                 <img src={qrPreview} alt="Selected QR preview" width={92} height={92} style={{ objectFit: "contain", background: "#fff", borderRadius: 8, padding: 6 }} />
-                <div style={{ color: qrState === "invalid" ? "#fca5a5" : qrState === "validating" ? GOLD_L : "#86efac", fontSize: 12 }}>
-                  {qrState === "validating" ? "Uploading and verifying QR/address match…" : qrState === "invalid" ? "QR validation failed." : "QR selected; the server will verify its payload on save."}
+                 <div style={{ color: qrState === "upload-failed" || qrState === "validation-failed" ? "#fca5a5" : qrState === "validating" ? GOLD_L : "#86efac", fontSize: 12 }}>
+                   {qrState === "validating" ? "Uploading and verifying QR/address match…" : qrState === "upload-failed" ? "QR upload failed." : qrState === "validation-failed" ? "QR validation failed." : "QR selected; the server will verify its payload on save."}
                 </div>
               </div>
             ) : editorMode === "edit" && editingWallet ? (

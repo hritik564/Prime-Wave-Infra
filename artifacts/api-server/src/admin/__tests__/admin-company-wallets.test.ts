@@ -35,9 +35,17 @@ vi.mock("../../lib/company-wallet-qr", () => ({
   LEGACY_QR_OBJECT_PATH: "/legacy/deposit-wallet-qr",
   QR_CONTENT_TYPE: "image/png",
   QR_MAX_BYTES: 2 * 1024 * 1024,
-  createQrUploadUrl: vi.fn(),
+  QrValidationError: class QrValidationError extends Error {
+    constructor(message: string, public readonly code: string) {
+      super(message);
+      this.name = "QrValidationError";
+    }
+  },
+  createStoredQrObjectPath: vi.fn().mockReturnValue("/objects/company-wallet-qr/new.png"),
   getQrReadUrl: vi.fn().mockResolvedValue("/signed-qr-url"),
   isStoredQrObjectPath: vi.fn((value: string) => /^\/objects\/company-wallet-qr\/.+\.png$/.test(value)),
+  uploadQrObject: vi.fn().mockResolvedValue(undefined),
+  validateQrBytes: vi.fn(),
   verifyQrMatchesAddress: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -46,10 +54,11 @@ import {
   activateCompanyWallet,
   createCompanyWallet,
   deleteCompanyWallet,
+  uploadAndValidateCompanyWalletQr,
   updateCompanyWalletAddress,
 } from "../admin-company-wallets.service";
-import { verifyQrMatchesAddress } from "../../lib/company-wallet-qr";
 import { requireAdminRoles } from "../../middleware/auth.middleware";
+import { uploadQrObject, validateQrBytes, verifyQrMatchesAddress } from "../../lib/company-wallet-qr";
 
 const address = "0x1111111111111111111111111111111111111111";
 const otherAddress = "0x2222222222222222222222222222222222222222";
@@ -111,11 +120,51 @@ describe("saved BEP20 deposit wallet profiles", () => {
   });
 
   it("rejects a QR/address mismatch before saving", async () => {
-    vi.mocked(verifyQrMatchesAddress).mockRejectedValueOnce(new Error("QR code does not contain the wallet address"));
+    const QrValidationError = (await import("../../lib/company-wallet-qr")).QrValidationError;
+    vi.mocked(verifyQrMatchesAddress).mockRejectedValueOnce(
+      new QrValidationError("QR address does not match the wallet address.", "QR_ADDRESS_MISMATCH"),
+    );
 
     await expect(createCompanyWallet("admin-1", address, qrPath)).rejects.toMatchObject({
       code: "QR_ADDRESS_MISMATCH",
     });
+    expect(mocks.companyWallet.create).not.toHaveBeenCalled();
+  });
+
+  it("uploads and validates a QR before returning an object path", async () => {
+    const bytes = Buffer.from("valid-png-bytes");
+
+    await expect(uploadAndValidateCompanyWalletQr("0x3333333333333333333333333333333333333333", bytes))
+      .resolves.toBe("/objects/company-wallet-qr/new.png");
+
+    expect(validateQrBytes).toHaveBeenCalledWith(bytes, "0x3333333333333333333333333333333333333333");
+    expect(uploadQrObject).toHaveBeenCalledWith("/objects/company-wallet-qr/new.png", bytes);
+    expect(verifyQrMatchesAddress).toHaveBeenCalledWith(
+      "/objects/company-wallet-qr/new.png",
+      "0x3333333333333333333333333333333333333333",
+    );
+    expect(mocks.companyWallet.create).not.toHaveBeenCalled();
+  });
+
+  it("does not store or create a profile when QR validation fails", async () => {
+    const QrValidationError = (await import("../../lib/company-wallet-qr")).QrValidationError;
+    vi.mocked(validateQrBytes).mockImplementationOnce(() => {
+      throw new QrValidationError("The selected file is not a valid PNG.", "INVALID_PNG");
+    });
+
+    await expect(uploadAndValidateCompanyWalletQr(address, Buffer.from("invalid-png")))
+      .rejects.toMatchObject({ code: "INVALID_PNG", message: "The selected file is not a valid PNG." });
+
+    expect(uploadQrObject).not.toHaveBeenCalled();
+    expect(mocks.companyWallet.create).not.toHaveBeenCalled();
+  });
+
+  it("does not create a profile when App Storage upload fails", async () => {
+    vi.mocked(uploadQrObject).mockRejectedValueOnce(new Error("storage unavailable"));
+
+    await expect(uploadAndValidateCompanyWalletQr(address, Buffer.from("valid-png-bytes")))
+      .rejects.toMatchObject({ code: "QR_UPLOAD_FAILED", message: "QR upload failed. Please try again." });
+
     expect(mocks.companyWallet.create).not.toHaveBeenCalled();
   });
 
@@ -202,6 +251,23 @@ describe("deposit wallet management authorization", () => {
       expect(next).toHaveBeenCalledWith(expect.objectContaining({
         code: "FORBIDDEN",
         statusCode: 403,
+      }));
+    });
+  });
+
+  it("rejects an unauthenticated request before a wallet mutation handler can run", async () => {
+    const next = vi.fn();
+
+    requireAdminRoles("SUPER_ADMIN")(
+      { headers: {} } as never,
+      {} as never,
+      next,
+    );
+
+    await vi.waitFor(() => {
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({
+        code: "TOKEN_MISSING",
+        statusCode: 401,
       }));
     });
   });

@@ -4,12 +4,14 @@ import { prisma }      from "../config/prisma";
 import { logger }      from "../lib/logger";
 import { Prisma, type Prisma as PrismaNamespace } from "@prisma/client";
 import {
-  createQrUploadUrl,
+  createStoredQrObjectPath,
   getQrReadUrl,
   isStoredQrObjectPath,
   LEGACY_QR_OBJECT_PATH,
-  QR_CONTENT_TYPE,
   QR_MAX_BYTES,
+  QrValidationError,
+  uploadQrObject,
+  validateQrBytes,
   verifyQrMatchesAddress,
 } from "../lib/company-wallet-qr";
 
@@ -63,7 +65,7 @@ async function serializeCompanyWallet(wallet: {
   };
 }
 
-function validateBep20Address(walletAddress: string): void {
+export function validateBep20Address(walletAddress: string): void {
   validateAddressForNetwork("BEP20", walletAddress);
 }
 
@@ -85,20 +87,47 @@ async function auditWalletChange(
   }
 }
 
+function mapQrValidationError(error: unknown): AppError {
+  if (error instanceof QrValidationError) {
+    const statusCode = error.code === "QR_OBJECT_READ_FAILED"
+      ? HTTP_STATUS.BAD_REQUEST
+      : HTTP_STATUS.UNPROCESSABLE_ENTITY;
+    return new AppError(error.message, statusCode, error.code);
+  }
+  return new AppError("QR upload failed. Please try again.", HTTP_STATUS.BAD_REQUEST, "QR_UPLOAD_FAILED");
+}
+
 // ── Upload ────────────────────────────────────────────────────────────────────
 
-export async function requestQrUploadUrl(
-  name: string,
-  size: number,
-  contentType: string,
-) {
-  if (contentType !== QR_CONTENT_TYPE || !name.toLowerCase().endsWith(".png")) {
-    throw new AppError("Upload a PNG QR image.", HTTP_STATUS.BAD_REQUEST, "INVALID_QR_IMAGE_TYPE");
+export async function uploadAndValidateCompanyWalletQr(
+  walletAddress: string,
+  bytes: Buffer,
+): Promise<string> {
+  validateBep20Address(walletAddress);
+  if (bytes.length === 0 || bytes.length > QR_MAX_BYTES) {
+    throw new AppError("QR image must be between 1 byte and 2 MB.", HTTP_STATUS.UNPROCESSABLE_ENTITY, "INVALID_QR_IMAGE_SIZE");
   }
-  if (size <= 0 || size > QR_MAX_BYTES) {
-    throw new AppError("QR image must be between 1 byte and 2 MB.", HTTP_STATUS.BAD_REQUEST, "INVALID_QR_IMAGE_SIZE");
+
+  try {
+    validateQrBytes(bytes, walletAddress);
+  } catch (error) {
+    throw mapQrValidationError(error);
   }
-  return createQrUploadUrl();
+
+  const objectPath = createStoredQrObjectPath();
+  try {
+    await uploadQrObject(objectPath, bytes);
+  } catch {
+    throw new AppError("QR upload failed. Please try again.", HTTP_STATUS.BAD_REQUEST, "QR_UPLOAD_FAILED");
+  }
+
+  try {
+    await verifyQrMatchesAddress(objectPath, walletAddress);
+  } catch (error) {
+    throw mapQrValidationError(error);
+  }
+
+  return objectPath;
 }
 
 // ── Create ────────────────────────────────────────────────────────────────────
@@ -118,11 +147,7 @@ export async function createCompanyWallet(
     try {
       await verifyQrMatchesAddress(qrObjectPath, walletAddress);
     } catch (err) {
-      throw new AppError(
-        err instanceof Error ? err.message : "QR image does not match the wallet address",
-        HTTP_STATUS.BAD_REQUEST,
-        "QR_ADDRESS_MISMATCH",
-      );
+      throw mapQrValidationError(err);
     }
   }
 
@@ -189,11 +214,7 @@ export async function updateCompanyWalletAddress(
     try {
       await verifyQrMatchesAddress(nextQrPath, nextAddress);
     } catch (err) {
-      throw new AppError(
-        err instanceof Error ? err.message : "QR image does not match the wallet address",
-        HTTP_STATUS.BAD_REQUEST,
-        "QR_ADDRESS_MISMATCH",
-      );
+      throw mapQrValidationError(err);
     }
   } else if (nextAddress !== existing.walletAddress) {
     throw new AppError(

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import jsQR from "jsqr";
 import { PNG } from "pngjs";
+import { Storage } from "@google-cloud/storage";
 
 export const LEGACY_QR_OBJECT_PATH = "/legacy/deposit-wallet-qr";
 export const QR_CONTENT_TYPE = "image/png";
@@ -8,6 +9,41 @@ export const QR_MAX_BYTES = 2 * 1024 * 1024;
 
 const SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 const OBJECT_PATH_RE = /^\/objects\/company-wallet-qr\/[a-zA-Z0-9-]+\.png$/;
+const BEP20_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+
+export type QrValidationCode =
+  | "INVALID_PNG"
+  | "QR_NOT_FOUND"
+  | "QR_ADDRESS_MISMATCH"
+  | "QR_OBJECT_READ_FAILED";
+
+export class QrValidationError extends Error {
+  constructor(
+    message: string,
+    public readonly code: QrValidationCode,
+  ) {
+    super(message);
+    this.name = "QrValidationError";
+  }
+}
+
+const objectStorageClient = new Storage({
+  credentials: {
+    audience: "replit",
+    subject_token_type: "access_token",
+    token_url: `${SIDECAR_ENDPOINT}/token`,
+    type: "external_account",
+    credential_source: {
+      url: `${SIDECAR_ENDPOINT}/credential`,
+      format: {
+        type: "json",
+        subject_token_field_name: "access_token",
+      },
+    },
+    universe_domain: "googleapis.com",
+  },
+  projectId: "",
+});
 
 function getPrivateObjectDir(): string {
   const dir = process.env.PRIVATE_OBJECT_DIR?.trim();
@@ -28,7 +64,7 @@ function parseStoragePath(path: string): { bucketName: string; objectName: strin
 
 async function signObjectUrl(
   path: string,
-  method: "GET" | "PUT",
+  method: "GET",
   ttlSeconds: number,
 ): Promise<string> {
   const { bucketName, objectName } = parseStoragePath(path);
@@ -66,18 +102,67 @@ export function isStoredQrObjectPath(value: string): boolean {
   return OBJECT_PATH_RE.test(value);
 }
 
-export async function createQrUploadUrl(): Promise<{
-  uploadURL: string;
-  objectPath: string;
-  contentType: typeof QR_CONTENT_TYPE;
-}> {
-  const objectName = `company-wallet-qr/${randomUUID()}.png`;
-  const storagePath = `${getPrivateObjectDir()}/${objectName}`;
-  return {
-    uploadURL: await signObjectUrl(storagePath, "PUT", 15 * 60),
-    objectPath: `/objects/${objectName}`,
+export function createStoredQrObjectPath(): string {
+  return `/objects/company-wallet-qr/${randomUUID()}.png`;
+}
+
+export async function uploadQrObject(objectPath: string, bytes: Buffer): Promise<void> {
+  if (!isStoredQrObjectPath(objectPath)) {
+    throw new Error("Invalid QR object path");
+  }
+  if (bytes.length === 0 || bytes.length > QR_MAX_BYTES) {
+    throw new Error("QR image is empty or exceeds the 2 MB limit");
+  }
+
+  const storagePath = `${getPrivateObjectDir()}/${objectPath.slice("/objects/".length)}`;
+  const { bucketName, objectName } = parseStoragePath(storagePath);
+  await objectStorageClient.bucket(bucketName).file(objectName).save(bytes, {
+    resumable: false,
     contentType: QR_CONTENT_TYPE,
-  };
+    validation: "md5",
+  });
+}
+
+function decodeQrAddress(bytes: Buffer): string {
+  if (bytes.length === 0 || bytes.length > QR_MAX_BYTES) {
+    throw new QrValidationError(
+      "QR image is empty or exceeds the 2 MB limit",
+      "INVALID_PNG",
+    );
+  }
+
+  let png: PNG;
+  try {
+    png = PNG.sync.read(bytes);
+  } catch {
+    throw new QrValidationError("The selected file is not a valid PNG.", "INVALID_PNG");
+  }
+
+  const decoded = jsQR(
+    new Uint8ClampedArray(png.data),
+    png.width,
+    png.height,
+    { inversionAttempts: "attemptBoth" },
+  );
+  const payload = decoded?.data?.trim() ?? "";
+  const address = payload.match(/0x[0-9a-fA-F]{40}/)?.[0];
+  if (!address || !BEP20_ADDRESS_RE.test(address)) {
+    throw new QrValidationError(
+      "Could not read a QR code from this image.",
+      "QR_NOT_FOUND",
+    );
+  }
+  return address;
+}
+
+export function validateQrBytes(bytes: Buffer, walletAddress: string): void {
+  const decodedAddress = decodeQrAddress(bytes);
+  if (decodedAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+    throw new QrValidationError(
+      "QR address does not match the wallet address.",
+      "QR_ADDRESS_MISMATCH",
+    );
+  }
 }
 
 export async function getQrReadUrl(objectPath: string): Promise<string | null> {
@@ -95,35 +180,22 @@ export async function verifyQrMatchesAddress(
 
   const readUrl = await getQrReadUrl(objectPath);
   if (!readUrl) {
-    throw new Error("QR image is not stored");
+    throw new QrValidationError("QR image could not be read from object storage.", "QR_OBJECT_READ_FAILED");
   }
-  const response = await fetch(readUrl, {
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!response.ok) {
-    throw new Error("QR image could not be read from object storage");
-  }
-
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes.length === 0 || bytes.length > QR_MAX_BYTES) {
-    throw new Error("QR image is empty or exceeds the 2 MB limit");
-  }
-
-  let png: PNG;
   try {
-    png = PNG.sync.read(bytes);
-  } catch {
-    throw new Error("QR image must be a valid PNG file");
-  }
-
-  const decoded = jsQR(
-    new Uint8ClampedArray(png.data),
-    png.width,
-    png.height,
-    { inversionAttempts: "attemptBoth" },
-  );
-  const payload = decoded?.data?.trim().toLowerCase() ?? "";
-  if (!payload || !payload.includes(walletAddress.toLowerCase())) {
-    throw new Error("QR code does not contain the wallet address");
+    const response = await fetch(readUrl, {
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) {
+      throw new Error(`object storage returned ${response.status}`);
+    }
+    const bytes = Buffer.from(await response.arrayBuffer());
+    validateQrBytes(bytes, walletAddress);
+  } catch (error) {
+    if (error instanceof QrValidationError) throw error;
+    throw new QrValidationError(
+      "QR image could not be read from object storage.",
+      "QR_OBJECT_READ_FAILED",
+    );
   }
 }

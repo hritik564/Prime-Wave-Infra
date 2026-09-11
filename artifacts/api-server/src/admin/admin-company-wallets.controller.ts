@@ -1,14 +1,17 @@
 import type { Response, NextFunction } from "express";
 import type { AuthenticatedRequest }  from "../shared/types";
 import { sendSuccess }                from "../shared/response";
+import { AppError }                   from "../middleware/error.middleware";
+import { HTTP_STATUS }                from "../shared/constants";
 import {
   activateCompanyWallet,
   createCompanyWallet,
   deleteCompanyWallet,
   listCompanyWallets,
-  requestQrUploadUrl,
+  uploadAndValidateCompanyWalletQr,
   updateCompanyWalletAddress,
 } from "./admin-company-wallets.service";
+import { parseCompanyWalletQrUpload } from "./admin-company-wallet-qr-upload";
 
 export async function listCompanyWalletsHandler(
   req: AuthenticatedRequest,
@@ -56,14 +59,18 @@ export async function createCompanyWalletHandler(
   }
 }
 
-export async function requestQrUploadUrlHandler(
+export async function uploadCompanyWalletQrHandler(
   req: AuthenticatedRequest, res: Response, next: NextFunction,
 ) {
   try {
-    const { name, size, contentType } = req.body as { name: string; size: number; contentType: string };
-    const upload = await requestQrUploadUrl(name, size, contentType);
-    sendSuccess(res, upload, "QR upload URL created");
+    const upload = await parseCompanyWalletQrUpload(req);
+    const objectPath = await uploadAndValidateCompanyWalletQr(upload.walletAddress, upload.bytes);
+    sendSuccess(res, { objectPath }, "QR image uploaded and validated");
   } catch (err) {
+    if (err instanceof Error && !("statusCode" in err)) {
+      next(new AppError(err.message, HTTP_STATUS.UNPROCESSABLE_ENTITY, "QR_UPLOAD_INVALID"));
+      return;
+    }
     next(err);
   }
 }

@@ -27,9 +27,3 @@ export const updateCompanyWalletBodySchema = z.object({
 }).refine((value) => value.walletAddress !== undefined || value.qrObjectPath !== undefined, {
   message: "Wallet address or QR image is required",
 });
-
-export const companyWalletUploadUrlSchema = z.object({
-  name: z.string().min(1).max(128),
-  size: z.number().int().positive().max(2 * 1024 * 1024),
-  contentType: z.literal("image/png"),
-});
