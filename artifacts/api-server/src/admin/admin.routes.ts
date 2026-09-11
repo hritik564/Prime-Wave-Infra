@@ -231,7 +231,11 @@ import {
 
 import { adminDepositVerificationRouter } from "../deposit-verification/deposit-verification.routes";
 import {
+  activateCompanyWalletHandler,
+  createCompanyWalletHandler,
+  deleteCompanyWalletHandler,
   listCompanyWalletsHandler,
+  requestQrUploadUrlHandler,
   updateCompanyWalletHandler,
 } from "./admin-company-wallets.controller";
 import {
@@ -240,6 +244,8 @@ import {
   reconcileCountersHandler,
 } from "./admin-scripts.controller";
 import {
+  companyWalletUploadUrlSchema,
+  createCompanyWalletBodySchema,
   updateCompanyWalletParamSchema,
   updateCompanyWalletBodySchema,
 } from "./admin-company-wallets.schema";
@@ -832,11 +838,27 @@ router.patch(
 );
 
 // ── Company Wallet Management — SUPER_ADMIN only ─────────────────────────────
+router.post(
+  "/company-wallets/qr-upload-url",
+  adminLimiter,
+  superAdminGuard,
+  validate(companyWalletUploadUrlSchema),
+  requestQrUploadUrlHandler,
+);
+
 router.get(
   "/company-wallets",
   adminLimiter,
   superAdminGuard,
   listCompanyWalletsHandler,
+);
+
+router.post(
+  "/company-wallets",
+  adminLimiter,
+  superAdminGuard,
+  validate(createCompanyWalletBodySchema),
+  createCompanyWalletHandler,
 );
 
 router.patch(
@@ -846,6 +868,22 @@ router.patch(
   validate(updateCompanyWalletParamSchema, "params"),
   validate(updateCompanyWalletBodySchema),
   updateCompanyWalletHandler,
+);
+
+router.post(
+  "/company-wallets/:id/activate",
+  adminLimiter,
+  superAdminGuard,
+  validate(updateCompanyWalletParamSchema, "params"),
+  activateCompanyWalletHandler,
+);
+
+router.delete(
+  "/company-wallets/:id",
+  adminLimiter,
+  superAdminGuard,
+  validate(updateCompanyWalletParamSchema, "params"),
+  deleteCompanyWalletHandler,
 );
 
 // ── Deposit Verification — read access includes Staff; mutations stay Finance ──

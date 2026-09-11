@@ -3,6 +3,7 @@ import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { DepositHistoryQuery } from "./deposits.schema";
 import type { Prisma as PrismaNamespace } from "@prisma/client";
+import { getQrReadUrl } from "../lib/company-wallet-qr";
 
 // ── Company wallets ───────────────────────────────────────────────────────────
 
@@ -11,9 +12,14 @@ export async function getActiveCompanyWallets() {
   const wallets = await prisma.companyWallet.findMany({
     where:   { isActive: true },
     orderBy: [{ network: "asc" }, { createdAt: "asc" }],
-    select:  { id: true, network: true, walletAddress: true },
+    select:  { id: true, network: true, walletAddress: true, qrObjectPath: true },
   });
-  return wallets;
+  return Promise.all(wallets.map(async (wallet) => ({
+    id: wallet.id,
+    network: wallet.network,
+    walletAddress: wallet.walletAddress,
+    qrUrl: await getQrReadUrl(wallet.qrObjectPath),
+  })));
 }
 
 // ── Deposit history ───────────────────────────────────────────────────────────

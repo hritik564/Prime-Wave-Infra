@@ -2,7 +2,16 @@ import { AppError }    from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import { prisma }      from "../config/prisma";
 import { logger }      from "../lib/logger";
-import type { Prisma } from "@prisma/client";
+import { Prisma, type Prisma as PrismaNamespace } from "@prisma/client";
+import {
+  createQrUploadUrl,
+  getQrReadUrl,
+  isStoredQrObjectPath,
+  LEGACY_QR_OBJECT_PATH,
+  QR_CONTENT_TYPE,
+  QR_MAX_BYTES,
+  verifyQrMatchesAddress,
+} from "../lib/company-wallet-qr";
 
 // ── Network-specific address validators ───────────────────────────────────────
 const ADDRESS_PATTERNS: Record<string, RegExp> = {
@@ -32,9 +41,118 @@ function validateAddressForNetwork(network: string, address: string): void {
 // ── List ──────────────────────────────────────────────────────────────────────
 
 export async function listCompanyWallets() {
-  return prisma.companyWallet.findMany({
-    orderBy: { network: "asc" },
+  const wallets = await prisma.companyWallet.findMany({
+    where: { network: "BEP20" },
+    orderBy: [{ isActive: "desc" }, { createdAt: "asc" }],
   });
+  return Promise.all(wallets.map(serializeCompanyWallet));
+}
+
+async function serializeCompanyWallet(wallet: {
+  id: string;
+  network: string;
+  walletAddress: string;
+  qrObjectPath: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    ...wallet,
+    qrUrl: await getQrReadUrl(wallet.qrObjectPath),
+  };
+}
+
+function validateBep20Address(walletAddress: string): void {
+  validateAddressForNetwork("BEP20", walletAddress);
+}
+
+function validateQrPath(qrObjectPath: string): void {
+  if (qrObjectPath !== LEGACY_QR_OBJECT_PATH && !isStoredQrObjectPath(qrObjectPath)) {
+    throw new AppError("QR image must be uploaded through the wallet manager", HTTP_STATUS.BAD_REQUEST, "INVALID_QR_IMAGE");
+  }
+}
+
+async function auditWalletChange(
+  adminId: string,
+  action: string,
+  details: PrismaNamespace.InputJsonValue,
+): Promise<void> {
+  try {
+    await prisma.adminLog.create({ data: { adminId, action, details } });
+  } catch (auditErr) {
+    logger.warn({ auditErr, action }, "CompanyWallet: audit log failed (non-fatal)");
+  }
+}
+
+// ── Upload ────────────────────────────────────────────────────────────────────
+
+export async function requestQrUploadUrl(
+  name: string,
+  size: number,
+  contentType: string,
+) {
+  if (contentType !== QR_CONTENT_TYPE || !name.toLowerCase().endsWith(".png")) {
+    throw new AppError("Upload a PNG QR image.", HTTP_STATUS.BAD_REQUEST, "INVALID_QR_IMAGE_TYPE");
+  }
+  if (size <= 0 || size > QR_MAX_BYTES) {
+    throw new AppError("QR image must be between 1 byte and 2 MB.", HTTP_STATUS.BAD_REQUEST, "INVALID_QR_IMAGE_SIZE");
+  }
+  return createQrUploadUrl();
+}
+
+// ── Create ────────────────────────────────────────────────────────────────────
+
+export async function createCompanyWallet(
+  adminId: string,
+  walletAddress: string,
+  qrObjectPath: string,
+  ip?: string,
+) {
+  validateBep20Address(walletAddress);
+  validateQrPath(qrObjectPath);
+  if (qrObjectPath === LEGACY_QR_OBJECT_PATH) {
+    throw new AppError("A newly saved wallet must include an uploaded QR image.", HTTP_STATUS.BAD_REQUEST, "QR_REQUIRED");
+  }
+  if (qrObjectPath !== LEGACY_QR_OBJECT_PATH) {
+    try {
+      await verifyQrMatchesAddress(qrObjectPath, walletAddress);
+    } catch (err) {
+      throw new AppError(
+        err instanceof Error ? err.message : "QR image does not match the wallet address",
+        HTTP_STATUS.BAD_REQUEST,
+        "QR_ADDRESS_MISMATCH",
+      );
+    }
+  }
+
+  let created;
+  try {
+    created = await prisma.$transaction(async (tx) => {
+      const count = await tx.companyWallet.count({ where: { network: "BEP20" } });
+      if (count >= 5) {
+        throw new AppError("A maximum of 5 BEP20 deposit wallets is allowed.", HTTP_STATUS.CONFLICT, "WALLET_LIMIT_REACHED");
+      }
+      return tx.companyWallet.create({
+        data: { network: "BEP20", walletAddress, qrObjectPath, isActive: false },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    if ((err as { code?: string })?.code === "P2002") {
+      throw new AppError("This BEP20 wallet address is already saved.", HTTP_STATUS.CONFLICT, "WALLET_ALREADY_EXISTS");
+    }
+    throw err;
+  }
+
+  await auditWalletChange(adminId, "COMPANY_WALLET_CREATED", {
+    walletId: created.id,
+    network: created.network,
+    walletAddress: created.walletAddress,
+    ...(ip && { ipAddress: ip }),
+    timestamp: new Date().toISOString(),
+  });
+  return serializeCompanyWallet(created);
 }
 
 // ── Update ────────────────────────────────────────────────────────────────────
@@ -42,52 +160,124 @@ export async function listCompanyWallets() {
 export async function updateCompanyWalletAddress(
   adminId:       string,
   id:            string,
-  walletAddress: string,
+  walletAddress: string | undefined,
+  qrObjectPath: string | undefined,
   ip?:           string,
 ) {
   const existing = await prisma.companyWallet.findUnique({ where: { id } });
   if (!existing) {
     throw new AppError("Company wallet not found", HTTP_STATUS.NOT_FOUND, "WALLET_NOT_FOUND");
   }
+  if (existing.network !== "BEP20") {
+    throw new AppError("Only BEP20 deposit wallets can be managed here.", HTTP_STATUS.BAD_REQUEST, "UNSUPPORTED_WALLET_NETWORK");
+  }
 
-  validateAddressForNetwork(existing.network, walletAddress);
+  const nextAddress = walletAddress ?? existing.walletAddress;
+  const nextQrPath = qrObjectPath ?? existing.qrObjectPath;
+  validateBep20Address(nextAddress);
+  validateQrPath(nextQrPath);
 
-  if (existing.walletAddress === walletAddress) {
+  if (existing.walletAddress === nextAddress && existing.qrObjectPath === nextQrPath) {
     throw new AppError(
-      "New wallet address is identical to the current one.",
+      "No wallet changes were supplied.",
       HTTP_STATUS.CONFLICT,
       "WALLET_ADDRESS_UNCHANGED",
     );
   }
 
-  const updated = await prisma.companyWallet.update({
-    where: { id },
-    data:  { walletAddress },
-  });
-
-  try {
-    await prisma.adminLog.create({
-      data: {
-        adminId,
-        action: "COMPANY_WALLET_UPDATED",
-        details: {
-          walletId:       id,
-          network:        existing.network,
-          previousAddress: existing.walletAddress,
-          newAddress:      walletAddress,
-          ...(ip && { ipAddress: ip }),
-          timestamp:      new Date().toISOString(),
-        } as Prisma.InputJsonValue,
-      },
-    });
-  } catch (auditErr) {
-    logger.warn({ auditErr, walletId: id }, "CompanyWallet: audit log failed (non-fatal)");
+  if (nextQrPath !== LEGACY_QR_OBJECT_PATH) {
+    try {
+      await verifyQrMatchesAddress(nextQrPath, nextAddress);
+    } catch (err) {
+      throw new AppError(
+        err instanceof Error ? err.message : "QR image does not match the wallet address",
+        HTTP_STATUS.BAD_REQUEST,
+        "QR_ADDRESS_MISMATCH",
+      );
+    }
+  } else if (nextAddress !== existing.walletAddress) {
+    throw new AppError(
+      "A replacement QR image is required when changing the address.",
+      HTTP_STATUS.BAD_REQUEST,
+      "QR_REPLACEMENT_REQUIRED",
+    );
   }
 
+  let updated;
+  try {
+    updated = await prisma.companyWallet.update({
+      where: { id },
+      data: { walletAddress: nextAddress, qrObjectPath: nextQrPath },
+    });
+  } catch (err) {
+    if ((err as { code?: string })?.code === "P2002") {
+      throw new AppError("This BEP20 wallet address is already saved.", HTTP_STATUS.CONFLICT, "WALLET_ALREADY_EXISTS");
+    }
+    throw err;
+  }
+
+  await auditWalletChange(adminId, "COMPANY_WALLET_UPDATED", {
+    walletId: id,
+    network: existing.network,
+    previousAddress: existing.walletAddress,
+    newAddress: nextAddress,
+    previousQrObjectPath: existing.qrObjectPath,
+    newQrObjectPath: nextQrPath,
+    ...(ip && { ipAddress: ip }),
+    timestamp: new Date().toISOString(),
+  });
   logger.info(
-    { adminId, walletId: id, network: existing.network, newAddress: walletAddress },
-    `CompanyWallet: ${existing.network} wallet address updated`,
+    { adminId, walletId: id, network: existing.network },
+    `CompanyWallet: ${existing.network} wallet profile updated`,
   );
 
-  return updated;
+  return serializeCompanyWallet(updated);
+}
+
+export async function activateCompanyWallet(adminId: string, id: string, ip?: string) {
+  const updated = await prisma.$transaction(async (tx) => {
+    const wallet = await tx.companyWallet.findUnique({ where: { id } });
+    if (!wallet) {
+      throw new AppError("Company wallet not found", HTTP_STATUS.NOT_FOUND, "WALLET_NOT_FOUND");
+    }
+    if (wallet.network !== "BEP20") {
+      throw new AppError("Only BEP20 deposit wallets can be activated.", HTTP_STATUS.BAD_REQUEST, "UNSUPPORTED_WALLET_NETWORK");
+    }
+    await tx.companyWallet.updateMany({
+      where: { network: "BEP20", isActive: true, id: { not: id } },
+      data: { isActive: false },
+    });
+    return tx.companyWallet.update({ where: { id }, data: { isActive: true } });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+  await auditWalletChange(adminId, "COMPANY_WALLET_ACTIVATED", {
+    walletId: id,
+    network: updated.network,
+    walletAddress: updated.walletAddress,
+    ...(ip && { ipAddress: ip }),
+    timestamp: new Date().toISOString(),
+  });
+  return serializeCompanyWallet(updated);
+}
+
+export async function deleteCompanyWallet(adminId: string, id: string, ip?: string) {
+  const existing = await prisma.companyWallet.findUnique({ where: { id } });
+  if (!existing) {
+    throw new AppError("Company wallet not found", HTTP_STATUS.NOT_FOUND, "WALLET_NOT_FOUND");
+  }
+  if (existing.network !== "BEP20") {
+    throw new AppError("Only BEP20 deposit wallets can be deleted here.", HTTP_STATUS.BAD_REQUEST, "UNSUPPORTED_WALLET_NETWORK");
+  }
+  if (existing.isActive) {
+    throw new AppError("The current wallet cannot be deleted.", HTTP_STATUS.CONFLICT, "ACTIVE_WALLET_CANNOT_BE_DELETED");
+  }
+
+  await prisma.companyWallet.delete({ where: { id } });
+  await auditWalletChange(adminId, "COMPANY_WALLET_DELETED", {
+    walletId: id,
+    network: existing.network,
+    walletAddress: existing.walletAddress,
+    ...(ip && { ipAddress: ip }),
+    timestamp: new Date().toISOString(),
+  });
 }

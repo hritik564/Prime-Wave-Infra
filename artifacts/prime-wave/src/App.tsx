@@ -34,7 +34,6 @@ const AdminOperationsPage    = lazy(() => import("@/pages/admin/OperationsPage")
 const AdminSettingsPage      = lazy(() => import("@/pages/admin/AdminSettingsPage"));
 const AdminAutoDepositsPage  = lazy(() => import("@/pages/admin/AutoDepositsPage"));
 const AdminManualCreditPage      = lazy(() => import("@/pages/admin/ManualCreditPage"));
-const AdminCompanyWalletsPage    = lazy(() => import("@/pages/admin/CompanyWalletsPage"));
 const AdminWithdrawalQueuePage   = lazy(() => import("@/pages/admin/WithdrawalQueuePage"));
 const AdminWithdrawalOpsPage     = lazy(() => import("@/pages/admin/WithdrawalOperationalHealthPage"));
 const AdminBlockchainHealthPage  = lazy(() => import("@/pages/admin/BlockchainHealthPage"));
@@ -239,9 +238,6 @@ function AppRoutes() {
       </Route>
       <Route path="/admin/plans">
         <RequireAdmin permission={PERMISSIONS.MANAGE_CONFIGURATION}><Suspense fallback={null}><AdminPlansPage /></Suspense></RequireAdmin>
-      </Route>
-      <Route path="/admin/company-wallets">
-        <RequireAdmin permission={PERMISSIONS.VIEW_COMPANY_WALLETS}><Suspense fallback={null}><AdminCompanyWalletsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/reports">
         <RequireAdmin permission={PERMISSIONS.VIEW_REPORTS}><Suspense fallback={null}><AdminOperationsPage /></Suspense></RequireAdmin>

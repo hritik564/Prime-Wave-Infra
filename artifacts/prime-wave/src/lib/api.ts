@@ -563,6 +563,7 @@ export interface DepositWallet {
   id: string;
   network: string;
   walletAddress: string;
+  qrUrl: string | null;
 }
 
 export function getDepositWallets(): Promise<DepositWallet[]> {
@@ -2941,8 +2942,11 @@ export interface CompanyWallet {
   id: string;
   network: string;
   walletAddress: string;
+  qrObjectPath: string;
   isActive: boolean;
   createdAt: string;
+  updatedAt: string;
+  qrUrl: string | null;
 }
 
 export async function adminGetCompanyWallets(): Promise<CompanyWallet[]> {
@@ -2956,6 +2960,51 @@ export async function adminUpdateCompanyWallet(id: string, data: { walletAddress
     body: JSON.stringify(data),
   });
   return res.wallet;
+}
+
+export function adminRequestCompanyWalletQrUploadUrl(data: {
+  name: string;
+  size: number;
+  contentType: "image/png";
+}) {
+  return request<{
+    uploadURL: string;
+    objectPath: string;
+    contentType: "image/png";
+  }>("/api/admin/company-wallets/qr-upload-url", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function adminCreateCompanyWallet(data: {
+  walletAddress: string;
+  qrObjectPath: string;
+}) {
+  return request<{ wallet: CompanyWallet }>("/api/admin/company-wallets", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }).then((res) => res.wallet);
+}
+
+export function adminUpdateCompanyWalletProfile(
+  id: string,
+  data: { walletAddress?: string; qrObjectPath?: string },
+) {
+  return request<{ wallet: CompanyWallet }>(`/api/admin/company-wallets/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  }).then((res) => res.wallet);
+}
+
+export function adminActivateCompanyWallet(id: string) {
+  return request<{ wallet: CompanyWallet }>(`/api/admin/company-wallets/${id}/activate`, {
+    method: "POST",
+  }).then((res) => res.wallet);
+}
+
+export function adminDeleteCompanyWallet(id: string) {
+  return request<null>(`/api/admin/company-wallets/${id}`, { method: "DELETE" });
 }
 
 // ── Admin: Withdrawal Wallet Management (SUPER_ADMIN only) ───────────────────

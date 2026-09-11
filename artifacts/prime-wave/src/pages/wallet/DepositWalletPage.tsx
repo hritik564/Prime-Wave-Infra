@@ -848,6 +848,7 @@ function FailureBanner({
 export default function DepositWalletPage() {
   const [balance,        setBalance]        = useState<string | null>(null);
   const [depositAddress, setDepositAddress] = useState<string>("");
+  const [depositQrUrl,   setDepositQrUrl]   = useState<string | null>(null);
   const [deposits,       setDeposits]       = useState<DepositVerificationHistoryItem[]>([]);
   const [selectedItem,   setSelectedItem]   = useState<DepositVerificationHistoryItem | null>(null);
   const [loading,        setLoading]        = useState(true);
@@ -868,7 +869,10 @@ export default function DepositWalletPage() {
       setBalance(walletData.depositWallet);
       setDeposits(historyData.data);
       const bep20 = depositWallets.find((w) => w.network === "BEP20");
-      if (bep20) setDepositAddress(bep20.walletAddress);
+      if (bep20) {
+        setDepositAddress(bep20.walletAddress);
+        setDepositQrUrl(bep20.qrUrl);
+      }
     } catch { /* keep whatever we have */ } finally {
       setLoading(false);
     }
@@ -959,7 +963,7 @@ export default function DepositWalletPage() {
 
           <div className="flex justify-center mb-4">
             <div className="rounded-2xl p-3" style={{ background: "#ffffff" }}>
-              <img src={qrImage} alt="USDT BEP20 deposit QR code" width={140} height={140} style={{ display: "block" }} />
+              <img src={depositQrUrl ?? qrImage} alt="USDT BEP20 deposit QR code" width={140} height={140} style={{ display: "block" }} />
             </div>
           </div>
 

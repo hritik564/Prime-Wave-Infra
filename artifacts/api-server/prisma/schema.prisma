@@ -872,8 +872,10 @@ model CompanyWallet {
   id            String         @id @default(cuid())
   network       DepositNetwork
   walletAddress String
+  qrObjectPath  String         @default("/legacy/deposit-wallet-qr")
   isActive      Boolean        @default(true)
   createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@unique([network, walletAddress])
   @@index([network])

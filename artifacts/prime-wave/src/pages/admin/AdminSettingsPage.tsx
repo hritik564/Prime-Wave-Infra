@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CheckCircle2, Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
 import AdminLayout from "./AdminLayout";
+import DepositWalletManagement from "./DepositWalletManagement";
 import { changeAdminPassword, createStaffAdmin } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -315,6 +316,8 @@ export default function AdminSettingsPage() {
             )}
           </section>
         )}
+
+        {isSuperAdmin && <DepositWalletManagement />}
       </div>
     </AdminLayout>
   );
