@@ -71,7 +71,7 @@ export function parseCompanyWalletQrUpload(req: Request): Promise<CompanyWalletQ
         return;
       }
       if (!walletAddress) {
-        fail(new Error("Wallet address is required for QR validation."));
+        fail(new Error("Wallet address is required."));
         return;
       }
       settled = true;

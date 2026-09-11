@@ -8,7 +8,7 @@ import {
   createCompanyWallet,
   deleteCompanyWallet,
   listCompanyWallets,
-  uploadAndValidateCompanyWalletQr,
+  uploadCompanyWalletQr,
   updateCompanyWalletAddress,
 } from "./admin-company-wallets.service";
 import { parseCompanyWalletQrUpload } from "./admin-company-wallet-qr-upload";
@@ -64,8 +64,8 @@ export async function uploadCompanyWalletQrHandler(
 ) {
   try {
     const upload = await parseCompanyWalletQrUpload(req);
-    const objectPath = await uploadAndValidateCompanyWalletQr(upload.walletAddress, upload.bytes);
-    sendSuccess(res, { objectPath }, "QR image uploaded and validated");
+    const objectPath = await uploadCompanyWalletQr(upload.walletAddress, upload.bytes);
+    sendSuccess(res, { objectPath }, "QR image uploaded");
   } catch (err) {
     if (err instanceof Error && !("statusCode" in err)) {
       next(new AppError(err.message, HTTP_STATUS.UNPROCESSABLE_ENTITY, "QR_UPLOAD_INVALID"));

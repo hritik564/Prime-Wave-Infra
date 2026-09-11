@@ -9,10 +9,7 @@ import {
   isStoredQrObjectPath,
   LEGACY_QR_OBJECT_PATH,
   QR_MAX_BYTES,
-  QrValidationError,
   uploadQrObject,
-  validateQrBytes,
-  verifyQrMatchesAddress,
 } from "../lib/company-wallet-qr";
 
 // ── Network-specific address validators ───────────────────────────────────────
@@ -87,31 +84,14 @@ async function auditWalletChange(
   }
 }
 
-function mapQrValidationError(error: unknown): AppError {
-  if (error instanceof QrValidationError) {
-    const statusCode = error.code === "QR_OBJECT_READ_FAILED"
-      ? HTTP_STATUS.BAD_REQUEST
-      : HTTP_STATUS.UNPROCESSABLE_ENTITY;
-    return new AppError(error.message, statusCode, error.code);
-  }
-  return new AppError("QR upload failed. Please try again.", HTTP_STATUS.BAD_REQUEST, "QR_UPLOAD_FAILED");
-}
-
 // ── Upload ────────────────────────────────────────────────────────────────────
 
-export async function uploadAndValidateCompanyWalletQr(
-  walletAddress: string,
+export async function uploadCompanyWalletQr(
+  _walletAddress: string,
   bytes: Buffer,
 ): Promise<string> {
-  validateBep20Address(walletAddress);
   if (bytes.length === 0 || bytes.length > QR_MAX_BYTES) {
     throw new AppError("QR image must be between 1 byte and 2 MB.", HTTP_STATUS.UNPROCESSABLE_ENTITY, "INVALID_QR_IMAGE_SIZE");
-  }
-
-  try {
-    validateQrBytes(bytes, walletAddress);
-  } catch (error) {
-    throw mapQrValidationError(error);
   }
 
   const objectPath = createStoredQrObjectPath();
@@ -119,12 +99,6 @@ export async function uploadAndValidateCompanyWalletQr(
     await uploadQrObject(objectPath, bytes);
   } catch {
     throw new AppError("QR upload failed. Please try again.", HTTP_STATUS.BAD_REQUEST, "QR_UPLOAD_FAILED");
-  }
-
-  try {
-    await verifyQrMatchesAddress(objectPath, walletAddress);
-  } catch (error) {
-    throw mapQrValidationError(error);
   }
 
   return objectPath;
@@ -143,14 +117,6 @@ export async function createCompanyWallet(
   if (qrObjectPath === LEGACY_QR_OBJECT_PATH) {
     throw new AppError("A newly saved wallet must include an uploaded QR image.", HTTP_STATUS.BAD_REQUEST, "QR_REQUIRED");
   }
-  if (qrObjectPath !== LEGACY_QR_OBJECT_PATH) {
-    try {
-      await verifyQrMatchesAddress(qrObjectPath, walletAddress);
-    } catch (err) {
-      throw mapQrValidationError(err);
-    }
-  }
-
   let created;
   try {
     created = await prisma.$transaction(async (tx) => {
@@ -210,13 +176,7 @@ export async function updateCompanyWalletAddress(
     );
   }
 
-  if (nextQrPath !== LEGACY_QR_OBJECT_PATH) {
-    try {
-      await verifyQrMatchesAddress(nextQrPath, nextAddress);
-    } catch (err) {
-      throw mapQrValidationError(err);
-    }
-  } else if (nextAddress !== existing.walletAddress) {
+  if (nextQrPath === LEGACY_QR_OBJECT_PATH && nextAddress !== existing.walletAddress) {
     throw new AppError(
       "A replacement QR image is required when changing the address.",
       HTTP_STATUS.BAD_REQUEST,

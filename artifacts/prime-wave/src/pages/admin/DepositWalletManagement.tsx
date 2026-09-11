@@ -33,7 +33,7 @@ const MAX_PROFILES = 5;
 const MAX_QR_BYTES = 2 * 1024 * 1024;
 
 type EditorMode = "create" | "edit";
-type QrState = "idle" | "selected" | "validating" | "valid" | "upload-failed" | "validation-failed";
+type QrState = "idle" | "selected" | "uploading" | "upload-failed";
 
 function maskAddress(address: string): string {
   if (address.length <= 14) return address;
@@ -128,12 +128,12 @@ export default function DepositWalletManagement() {
     if (!file) return;
     if (file.type !== "image/png" || !file.name.toLowerCase().endsWith(".png")) {
       setFormError("Upload a PNG QR image.");
-       setQrState("validation-failed");
+      setQrState("upload-failed");
       return;
     }
     if (file.size > MAX_QR_BYTES) {
       setFormError("The QR image must be 2 MB or smaller.");
-      setQrState("validation-failed");
+      setQrState("upload-failed");
       return;
     }
     setFormError(null);
@@ -155,12 +155,12 @@ export default function DepositWalletManagement() {
     }
     if (editorMode === "create" && !qrFile) {
       setFormError("A QR image is required for every saved wallet.");
-      setQrState("validation-failed");
+      setQrState("upload-failed");
       return;
     }
 
     setSaving(true);
-    setQrState(qrFile ? "validating" : "idle");
+    setQrState(qrFile ? "uploading" : "idle");
     try {
       const qrObjectPath = qrFile ? await uploadQr(qrFile, trimmedAddress) : undefined;
       if (editorMode === "create") {
@@ -174,12 +174,12 @@ export default function DepositWalletManagement() {
         });
         toast("Deposit wallet updated.", "success");
       }
-      setQrState(qrFile ? "valid" : "idle");
+       setQrState(qrFile ? "selected" : "idle");
       closeEditor();
       await load();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to save this wallet.";
-      setQrState(message.startsWith("QR upload failed") ? "upload-failed" : "validation-failed");
+       setQrState("upload-failed");
       setFormError(message);
     } finally {
       setSaving(false);
@@ -227,7 +227,7 @@ export default function DepositWalletManagement() {
               Deposit Wallet Management
             </h2>
             <p style={{ margin: "5px 0 0", color: MUTED, fontSize: 12, lineHeight: 1.5 }}>
-              Save up to five BEP20 deposit wallet profiles. Address and QR image are validated and changed together.
+               Save up to five BEP20 deposit wallet profiles. QR images are stored as uploaded without inspecting their contents.
             </p>
           </div>
           <button type="button" onClick={() => void load()} style={buttonStyle()} title="Refresh saved wallets">
@@ -263,8 +263,8 @@ export default function DepositWalletManagement() {
             {qrPreview ? (
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
                 <img src={qrPreview} alt="Selected QR preview" width={92} height={92} style={{ objectFit: "contain", background: "#fff", borderRadius: 8, padding: 6 }} />
-                 <div style={{ color: qrState === "upload-failed" || qrState === "validation-failed" ? "#fca5a5" : qrState === "validating" ? GOLD_L : "#86efac", fontSize: 12 }}>
-                   {qrState === "validating" ? "Uploading and verifying QR/address match…" : qrState === "upload-failed" ? "QR upload failed." : qrState === "validation-failed" ? "QR validation failed." : "QR selected; the server will verify its payload on save."}
+                  <div style={{ color: qrState === "upload-failed" ? "#fca5a5" : qrState === "uploading" ? GOLD_L : "#86efac", fontSize: 12 }}>
+                    {qrState === "uploading" ? "Uploading QR image…" : qrState === "upload-failed" ? "QR upload failed." : "QR selected; its contents will not be inspected."}
                 </div>
               </div>
             ) : editorMode === "edit" && editingWallet ? (
@@ -273,7 +273,7 @@ export default function DepositWalletManagement() {
             {formError && <p role="alert" style={{ margin: "0 0 12px", color: "#fca5a5", fontSize: 12 }}>{formError}</p>}
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" onClick={() => void saveProfile()} disabled={saving} style={{ ...buttonStyle("primary"), opacity: saving ? 0.65 : 1 }}>
-                <Upload size={13} /> {saving ? "Validating…" : "Save Wallet"}
+                <Upload size={13} /> {saving ? "Uploading…" : "Save Wallet"}
               </button>
               <button type="button" onClick={closeEditor} disabled={saving} style={buttonStyle()}>Cancel</button>
             </div>

@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import jsQR from "jsqr";
-import { PNG } from "pngjs";
 import { Storage } from "@google-cloud/storage";
 
 export const LEGACY_QR_OBJECT_PATH = "/legacy/deposit-wallet-qr";
@@ -9,24 +7,6 @@ export const QR_MAX_BYTES = 2 * 1024 * 1024;
 
 const SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 const OBJECT_PATH_RE = /^\/objects\/company-wallet-qr\/[a-zA-Z0-9-]+\.png$/;
-const BEP20_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
-
-export type QrValidationCode =
-  | "INVALID_PNG"
-  | "QR_NOT_FOUND"
-  | "QR_ADDRESS_MISMATCH"
-  | "QR_OBJECT_READ_FAILED";
-
-export class QrValidationError extends Error {
-  constructor(
-    message: string,
-    public readonly code: QrValidationCode,
-  ) {
-    super(message);
-    this.name = "QrValidationError";
-  }
-}
-
 const objectStorageClient = new Storage({
   credentials: {
     audience: "replit",
@@ -123,79 +103,7 @@ export async function uploadQrObject(objectPath: string, bytes: Buffer): Promise
   });
 }
 
-function decodeQrAddress(bytes: Buffer): string {
-  if (bytes.length === 0 || bytes.length > QR_MAX_BYTES) {
-    throw new QrValidationError(
-      "QR image is empty or exceeds the 2 MB limit",
-      "INVALID_PNG",
-    );
-  }
-
-  let png: PNG;
-  try {
-    png = PNG.sync.read(bytes);
-  } catch {
-    throw new QrValidationError("The selected file is not a valid PNG.", "INVALID_PNG");
-  }
-
-  const decoded = jsQR(
-    new Uint8ClampedArray(png.data),
-    png.width,
-    png.height,
-    { inversionAttempts: "attemptBoth" },
-  );
-  const payload = decoded?.data?.trim() ?? "";
-  const address = payload.match(/0x[0-9a-fA-F]{40}/)?.[0];
-  if (!address || !BEP20_ADDRESS_RE.test(address)) {
-    throw new QrValidationError(
-      "Could not read a QR code from this image.",
-      "QR_NOT_FOUND",
-    );
-  }
-  return address;
-}
-
-export function validateQrBytes(bytes: Buffer, walletAddress: string): void {
-  const decodedAddress = decodeQrAddress(bytes);
-  if (decodedAddress.toLowerCase() !== walletAddress.toLowerCase()) {
-    throw new QrValidationError(
-      "QR address does not match the wallet address.",
-      "QR_ADDRESS_MISMATCH",
-    );
-  }
-}
-
 export async function getQrReadUrl(objectPath: string): Promise<string | null> {
   if (objectPath === LEGACY_QR_OBJECT_PATH) return null;
   return signObjectUrl(objectEntityToStoragePath(objectPath), "GET", 15 * 60);
-}
-
-export async function verifyQrMatchesAddress(
-  objectPath: string,
-  walletAddress: string,
-): Promise<void> {
-  if (objectPath === LEGACY_QR_OBJECT_PATH) {
-    return;
-  }
-
-  const readUrl = await getQrReadUrl(objectPath);
-  if (!readUrl) {
-    throw new QrValidationError("QR image could not be read from object storage.", "QR_OBJECT_READ_FAILED");
-  }
-  try {
-    const response = await fetch(readUrl, {
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!response.ok) {
-      throw new Error(`object storage returned ${response.status}`);
-    }
-    const bytes = Buffer.from(await response.arrayBuffer());
-    validateQrBytes(bytes, walletAddress);
-  } catch (error) {
-    if (error instanceof QrValidationError) throw error;
-    throw new QrValidationError(
-      "QR image could not be read from object storage.",
-      "QR_OBJECT_READ_FAILED",
-    );
-  }
 }
