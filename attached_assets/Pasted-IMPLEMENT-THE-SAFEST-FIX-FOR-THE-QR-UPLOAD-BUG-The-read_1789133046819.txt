@@ -1,0 +1,146 @@
+IMPLEMENT THE SAFEST FIX FOR THE QR UPLOAD BUG.
+
+The read-only diagnosis confirmed that the Deposit Wallet Management QR upload fails BEFORE QR decoding.
+
+Confirmed behavior:
+
+- File selection works.
+- Local preview works.
+- POST /api/admin/company-wallets/qr-upload-url returns HTTP 200.
+- The browser's direct PUT to the App Storage presigned URL fails with the native browser error:
+  "Load failed"
+- The backend QR decoder is never reached.
+- The uploaded test PNG is valid:
+  - 235 × 235
+  - valid PNG
+  - 4,713 bytes
+  - QR successfully decodes
+- The QR payload was:
+  0x543780…658BDb
+- The entered address was:
+  0x543780…658BDb
+- QR/address match is confirmed.
+- The current active production BEP20 wallet remains:
+  0x1f4d…B991
+- The 0x543780… wallet is a legitimate historical/saved inactive profile candidate and must NOT be rejected merely because it is not the current active wallet.
+
+OBJECTIVE:
+
+Fix the QR upload workflow so Super Admins can reliably upload PNG QR images from the production Admin Settings → Deposit Wallet Management interface.
+
+PREFERRED ARCHITECTURE:
+
+Avoid relying on a browser cross-origin PUT directly to the App Storage/GCS presigned URL if the existing App Storage integration provides a safe server-side upload mechanism.
+
+Prefer:
+
+Browser
+→ authenticated application API
+→ server-side App Storage upload
+→ stored object
+→ QR validation
+→ wallet profile create/update
+
+If the existing project already has a secure server-side App Storage upload helper, reuse it rather than creating a second storage abstraction.
+
+If a server-side upload is NOT supported by the existing App Storage integration, then investigate and correctly configure the existing presigned-upload flow instead. Do not weaken security or use an insecure proxy.
+
+SECURITY REQUIREMENTS:
+
+- Only authenticated SUPER_ADMIN users may upload QR images.
+- Do not expose App Storage credentials to the browser.
+- Do not expose private storage credentials in API responses.
+- Do not disable authentication.
+- Do not make QR objects publicly writable.
+- Do not bypass QR/address validation.
+- Do not accept an arbitrary object path supplied by the client.
+- Continue validating that the QR encodes the exact BEP20 address being saved.
+- Continue requiring a QR image for every saved wallet profile.
+- Preserve existing inactive profiles.
+- Preserve the maximum 5 BEP20 profile limit.
+- Preserve the one-active-BEP20 constraint.
+- Do not modify withdrawal code or withdrawal configuration.
+
+UPLOAD VALIDATION:
+
+After the upload succeeds, the existing QR validation must still execute.
+
+The flow should verify:
+
+1. The uploaded object exists.
+2. The object can be read by the backend.
+3. It is a valid PNG.
+4. The QR can be decoded.
+5. The decoded payload is a valid BEP20 address.
+6. The decoded address exactly matches the address being saved.
+7. Only then should the wallet profile be created or updated.
+
+ERROR HANDLING:
+
+Replace the current generic behavior where a browser "Load failed" becomes:
+
+"QR validation failed."
+
+The UI should distinguish upload failures from QR validation failures.
+
+For example:
+
+- Upload failure:
+  "QR upload failed. Please try again."
+- Invalid PNG:
+  "The selected file is not a valid PNG."
+- QR cannot be decoded:
+  "Could not read a QR code from this image."
+- QR/address mismatch:
+  "QR address does not match the wallet address."
+- Successful validation:
+  Continue to the normal save flow.
+
+Do not expose internal storage credentials, signed URLs, stack traces, or sensitive infrastructure details to the user.
+
+IMPORTANT:
+
+Do not modify production data.
+Do not create, edit, activate, deactivate, or delete any wallet profile during this task.
+Do not change the current active BEP20 wallet.
+Do not change wallet addresses.
+Do not modify secrets/environment variables unless absolutely required by the chosen implementation, and if a secret/configuration change is required, STOP and report exactly what is required instead of changing it.
+Do not publish.
+
+TESTING:
+
+Add/fix tests covering:
+
+1. Successful QR upload.
+2. PNG validation.
+3. Successful QR decoding.
+4. QR/address match.
+5. QR/address mismatch.
+6. Upload failure.
+7. Unauthenticated access.
+8. Non-SUPER_ADMIN access.
+9. No wallet profile created when upload fails.
+10. No wallet profile created when QR validation fails.
+11. Existing maximum-5 profile enforcement remains intact.
+12. Existing one-active-BEP20 enforcement remains intact.
+
+Run:
+
+- Relevant wallet-management tests
+- Full API tests
+- API typecheck
+- Frontend typecheck
+- Production builds
+- git diff --check
+
+At the end, provide:
+
+- Exact root cause addressed
+- Exact implementation chosen
+- Files changed
+- Whether any secrets/configuration were changed
+- Tests passed
+- Confirmation that no production data was modified
+- Confirmation that no deployment/publish was performed
+
+DO NOT PUBLISH.
