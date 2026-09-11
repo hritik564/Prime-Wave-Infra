@@ -1,0 +1,159 @@
+Perform a FINAL READ-ONLY PRE-PUBLISH AUDIT for the recently implemented Super Admin Deposit Wallet + QR Management feature.
+
+IMPORTANT:
+- DO NOT publish.
+- DO NOT deploy.
+- DO NOT restart production.
+- DO NOT modify production database data.
+- DO NOT modify production secrets/environment variables.
+- DO NOT upload/delete/modify production App Storage objects.
+- DO NOT change any withdrawal code, settings, configuration, or database records.
+- DO NOT make any code changes.
+- This is strictly an audit.
+
+Audit the current workspace and report whether it is SAFE TO PUBLISH.
+
+FEATURE REQUIREMENTS TO VERIFY:
+
+1. Super Admin ONLY
+   - Only SUPER_ADMIN can list, create, edit, activate, or delete saved deposit wallet profiles.
+   - STAFF_OPERATIONS and all other roles must be denied.
+   - Authentication and authorization must be enforced server-side, not merely by hiding UI controls.
+
+2. Saved wallet profiles
+   - Maximum 5 BEP20 wallet profiles.
+   - The database must enforce the maximum, not just the frontend.
+   - Only one BEP20 profile may be active at a time.
+   - The currently active BEP20 wallet must remain saved as a profile.
+   - The current QR must also remain associated with that profile.
+   - Inactive profiles can be saved for future switching.
+   - Active wallet cannot be deleted.
+
+3. QR requirement
+   - Every saved BEP20 profile must have a QR.
+   - Saving a wallet without a QR must be rejected server-side.
+   - QR must be a valid PNG.
+   - QR must decode successfully.
+   - Decoded QR payload must exactly match the entered BEP20 wallet address.
+   - QR/address mismatch must reject the save.
+   - Replacing/editing the address must require a corresponding valid QR.
+   - The old QR must not accidentally remain associated with a changed address.
+
+4. QR upload architecture
+   - Confirm the browser no longer performs the problematic direct cross-origin PUT to a presigned App Storage URL.
+   - Confirm the new authenticated multipart upload goes through the server.
+   - Confirm App Storage credentials never reach the browser.
+   - Confirm object paths are generated server-side.
+   - Confirm uploaded QR objects remain private.
+   - Confirm the server reads the stored object back before accepting the wallet profile.
+   - Confirm failed validation cannot leave an incorrectly saved wallet profile.
+
+5. Active wallet switching
+   - Activation must be atomic.
+   - There can never be two active BEP20 profiles after a successful activation.
+   - Existing automatic deposit verification must continue loading the active BEP20 wallet from company_wallets.
+   - Switching profiles must therefore change the recipient used by future automatic deposits while preserving historical recipient snapshots.
+
+6. Existing production migration safety
+   Inspect:
+   artifacts/api-server/prisma/migrations/20260911120000_saved_deposit_wallet_profiles/migration.sql
+
+   Confirm it contains only the intended:
+   - qrObjectPath column
+   - updatedAt column
+   - one-active-BEP20 partial unique index
+   - five-BEP20-profile enforcement function
+   - five-BEP20-profile enforcement trigger
+
+   Confirm there are no:
+   - DROP statements
+   - DELETE statements
+   - TRUNCATE statements
+   - wallet-address rewrites
+   - active-state rewrites
+   - withdrawal schema changes
+
+7. Migration compatibility
+   Verify the migration is safe against the current known production state:
+   - BEP20 profiles: 1
+   - Active BEP20 profiles: 1
+   - ERC20: 1
+   - TRC20: 1
+   - SOL: 1
+
+   Confirm the migration does not require more than the existing production state can satisfy.
+
+8. Current wallet preservation
+   Confirm the existing active BEP20 wallet remains:
+   0x1f4d…B991
+
+   Do not modify it.
+
+   Confirm the migration's qrObjectPath legacy fallback preserves the existing bundled QR behavior.
+
+9. Deposit functionality regression
+   Confirm the existing automatic deposit flow remains intact:
+   - BEP20/BSC
+   - chain ID 56
+   - configured BSC USDT contract
+   - 12 confirmations
+   - active company wallet used as recipient
+   - historical recipient snapshots preserved
+
+   The previously successful 1 USDT automatic deposit flow must not be broken by this feature.
+
+10. Withdrawal isolation
+   Verify that the changes do NOT modify:
+   - withdrawal_requests
+   - withdrawal processor
+   - hot wallet configuration
+   - BLOCKCHAIN_DRY_RUN
+   - withdrawal settings
+   - withdrawal engine
+   - withdrawal permissions
+   - withdrawal blockchain gateway
+
+11. API security
+   Review every new/modified wallet-management route and verify:
+   - authentication is required
+   - SUPER_ADMIN authorization is required
+   - request validation is server-side
+   - wallet address validation is server-side
+   - QR validation is server-side
+   - profile-count validation is server-side
+   - active-wallet rules are server-side
+
+12. Tests
+   Run the relevant existing tests/typechecks/build checks in READ-ONLY fashion.
+   Do not modify files to make tests pass.
+
+13. Git/diff inspection
+   Review the current diff and identify:
+   - all modified files
+   - all newly added files
+   - any unrelated changes
+   - any withdrawal-related changes
+   - any unexpected database migrations
+
+FINAL REPORT FORMAT:
+
+Overall result:
+SAFE TO PUBLISH / NOT SAFE TO PUBLISH
+
+Then provide:
+
+A. Security
+B. Wallet/profile logic
+C. QR upload and validation
+D. Migration safety
+E. Existing deposit-flow compatibility
+F. Withdrawal isolation
+G. Tests/builds
+H. Unexpected/unrelated changes
+
+For every issue, classify it as:
+- BLOCKER
+- WARNING
+- PASS
+
+Do not make any changes while performing this audit.
