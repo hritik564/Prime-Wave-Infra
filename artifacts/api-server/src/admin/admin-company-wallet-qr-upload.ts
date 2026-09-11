@@ -28,7 +28,10 @@ export function parseCompanyWalletQrUpload(req: Request): Promise<CompanyWalletQ
     try {
       busboy = Busboy({
         headers: req.headers,
-        limits: { files: 1, fields: 1, parts: 2, fileSize: QR_MAX_BYTES + 1 },
+        // Do not cap total multipart parts: browser FormData implementations
+        // can add multipart metadata parts even when the client appends only
+        // the address and image. Keep the meaningful safety limits instead.
+        limits: { files: 1, fields: 4, fileSize: QR_MAX_BYTES + 1 },
       });
     } catch {
       fail(new Error("QR upload failed. Please try again."));
@@ -62,7 +65,6 @@ export function parseCompanyWalletQrUpload(req: Request): Promise<CompanyWalletQ
     });
 
     busboy.on("filesLimit", () => fail(new Error("Upload one QR image at a time.")));
-    busboy.on("partsLimit", () => fail(new Error("QR upload request is invalid.")));
     busboy.on("error", () => fail(new Error("QR upload failed. Please try again.")));
     busboy.on("finish", () => {
       if (settled) return;
