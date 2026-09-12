@@ -284,9 +284,9 @@ const RowActions = memo(function RowActions({ row, onView, onToggleStatus, onBlo
 const LIMIT = 50;
 
 export default function MembersPage() {
-  const { role } = useAuth();
+  const { role, startImpersonating } = useAuth();
   const isStaffOperations = role === "STAFF_OPERATIONS";
-  const { startImpersonating } = useAuth();
+  const canImpersonate = role === "SUPER_ADMIN" || role === "STAFF_OPERATIONS";
   const [filters,   setFilters]   = useState<Filters>(DEFAULT_FILTERS);
   const [applied,   setApplied]   = useState<Filters>(DEFAULT_FILTERS);
   const [page,      setPage]      = useState(1);
@@ -400,7 +400,7 @@ export default function MembersPage() {
 
   const handleDrawerAction = useCallback((label: string) => {
     if (!drawer) return;
-    if (isStaffOperations && !["Suspend Member", "Activate Member", "Block Member"].includes(label)) return;
+    if (isStaffOperations && !["Suspend Member", "Activate Member", "Block Member", "Login As User"].includes(label)) return;
     if (label === "Suspend Member")  { setSuspendTarget(drawer);  return; }
     if (label === "Activate Member") { setActivateTarget(drawer); return; }
     if (label === "Block Member")    { setBlockTarget(drawer);    return; }
@@ -827,7 +827,7 @@ export default function MembersPage() {
         <ApproveKYCDialog member={kycTarget} onClose={() => setKycTarget(null)}
           onConfirm={() => toast("KYC management — coming soon", "info")} />
       )}
-      {!isStaffOperations && loginAsTarget && (
+      {canImpersonate && loginAsTarget && (
         <LoginAsUserDialog member={loginAsTarget} onClose={() => setLoginAsTarget(null)}
           onConfirm={async (reason) => {
             const result = await adminImpersonateUser(loginAsTarget.id, reason);

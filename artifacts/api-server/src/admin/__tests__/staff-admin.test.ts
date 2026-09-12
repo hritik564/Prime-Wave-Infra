@@ -357,4 +357,12 @@ describe("Temporary Staff Operations feature authorization", () => {
       statusCode: 403,
     }));
   });
+
+  it.each(["SUPER_ADMIN", "STAFF_OPERATIONS"])("allows %s to use user impersonation", async (role) => {
+    const next = await runGuard(
+      requireAdminRoles("SUPER_ADMIN", "STAFF_OPERATIONS"),
+      role,
+    );
+    expect(next).toHaveBeenCalledWith();
+  });
 });

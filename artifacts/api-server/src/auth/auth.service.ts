@@ -220,10 +220,12 @@ export async function startImpersonation(
   userAgent:  string,
   reason?:    string,
 ): Promise<{ token: string; sessionId: string; user: { id: string; email: string; username: string; firstName: string; lastName: string } }> {
-  // Verify the admin is a SUPER_ADMIN
+  // Verify the admin has an impersonation-capable staff role
   const admin = await prisma.admin.findUnique({ where: { id: adminId }, select: { id: true, role: true } });
   if (!admin) throw new AppError("Admin not found", HTTP_STATUS.NOT_FOUND, "NOT_FOUND");
-  if (admin.role !== "SUPER_ADMIN") throw new AppError("Only SUPER_ADMIN may impersonate users", HTTP_STATUS.FORBIDDEN, "FORBIDDEN");
+  if (admin.role !== "SUPER_ADMIN" && admin.role !== "STAFF_OPERATIONS") {
+    throw new AppError("Only SUPER_ADMIN or STAFF_OPERATIONS may impersonate users", HTTP_STATUS.FORBIDDEN, "FORBIDDEN");
+  }
 
   // Get target user
   const target = await prisma.user.findUnique({

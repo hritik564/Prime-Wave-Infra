@@ -545,7 +545,7 @@ router.get(
 router.post(
   "/users/:id/impersonate",
   adminLimiter,
-  superAdminGuard,
+  requireAdminRoles("SUPER_ADMIN", "STAFF_OPERATIONS"),
   impersonateUserHandler,
 );
 
