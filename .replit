@@ -29,3 +29,6 @@ channel = "stable-25_05"
 
 [userenv.shared]
 BLOCKCHAIN_DRY_RUN = "true"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-c49ce2b1-feb8-40b5-abd6-6db368d836fa"

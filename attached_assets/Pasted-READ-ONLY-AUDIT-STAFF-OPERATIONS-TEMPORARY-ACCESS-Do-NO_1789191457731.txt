@@ -1,0 +1,255 @@
+READ-ONLY AUDIT — STAFF OPERATIONS TEMPORARY ACCESS
+
+Do NOT modify anything.
+
+This is an architecture and authorization audit only. Do not:
+- Change source code
+- Create or modify migrations
+- Modify the database
+- Modify production data
+- Modify secrets/environment variables
+- Change permissions
+- Publish/deploy
+- Restart production workflows
+- Create accounts
+- Perform financial operations
+- Upload/delete any files or App Storage objects
+
+Goal:
+
+We are considering temporarily expanding the existing STAFF_OPERATIONS admin role so that Staff Operations can access:
+
+1. Manual Deposit
+2. Power Business
+
+Before implementing anything, map exactly how these two features currently work and what permissions they currently require.
+
+==================================================
+PART 1 — CURRENT STAFF_OPERATIONS PERMISSIONS
+==================================================
+
+Inspect the entire authorization system and report:
+
+- Current STAFF_OPERATIONS permissions
+- Every backend route accessible to STAFF_OPERATIONS
+- Every backend route explicitly denying STAFF_OPERATIONS
+- Existing role guards such as:
+  - requireAdminAuth
+  - requireAdminRoles
+  - any permission/capability middleware
+- Any frontend role checks
+- Any navigation/sidebar visibility checks
+- Whether STAFF_OPERATIONS currently inherits or shares permissions with another role
+
+Do not change any of these.
+
+==================================================
+PART 2 — MANUAL DEPOSIT AUDIT
+==================================================
+
+Trace the COMPLETE existing Manual Deposit workflow from frontend to database.
+
+Identify:
+
+### Frontend
+- Exact page/component where Manual Deposit is displayed
+- Exact Admin Panel navigation entry
+- Which roles can currently see it
+- Which roles are currently prevented from seeing it
+- Exact API calls made by the frontend
+- Any role/permission checks in the frontend
+
+### Backend
+Identify every API endpoint involved in Manual Deposit.
+
+For each endpoint provide:
+
+- HTTP method
+- Exact route
+- Controller/handler file
+- Service function
+- Authorization guard
+- Required role(s)
+- Request parameters/body
+- Database tables/models modified
+- Important validation rules
+- Audit logging performed
+- Whether the endpoint can directly credit a user's wallet
+- Whether it can alter deposit status
+- Whether it can create financial ledger/wallet transaction records
+
+### Database
+Identify exactly which records are modified by a successful Manual Deposit.
+
+Do NOT modify them.
+
+Also identify whether there are safeguards against:
+- Duplicate deposits
+- Invalid amounts
+- Invalid users
+- Unauthorized users
+- Double crediting
+- Negative/zero deposits
+- Missing audit trail
+
+### Security boundary
+Explicitly state:
+
+"What would STAFF_OPERATIONS gain if it were granted access to the existing Manual Deposit workflow?"
+
+Do not recommend broadening permissions yet.
+
+==================================================
+PART 3 — POWER BUSINESS AUDIT
+==================================================
+
+Trace the COMPLETE existing Power Business feature.
+
+Identify:
+
+### Frontend
+- Exact page/component
+- Admin Panel navigation location
+- Current roles allowed to see it
+- Current roles denied
+- All API calls made by the feature
+- All frontend role/permission checks
+
+### Backend
+Identify every API endpoint required by Power Business.
+
+For EACH endpoint provide:
+
+- HTTP method
+- Exact route
+- Controller/handler
+- Service function
+- Authorization guard
+- Required roles
+- Request parameters/body
+- Database models/tables read
+- Database models/tables modified
+- Whether it performs financial operations
+- Whether it can modify member balances
+- Whether it can modify investments
+- Whether it can modify rewards
+- Whether it can modify settings
+- Whether it can approve/reject anything
+- Whether it can perform any other privileged operation
+- Audit logging
+
+### Security boundary
+Explicitly state:
+
+"What would STAFF_OPERATIONS gain if it were granted access to the existing Power Business workflow?"
+
+==================================================
+PART 4 — FIND THE MINIMUM PERMISSION SET
+==================================================
+
+Determine the MINIMUM existing backend authorization changes required to allow:
+
+STAFF_OPERATIONS → Manual Deposit
+
+and
+
+STAFF_OPERATIONS → Power Business
+
+Do NOT implement those changes.
+
+For each feature, provide:
+
+- Existing required role(s)
+- Whether the current authorization guard can safely support STAFF_OPERATIONS
+- Exact guards/routes that would need modification
+- Whether any frontend checks would also need modification
+- Whether granting access would accidentally expose other functionality
+- Whether the feature shares routes with unrelated privileged operations
+- Whether a dedicated permission would be safer than adding STAFF_OPERATIONS to an existing broad role guard
+
+IMPORTANT:
+
+Do NOT simply recommend changing:
+
+requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN")
+
+to:
+
+requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN", "STAFF_OPERATIONS")
+
+unless that is actually safe for the specific route.
+
+We want to avoid accidentally granting Staff access to unrelated financial/admin capabilities.
+
+==================================================
+PART 5 — TEMPORARY ACCESS DESIGN
+==================================================
+
+Because this access is TEMPORARY, inspect whether the project already has:
+
+- Feature flags
+- Permission/capability tables
+- Role-permission mappings
+- Admin settings
+- Environment-controlled feature flags
+- Existing temporary access mechanisms
+
+Determine the safest reversible implementation.
+
+Compare:
+
+A. Add STAFF_OPERATIONS directly to existing role guards
+
+B. Add dedicated permissions for:
+   - MANUAL_DEPOSIT
+   - POWER_BUSINESS
+
+C. Add a temporary feature flag/permission specifically for STAFF_OPERATIONS
+
+D. Any existing mechanism already present in the project
+
+Recommend the safest option based strictly on the current architecture.
+
+==================================================
+PART 6 — DO NOT CHANGE ANYTHING
+==================================================
+
+This is strictly a read-only investigation.
+
+Do NOT:
+- Edit files
+- Write SQL
+- Run migrations
+- Change role permissions
+- Create users
+- Modify production
+- Publish
+- Restart deployments
+- Change environment variables
+- Change database records
+
+==================================================
+FINAL REPORT FORMAT
+==================================================
+
+Return a concise but complete report with these sections:
+
+1. STAFF_OPERATIONS — CURRENT ACCESS
+2. MANUAL DEPOSIT — COMPLETE WORKFLOW
+3. POWER BUSINESS — COMPLETE WORKFLOW
+4. EXACT ROUTES AND REQUIRED ROLES
+5. DATABASE / FINANCIAL IMPACT
+6. SECURITY RISKS OF GRANTING STAFF ACCESS
+7. MINIMUM REQUIRED CHANGES
+8. SAFEST TEMPORARY IMPLEMENTATION
+9. REVERSIBILITY
+10. RECOMMENDED NEXT STEP
+
+At the end provide a table:
+
+| Feature | Current Staff Access | Required Change | Financial Risk | Recommended |
+|---|---|---|---|---|
+| Manual Deposit | ... | ... | ... | ... |
+| Power Business | ... | ... | ... | ... |
+
+Again: READ ONLY. Do not implement anything.
