@@ -1,0 +1,220 @@
+FINAL READ-ONLY PRE-PUBLISH AUDIT — MAINTENANCE GATE
+
+Perform one final, strictly READ-ONLY audit of the recently implemented production maintenance gate before I publish.
+
+IMPORTANT:
+- Do NOT publish or deploy.
+- Do NOT modify production.
+- Do NOT change any secrets or environment variables.
+- Do NOT enable MAINTENANCE_MODE.
+- Do NOT modify database data or schema.
+- Do NOT create migrations.
+- Do NOT modify wallet, QR, deposit, withdrawal, Power Business, Staff Operations, or authentication data.
+- Do NOT make any code changes.
+- Do NOT restart production if doing so could alter production state.
+- This is an audit only.
+
+The goal is to determine whether the current workspace is SAFE TO PUBLISH.
+
+AUDIT THE ACTUAL IMPLEMENTATION, not just previous reports.
+
+1. MAINTENANCE GATE IMPLEMENTATION
+
+Inspect the actual maintenance middleware and application wiring.
+
+Confirm:
+- The maintenance gate is actually registered in the correct position in app.ts.
+- Public web traffic is gated when MAINTENANCE_MODE=true.
+- API infrastructure remains accessible as intended.
+- /api/healthz remains accessible.
+- The SPA/static frontend is gated.
+- The gate does not accidentally block required backend infrastructure.
+
+Confirm the exact maintenance response:
+
+HTTP status:
+503
+
+Required visible text:
+Service Unavailable · 503
+Please try again later.
+
+Required headers:
+Retry-After: 3600
+Cache-Control: no-store
+
+Confirm the maintenance page does NOT expose:
+- database information
+- wallet addresses
+- RPC information
+- environment variables
+- secrets
+- stack traces
+- credentials
+- deployment details
+- internal implementation details
+
+2. ADMIN LOGIN BEHAVIOR
+
+Verify from the actual route/middleware logic that:
+
+When MAINTENANCE_MODE=true:
+- POST /api/admin/login returns HTTP 503.
+- It does so before credential validation/database lookup as intended.
+- It does not reveal whether an email exists.
+- It does not reveal password correctness.
+- It does not reveal admin roles.
+- It does not expose authentication implementation details.
+
+When MAINTENANCE_MODE=false or unset:
+- Normal admin login behavior is preserved.
+- No authentication logic was accidentally broken.
+
+3. EXISTING API BEHAVIOR
+
+Verify that maintenance mode does not unintentionally interfere with the API architecture.
+
+Confirm:
+- /api routes remain reachable where intentionally required.
+- /api/healthz remains available.
+- Existing authenticated API routes are not accidentally rewritten into HTML maintenance responses unless explicitly intended by the implementation.
+- Existing JWT/session behavior remains unchanged.
+- No admin/user records are modified.
+
+4. ENVIRONMENT CONFIGURATION
+
+Inspect the actual env/config implementation.
+
+Confirm:
+- MAINTENANCE_MODE is recognized only from the intended environment configuration.
+- It defaults to false/unset behavior.
+- No hardcoded production activation exists.
+- No development-only value can accidentally force production maintenance mode.
+- No existing production secret or environment variable was modified by this audit.
+
+Specifically verify that publishing the current workspace will NOT automatically put production into maintenance mode unless MAINTENANCE_MODE is deliberately set to true.
+
+5. SECURITY REVIEW
+
+Perform a focused security review of the maintenance implementation.
+
+Look for:
+- authentication bypasses
+- authorization bypasses
+- accidental exposure of sensitive information
+- client-controlled maintenance activation
+- query parameters or headers that can activate maintenance mode
+- public endpoints that can modify maintenance state
+- admin-panel controls that can activate/deactivate it
+- accidental secrets in source code
+- unsafe error responses
+
+Confirm that there is NO public/admin UI toggle for MAINTENANCE_MODE.
+
+The intended control is server-side environment configuration only.
+
+6. REGRESSION REVIEW
+
+Review the git diff/current workspace changes associated with the maintenance feature.
+
+Confirm that there are no unrelated changes to:
+- withdrawals
+- deposits
+- automatic deposit verification
+- company wallet management
+- QR management
+- Power Business
+- Staff Operations permissions
+- wallet balances
+- blockchain/RPC configuration
+- authentication
+- database schema/data
+
+If unrelated changes exist, identify them explicitly.
+
+7. TESTS
+
+Run only safe local/development verification as necessary.
+
+Confirm:
+- maintenance middleware tests pass
+- full API test suite passes
+- API typecheck passes
+- frontend typecheck passes
+- API production build passes
+- frontend production build passes
+- git diff --check passes
+
+Do NOT modify production while running tests.
+
+8. SIMULATED BEHAVIOR
+
+If possible without production access or production modification, test the middleware in the development/test environment with:
+
+MAINTENANCE_MODE=true
+
+Verify:
+
+GET /
+→ HTTP 503
+→ correct maintenance HTML/text
+→ Retry-After: 3600
+→ Cache-Control: no-store
+
+GET /api/healthz
+→ remains accessible
+
+POST /api/admin/login
+→ HTTP 503
+→ credential-neutral response
+
+Then test with:
+
+MAINTENANCE_MODE=false/unset
+
+Verify:
+- normal website response
+- normal admin login route behavior
+- normal API behavior
+
+Do NOT enable maintenance mode in Production.
+
+9. PUBLISH SAFETY
+
+Determine whether the current workspace is safe to publish.
+
+Pay particular attention to:
+- whether the maintenance middleware is included in the production build
+- whether the production artifact actually uses the updated app.ts
+- whether environment configuration is correctly read at runtime
+- whether publishing will accidentally enable MAINTENANCE_MODE
+- whether any pending database migration is related to this feature
+- whether publishing requires any production database migration
+- whether the feature introduces any startup/runtime blocker
+
+10. FINAL VERDICT
+
+At the end provide exactly one of:
+
+SAFE TO PUBLISH
+
+or
+
+DO NOT PUBLISH
+
+If SAFE TO PUBLISH, provide:
+- concise reasons
+- exact tests passed
+- confirmation that MAINTENANCE_MODE remains OFF/unset in production
+- confirmation that no production changes were made
+- any non-blocking warnings
+
+If DO NOT PUBLISH, provide:
+- exact blocker
+- why it matters
+- exact file/configuration involved
+- safest corrective action
+
+Do not fix anything during this audit.
+
+This is a READ-ONLY pre-publish audit only.
