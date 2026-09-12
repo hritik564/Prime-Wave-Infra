@@ -1,0 +1,197 @@
+Update the existing PrimeWave Production Maintenance Gate page to match the attached reference image as closely as possible in DESIGN and LAYOUT.
+
+IMPORTANT:
+The attached image is a visual design reference only. Do not copy any branding, proprietary assets, or unrelated browser UI from the reference. Recreate the clean, minimal error-page aesthetic for PrimeWave.
+
+DO NOT change the existing maintenance-gate functionality or security behavior.
+
+## DESIGN GOAL
+
+Replace the current fancy/stylized 503 maintenance page with a very minimal, browser-style service-unavailable page.
+
+The page should feel like a native/simple browser error page rather than a branded marketing page.
+
+Use the attached image as the primary visual reference for:
+
+- Overall layout
+- Spacing
+- Typography
+- Icon placement
+- Text hierarchy
+- Button appearance
+- Background
+- Amount of whitespace
+- Desktop/mobile responsiveness
+
+## REQUIRED CONTENT
+
+Heading:
+
+Dienst nicht verfügbar · 503
+
+Description:
+
+Der PrimeWave-Dienst ist derzeit nicht verfügbar.
+
+Emphasized message:
+
+Bitte versuchen Sie es später erneut.
+
+Button:
+
+Seite neu laden
+
+The button should reload the current page when clicked.
+
+## VISUAL DESIGN
+
+Use:
+
+- Very light/near-white background
+- Minimal styling
+- No cards
+- No borders around the entire page
+- No gradients
+- No animations
+- No decorative PrimeWave marketing elements
+- No navigation bar
+- No footer
+- No unnecessary icons
+- No fancy shadows
+- No dark theme
+- No gold PrimeWave UI styling
+
+Layout should closely resemble the attached reference:
+
+- Content positioned around the left-center area of the viewport rather than perfectly centered.
+- A small gray broken-document/pixelated error icon appears to the left of the text content.
+- Text content sits to the right of the icon.
+- Large but restrained heading.
+- “· 503” should appear visually secondary to “Dienst nicht verfügbar”.
+- Description should be smaller and gray.
+- The emphasized “Bitte versuchen Sie es später erneut.” line should be darker/bold.
+- “Seite neu laden” should be a simple browser-style button with a subtle border and light background.
+- Maintain generous whitespace around the entire composition.
+
+Do not make the page look like the existing PrimeWave application UI.
+
+## RESPONSIVENESS
+
+The page must work cleanly on:
+
+- Desktop
+- Laptop
+- Tablet
+- Mobile phones
+
+On narrow screens, the icon and text should adapt naturally rather than overflowing horizontally.
+
+The page should remain visually minimal at every viewport size.
+
+## MAINTENANCE FUNCTIONALITY — DO NOT CHANGE
+
+Keep the existing server-controlled maintenance gate exactly as implemented.
+
+When:
+
+MAINTENANCE_MODE=true
+
+the public website must continue returning:
+
+- HTTP 503
+- Retry-After: 3600
+- Cache-Control: no-store
+
+The maintenance page must continue to be served before production static frontend serving / SPA fallback.
+
+Keep:
+
+- /api available
+- /api/healthz available
+- Existing authenticated API behavior unchanged
+- POST /api/admin/login blocked during maintenance mode exactly as currently implemented
+- Existing JWT/session behavior unchanged
+- No client-side bypass
+- No query parameter bypass
+- No header-based bypass
+- No public maintenance toggle
+- No Admin Settings maintenance toggle
+
+When:
+
+MAINTENANCE_MODE=false
+
+or the variable is unset, the normal PrimeWave website must work exactly as before.
+
+## SECURITY
+
+Do not expose:
+
+- Database information
+- RPC information
+- Wallet information
+- Environment variables
+- Secrets
+- Credentials
+- Stack traces
+- Server implementation details
+- Deployment information
+- Internal error messages
+
+The public page should contain only the German service-unavailable message.
+
+## SCOPE
+
+This task is ONLY a visual redesign of the existing maintenance page.
+
+Do NOT modify:
+
+- Deposit system
+- Withdrawal system
+- Wallet system
+- QR management
+- Manual deposits
+- Power Business
+- Staff Operations
+- Authentication architecture
+- Database schema
+- Prisma migrations
+- Blockchain configuration
+- Production environment variables
+- API behavior
+
+Do not create a maintenance-mode database setting.
+
+Do not add a maintenance-mode option to the Admin Panel.
+
+The maintenance gate must remain controlled through the existing server environment variable.
+
+## VERIFICATION
+
+After implementation:
+
+1. Run the maintenance middleware tests.
+2. Run the full API test suite.
+3. Run API typecheck.
+4. Run frontend typecheck.
+5. Run frontend production build.
+6. Run API production build.
+7. Run git diff --check.
+8. Test with MAINTENANCE_MODE=true and confirm the new German page appears with HTTP 503.
+9. Confirm the “Seite neu laden” button reloads the page.
+10. Test with MAINTENANCE_MODE unset/false and confirm the normal application still loads.
+11. Confirm /api/healthz remains accessible.
+12. Confirm admin login remains blocked during maintenance mode.
+13. Confirm no unrelated application behavior changed.
+
+Do NOT publish or deploy.
+
+At the end, report:
+
+- Exact files changed
+- What visual changes were made
+- Confirmation that maintenance-gate functionality is unchanged
+- Test results
+- Build results
+- Confirmation that no production changes were made
+- Confirmation that nothing was published

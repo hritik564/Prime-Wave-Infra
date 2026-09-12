@@ -6,6 +6,9 @@ import {
   MAINTENANCE_DETAIL,
   MAINTENANCE_RETRY_AFTER_SECONDS,
   MAINTENANCE_TITLE,
+  MAINTENANCE_WEB_DESCRIPTION,
+  MAINTENANCE_WEB_DETAIL,
+  MAINTENANCE_WEB_TITLE,
 } from "./maintenance.middleware";
 
 function mockResponse() {
@@ -106,13 +109,35 @@ describe("production maintenance mode", () => {
   it("renders the required title", () => {
     process.env["MAINTENANCE_MODE"] = "true";
     const { response } = runWebGate("/");
-    expect(String(response.body)).toContain(MAINTENANCE_TITLE);
+    expect(String(response.body)).toContain(MAINTENANCE_WEB_TITLE);
   });
 
   it("renders the required retry message", () => {
     process.env["MAINTENANCE_MODE"] = "true";
     const { response } = runWebGate("/");
-    expect(String(response.body)).toContain(MAINTENANCE_DETAIL);
+    expect(String(response.body)).toContain(MAINTENANCE_WEB_DETAIL);
+  });
+
+  it("renders the required German service description", () => {
+    process.env["MAINTENANCE_MODE"] = "true";
+    const { response } = runWebGate("/");
+    expect(String(response.body)).toContain(MAINTENANCE_WEB_DESCRIPTION);
+  });
+
+  it("renders a reload button for the current page", () => {
+    process.env["MAINTENANCE_MODE"] = "true";
+    const { response } = runWebGate("/");
+    expect(String(response.body)).toContain('<form method="get" action="">');
+    expect(String(response.body)).toContain('type="submit"');
+    expect(String(response.body)).toContain("Seite neu laden");
+  });
+
+  it("does not render the old English or branded maintenance page", () => {
+    process.env["MAINTENANCE_MODE"] = "true";
+    const { response } = runWebGate("/");
+    expect(String(response.body)).not.toContain(MAINTENANCE_TITLE);
+    expect(String(response.body)).not.toContain("Prime Wave");
+    expect(String(response.body)).not.toContain("gold");
   });
 
   it("does not expose sensitive operational details in the public page", () => {
