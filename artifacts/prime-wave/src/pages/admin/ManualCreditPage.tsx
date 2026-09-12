@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import AdminLayout from "./AdminLayout";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useAuth } from "@/providers/AuthProvider";
 import {
   adminSearchUsers,
   adminCreditUserWallet,
@@ -53,8 +54,8 @@ const PAGE_SIZE = 12;
 
 // ─── Mobile user card ─────────────────────────────────────────────────────────
 function MobileUserCard({
-  u, selected, onClick,
-}: { u: AdminUserListItem; selected: boolean; onClick: () => void }) {
+  u, selected, onClick, walletOptions,
+}: { u: AdminUserListItem; selected: boolean; onClick: () => void; walletOptions: typeof WALLET_OPTIONS }) {
   const sc = STATUS_CFG[u.status] ?? STATUS_CFG.INACTIVE;
   return (
     <div
@@ -78,8 +79,8 @@ function MobileUserCard({
           {u.status}
         </span>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
-        {WALLET_OPTIONS.map(w => (
+       <div style={{ display: "grid", gridTemplateColumns: `repeat(${walletOptions.length},1fr)`, gap: 6 }}>
+        {walletOptions.map(w => (
           <div key={w.type} style={{ background: BG_IN, borderRadius: 6, padding: "6px 8px" }}>
             <div style={{ fontSize: 9.5, color: MUTED, marginBottom: 2 }}>{w.short}</div>
             <div style={{ fontSize: 12, fontWeight: 600, color: w.color, fontFamily: "monospace" }}>
@@ -94,14 +95,14 @@ function MobileUserCard({
 
 // ─── Desktop user row ─────────────────────────────────────────────────────────
 function DesktopUserRow({
-  u, selected, onClick,
-}: { u: AdminUserListItem; selected: boolean; onClick: () => void }) {
+  u, selected, onClick, walletOptions,
+}: { u: AdminUserListItem; selected: boolean; onClick: () => void; walletOptions: typeof WALLET_OPTIONS }) {
   const sc = STATUS_CFG[u.status] ?? STATUS_CFG.INACTIVE;
   return (
     <div
       onClick={onClick}
       style={{
-        display: "grid", gridTemplateColumns: "1fr 90px 90px 90px 70px",
+       display: "grid", gridTemplateColumns: `1fr repeat(${walletOptions.length}, 90px) 70px`,
         padding: "11px 16px", cursor: "pointer", alignItems: "center",
         borderBottom: `1px solid ${BORDER}`,
         background: selected ? "rgba(212,175,55,0.07)" : "transparent",
@@ -117,15 +118,11 @@ function DesktopUserRow({
         </div>
         <div style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>{u.email}</div>
       </div>
-      <div style={{ textAlign: "right", fontSize: 12.5, color: "#3B82F6", fontFamily: "monospace" }}>
-        {fmt(u.wallet?.depositWallet)}
-      </div>
-      <div style={{ textAlign: "right", fontSize: 12.5, color: "#10B981", fontFamily: "monospace" }}>
-        {fmt(u.wallet?.incomeWallet)}
-      </div>
-      <div style={{ textAlign: "right", fontSize: 12.5, color: "#8B5CF6", fontFamily: "monospace" }}>
-        {fmt(u.wallet?.withdrawalWallet)}
-      </div>
+      {walletOptions.map(w => (
+        <div key={w.type} style={{ textAlign: "right", fontSize: 12.5, color: w.color, fontFamily: "monospace" }}>
+          {fmt(u.wallet?.[w.type as keyof typeof u.wallet])}
+        </div>
+      ))}
       <div style={{ textAlign: "right" }}>
         <span style={{ fontSize: 9.5, padding: "2px 7px", borderRadius: 20, fontWeight: 600, background: sc.bg, color: sc.color }}>
           {u.status}
@@ -138,6 +135,10 @@ function DesktopUserRow({
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function ManualCreditPage() {
   const { isMobile, isTablet } = useResponsive();
+  const { role } = useAuth();
+  const walletOptions = role === "STAFF_OPERATIONS"
+    ? WALLET_OPTIONS.filter(w => w.type === "depositWallet")
+    : WALLET_OPTIONS;
 
   /* ── list state ── */
   const [query,   setQuery]   = useState("");
@@ -247,15 +248,13 @@ export default function ManualCreditPage() {
 
       {/* Desktop table header */}
       {!isMobile && (
-        <div style={{
-          display: "grid", gridTemplateColumns: "1fr 90px 90px 90px 70px",
+             <div style={{
+           display: "grid", gridTemplateColumns: `1fr repeat(${walletOptions.length}, 90px) 70px`,
           padding: "8px 16px", borderBottom: `1px solid ${BORDER}`,
           fontSize: 10.5, fontWeight: 700, color: MUTED, letterSpacing: "0.06em", textTransform: "uppercase",
         }}>
           <span>Member</span>
-          <span style={{ textAlign: "right" }}>Deposit</span>
-          <span style={{ textAlign: "right" }}>Income</span>
-          <span style={{ textAlign: "right" }}>Withdrawal</span>
+             {walletOptions.map(w => <span key={w.type} style={{ textAlign: "right" }}>{w.short}</span>)}
           <span style={{ textAlign: "right" }}>Status</span>
         </div>
       )}
@@ -273,11 +272,11 @@ export default function ManualCreditPage() {
           </div>
         ) : isMobile ? (
           users.map(u => (
-            <MobileUserCard key={u.id} u={u} selected={selected?.id === u.id} onClick={() => selectUser(u)} />
+             <MobileUserCard key={u.id} u={u} selected={selected?.id === u.id} onClick={() => selectUser(u)} walletOptions={walletOptions} />
           ))
         ) : (
           users.map(u => (
-            <DesktopUserRow key={u.id} u={u} selected={selected?.id === u.id} onClick={() => selectUser(u)} />
+             <DesktopUserRow key={u.id} u={u} selected={selected?.id === u.id} onClick={() => selectUser(u)} walletOptions={walletOptions} />
           ))
         )}
       </div>
@@ -341,8 +340,8 @@ export default function ManualCreditPage() {
               )}
             </div>
             {/* Balances */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: isMobile ? 6 : 8 }}>
-              {WALLET_OPTIONS.map(w => (
+             <div style={{ display: "grid", gridTemplateColumns: `repeat(${walletOptions.length}, 1fr)`, gap: isMobile ? 6 : 8 }}>
+               {walletOptions.map(w => (
                 <div key={w.type} style={{
                   background: walletType === w.type ? `${w.color}14` : BG_IN,
                   border: `1px solid ${walletType === w.type ? w.color + "40" : BORDER}`,
@@ -363,8 +362,8 @@ export default function ManualCreditPage() {
             {/* Wallet selector */}
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 11.5, color: MUTED, display: "block", marginBottom: 7 }}>Wallet</label>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: isMobile ? 6 : 7 }}>
-                {WALLET_OPTIONS.map(w => {
+               <div style={{ display: "grid", gridTemplateColumns: `repeat(${walletOptions.length}, 1fr)`, gap: isMobile ? 6 : 7 }}>
+                 {walletOptions.map(w => {
                   const Icon   = w.icon;
                   const active = walletType === w.type;
                   return (
@@ -480,11 +479,11 @@ export default function ManualCreditPage() {
         {(!isMobile || !showForm) && (
           <div style={{ marginBottom: isMobile ? 14 : 20 }}>
             <h1 style={{ margin: 0, fontSize: isMobile ? 17 : 20, fontWeight: 700, color: "#fff" }}>
-              Manual Wallet Credit
+               Manual Deposit
             </h1>
             {!isMobile && (
               <p style={{ margin: "5px 0 0", fontSize: 13, color: MUTED }}>
-                Browse or search members, then credit any wallet directly.
+                 Browse or search members, then create a manual deposit using the existing audited workflow.
               </p>
             )}
           </div>

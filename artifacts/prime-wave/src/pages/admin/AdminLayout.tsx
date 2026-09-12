@@ -38,7 +38,7 @@ const NAV_GROUPS: NavGroup[] = [
       { icon: TrendingUp,      label: "Investments",    path: "/admin/investments", permission: PERMISSIONS.VIEW_INVESTMENTS },
       { icon: ArrowDownToLine, label: "Deposits",       path: "/admin/deposits", permission: PERMISSIONS.VIEW_DEPOSITS },
       { icon: Wifi,            label: "Auto Deposits",  path: "/admin/auto-deposits", permission: PERMISSIONS.VIEW_AUTO_DEPOSITS },
-      { icon: BadgeDollarSign, label: "Manual Credit",  path: "/admin/manual-credit", permission: PERMISSIONS.MANAGE_WALLETS },
+      { icon: BadgeDollarSign, label: "Manual Deposit", path: "/admin/manual-credit", permission: PERMISSIONS.MANAGE_MANUAL_DEPOSIT },
       { icon: ArrowDownLeft,   label: "Withdrawals",    path: "/admin/withdrawals", permission: PERMISSIONS.VIEW_WITHDRAWALS },
       { icon: Zap,             label: "W. Queue",       path: "/admin/withdrawal-queue", permission: PERMISSIONS.VIEW_WITHDRAWAL_QUEUE },
       { icon: Activity,        label: "W. Ops Health",  path: "/admin/withdrawal-ops", permission: PERMISSIONS.VIEW_WITHDRAWAL_OPS },

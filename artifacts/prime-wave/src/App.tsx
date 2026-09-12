@@ -213,7 +213,7 @@ function AppRoutes() {
         <RequireAdmin permission={PERMISSIONS.VIEW_AUTO_DEPOSITS}><Suspense fallback={null}><AdminAutoDepositsPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/manual-credit">
-        <RequireAdmin permission={PERMISSIONS.MANAGE_WALLETS}><Suspense fallback={null}><AdminManualCreditPage /></Suspense></RequireAdmin>
+        <RequireAdmin permission={PERMISSIONS.MANAGE_MANUAL_DEPOSIT}><Suspense fallback={null}><AdminManualCreditPage /></Suspense></RequireAdmin>
       </Route>
       <Route path="/admin/withdrawals">
         <RequireAdmin permission={PERMISSIONS.VIEW_WITHDRAWALS}><Suspense fallback={null}><AdminWithdrawalsPage /></Suspense></RequireAdmin>

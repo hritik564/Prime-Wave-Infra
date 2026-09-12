@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAdminRoles } from "../middleware/auth.middleware.js";
+import { requireTemporaryStaffOperationsAccess } from "../middleware/auth.middleware.js";
 import { adminLimiter } from "../middleware/rateLimiter.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
 import {
@@ -24,8 +24,8 @@ import {
 
 const router = Router();
 
-// Power Business contains sensitive financial/member-level data and controls.
-const powerBusinessGuard = requireAdminRoles("SUPER_ADMIN");
+// Temporary Staff Operations access is scoped to this feature only.
+const powerBusinessGuard = requireTemporaryStaffOperationsAccess("POWER_BUSINESS");
 
 // ── GET /api/admin/power-bv/stats ─────────────────────────────────────────────
 router.get(

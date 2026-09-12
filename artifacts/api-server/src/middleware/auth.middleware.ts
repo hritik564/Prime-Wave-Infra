@@ -88,3 +88,45 @@ export function requireAdminRoles(...roles: string[]) {
     });
   };
 }
+
+/**
+ * Temporary, feature-scoped access for Staff Operations.
+ *
+ * Keep these allow-lists centralized so the temporary expansion can be
+ * removed without changing the broader finance or super-admin guards.
+ */
+export type TemporaryStaffOperationsFeature = "MANUAL_DEPOSIT" | "POWER_BUSINESS";
+
+export function requireTemporaryStaffOperationsAccess(feature: TemporaryStaffOperationsFeature) {
+  if (feature === "MANUAL_DEPOSIT") {
+    return requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN", "STAFF_OPERATIONS");
+  }
+
+  return requireAdminRoles("SUPER_ADMIN", "STAFF_OPERATIONS");
+}
+
+/**
+ * /wallets/credit is shared by three wallet-credit actions. Staff may use
+ * that existing endpoint only for the deposit-wallet path; income and
+ * withdrawal credits remain finance-admin operations.
+ */
+export function requireTemporaryManualDepositWalletScope(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): void {
+  const authedReq = req as AuthenticatedRequest;
+  if (
+    authedReq.user.role === "STAFF_OPERATIONS"
+    && req.body?.walletType !== "depositWallet"
+  ) {
+    next(new AppError(
+      "Staff Operations may only credit the deposit wallet",
+      HTTP_STATUS.FORBIDDEN,
+      "FORBIDDEN",
+    ));
+    return;
+  }
+
+  next();
+}

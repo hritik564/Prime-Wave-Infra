@@ -6,6 +6,8 @@ export const PERMISSIONS = {
   APPROVE_WITHDRAWALS:  "approve_withdrawals",
   APPROVE_INVESTMENTS:  "approve_investments",
   MANAGE_WALLETS:       "manage_wallets",
+  /** Temporary access for the existing manual-deposit workflow only. */
+  MANAGE_MANUAL_DEPOSIT:"manage_manual_deposit",
   VIEW_WALLETS:         "view_wallets",
   VIEW_INVESTMENTS:     "view_investments",
   VIEW_DEPOSITS:        "view_deposits",
@@ -39,6 +41,7 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.APPROVE_WITHDRAWALS,
     PERMISSIONS.APPROVE_INVESTMENTS,
     PERMISSIONS.MANAGE_WALLETS,
+    PERMISSIONS.MANAGE_MANUAL_DEPOSIT,
     PERMISSIONS.VIEW_REPORTS,
   ],
   SUPPORT_ADMIN: [
@@ -60,6 +63,8 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.VIEW_WITHDRAWAL_QUEUE,
     PERMISSIONS.VIEW_WITHDRAWAL_OPS,
     PERMISSIONS.VIEW_WALLETS,
+    PERMISSIONS.MANAGE_MANUAL_DEPOSIT,
+    PERMISSIONS.VIEW_POWER_BUSINESS,
   ],
   member: [
     PERMISSIONS.VIEW_DASHBOARD,

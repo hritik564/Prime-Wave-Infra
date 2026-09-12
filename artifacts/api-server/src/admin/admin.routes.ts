@@ -196,7 +196,12 @@ import {
   exportMemberQuerySchema,
 } from "../salary/admin-salary.schema";
 import { validate } from "../middleware/validate.middleware";
-import { requireAdminAuth, requireAdminRoles } from "../middleware/auth.middleware";
+import {
+  requireAdminAuth,
+  requireAdminRoles,
+  requireTemporaryManualDepositWalletScope,
+  requireTemporaryStaffOperationsAccess,
+} from "../middleware/auth.middleware";
 import { authLimiter, adminLimiter } from "../middleware/rateLimiter.middleware";
 import {
   adminLoginSchema,
@@ -284,8 +289,9 @@ router.post("/dev/repair-seed-investments", adminLimiter, requireAdminRoles("SUP
 router.get("/settings",        adminLimiter, requireAdminRoles("SUPER_ADMIN"), listSettings);
 router.patch("/settings/:key", adminLimiter, requireAdminRoles("SUPER_ADMIN"), updateSetting);
 
-// ── Deposit admin — SUPER_ADMIN and FINANCE_ADMIN only ────────────────────────
+// ── Deposit admin — temporary Staff Operations access is feature-scoped ───────
 const financeAdminGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN");
+const manualDepositGuard = requireTemporaryStaffOperationsAccess("MANUAL_DEPOSIT");
 const staffReadGuard = requireAdminRoles("SUPER_ADMIN", "STAFF_OPERATIONS");
 const supportOperationsGuard = requireAdminRoles("SUPER_ADMIN", "SUPPORT_ADMIN", "STAFF_OPERATIONS");
 const depositReadGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN", "STAFF_OPERATIONS");
@@ -325,7 +331,7 @@ router.get(
 router.post(
   "/deposits/manual",
   adminLimiter,
-  financeAdminGuard,
+  manualDepositGuard,
   validate(manualAdminDepositSchema, "body"),
   createManualAdminDepositHandler,
 );
@@ -543,12 +549,13 @@ router.post(
   impersonateUserHandler,
 );
 
-// ── Manual Wallet Credit — SUPER_ADMIN + FINANCE_ADMIN ───────────────────────
+// ── Manual Wallet Credit — temporary Staff Operations deposit-only access ─────
 router.post(
   "/wallets/credit",
   adminLimiter,
-  financeAdminGuard,
+  manualDepositGuard,
   validate(walletCreditSchema, "body"),
+  requireTemporaryManualDepositWalletScope,
   creditUserWalletHandler,
 );
 

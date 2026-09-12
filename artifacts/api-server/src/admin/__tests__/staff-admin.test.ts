@@ -29,7 +29,11 @@ vi.mock("bcryptjs", () => ({
 
 import bcrypt from "bcryptjs";
 import { prisma } from "../../config/prisma";
-import { requireAdminRoles } from "../../middleware/auth.middleware";
+import {
+  requireAdminRoles,
+  requireTemporaryManualDepositWalletScope,
+  requireTemporaryStaffOperationsAccess,
+} from "../../middleware/auth.middleware";
 import { createStaffAdmin } from "../admin.service";
 import { createStaffAdminSchema } from "../admin.schema";
 
@@ -180,4 +184,177 @@ describe("Staff account creation authorization", () => {
       });
     },
   );
+});
+
+function adminRequest(role: string) {
+  const updatedAt = new Date("2026-09-10T00:00:00.000Z");
+  const token = jwt.sign({
+    sub: `admin-${role.toLowerCase()}`,
+    email: `${role.toLowerCase()}@example.com`,
+    type: "admin",
+    role,
+    adminUpdatedAt: updatedAt.getTime(),
+  }, "test-secret");
+
+  return {
+    headers: { authorization: `Bearer ${token}` },
+    body: { walletType: "depositWallet" } as Record<string, unknown>,
+  };
+}
+
+async function runGuard(
+  guard: ReturnType<typeof requireAdminRoles>,
+  role: string,
+  body: Record<string, unknown> = { walletType: "depositWallet" },
+) {
+  adminFindUnique.mockResolvedValue({
+    isActive: true,
+    role,
+    updatedAt: new Date("2026-09-10T00:00:00.000Z"),
+  });
+  const req = adminRequest(role);
+  req.body = body;
+  const next = vi.fn();
+
+  guard(req as never, {} as never, next);
+  await vi.waitFor(() => expect(next).toHaveBeenCalled());
+  return next;
+}
+
+describe("Temporary Staff Operations feature authorization", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each(["SUPER_ADMIN", "FINANCE_ADMIN", "STAFF_OPERATIONS"])(
+    "allows %s to use the temporary Manual Deposit guard",
+    async (role) => {
+      const next = await runGuard(
+        requireTemporaryStaffOperationsAccess("MANUAL_DEPOSIT"),
+        role,
+      );
+      expect(next).toHaveBeenCalledWith();
+    },
+  );
+
+  it.each(["SUPPORT_ADMIN", "REWARD_MANAGER"])(
+    "denies %s from the temporary Manual Deposit guard",
+    async (role) => {
+      const next = await runGuard(
+        requireTemporaryStaffOperationsAccess("MANUAL_DEPOSIT"),
+        role,
+      );
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({
+        code: "FORBIDDEN",
+        statusCode: 403,
+      }));
+    },
+  );
+
+  it.each(["SUPER_ADMIN", "STAFF_OPERATIONS"])(
+    "allows %s to use the temporary Power Business guard",
+    async (role) => {
+      const next = await runGuard(
+        requireTemporaryStaffOperationsAccess("POWER_BUSINESS"),
+        role,
+      );
+      expect(next).toHaveBeenCalledWith();
+    },
+  );
+
+  it.each(["FINANCE_ADMIN", "SUPPORT_ADMIN", "REWARD_MANAGER"])(
+    "denies %s from the temporary Power Business guard",
+    async (role) => {
+      const next = await runGuard(
+        requireTemporaryStaffOperationsAccess("POWER_BUSINESS"),
+        role,
+      );
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({
+        code: "FORBIDDEN",
+        statusCode: 403,
+      }));
+    },
+  );
+
+  it("rejects an unauthenticated request before role evaluation", async () => {
+    const next = vi.fn();
+    requireTemporaryStaffOperationsAccess("MANUAL_DEPOSIT")(
+      { headers: {} } as never,
+      {} as never,
+      next,
+    );
+
+    await vi.waitFor(() => expect(next).toHaveBeenCalledWith(expect.objectContaining({
+      code: "TOKEN_MISSING",
+      statusCode: 401,
+    })));
+    expect(adminFindUnique).not.toHaveBeenCalled();
+  });
+
+  it("limits Staff Operations on the shared wallet-credit endpoint to depositWallet", async () => {
+    await runGuard(
+      requireTemporaryStaffOperationsAccess("MANUAL_DEPOSIT"),
+      "STAFF_OPERATIONS",
+    );
+    const next = vi.fn();
+    requireTemporaryManualDepositWalletScope(
+      {
+        user: { role: "STAFF_OPERATIONS" },
+        body: { walletType: "incomeWallet" },
+      } as never,
+      {} as never,
+      next,
+    );
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({
+      code: "FORBIDDEN",
+      statusCode: 403,
+    }));
+  });
+
+  it("preserves Finance Admin access to income and withdrawal wallet credits", async () => {
+    const incomeNext = await runGuard(
+      requireTemporaryStaffOperationsAccess("MANUAL_DEPOSIT"),
+      "FINANCE_ADMIN",
+      { walletType: "incomeWallet" } as Record<string, unknown>,
+    );
+    expect(incomeNext).toHaveBeenCalledWith();
+
+    const withdrawalNext = vi.fn();
+    requireTemporaryManualDepositWalletScope(
+      {
+        user: { role: "FINANCE_ADMIN" },
+        body: { walletType: "withdrawalWallet" },
+      } as never,
+      {} as never,
+      withdrawalNext,
+    );
+    expect(withdrawalNext).toHaveBeenCalledWith();
+  });
+
+  it.each([
+    ["admin account management", ["SUPER_ADMIN"]],
+    ["staff account creation", ["SUPER_ADMIN"]],
+    ["deposit wallet management", ["SUPER_ADMIN"]],
+    ["company wallet and address changes", ["SUPER_ADMIN"]],
+    ["saved QR management", ["SUPER_ADMIN"]],
+    ["withdrawal approval", ["SUPER_ADMIN", "FINANCE_ADMIN"]],
+    ["withdrawal rejection", ["SUPER_ADMIN", "FINANCE_ADMIN"]],
+    ["withdrawal reprocessing", ["SUPER_ADMIN", "FINANCE_ADMIN"]],
+    ["withdrawal completion", ["SUPER_ADMIN", "FINANCE_ADMIN"]],
+    ["withdrawal hold and release", ["SUPER_ADMIN", "FINANCE_ADMIN"]],
+    ["withdrawal engine controls", ["SUPER_ADMIN"]],
+    ["withdrawal settings", ["SUPER_ADMIN", "FINANCE_ADMIN"]],
+    ["role management", ["SUPER_ADMIN"]],
+    ["system settings", ["SUPER_ADMIN"]],
+    ["blockchain configuration", ["SUPER_ADMIN"]],
+  ])("keeps Staff Operations denied from %s", async (_label, roles) => {
+    const next = await runGuard(
+      requireAdminRoles(...roles),
+      "STAFF_OPERATIONS",
+    );
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({
+      code: "FORBIDDEN",
+      statusCode: 403,
+    }));
+  });
 });
