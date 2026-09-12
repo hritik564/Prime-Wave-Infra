@@ -1,0 +1,168 @@
+Fix ONLY the manual-deposit duplicate-credit/idempotency risk identified in the latest read-only audit.
+
+DO NOT publish or deploy anything.
+DO NOT modify production data.
+DO NOT modify Staff permissions.
+DO NOT modify Power Business permissions.
+DO NOT modify withdrawal functionality.
+DO NOT modify company wallet/QR management.
+DO NOT modify deposit verification/automatic deposits.
+DO NOT make unrelated refactors.
+
+OBJECTIVE
+
+Make the existing manual-deposit operation safe against accidental duplicate execution caused by:
+
+- double-clicks
+- browser retries
+- network retries
+- repeated form submissions
+- repeated API requests for the same intended manual credit
+
+The current implementation generates a new MANUAL-UUID for every request, which means the same manual deposit can potentially be credited more than once.
+
+REQUIRED BEHAVIOR
+
+1. Add a proper idempotency mechanism to the manual deposit operation.
+
+2. The client should generate/send an idempotency key for each intentional manual-deposit submission.
+
+3. Retrying the SAME intentional submission must reuse the SAME idempotency key.
+
+4. A repeated request with the same idempotency key must NOT:
+   - create another deposit
+   - credit the wallet again
+   - create another successful wallet transaction
+   - create another financial ledger entry
+   - generate another manual deposit reference
+
+5. Instead, the API should return the result of the original successful operation, or an equivalent safe idempotent response.
+
+6. A NEW intentional manual deposit must use a NEW idempotency key and must continue to work normally.
+
+7. Idempotency must be enforced SERVER-SIDE. Do not rely only on disabling the frontend submit button.
+
+8. The idempotency record/check must be atomic and concurrency-safe so that two simultaneous requests carrying the same key cannot both perform the credit.
+
+9. The idempotency key must be scoped appropriately to prevent one staff/admin account from accidentally or maliciously reusing another operator's key.
+
+10. Do not use the amount alone, target user alone, reason alone, or timestamp alone as the duplicate-detection key. Different legitimate manual deposits can have the same values.
+
+11. Preserve all existing authorization rules exactly as they currently work:
+    - SUPER_ADMIN: existing behavior unchanged
+    - FINANCE_ADMIN: existing behavior unchanged
+    - STAFF_OPERATIONS: may credit ONLY depositWallet
+    - STAFF_OPERATIONS must continue receiving 403 for incomeWallet and withdrawalWallet
+    - Other unauthorized roles remain denied
+
+12. Preserve all existing audit logging. The idempotency protection must not bypass or replace the existing audit record.
+
+13. Preserve the existing financial transaction/DB transaction semantics. The wallet credit and its associated records must remain atomic.
+
+14. If the request fails validation before the financial operation begins, do not permanently consume the idempotency key in a way that prevents the operator from correcting the request and retrying.
+
+15. If the actual financial operation succeeds, the idempotency state must be committed together with the financial operation so there cannot be a successful credit without a corresponding idempotency record.
+
+16. If the operation fails/rolls back, the same idempotency key should be safely retryable.
+
+IMPORTANT DESIGN REQUIREMENT
+
+First inspect the existing schema and manual-deposit implementation and choose the smallest robust implementation that fits the project's current architecture.
+
+Prefer a database-backed unique constraint/index and transaction-safe implementation rather than an in-memory Map/cache.
+
+If a Prisma schema/migration change is required, create the proper Prisma migration file. Do NOT apply the migration to production.
+
+The implementation must work correctly across multiple API instances/processes.
+
+FRONTEND
+
+Update the Manual Deposit UI so that:
+
+- Each intentional submission gets a new idempotency key.
+- Retry behavior for the same submission reuses that key.
+- Clicking Submit repeatedly while the same operation is in progress cannot create multiple credits.
+- After a successful operation, a later NEW manual deposit generates a new key.
+- Do not expose implementation details to the staff/admin user.
+- Existing UI behavior and validation should remain unchanged otherwise.
+
+API
+
+Determine the correct existing manual-deposit endpoint(s) and make the idempotency protection cover every endpoint that can actually perform the same manual financial credit operation.
+
+Do NOT blindly add duplicate logic to unrelated wallet-adjustment or withdrawal endpoints.
+
+If there are multiple manual-credit routes that ultimately perform the same financial operation, make sure both are protected consistently.
+
+ERROR/RETRY SEMANTICS
+
+Use safe, deterministic behavior for repeated keys.
+
+For example:
+
+- First request succeeds → subsequent identical request with same key returns the original result without another credit.
+- First request is still processing → concurrent/repeated request must not execute another credit.
+- First request rolls back/fails → retry with same key remains possible.
+- Same key reused for a materially different request payload → reject it rather than silently performing a different financial operation.
+
+Store enough request identity/fingerprint information to detect key reuse with different parameters.
+
+SECURITY
+
+- Never store passwords, secrets, or sensitive authentication material in the idempotency record.
+- Do not log sensitive information unnecessarily.
+- Keep existing authentication and role checks.
+- Keep existing audit logging.
+- Do not allow idempotency to become a way to bypass authorization.
+
+TESTS
+
+Add focused tests for at least:
+
+1. First manual deposit with a new idempotency key succeeds.
+2. Repeating the exact same request with the same key does NOT create a second deposit.
+3. Repeating the same request does NOT credit the wallet twice.
+4. Repeating the same request does NOT create a second wallet transaction.
+5. Two concurrent requests with the same key result in only one financial operation.
+6. A failed/rolled-back operation can safely be retried with the same key.
+7. Reusing an idempotency key with a different target user is rejected.
+8. Reusing an idempotency key with a different amount is rejected.
+9. Reusing an idempotency key with a different wallet type is rejected.
+10. A new idempotency key creates a legitimate new manual deposit.
+11. STAFF_OPERATIONS depositWallet behavior remains unchanged.
+12. STAFF_OPERATIONS incomeWallet remains 403.
+13. STAFF_OPERATIONS withdrawalWallet remains 403.
+14. Existing SUPER_ADMIN and FINANCE_ADMIN manual-deposit behavior remains intact.
+15. Existing unauthorized-role tests remain intact.
+16. Existing audit logging still occurs exactly once for the actual successful financial operation.
+
+VERIFICATION
+
+After implementation, run:
+
+- focused manual-deposit/idempotency tests
+- full API test suite
+- API typecheck
+- frontend typecheck
+- API production build
+- frontend production build
+- git diff --check
+- restart development API/frontend workflows and verify they start successfully
+
+Then provide a concise report containing:
+
+1. Exact files changed
+2. Exact idempotency design used
+3. Any Prisma migration created
+4. Endpoints protected
+5. Authorization behavior confirmed
+6. Test results
+7. Build/typecheck results
+8. Confirmation that NO production data, production database, production secrets, wallet balances, blockchain transactions, or deployment were modified
+9. Confirmation that NOTHING was published
+
+IMPORTANT:
+Do not publish automatically.
+Do not run prisma migrate deploy against production.
+Do not modify production configuration.
+Stop after development/test verification and report the result.
