@@ -1,0 +1,462 @@
+Implement a server-controlled Production Maintenance Gate for PrimeWave.
+
+IMPORTANT:
+This is an intentional, reversible operational access gate.
+
+Do NOT simulate corrupted infrastructure, fabricate failures, damage data, create fake crash logs, or intentionally make the application appear accidentally broken.
+
+The purpose of this feature is to allow the public PrimeWave website and normal Admin login to be temporarily unavailable while keeping the underlying API/database infrastructure operational.
+
+I will control the maintenance state exclusively through the Replit Production environment.
+
+Do NOT publish or deploy this implementation automatically.
+
+==================================================
+1. CONTROL VARIABLE
+==================================================
+
+Use this Production environment variable:
+
+MAINTENANCE_MODE=false
+
+Behavior:
+
+- MAINTENANCE_MODE unset → normal operation
+- MAINTENANCE_MODE=false → normal operation
+- MAINTENANCE_MODE=true → maintenance gate active
+
+Only the explicit string:
+
+true
+
+should enable the gate.
+
+Do NOT create:
+
+- Admin-panel maintenance toggle
+- Admin Settings maintenance option
+- Database maintenance setting
+- Admin API endpoint for changing maintenance mode
+- Frontend maintenance toggle
+- User-accessible maintenance configuration
+- Maintenance password
+- Secret bypass token
+- Hard-coded bypass mechanism
+
+The only intended control is changing the Production environment variable through Replit and then performing the normal production restart/publish process.
+
+Do NOT modify the Production environment variable during this implementation.
+
+==================================================
+2. PUBLIC WEBSITE BEHAVIOR
+==================================================
+
+When:
+
+MAINTENANCE_MODE=true
+
+all normal public/unauthenticated PrimeWave website access must return:
+
+HTTP 503 Service Unavailable
+
+The user should see a minimal PrimeWave-branded page.
+
+The exact visible message must be:
+
+Service Unavailable · 503
+
+Please try again later.
+
+Do not add additional explanations.
+
+Do not display:
+
+- "maintenance"
+- "database error"
+- "server error"
+- "critical failure"
+- "system failure"
+- troubleshooting instructions
+- estimated recovery time
+- infrastructure information
+- deployment information
+- internal service names
+- stack traces
+- environment variables
+- RPC URLs
+- wallet information
+- database information
+
+Use the existing PrimeWave visual design language.
+
+The page should look clean, intentional, and professional.
+
+Do not make it look like a browser crash or corrupted application.
+
+The HTTP response itself must genuinely be:
+
+503 Service Unavailable
+
+Do NOT use HTTP 500.
+
+If compatible with the existing architecture, include:
+
+Retry-After: 3600
+
+==================================================
+3. ADMIN LOGIN MUST ALSO BE BLOCKED
+==================================================
+
+When:
+
+MAINTENANCE_MODE=true
+
+the normal PrimeWave Admin login path must also be unavailable.
+
+Specifically:
+
+- The normal Admin login page must not allow login.
+- The Admin authentication/login API endpoint must reject new login attempts.
+- New unauthenticated Admin users must not be able to establish an Admin session through the normal login flow.
+- The login response should use the same 503 maintenance response where technically appropriate.
+- Do not reveal whether the supplied email exists.
+- Do not reveal whether the password is correct.
+- Do not reveal Admin roles.
+- Do not expose authentication implementation details.
+
+The user-facing response should remain consistent with:
+
+Service Unavailable · 503
+
+Please try again later.
+
+IMPORTANT:
+
+Do NOT:
+
+- delete Admin accounts
+- disable Admin accounts
+- change Admin passwords
+- change Admin roles
+- invalidate JWTs
+- delete sessions
+- modify authentication records
+- modify authorization rules
+
+The gate must only prevent new normal Admin authentication while MAINTENANCE_MODE=true.
+
+==================================================
+4. EXISTING ADMIN SESSIONS
+==================================================
+
+Inspect the current authentication architecture carefully.
+
+Determine how already-authenticated Admin sessions behave when MAINTENANCE_MODE=true.
+
+Do NOT create an authentication bypass.
+
+Do NOT create a maintenance password.
+
+Do NOT create a hard-coded Super Admin credential.
+
+Do NOT create a new secret login mechanism.
+
+Do NOT modify the existing authentication system unnecessarily.
+
+The maintenance gate must prevent an unauthenticated person from bypassing the public gate and reaching the Admin panel through the normal login path.
+
+If the existing architecture makes already-authenticated Admin access possible, preserve the existing authentication state rather than modifying or deleting it.
+
+Do not broaden any Admin permissions.
+
+==================================================
+5. API BEHAVIOR
+==================================================
+
+Do NOT shut down the entire API.
+
+The API server and database must remain operational.
+
+Do NOT globally return 503 from all API routes.
+
+The following underlying functionality must remain operational unless specifically required by the authentication gate:
+
+- Database connectivity
+- Existing authenticated API infrastructure
+- Deposit verification
+- Automatic deposits
+- Deposit Wallet Management
+- QR management
+- Manual deposits
+- Power Business
+- Existing read-only Admin APIs
+- Existing Staff Operations authorization
+- Existing withdrawal infrastructure
+
+Do not modify any business logic related to those systems.
+
+The only API authentication behavior that should change is the normal Admin login/authentication entry point required to enforce the maintenance gate.
+
+==================================================
+6. DEPLOYMENT / HEALTH ENDPOINTS
+==================================================
+
+Inspect the existing PrimeWave deployment architecture.
+
+Do not break Replit deployment health checks, readiness checks, or process health endpoints.
+
+If the application has:
+
+- health endpoints
+- readiness endpoints
+- liveness endpoints
+- deployment probes
+
+preserve their existing behavior where required for the runtime to remain healthy.
+
+The intended state is:
+
+Public website:
+503
+
+Admin login:
+503
+
+Underlying API/database infrastructure:
+Operational
+
+Deployment health:
+Operational
+
+==================================================
+7. SECURITY REQUIREMENTS
+==================================================
+
+The maintenance gate must be enforced server-side.
+
+Do NOT rely only on:
+
+- React state
+- frontend route guards
+- JavaScript redirects
+- hidden UI elements
+- client-side environment variables
+
+A user must not be able to bypass the public maintenance page by directly requesting an application route.
+
+Do not expose:
+
+MAINTENANCE_MODE
+
+to the browser unless absolutely required.
+
+Do not create:
+
+- client-side switches
+- bypass cookies
+- bypass query parameters
+- special URLs
+- maintenance passwords
+- hard-coded credentials
+- undocumented authentication backdoors
+
+Existing authentication and authorization must remain intact.
+
+==================================================
+8. LOGGING
+==================================================
+
+Add minimal legitimate operational logging if appropriate.
+
+For example:
+
+Maintenance mode active — public web traffic gated
+
+Logs must accurately represent the state.
+
+Do NOT:
+
+- fabricate crash logs
+- fabricate database failures
+- fabricate infrastructure failures
+- fabricate blockchain failures
+- delete evidence of maintenance-mode activation
+- make the application falsely report a technical failure
+
+==================================================
+9. RESTORATION
+==================================================
+
+When:
+
+MAINTENANCE_MODE=false
+
+or the variable is removed:
+
+the application must return to its normal existing behavior after the normal production restart/redeploy.
+
+No database repair should be required.
+
+No Admin account repair should be required.
+
+No user-data repair should be required.
+
+No wallet repair should be required.
+
+No blockchain repair should be required.
+
+Do not leave persistent application state behind when maintenance mode is disabled.
+
+==================================================
+10. DATABASE
+==================================================
+
+Prefer ZERO database migrations for this feature.
+
+Do not add:
+
+- maintenance-mode database fields
+- maintenance-mode tables
+- maintenance-mode audit records
+- configuration records
+
+The state should come exclusively from the Replit Production environment variable.
+
+Do not modify production database data.
+
+==================================================
+11. FINANCIAL AND BLOCKCHAIN ISOLATION
+==================================================
+
+This feature must not modify or interfere with:
+
+- user balances
+- deposit balances
+- deposit verification
+- deposit transactions
+- company wallet addresses
+- saved deposit wallet profiles
+- QR objects
+- BSC RPC configuration
+- BSC chain configuration
+- USDT configuration
+- withdrawal engine
+- withdrawal settings
+- hot-wallet configuration
+- blockchain transactions
+- Power Business ledger
+- manual deposit accounting
+- financial audit records
+
+Do not trigger any blockchain transaction.
+
+Do not change any wallet address.
+
+Do not change any QR profile.
+
+Do not change any withdrawal setting.
+
+==================================================
+12. TESTING
+==================================================
+
+Add focused automated tests covering:
+
+1. MAINTENANCE_MODE unset → normal public operation.
+2. MAINTENANCE_MODE=false → normal public operation.
+3. MAINTENANCE_MODE=true → public website returns HTTP 503.
+4. Maintenance page contains exactly:
+   "Service Unavailable · 503"
+   "Please try again later."
+5. Maintenance response contains no sensitive information.
+6. Retry-After is present where supported.
+7. Normal Admin login returns HTTP 503 during maintenance.
+8. Admin login does not reveal whether credentials are valid during maintenance.
+9. Admin accounts remain unchanged.
+10. Admin roles remain unchanged.
+11. Existing authentication records remain unchanged.
+12. Database connectivity remains operational.
+13. Non-Admin backend functionality remains unaffected.
+14. STAFF_OPERATIONS permissions remain unchanged.
+15. Deposit verification remains unaffected.
+16. Manual deposit behavior remains unaffected.
+17. Power Business behavior remains unaffected.
+18. Withdrawal behavior remains unaffected.
+19. MAINTENANCE_MODE=false restores normal public behavior.
+20. No maintenance database state is created.
+
+Run:
+
+- Focused maintenance-mode tests
+- Full API test suite
+- API typecheck
+- Frontend typecheck
+- API production build
+- Frontend production build
+- git diff --check
+
+Restart the development API and frontend workflows.
+
+Verify that the preview still loads normally with:
+
+MAINTENANCE_MODE=false
+
+Do not enable maintenance mode during development verification unless you can safely restore the environment afterward.
+
+==================================================
+13. PRODUCTION SAFETY
+==================================================
+
+During this task:
+
+DO NOT:
+
+- publish
+- deploy
+- change Production environment variables
+- set MAINTENANCE_MODE=true
+- modify production database data
+- modify Admin accounts
+- modify Admin passwords
+- modify Admin roles
+- modify user accounts
+- modify wallet addresses
+- modify QR profiles
+- modify deposit records
+- modify withdrawal records
+- modify withdrawal settings
+- modify blockchain configuration
+- trigger blockchain transactions
+- change secrets
+- create unnecessary migrations
+
+The implementation should remain inactive in Production until I explicitly change:
+
+MAINTENANCE_MODE
+
+through Replit.
+
+==================================================
+14. FINAL REPORT
+==================================================
+
+At the end, report:
+
+- Exact files changed
+- Exact location of the maintenance gate
+- Exact behavior when MAINTENANCE_MODE=true
+- Exact behavior when MAINTENANCE_MODE=false
+- How public website access is blocked
+- How normal Admin login is blocked
+- How existing authentication state is preserved
+- How API/database infrastructure remains operational
+- How deployment health checks are preserved
+- Tests passed
+- Builds passed
+- Confirmation that no Production state was changed
+- Confirmation that no Production environment variable was modified
+- Confirmation that nothing was published
+
+Do NOT publish.
+
+Leave the implementation ready for my review.
