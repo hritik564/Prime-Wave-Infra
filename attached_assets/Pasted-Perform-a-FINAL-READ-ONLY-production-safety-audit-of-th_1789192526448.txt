@@ -1,0 +1,221 @@
+Perform a FINAL READ-ONLY production-safety audit of the newly implemented temporary STAFF_OPERATIONS permissions for:
+
+1. Manual Deposit
+2. Power Business
+
+DO NOT publish, deploy, migrate, modify production data, modify secrets, create accounts, create deposits, credit wallets, or execute any financial/blockchain operation.
+
+This is an audit only.
+
+==================================================
+1. MANUAL DEPOSIT — END-TO-END AUDIT
+==================================================
+
+Trace the complete execution path for:
+
+POST /api/admin/deposits/manual
+
+and:
+
+POST /api/admin/wallets/credit
+
+Verify exactly what happens after authorization succeeds.
+
+For STAFF_OPERATIONS confirm:
+
+- Manual deposit can only affect the intended member Deposit Wallet.
+- STAFF_OPERATIONS cannot select incomeWallet.
+- STAFF_OPERATIONS cannot select withdrawalWallet.
+- STAFF_OPERATIONS cannot manipulate locked balances.
+- STAFF_OPERATIONS cannot approve/reject unrelated deposits.
+- STAFF_OPERATIONS cannot alter company wallet configuration.
+- STAFF_OPERATIONS cannot bypass existing amount validation.
+- STAFF_OPERATIONS cannot bypass duplicate/idempotency protections that already exist.
+- Existing audit logging remains active.
+- The authenticated admin/staff identity is recorded correctly.
+- No client-supplied admin ID can impersonate another staff/admin account.
+- No privilege escalation is possible by modifying request-body fields.
+- No hidden alternate endpoint provides the same financial capability without the STAFF_OPERATIONS restriction.
+
+Trace the service layer, not only the route guard.
+
+Explicitly identify:
+
+- Route
+- Middleware/guard
+- Controller
+- Service
+- Database mutation
+- Audit-log mutation
+- Any transaction/idempotency mechanism
+
+==================================================
+2. POWER BUSINESS — END-TO-END AUDIT
+==================================================
+
+Trace every existing:
+
+/api/admin/power-bv/*
+
+endpoint.
+
+Create a table containing:
+
+| Endpoint | Method | Action | STAFF_OPERATIONS allowed? | Mutation? | Financial impact? | Existing validation preserved? |
+
+For every mutation endpoint, verify:
+
+- STAFF_OPERATIONS authorization is intentional.
+- No request-body field can elevate the operation.
+- No user/admin ID impersonation is possible.
+- Existing business validation remains unchanged.
+- Existing transaction boundaries remain unchanged.
+- Existing audit logging remains unchanged.
+- Any balance/ledger changes remain subject to existing safeguards.
+- No unrelated financial operation is reachable through a Power Business endpoint.
+- No SUPER_ADMIN-only operation was accidentally exposed through Power Business.
+
+==================================================
+3. STAFF OPERATIONS PRIVILEGE BOUNDARY
+==================================================
+
+Perform a complete route/permission comparison between:
+
+- SUPER_ADMIN
+- FINANCE_ADMIN
+- SUPPORT_ADMIN
+- REWARD_MANAGER
+- STAFF_OPERATIONS
+
+Specifically identify every permission newly granted to STAFF_OPERATIONS.
+
+Confirm that STAFF_OPERATIONS still cannot:
+
+- Manage Admin accounts
+- Create Staff accounts
+- Change Admin passwords
+- Manage company wallets
+- Change deposit wallet addresses
+- Upload/replace deposit QR codes
+- Activate/deactivate saved wallet profiles
+- Delete wallet profiles
+- Modify deposit configuration
+- Approve withdrawals
+- Reject withdrawals
+- Complete withdrawals
+- Reprocess withdrawals
+- Hold/release withdrawals
+- Trigger withdrawal processing
+- Change withdrawal settings
+- Enable/disable withdrawal engine
+- Change blockchain/RPC configuration
+- Manage roles
+- Modify system settings
+
+Also check for indirect access through frontend routes, backend routes, aliases, legacy endpoints, or alternate controllers.
+
+==================================================
+4. FRONTEND VS BACKEND
+==================================================
+
+Verify that frontend permissions are only a UX layer and that backend authorization independently enforces the same boundary.
+
+Attempt conceptually/through static analysis to identify whether a STAFF_OPERATIONS user could:
+
+- Manually call a privileged endpoint
+- Modify the HTTP method
+- Modify role fields
+- Modify IDs
+- Access a hidden route
+- Bypass the frontend permission map
+
+No actual production request should be made.
+
+==================================================
+5. TEMPORARY DESIGN
+==================================================
+
+Confirm the temporary STAFF_OPERATIONS permissions are centralized and easy to remove.
+
+Identify exactly where the temporary authorization is implemented.
+
+Recommend the cleanest future removal point.
+
+Do not modify the implementation.
+
+==================================================
+6. MANUAL-CREDIT IDEMPOTENCY GAP
+==================================================
+
+The previous implementation report stated:
+
+"The pre-existing manual-credit idempotency gap remains unchanged."
+
+Audit this specifically.
+
+Determine:
+
+- What duplicate-credit scenario is possible?
+- Whether it affects STAFF_OPERATIONS now that they have manual deposit access.
+- Whether the existing manual deposit endpoint itself is protected from duplicate submissions.
+- Whether /api/admin/wallets/credit introduces a duplicate-credit risk.
+- Whether an accidental double-click/retry/network retry could create duplicate financial credit.
+- Whether there is an existing transaction/reference/unique constraint preventing this.
+
+DO NOT FIX IT.
+
+Just report the exact risk and severity.
+
+==================================================
+7. TEST/BUILD VERIFICATION
+==================================================
+
+Verify the existing reported results:
+
+- Full API tests
+- Typecheck
+- Frontend typecheck
+- Production builds
+- git diff --check
+
+Do not modify code to make tests pass.
+
+==================================================
+8. PRODUCTION SAFETY
+==================================================
+
+Confirm explicitly:
+
+- No production writes performed.
+- No production database changes.
+- No production financial transactions.
+- No wallet changes.
+- No QR changes.
+- No withdrawal changes.
+- No secrets changed.
+- No deployment/publish performed.
+
+==================================================
+FINAL REPORT
+
+Return:
+
+A. Overall verdict: SAFE / NEEDS ATTENTION / BLOCKED
+
+B. Exact new STAFF_OPERATIONS permissions
+
+C. Exact manual-deposit authorization path
+
+D. Exact Power Business authorization path
+
+E. Complete list of privileged capabilities STAFF_OPERATIONS still cannot access
+
+F. Any indirect privilege-escalation paths found
+
+G. Manual-credit idempotency risk and severity
+
+H. Test/build results
+
+I. Production changes: MUST be NONE
+
+Do not make any changes during this audit.
