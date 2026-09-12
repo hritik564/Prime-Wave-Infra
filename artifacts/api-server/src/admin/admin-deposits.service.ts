@@ -384,15 +384,114 @@ export async function rejectDeposit(
 //     without requiring a schema migration.
 //   • Reason and Notes are stored immutably in AdminLog.details JSON.
 
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import type { ManualAdminDepositInput, WalletCreditInput } from "../deposits/deposits.schema";
+
+const IDEMPOTENCY_KEY_MAX_LENGTH = 255;
+
+type ManualDepositResult = {
+  depositId:    string;
+  userId:       string;
+  username:     string;
+  amount:       string;
+  network:      ManualAdminDepositInput["network"];
+  reason:       string;
+  approvalMode: "MANUAL_ADMIN";
+  creditedAt:   Date;
+};
+
+function normalizeIdempotencyKey(key?: string): string | undefined {
+  if (key === undefined) return undefined;
+  const normalized = key.trim();
+  if (!normalized || normalized.length > IDEMPOTENCY_KEY_MAX_LENGTH) {
+    throw new AppError(
+      "Idempotency-Key must be between 1 and 255 characters",
+      HTTP_STATUS.BAD_REQUEST,
+      "IDEMPOTENCY_KEY_INVALID",
+    );
+  }
+  return normalized;
+}
+
+function manualDepositFingerprint(
+  input: ManualAdminDepositInput,
+  decimalAmount: Prisma.Decimal,
+): string {
+  return createHash("sha256")
+    .update(JSON.stringify({
+      operation: "MANUAL_DEPOSIT",
+      walletType: "depositWallet",
+      userId: input.userId,
+      amount: decimalAmount.toFixed(2),
+      network: input.network,
+      reason: input.reason,
+      notes: input.notes ?? null,
+    }))
+    .digest("hex");
+}
+
+function resultFromIdempotencyRecord(record: {
+  depositId: string;
+  userId: string;
+  username: string;
+  amount: Prisma.Decimal;
+  network: ManualAdminDepositInput["network"];
+  reason: string;
+  creditedAt: Date;
+}): ManualDepositResult {
+  return {
+    depositId:    record.depositId,
+    userId:       record.userId,
+    username:     record.username,
+    amount:       record.amount.toFixed(2),
+    network:      record.network,
+    reason:       record.reason,
+    approvalMode: "MANUAL_ADMIN",
+    creditedAt:   record.creditedAt,
+  };
+}
+
+function isUniqueConstraintError(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+}
+
+function idempotencyKeyReuseError(): AppError {
+  return new AppError(
+    "Idempotency-Key was already used for a different manual deposit request",
+    HTTP_STATUS.CONFLICT,
+    "IDEMPOTENCY_KEY_REUSED",
+  );
+}
 
 export async function createManualAdminDeposit(
   adminId: string,
   input:   ManualAdminDepositInput,
   ip?:     string,
-) {
+  idempotencyKey?: string,
+): Promise<ManualDepositResult> {
   const { userId, amount, network, reason, notes } = input;
+  const normalizedIdempotencyKey = normalizeIdempotencyKey(idempotencyKey);
+  const decimalAmount = new Prisma.Decimal(amount.toString());
+  const requestFingerprint = normalizedIdempotencyKey
+    ? manualDepositFingerprint(input, decimalAmount)
+    : undefined;
+
+  if (normalizedIdempotencyKey) {
+    const existing = await prisma.manualDepositIdempotency.findUnique({
+      where: {
+        adminId_idempotencyKey: {
+          adminId,
+          idempotencyKey: normalizedIdempotencyKey,
+        },
+      },
+    });
+    if (existing) {
+      if (existing.requestFingerprint !== requestFingerprint) {
+        throw idempotencyKeyReuseError();
+      }
+      return resultFromIdempotencyRecord(existing);
+    }
+  }
 
   // Verify target user exists
   const user = await prisma.user.findUnique({
@@ -406,79 +505,128 @@ export async function createManualAdminDeposit(
   // Synthetic txHash — satisfies @unique constraint; MANUAL- prefix makes
   // the origin unambiguous in every query, log, and UI that shows txHash.
   const syntheticTxHash = `MANUAL-${randomUUID().replace(/-/g, "")}`;
-  const decimalAmount   = new Prisma.Decimal(amount.toString());
   const now             = new Date();
 
-  let depositId: string;
+  let result: ManualDepositResult;
 
-  await prisma.$transaction(async (tx) => {
-    // Create DepositRequest — immediately APPROVED; no pending state for manual deposits
-    const deposit = await tx.depositRequest.create({
-      data: {
-        userId,
-        amount:           decimalAmount,
-        network,
-        txHash:           syntheticTxHash,
-        companyWallet:    "MANUAL_ADMIN",
-        status:           "APPROVED",
-        approvedByAdminId: adminId,
-        approvedAt:       now,
-      },
-      select: { id: true },
-    });
-    depositId = deposit.id;
-
-    // Credit deposit wallet
-    const wallet = await tx.wallet.update({
-      where:  { userId },
-      data:   { depositWallet: { increment: decimalAmount } },
-      select: { id: true, depositWallet: true },
-    });
-
-    // Wallet history — clearly labelled as manual; avoids any blockchain wording
-    await tx.walletTransaction.create({
-      data: {
-        walletId:    wallet.id,
-        userId,
-        type:        "DEPOSIT",
-        status:      "SUCCESS",
-        amount:      decimalAmount,
-        description: "Manual Deposit — Credited by Administrator",
-        metadata:    {
-          depositId:    deposit.id,
-          approvalMode: "MANUAL_ADMIN",
-          reason,
-          ...(notes !== undefined && { notes }),
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Create DepositRequest — immediately APPROVED; no pending state for manual deposits
+      const deposit = await tx.depositRequest.create({
+        data: {
+          userId,
+          amount:           decimalAmount,
           network,
+          txHash:           syntheticTxHash,
+          companyWallet:    "MANUAL_ADMIN",
+          status:           "APPROVED",
+          approvedByAdminId: adminId,
+          approvedAt:       now,
+        },
+        select: { id: true },
+      });
+
+      // Credit deposit wallet
+      const wallet = await tx.wallet.update({
+        where:  { userId },
+        data:   { depositWallet: { increment: decimalAmount } },
+        select: { id: true, depositWallet: true },
+      });
+
+      // Wallet history — clearly labelled as manual; avoids any blockchain wording
+      await tx.walletTransaction.create({
+        data: {
+          walletId:    wallet.id,
+          userId,
+          type:        "DEPOSIT",
+          status:      "SUCCESS",
+          amount:      decimalAmount,
+          description: "Manual Deposit — Credited by Administrator",
+          metadata:    {
+            depositId:    deposit.id,
+            approvalMode: "MANUAL_ADMIN",
+            reason,
+            ...(notes !== undefined && { notes }),
+            network,
+            adminId,
+          },
+        },
+      });
+
+      // Immutable audit log
+      await tx.adminLog.create({
+        data: {
           adminId,
+          action:       "MANUAL_DEPOSIT",
+          targetUserId: userId,
+          details: {
+            depositId:    deposit.id,
+            amount:       decimalAmount.toFixed(2),
+            network,
+            approvalMode: "MANUAL_ADMIN",
+            reason,
+            ...(notes !== undefined && { notes }),
+            syntheticTxHash,
+            ...(ip !== undefined && { ipAddress: ip }),
+            creditedAt:   now.toISOString(),
+          },
         },
-      },
-    });
+      });
 
-    // Immutable audit log
-    await tx.adminLog.create({
-      data: {
-        adminId,
-        action:       "MANUAL_DEPOSIT",
-        targetUserId: userId,
-        details: {
-          depositId:    deposit.id,
-          amount:       decimalAmount.toFixed(2),
-          network,
-          approvalMode: "MANUAL_ADMIN",
-          reason,
-          ...(notes !== undefined && { notes }),
-          syntheticTxHash,
-          ...(ip !== undefined && { ipAddress: ip }),
-          creditedAt:   now.toISOString(),
+      // The unique (adminId, idempotencyKey) row is part of this same
+      // transaction. A concurrent duplicate therefore rolls back its entire
+      // deposit before its unique-constraint error is handled below.
+      if (normalizedIdempotencyKey && requestFingerprint) {
+        await tx.manualDepositIdempotency.create({
+          data: {
+            adminId,
+            idempotencyKey: normalizedIdempotencyKey,
+            requestFingerprint,
+            depositId: deposit.id,
+            userId,
+            username: user.username,
+            amount: decimalAmount,
+            network,
+            reason,
+            creditedAt: now,
+          },
+        });
+      }
+
+      result = {
+        depositId:    deposit.id,
+        userId,
+        username:     user.username,
+        amount:       decimalAmount.toFixed(2),
+        network,
+        reason,
+        approvalMode: "MANUAL_ADMIN",
+        creditedAt:   now,
+      };
+    }, { timeout: 30_000 });
+  } catch (err) {
+    if (normalizedIdempotencyKey && isUniqueConstraintError(err)) {
+      const existing = await prisma.manualDepositIdempotency.findUnique({
+        where: {
+          adminId_idempotencyKey: {
+            adminId,
+            idempotencyKey: normalizedIdempotencyKey,
+          },
         },
-      },
-    });
-  }, { timeout: 30_000 });
+      });
+      if (existing) {
+        if (existing.requestFingerprint !== requestFingerprint) {
+          throw idempotencyKeyReuseError();
+        }
+        return resultFromIdempotencyRecord(existing);
+      }
+    }
+    throw err;
+  }
 
   void prisma.wallet.findUnique({ where: { userId }, select: { depositWallet: true } })
     .then(w => w && writeLedgerEntry({
-      referenceId:     depositId!,
+      referenceId:     result!.depositId,
       referenceType:   "manual_deposit",
       memberId:        userId,
       username:        userId,
@@ -500,23 +648,14 @@ export async function createManualAdminDeposit(
     message: `An administrator has credited your Deposit Wallet with ${decimalAmount.toFixed(2)} USDT. Reason: ${reason}`,
     metadata: {
       approvalMode: "MANUAL_ADMIN",
-      depositId:    depositId!,
+      depositId:    result!.depositId,
       amount:       decimalAmount.toFixed(2),
       network,
       reason,
     },
   });
 
-  return {
-    depositId:    depositId!,
-    userId,
-    username:     user.username,
-    amount:       decimalAmount.toFixed(2),
-    network,
-    reason,
-    approvalMode: "MANUAL_ADMIN" as const,
-    creditedAt:   now,
-  };
+  return result!;
 }
 
 // ── Admin Wallet Credit ───────────────────────────────────────────────────────
@@ -531,13 +670,15 @@ export async function creditUserWallet(
   adminId: string,
   input:   WalletCreditInput,
   ip?:     string,
+  idempotencyKey?: string,
 ) {
   const { userId, walletType, amount, reason, notes } = input;
+  const normalizedIdempotencyKey = normalizeIdempotencyKey(idempotencyKey);
 
   if (walletType === "depositWallet") {
     const result = await createManualAdminDeposit(adminId, {
       userId, amount, network: "BEP20", reason, notes,
-    }, ip);
+    }, ip, normalizedIdempotencyKey);
     return {
       userId:      result.userId,
       username:    result.username,
@@ -546,6 +687,14 @@ export async function creditUserWallet(
       reason:      result.reason,
       creditedAt:  result.creditedAt,
     };
+  }
+
+  if (normalizedIdempotencyKey) {
+    throw new AppError(
+      "Idempotency-Key is only supported for depositWallet credits",
+      HTTP_STATUS.BAD_REQUEST,
+      "IDEMPOTENCY_KEY_WALLET_MISMATCH",
+    );
   }
 
   const user = await prisma.user.findUnique({

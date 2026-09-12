@@ -42,6 +42,10 @@ function fmt(v: string | undefined) {
   return `$${Number(v ?? 0).toFixed(2)}`;
 }
 
+function newIdempotencyKey(): string {
+  return crypto.randomUUID();
+}
+
 function useDebounce<T extends (v: string) => void>(fn: T, delay = 350) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   return useCallback((v: string) => {
@@ -157,6 +161,7 @@ export default function ManualCreditPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success,    setSuccess]    = useState<string | null>(null);
   const [error,      setError]      = useState<string | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -188,6 +193,7 @@ export default function ManualCreditPage() {
     setSelected(u);
     setSuccess(null); setError(null);
     setAmount(""); setReason(""); setNotes("");
+    setIdempotencyKey(newIdempotencyKey());
     if (isMobile) setShowForm(true); // on mobile, navigate to form panel
   }
 
@@ -203,10 +209,18 @@ export default function ManualCreditPage() {
 
     setSubmitting(true); setError(null); setSuccess(null);
     try {
-      await adminCreditUserWallet(selected.id, walletType, amt, reason.trim(), notes.trim() || undefined);
+       await adminCreditUserWallet(
+         selected.id,
+         walletType,
+         amt,
+         reason.trim(),
+         notes.trim() || undefined,
+         walletType === "depositWallet" ? idempotencyKey : undefined,
+       );
       const wLabel = WALLET_OPTIONS.find(w => w.type === walletType)?.label ?? walletType;
       setSuccess(`$${amt.toFixed(2)} credited to ${selected.username}'s ${wLabel}.`);
       setAmount(""); setReason(""); setNotes("");
+       setIdempotencyKey(newIdempotencyKey());
       const refreshed = await adminSearchUsers({ username: selected.username, limit: 1 });
       if (refreshed.data?.[0]) {
         setSelected(refreshed.data[0]);
@@ -366,8 +380,11 @@ export default function ManualCreditPage() {
                  {walletOptions.map(w => {
                   const Icon   = w.icon;
                   const active = walletType === w.type;
-                  return (
-                    <button key={w.type} type="button" onClick={() => setWalletType(w.type)}
+                   return (
+                     <button key={w.type} type="button" onClick={() => {
+                       if (w.type !== walletType) setIdempotencyKey(newIdempotencyKey());
+                       setWalletType(w.type);
+                     }}
                       style={{
                         background: active ? `${w.color}18` : BG_IN,
                         border: `1.5px solid ${active ? w.color : BORDER}`,

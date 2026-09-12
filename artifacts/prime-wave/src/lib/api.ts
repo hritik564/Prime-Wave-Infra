@@ -2258,12 +2258,16 @@ export function adminCreditUserWallet(
   amount:     number,
   reason:     string,
   notes?:     string,
+  idempotencyKey?: string,
 ) {
   const body: Record<string, unknown> = { userId, walletType, amount, reason };
   if (notes?.trim()) body.notes = notes.trim();
+  const headers: Record<string, string> = {};
+  if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
   return request<WalletCreditResult>("/api/admin/wallets/credit", {
     method: "POST",
     body:   JSON.stringify(body),
+    headers,
   });
 }
 

@@ -920,6 +920,31 @@ model DepositRequest {
   @@map("deposit_requests")
 }
 
+// ── Manual Deposit Idempotency ────────────────────────────────────────────────
+//
+// One committed record per admin/key pair. This record is created in the same
+// transaction as the manual deposit so a duplicate request cannot credit the
+// wallet without also hitting the unique idempotency constraint.
+model ManualDepositIdempotency {
+  id                 String         @id @default(cuid())
+  adminId            String
+  idempotencyKey     String
+  requestFingerprint String
+  depositId          String         @unique
+  userId             String
+  username           String
+  amount             Decimal        @db.Decimal(18, 2)
+  network            DepositNetwork
+  reason             String
+  creditedAt         DateTime
+  createdAt          DateTime       @default(now())
+
+  @@unique([adminId, idempotencyKey])
+  @@index([adminId])
+  @@index([userId])
+  @@map("manual_deposit_idempotency")
+}
+
 // ── Withdrawal Settings ───────────────────────────────────────────────────────
 //
 // One row per network; configurable via DB without a code deploy.
