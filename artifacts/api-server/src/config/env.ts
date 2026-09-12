@@ -7,6 +7,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(16),
   JWT_EXPIRES_IN: z.string().default("7d"),
   BCRYPT_ROUNDS: z.string().default("12"),
+  MAINTENANCE_MODE: z.string().default("false"),
 
   // ── Blockchain Gateway (optional — server starts without them) ──────────────
   HOT_WALLET_ADDRESS:    z.string().optional(),

@@ -8,9 +8,14 @@ import { logger } from "./lib/logger";
 import { env } from "./config/env";
 import { globalLimiter } from "./middleware/rateLimiter.middleware";
 import { errorMiddleware } from "./middleware/error.middleware";
+import { isMaintenanceMode, maintenanceWebGate } from "./middleware/maintenance.middleware";
 import router from "./routes";
 
 const app: Express = express();
+
+if (isMaintenanceMode()) {
+  logger.info("Maintenance mode active — public web traffic gated");
+}
 
 // ── Trust proxy ───────────────────────────────────────────────────────────────
 app.set("trust proxy", 1);
@@ -88,6 +93,11 @@ app.use(globalLimiter);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api", router);
+
+// ── Production maintenance gate ─────────────────────────────────────────────
+// Health and API routes remain reachable above; this blocks only web traffic
+// before static assets and the SPA fallback are served.
+app.use(maintenanceWebGate);
 
 // ── Production frontend ──────────────────────────────────────────────────────
 // The production Autoscale service is the API process.  It also serves the

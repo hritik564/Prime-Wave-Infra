@@ -203,6 +203,7 @@ import {
   requireTemporaryStaffOperationsAccess,
 } from "../middleware/auth.middleware";
 import { authLimiter, adminLimiter } from "../middleware/rateLimiter.middleware";
+import { rejectAdminLoginDuringMaintenance } from "../middleware/maintenance.middleware";
 import {
   adminLoginSchema,
   changeAdminPasswordSchema,
@@ -259,7 +260,7 @@ import powerBvRouter from "../binary/power-bv.routes";
 const router = Router();
 
 // ── Public ────────────────────────────────────────────────────────────────────
-router.post("/login", authLimiter, validate(adminLoginSchema), adminLogin);
+router.post("/login", rejectAdminLoginDuringMaintenance, authLimiter, validate(adminLoginSchema), adminLogin);
 
 // ── Protected — any authenticated admin ───────────────────────────────────────
 router.get("/profile", adminLimiter, requireAdminAuth, adminGetProfile);
