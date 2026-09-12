@@ -1,0 +1,259 @@
+Implement a TEMPORARY Staff Operations permission expansion for the PrimeWave admin panel.
+
+IMPORTANT:
+This is a temporary operational feature. Do NOT broadly promote STAFF_OPERATIONS to FINANCE_ADMIN or SUPER_ADMIN. Do NOT change unrelated permissions, withdrawal permissions, wallet-management permissions, blockchain permissions, or system settings.
+
+GOAL
+
+Allow STAFF_OPERATIONS accounts to access and perform ONLY these two existing business functions:
+
+1. Manual Deposit
+2. Power Business
+
+The existing Super Admin / Finance Admin behavior must remain unchanged.
+
+STAFF_OPERATIONS must NOT receive any other elevated financial or administrative permissions.
+
+==================================================
+1. MANUAL DEPOSIT
+==================================================
+
+Give STAFF_OPERATIONS access to the existing manual-deposit workflow.
+
+Staff should be able to:
+
+- Open the Manual Deposit section/page in the Staff Admin Panel.
+- Search/select the appropriate member.
+- Enter the deposit amount/details required by the existing workflow.
+- Submit/create the manual deposit using the existing backend workflow.
+- See the resulting deposit status/history needed to perform the operation.
+
+Use the EXISTING manual-deposit implementation wherever possible.
+
+Do NOT create a second parallel deposit system.
+
+IMPORTANT SECURITY REQUIREMENTS:
+
+- Authorization must be enforced server-side.
+- Do not rely on frontend hiding/showing buttons.
+- STAFF_OPERATIONS should only gain the minimum API permissions required for manual deposits.
+- Do not grant STAFF_OPERATIONS generic FINANCE_ADMIN access.
+- Do not grant STAFF_OPERATIONS permission to modify company wallet addresses.
+- Do not grant STAFF_OPERATIONS permission to manage saved deposit-wallet profiles or QR codes.
+- Do not grant STAFF_OPERATIONS permission to change deposit configuration.
+- Do not grant STAFF_OPERATIONS permission to approve/reject unrelated financial operations unless that permission is already specifically required by the manual-deposit workflow.
+
+Preserve all existing validation:
+- Member/account validation
+- Amount validation
+- Duplicate/idempotency protection
+- Balance calculations
+- Transaction creation
+- Audit logging
+- Existing approval/credit logic
+- Existing authorization checks
+
+Do not weaken any financial validation.
+
+==================================================
+2. POWER BUSINESS
+==================================================
+
+Give STAFF_OPERATIONS access to the existing "Power Business" feature in the Staff Admin Panel.
+
+First inspect the current implementation and determine:
+
+- Existing frontend route/page
+- Existing backend endpoints
+- Existing authorization guards
+- Existing permission requirements
+- Exactly what actions Power Business can perform
+
+Then grant STAFF_OPERATIONS ONLY the permissions necessary to operate the existing Power Business feature.
+
+Do NOT expose unrelated admin functionality.
+
+If Power Business has multiple actions, preserve its existing validation and authorization logic and only expand access for STAFF_OPERATIONS to the specific Power Business actions.
+
+Do not give Staff:
+- SUPER_ADMIN permissions
+- FINANCE_ADMIN permissions
+- SUPPORT_ADMIN permissions
+- Wallet-management permissions
+- Withdrawal-management permissions
+- System-settings permissions
+- Role-management permissions
+- Admin-account management
+- Staff-account creation
+- Admin password management
+- Blockchain configuration
+- Company wallet management
+
+==================================================
+3. FRONTEND
+==================================================
+
+Update the STAFF_OPERATIONS admin panel so the staff member can actually see and navigate to:
+
+- Manual Deposit
+- Power Business
+
+Only show these additional navigation items/features to STAFF_OPERATIONS where appropriate.
+
+Do not expose Super Admin-only sections.
+
+Do not change the existing Admin Settings permissions.
+
+The existing Deposit Wallet Management must remain SUPER_ADMIN-only.
+
+==================================================
+4. BACKEND AUTHORIZATION
+==================================================
+
+This is critical.
+
+Audit every API endpoint used by:
+
+- Manual Deposit
+- Power Business
+
+Determine the current authorization guard for each endpoint.
+
+Do NOT simply replace:
+
+requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN")
+
+with:
+
+requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN", "STAFF_OPERATIONS")
+
+unless that endpoint is genuinely required by one of these two features.
+
+Instead, identify the exact minimum endpoint/action permissions needed.
+
+If an endpoint combines multiple unrelated operations, refactor authorization carefully so STAFF_OPERATIONS receives only the required operation.
+
+Authorization must remain server-side and must be impossible to bypass by manually calling the API.
+
+==================================================
+5. AUDIT LOGGING
+==================================================
+
+Every staff-performed financial/business mutation must continue using the existing audit logging system.
+
+The audit record must identify:
+
+- Admin/staff account performing the action
+- STAFF_OPERATIONS role
+- Action performed
+- Target member/account where applicable
+- Amount/value where applicable
+- Timestamp
+- Existing request/reference identifiers
+
+Do not log passwords, tokens, private keys, or sensitive credentials.
+
+==================================================
+6. TEMPORARY FEATURE DESIGN
+==================================================
+
+Because this permission expansion is temporary, structure it so it can be removed cleanly later.
+
+Prefer a centralized permission/helper such as:
+
+STAFF_OPERATIONS_MANUAL_DEPOSIT
+STAFF_OPERATIONS_POWER_BUSINESS
+
+or an equivalent clearly named authorization helper.
+
+Do not scatter arbitrary STAFF_OPERATIONS exceptions throughout the codebase.
+
+Document clearly that these are TEMPORARY permissions.
+
+Do NOT create a database role migration unless the existing architecture genuinely requires one.
+
+==================================================
+7. TESTING
+
+Add focused authorization tests proving:
+
+MANUAL DEPOSIT:
+- SUPER_ADMIN → allowed
+- FINANCE_ADMIN → existing behavior preserved
+- STAFF_OPERATIONS → allowed
+- SUPPORT_ADMIN → denied unless already authorized
+- REWARD_MANAGER → denied unless already authorized
+- Unauthenticated → denied
+
+POWER BUSINESS:
+- SUPER_ADMIN → allowed
+- Existing authorized roles → behavior preserved
+- STAFF_OPERATIONS → allowed
+- Unauthorized roles → denied
+- Unauthenticated → denied
+
+Also test that STAFF_OPERATIONS cannot access unrelated privileged endpoints, including at minimum:
+
+- Admin account management
+- Staff account creation
+- Deposit Wallet Management
+- Company wallet/address changes
+- Saved QR management
+- Withdrawal approval
+- Withdrawal rejection
+- Withdrawal reprocessing
+- Withdrawal completion
+- Withdrawal hold/release
+- Withdrawal engine controls
+- Withdrawal settings
+- Role management
+- System settings
+- Blockchain configuration
+
+Do not merely test the UI. Test the actual API authorization.
+
+==================================================
+8. REGRESSION TESTING
+
+Run:
+
+- Focused Manual Deposit tests
+- Focused Power Business tests
+- STAFF_OPERATIONS authorization tests
+- Full API test suite
+- API typecheck
+- Frontend typecheck
+- API production build
+- Frontend production build
+- git diff --check
+
+Restart the development workflows and verify the Staff Admin Panel.
+
+==================================================
+9. PRODUCTION SAFETY
+
+DO NOT:
+
+- Publish
+- Deploy
+- Modify production database data
+- Modify production secrets
+- Modify wallet addresses
+- Modify QR objects
+- Modify withdrawal settings
+- Enable withdrawals
+- Create/delete/modify staff accounts
+
+This task is CODE ONLY until I explicitly approve publishing.
+
+Before finishing, provide:
+
+1. Exact files changed
+2. Exact endpoints whose authorization changed
+3. Exact STAFF_OPERATIONS permissions added
+4. Any existing permissions that were NOT changed
+5. Test results
+6. Build results
+7. Confirmation that no production changes were made
+
+Do not claim the feature is production-ready until all tests and builds pass.
