@@ -1,0 +1,1008 @@
+Build a new public-facing homepage and marketing website for **PrimeWave** at the existing `primewave.live` project.
+
+## IMPORTANT — EXISTING APPLICATION
+
+This project already contains a working PrimeWave authentication/login page.
+
+**DO NOT break, delete, rewrite, migrate, or replace the existing authentication system.**
+
+Before making changes:
+
+1. Inspect the existing project structure.
+2. Identify the current authentication routes/components.
+3. Identify the current login/authentication functionality.
+4. Preserve all existing authentication behavior.
+5. Do not modify authentication logic unless absolutely required for routing.
+6. The existing login page must remain accessible after this work.
+
+The goal of this task is to add the **public PrimeWave website**, not rebuild the authentication system.
+
+The public homepage should be available at:
+
+`/`
+
+The existing authentication should remain accessible through its current route. If the current route is `/login`, preserve `/login`.
+
+---
+
+# PRIMEWAVE BRAND POSITIONING
+
+PrimeWave should be presented as a **Web3 technology and decentralized-finance infrastructure ecosystem**.
+
+The website must NOT promote MLM, recruitment, referral income, team building, passive-income claims, investment returns, or financial opportunity schemes.
+
+Do NOT include:
+
+* MLM
+* referral programs
+* recruitment
+* downlines
+* team building
+* passive income
+* guaranteed returns
+* ROI claims
+* income claims
+* “financial freedom”
+* “earn money”
+* “get rich”
+* investment promises
+* network marketing language
+
+The website should feel like a legitimate technology/infrastructure company building decentralized applications.
+
+Primary positioning:
+
+**“Infrastructure for a decentralized future.”**
+
+Supporting positioning:
+
+**PrimeWave brings blockchain infrastructure, decentralized markets, asset exchange, and self-custody together in one integrated ecosystem.**
+
+Do not invent statistics, users, transaction volume, TPS, security certifications, audits, partnerships, or other achievements.
+
+If a technical metric is not currently available in the project, do not fabricate one.
+
+---
+
+# DESIGN DIRECTION
+
+Create a premium, modern Web3 infrastructure website.
+
+Visual inspiration should be closer to:
+
+* Linear
+* modern developer platforms
+* Apple-level simplicity
+* high-end Web3 infrastructure products
+
+Avoid the visual style of:
+
+* crypto casinos
+* MLM websites
+* generic token landing pages
+* excessive neon
+* meme-coin websites
+* flashy financial opportunity pages
+
+## Visual language
+
+Use:
+
+* very dark / near-black background
+* white primary typography
+* muted gray secondary typography
+* PrimeWave brand accent color where appropriate
+* subtle borders
+* restrained glass effects
+* large typography
+* generous whitespace
+* smooth micro-interactions
+* subtle gradients
+* sophisticated network/grid visuals
+* responsive design
+
+The website should feel technical, expensive, trustworthy, and minimal.
+
+Do not over-animate the page.
+
+Animations should support the content rather than distract from it.
+
+---
+
+# TECHNICAL REQUIREMENTS
+
+First inspect the existing application and determine:
+
+* framework
+* routing system
+* styling system
+* component architecture
+* existing dependencies
+* existing auth routes
+* existing environment variables
+
+Reuse the existing technology stack where practical.
+
+Do NOT introduce a completely different framework.
+
+Do NOT add unnecessary dependencies.
+
+Keep the implementation lightweight because this project is being developed using Replit's free mode.
+
+Do not build blockchain nodes, smart contracts, backend infrastructure, databases, or production RPC infrastructure as part of this task.
+
+This task is primarily a **frontend/public website implementation**.
+
+Use mock/static data only where necessary for visual presentation, and clearly structure it so it can later be replaced by real API/network data.
+
+---
+
+# WEBSITE STRUCTURE
+
+Create the following public routes where practical:
+
+`/`
+
+`/chain`
+
+`/dex`
+
+`/swap`
+
+`/wallet`
+
+`/developers`
+
+`/network`
+
+`/security`
+
+`/ecosystem`
+
+`/about`
+
+Keep the existing authentication route untouched.
+
+If implementing all secondary pages would compromise the quality of the homepage, prioritize the homepage and create clean placeholder/product pages with reusable components rather than building fake functionality.
+
+---
+
+# GLOBAL NAVIGATION
+
+Create a consistent header.
+
+Left:
+
+**PRIMEWAVE**
+
+Navigation:
+
+**Products**
+
+* PrimeWave Chain
+* PWDEX
+* PWSwap
+* PrimeWave Wallet
+
+**Developers**
+
+**Network**
+
+**Security**
+
+**Ecosystem**
+
+**About**
+
+Right-side CTA:
+
+**Launch App**
+
+The Launch App button should point to the existing PrimeWave application/authentication route rather than creating a new authentication system.
+
+On mobile, implement a clean responsive hamburger/mobile navigation.
+
+The navigation should remain consistent throughout the public website.
+
+---
+
+# HOMEPAGE `/`
+
+Build a premium homepage with the following sections.
+
+## 1. HERO
+
+Large headline:
+
+**Infrastructure for a decentralized future.**
+
+Supporting text:
+
+**PrimeWave brings blockchain infrastructure, decentralized markets, asset exchange, and self-custody together in one integrated ecosystem.**
+
+Primary CTA:
+
+**Explore the Ecosystem**
+
+Secondary CTA:
+
+**Launch App**
+
+Create a subtle animated blockchain/network visualization in the background.
+
+Do NOT use generic crypto coin images.
+
+The visual should communicate nodes, infrastructure, connectivity, and decentralized networks.
+
+---
+
+# 2. ECOSYSTEM INTRODUCTION
+
+Headline:
+
+**One ecosystem. Four core layers.**
+
+Create four premium product cards.
+
+### PrimeWave Chain
+
+Label:
+
+**01 — FOUNDATION**
+
+Title:
+
+**PrimeWave Chain**
+
+Description:
+
+**The blockchain foundation powering the PrimeWave ecosystem and its decentralized applications.**
+
+CTA:
+
+**Explore Chain →**
+
+---
+
+### PWDEX
+
+Label:
+
+**02 — MARKETS**
+
+Title:
+
+**PWDEX**
+
+Description:
+
+**A decentralized exchange layer designed for on-chain trading and liquidity.**
+
+CTA:
+
+**Explore PWDEX →**
+
+---
+
+### PWSwap
+
+Label:
+
+**03 — EXCHANGE**
+
+Title:
+
+**PWSwap**
+
+Description:
+
+**A simple interface for exchanging digital assets across the PrimeWave ecosystem.**
+
+CTA:
+
+**Explore PWSwap →**
+
+---
+
+### PrimeWave Wallet
+
+Label:
+
+**04 — ACCESS**
+
+Title:
+
+**PrimeWave Wallet**
+
+Description:
+
+**A gateway to self-custody and interaction with the PrimeWave ecosystem.**
+
+CTA:
+
+**Explore Wallet →**
+
+---
+
+# 3. PRIMEWAVE CHAIN SECTION
+
+Headline:
+
+**Built on its own foundation.**
+
+Explain that PrimeWave Chain serves as the blockchain infrastructure layer for the ecosystem.
+
+Use language such as:
+
+**PrimeWave Chain provides the underlying network on which PrimeWave applications and decentralized services can operate.**
+
+Create a visual architecture diagram:
+
+PrimeWave Chain
+
+↓
+
+EVM / Smart Contracts
+
+↓
+
+Wallet / PWDEX / PWSwap / Applications
+
+Do not claim specific TPS, finality, validator count, transaction count, or other network statistics unless they already exist as verified data in the project.
+
+CTA:
+
+**Explore PrimeWave Chain →**
+
+---
+
+# 4. DECENTRALIZED MARKETS
+
+Headline:
+
+**Markets without intermediaries.**
+
+Introduce PWDEX.
+
+Create a high-quality static/mock exchange interface showing:
+
+* trading pair
+* price
+* chart
+* liquidity
+* volume
+* swap/trade interface
+
+This is a visual representation only.
+
+Do NOT implement real trading functionality in this task unless it already exists in the project.
+
+Do not make fake transaction claims.
+
+CTA:
+
+**Explore PWDEX →**
+
+---
+
+# 5. PWSWAP SECTION
+
+Headline:
+
+**Exchange assets. Simply.**
+
+Show a polished swap interface mockup:
+
+You Pay
+
+0.00 PW
+
+↓
+
+You Receive
+
+0.00 USDT
+
+Show placeholder values for:
+
+* rate
+* network fee
+* price impact
+
+Clearly structure these as UI placeholders, not live data.
+
+CTA:
+
+**Open PWSwap →**
+
+---
+
+# 6. PRIMEWAVE WALLET SECTION
+
+Headline:
+
+**Your gateway to Web3.**
+
+Supporting text:
+
+**Manage assets, connect to decentralized applications, and interact with the PrimeWave ecosystem through a unified wallet experience.**
+
+Create a premium wallet UI mockup showing:
+
+* total balance
+* assets
+* send
+* receive
+* transaction history
+
+Do not claim hardware-wallet support, audits, biometric security, or other capabilities unless those capabilities already exist.
+
+CTA:
+
+**Explore PrimeWave Wallet →**
+
+---
+
+# 7. DEVELOPER SECTION
+
+Headline:
+
+**Build on PrimeWave.**
+
+Supporting text:
+
+**Infrastructure for developers building the next generation of decentralized applications.**
+
+Create four developer cards:
+
+**Network**
+
+RPC and network connectivity.
+
+**Smart Contracts**
+
+Deploy and interact with smart contracts.
+
+**Wallet**
+
+Connect applications to PrimeWave Wallet.
+
+**Ecosystem**
+
+Build applications using PrimeWave infrastructure.
+
+CTA:
+
+**Developer Resources →**
+
+Do not create fake RPC endpoints or fake contract addresses.
+
+---
+
+# 8. NETWORK SECTION
+
+Headline:
+
+**Explore the network.**
+
+Create a clean network-status-style interface.
+
+Potential fields:
+
+* Network Status
+* Block Height
+* Latest Block
+* Validators
+* Transactions
+* Network Version
+
+IMPORTANT:
+
+If real network data is not available, use clearly marked placeholders or “Coming Soon”.
+
+Do not fabricate live blockchain statistics.
+
+CTA:
+
+**View Network →**
+
+---
+
+# 9. SECURITY SECTION
+
+Headline:
+
+**Security is infrastructure.**
+
+Create four areas:
+
+**Blockchain**
+
+Network and consensus infrastructure.
+
+**Smart Contracts**
+
+Transparent and verifiable on-chain code.
+
+**Wallet**
+
+Secure transaction signing and asset management.
+
+**Platform**
+
+Application and infrastructure security.
+
+Do not claim audits, certifications, penetration tests, bug bounty programs, or security guarantees unless verified in the existing project.
+
+CTA:
+
+**Security →**
+
+---
+
+# 10. ECOSYSTEM DIAGRAM
+
+Headline:
+
+**Everything connected.**
+
+Create a polished interactive ecosystem visualization:
+
+PrimeWave
+
+↓
+
+PrimeWave Chain
+
+↓
+
+PrimeWave Wallet
+PWDEX
+PWSwap
+
+↓
+
+Developers / Applications
+
+Use subtle animated connections between components.
+
+The purpose is to visually communicate that these are components of one ecosystem rather than unrelated products.
+
+---
+
+# 11. FINAL CTA
+
+Headline:
+
+**Explore the PrimeWave ecosystem.**
+
+Supporting text:
+
+**Discover the infrastructure, applications, and tools being built for a decentralized future.**
+
+Buttons:
+
+**Explore Ecosystem**
+
+**Launch App**
+
+---
+
+# 12. FOOTER
+
+Create a sophisticated multi-column footer.
+
+### PRODUCTS
+
+PrimeWave Chain
+
+PWDEX
+
+PWSwap
+
+PrimeWave Wallet
+
+### DEVELOPERS
+
+Documentation
+
+Network
+
+Contracts
+
+Developer Resources
+
+### COMPANY
+
+About
+
+Contact
+
+### SECURITY
+
+Security
+
+### LEGAL
+
+Terms
+
+Privacy
+
+Risk Disclosure
+
+Cookie Policy
+
+### COMMUNITY
+
+Only include social/community links if verified links already exist in the project.
+
+Do not invent URLs.
+
+Footer:
+
+**© 2026 PrimeWave. All rights reserved.**
+
+---
+
+# PRODUCT PAGE `/chain`
+
+Create a clean technical product page.
+
+Headline:
+
+**PrimeWave Chain**
+
+Subheadline:
+
+**The blockchain foundation for the PrimeWave ecosystem.**
+
+Sections:
+
+* Overview
+* Architecture
+* EVM compatibility
+* Smart contracts
+* Network infrastructure
+* Developer experience
+* Ecosystem applications
+
+Include a technical architecture visualization.
+
+Create a network-information table but only populate values that are actually known.
+
+Potential fields:
+
+Network
+
+Chain ID
+
+Native Asset
+
+RPC
+
+Explorer
+
+Consensus
+
+EVM Compatibility
+
+Network Status
+
+Unknown values should display:
+
+**Coming Soon**
+
+rather than fabricated information.
+
+---
+
+# PRODUCT PAGE `/dex`
+
+Headline:
+
+**PWDEX**
+
+Subheadline:
+
+**Decentralized markets, powered by PrimeWave infrastructure.**
+
+Sections:
+
+* Trading
+* Liquidity
+* On-chain markets
+* Wallet connectivity
+* Ecosystem integration
+
+Include a beautiful static DEX interface.
+
+---
+
+# PRODUCT PAGE `/swap`
+
+Headline:
+
+**PWSwap**
+
+Subheadline:
+
+**Exchange digital assets through the PrimeWave ecosystem.**
+
+Include the swap interface and explain:
+
+* asset selection
+* exchange rate
+* liquidity
+* price impact
+* transaction confirmation
+
+This page is informational unless a working PWSwap implementation already exists.
+
+---
+
+# PRODUCT PAGE `/wallet`
+
+Headline:
+
+**PrimeWave Wallet**
+
+Subheadline:
+
+**Your gateway to the PrimeWave ecosystem.**
+
+Sections:
+
+* Asset management
+* Self-custody
+* Transactions
+* dApp connectivity
+* PrimeWave Chain integration
+
+Use a premium wallet mockup.
+
+Do not invent security features.
+
+---
+
+# DEVELOPERS `/developers`
+
+Create:
+
+**Build on PrimeWave.**
+
+Sections:
+
+* Getting Started
+* Network
+* Smart Contracts
+* Wallet Integration
+* Developer Resources
+
+Use placeholder documentation links where documentation does not yet exist, clearly marked as **Coming Soon**.
+
+---
+
+# ECOSYSTEM `/ecosystem`
+
+Create a highly visual ecosystem overview.
+
+Show:
+
+PrimeWave
+
+↓
+
+PrimeWave Chain
+
+↓
+
+PWDEX
+PWSwap
+PrimeWave Wallet
+
+↓
+
+Developers
+Applications
+
+Explain how the products interact.
+
+---
+
+# SECURITY `/security`
+
+Create a security overview page.
+
+Focus on:
+
+* infrastructure
+* smart contracts
+* wallet security
+* platform security
+* transparency
+
+Do not make unsupported security claims.
+
+---
+
+# ABOUT `/about`
+
+Headline:
+
+**Building infrastructure for a decentralized future.**
+
+Explain PrimeWave as a technology ecosystem focused on blockchain infrastructure and decentralized applications.
+
+Keep this page technology-focused.
+
+Absolutely no MLM/recruitment/income language.
+
+---
+
+# RESPONSIVE DESIGN
+
+The entire website must work properly on:
+
+* desktop
+* laptop
+* tablet
+* mobile
+
+Pay particular attention to:
+
+* navigation
+* hero typography
+* ecosystem diagrams
+* product cards
+* mock interfaces
+* footer
+* horizontal overflow
+
+No element should cause accidental horizontal scrolling on mobile.
+
+---
+
+# COMPONENT ARCHITECTURE
+
+Build reusable components rather than duplicating code.
+
+Recommended structure:
+
+components/
+
+* Navbar
+* Footer
+* Hero
+* ProductCard
+* SectionHeader
+* CTASection
+* NetworkVisualization
+* EcosystemDiagram
+* ChainArchitecture
+* DexPreview
+* SwapPreview
+* WalletPreview
+* DeveloperCard
+* NetworkStats
+* SecurityGrid
+
+Use reusable data structures for products so the product cards/pages remain consistent.
+
+---
+
+# IMPORTANT PRODUCT DATA RULE
+
+Do NOT invent PrimeWave technical facts.
+
+The following are examples of information that must NOT be fabricated:
+
+* TPS
+* block time
+* validator count
+* transaction count
+* TVL
+* number of users
+* partnerships
+* audits
+* security certifications
+* token price
+* market cap
+* exchange listings
+* contract addresses
+* RPC URLs
+* Chain IDs
+
+If the existing project contains verified information, use it.
+
+Otherwise use:
+
+**Coming Soon**
+
+or a clearly labeled placeholder.
+
+---
+
+# AUTHENTICATION PROTECTION
+
+This is extremely important.
+
+Before finishing, verify that:
+
+1. The existing login route still works.
+2. Existing authentication components still exist.
+3. Existing auth API calls were not modified unnecessarily.
+4. Existing environment variables were not deleted.
+5. The new homepage does not interfere with authentication.
+6. The “Launch App” CTA correctly points to the existing application/login route.
+7. Existing users can still sign in exactly as before.
+
+Do not replace authentication with mock authentication.
+
+---
+
+# PERFORMANCE
+
+Because this is being developed in Replit free mode:
+
+* keep dependencies minimal
+* avoid unnecessary backend services
+* avoid large image libraries
+* avoid video backgrounds
+* avoid huge assets
+* use CSS/SVG for visual effects where practical
+* optimize animations
+* avoid continuously running expensive processes
+* keep the project easy to deploy
+
+Do not create unnecessary databases or server infrastructure for the marketing website.
+
+---
+
+# SEO
+
+Add appropriate:
+
+* page titles
+* meta descriptions
+* Open Graph metadata
+* favicon
+* semantic headings
+
+Homepage title:
+
+**PrimeWave — Infrastructure for a Decentralized Future**
+
+Meta description:
+
+**PrimeWave is building an integrated Web3 ecosystem spanning blockchain infrastructure, decentralized markets, asset exchange, and self-custody.**
+
+---
+
+# FINAL QUALITY BAR
+
+The finished homepage should look like a serious technology company could actually launch it publicly.
+
+It should NOT look like:
+
+* an AI-generated template
+* a generic crypto landing page
+* an MLM website
+* a token presale page
+* a casino
+* a financial opportunity website
+
+Prioritize:
+
+**clarity > hype**
+
+**technical credibility > marketing claims**
+
+**design quality > unnecessary features**
+
+**real information > invented information**
+
+**performance > excessive animation**
+
+Start by inspecting the existing application, then implement the public website without damaging the existing authentication system.
+
+After implementation, test the major routes and verify that the existing login functionality still works.

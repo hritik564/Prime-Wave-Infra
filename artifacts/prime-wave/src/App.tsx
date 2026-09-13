@@ -46,6 +46,8 @@ import PageContainer from "@/components/shared/PageContainer";
 import SectionHeader from "@/components/shared/SectionHeader";
 import { Inbox } from "lucide-react";
 import { PERMISSIONS, type Permission } from "@/lib/permissions";
+import PublicHomePage from "@/pages/public/PublicHomePage";
+import PublicPage from "@/pages/public/PublicPage";
 
 function ComingSoon({ title }: { title: string }) {
   return (
@@ -113,6 +115,18 @@ function RequireAdmin({ children, permission }: { children: React.ReactNode; per
 function AppRoutes() {
   return (
     <Switch>
+      {/* ── PrimeWave public website ── */}
+      <Route path="/"><PublicHomePage /></Route>
+      <Route path="/chain"><PublicPage kind="chain" /></Route>
+      <Route path="/dex"><PublicPage kind="dex" /></Route>
+      <Route path="/swap"><PublicPage kind="swap" /></Route>
+      <Route path="/wallet"><PublicPage kind="wallet" /></Route>
+      <Route path="/developers"><PublicPage kind="developers" /></Route>
+      <Route path="/network"><PublicPage kind="network" /></Route>
+      <Route path="/security"><PublicPage kind="security" /></Route>
+      <Route path="/ecosystem"><PublicPage kind="ecosystem" /></Route>
+      <Route path="/about"><PublicPage kind="about" /></Route>
+
       {/* ── Auth Routes (no AppLayout) ── */}
       <Route path="/login">
         <LoginPage />
@@ -158,9 +172,6 @@ function AppRoutes() {
 
       <Route path="/binary-tree">
         <Redirect to="/team" />
-      </Route>
-      <Route path="/network">
-        <RequireMember><NetworkIntelligencePage /></RequireMember>
       </Route>
       <Route path="/team">
         <RequireMember><NetworkIntelligencePage /></RequireMember>
