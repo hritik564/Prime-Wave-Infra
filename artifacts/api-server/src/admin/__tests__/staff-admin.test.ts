@@ -358,6 +358,17 @@ describe("Temporary Staff Operations feature authorization", () => {
     }));
   });
 
+  it.each(["SUPER_ADMIN", "SUPPORT_ADMIN", "STAFF_OPERATIONS"])(
+    "allows %s to edit member profiles",
+    async (role) => {
+      const next = await runGuard(
+        requireAdminRoles("SUPER_ADMIN", "SUPPORT_ADMIN", "STAFF_OPERATIONS"),
+        role,
+      );
+      expect(next).toHaveBeenCalledWith();
+    },
+  );
+
   it.each(["SUPER_ADMIN", "STAFF_OPERATIONS"])("allows %s to use user impersonation", async (role) => {
     const next = await runGuard(
       requireAdminRoles("SUPER_ADMIN", "STAFF_OPERATIONS"),

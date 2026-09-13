@@ -458,7 +458,7 @@ router.get(
 router.patch(
   "/users/:id",
   adminLimiter,
-  superAdminGuard,
+  supportAdminGuard,
   updateUserHandler,
 );
 

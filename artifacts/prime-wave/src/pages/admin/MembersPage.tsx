@@ -400,7 +400,7 @@ export default function MembersPage() {
 
   const handleDrawerAction = useCallback((label: string) => {
     if (!drawer) return;
-    if (isStaffOperations && !["Suspend Member", "Activate Member", "Block Member", "Login As User"].includes(label)) return;
+    if (isStaffOperations && !["Edit Member", "Suspend Member", "Activate Member", "Block Member", "Login As User"].includes(label)) return;
     if (label === "Suspend Member")  { setSuspendTarget(drawer);  return; }
     if (label === "Activate Member") { setActivateTarget(drawer); return; }
     if (label === "Block Member")    { setBlockTarget(drawer);    return; }
@@ -730,7 +730,7 @@ export default function MembersPage() {
       )}
 
       {/* ── Edit member modal ── */}
-      {!isStaffOperations && editTarget && (
+      {editTarget && (
         <MemberModal
           mode="edit"
           userId={editTarget.id}
