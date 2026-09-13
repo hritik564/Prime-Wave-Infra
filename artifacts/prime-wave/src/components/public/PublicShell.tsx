@@ -1,20 +1,24 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ArrowUpRight, Menu, X } from "lucide-react";
+import { ArrowUpRight, ChevronDown, Menu, X } from "lucide-react";
 
 const navItems = [
-  { href: "/chain", label: "Chain" },
-  { href: "/dex", label: "PWDEX" },
-  { href: "/swap", label: "PWSwap" },
-  { href: "/wallet", label: "Wallet" },
   { href: "/developers", label: "Developers" },
   { href: "/security", label: "Security" },
   { href: "/ecosystem", label: "Ecosystem" },
 ];
 
+const productItems = [
+  { href: "/chain", number: "01", title: "PrimeWave Chain", description: "Blockchain infrastructure" },
+  { href: "/dex", number: "02", title: "PWDEX", description: "Decentralized markets" },
+  { href: "/swap", number: "03", title: "PWSwap", description: "Asset exchange" },
+  { href: "/wallet", number: "04", title: "PrimeWave Wallet", description: "Self-custody" },
+];
+
 export function PublicMeta({ title, description }: { title: string; description: string }) {
   useEffect(() => {
-    document.title = `${title} — PrimeWave`;
+    const fullTitle = title.startsWith("PrimeWave") ? title : `${title} — PrimeWave`;
+    document.title = fullTitle;
     const setMeta = (name: string, content: string) => {
       const selector = name.startsWith("og:") ? `meta[property="${name}"], meta[name="${name}"]` : `meta[name="${name}"]`;
       let tag = document.querySelector(selector) as HTMLMetaElement | null;
@@ -27,7 +31,7 @@ export function PublicMeta({ title, description }: { title: string; description:
       tag.content = content;
     };
     setMeta("description", description);
-    setMeta("og:title", `${title} — PrimeWave`);
+     setMeta("og:title", fullTitle);
     setMeta("og:description", description);
   }, [description, title]);
   return null;
@@ -36,7 +40,10 @@ export function PublicMeta({ title, description }: { title: string; description:
 export default function PublicShell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [open, setOpen] = useState(false);
+  const [productsOpen, setProductsOpen] = useState(false);
   useEffect(() => setOpen(false), [location]);
+  useEffect(() => setProductsOpen(false), [location]);
+  const productIsActive = productItems.some((item) => location === item.href);
   return (
     <div className="pw-site">
       <div className="pw-noise" aria-hidden="true" />
@@ -47,6 +54,35 @@ export default function PublicShell({ children }: { children: React.ReactNode })
             <span>prime<span>·</span>wave</span>
           </Link>
           <nav className={`pw-nav-links ${open ? "is-open" : ""}`} aria-label="Primary navigation">
+             <div
+               className={`pw-products-menu ${productIsActive ? "active" : ""} ${productsOpen ? "is-open" : ""}`}
+               onMouseEnter={() => setProductsOpen(true)}
+               onMouseLeave={() => setProductsOpen(false)}
+             >
+               <button
+                 className="pw-products-trigger"
+                 type="button"
+                 aria-expanded={productsOpen}
+                 onClick={() => setProductsOpen((value) => !value)}
+                 data-testid="button-nav-products"
+               >
+                 Our Products <ChevronDown size={14} />
+               </button>
+               <div className="pw-products-dropdown">
+                 {productItems.map((item) => (
+                   <Link
+                     key={item.href}
+                     href={item.href}
+                     className={location === item.href ? "active" : ""}
+                     data-testid={`link-nav-product-${item.number}`}
+                   >
+                     <span className="pw-product-nav-number">{item.number}</span>
+                     <span><strong>{item.title}</strong><small>{item.description}</small></span>
+                     <ArrowUpRight size={14} />
+                   </Link>
+                 ))}
+               </div>
+             </div>
             {navItems.map((item) => (
               <Link key={item.href} href={item.href} className={location === item.href ? "active" : ""} data-testid={`link-nav-${item.label.toLowerCase()}`}>
                 {item.label}
@@ -54,6 +90,7 @@ export default function PublicShell({ children }: { children: React.ReactNode })
             ))}
             <Link href="/network" className={location === "/network" ? "active" : ""} data-testid="link-nav-network">Network</Link>
             <Link href="/about" className={location === "/about" ? "active" : ""} data-testid="link-nav-about">About</Link>
+             <Link href="/login" className="pw-mobile-nav-login" data-testid="link-mobile-nav-login">Sign in <ArrowUpRight size={14} /></Link>
           </nav>
           <div className="pw-nav-actions">
             <Link href="/login" className="pw-text-link desktop-only" data-testid="link-nav-login">Sign in <ArrowUpRight size={14} /></Link>
@@ -72,10 +109,10 @@ export default function PublicShell({ children }: { children: React.ReactNode })
               <span className="pw-mark" aria-hidden="true"><i /><i /><i /></span>
               <span>prime<span>·</span>wave</span>
             </Link>
-            <p className="pw-footer-note">Infrastructure for a decentralized future.</p>
+             <p className="pw-footer-note">Intelligent infrastructure for a decentralized future.</p>
           </div>
           <div className="pw-footer-links">
-            <div><span className="pw-eyebrow">Products</span><Link href="/chain" data-testid="link-footer-chain">PrimeWave Chain</Link><Link href="/dex" data-testid="link-footer-dex">PWDEX</Link><Link href="/swap" data-testid="link-footer-swap">PWSwap</Link><Link href="/wallet" data-testid="link-footer-wallet">PrimeWave Wallet</Link></div>
+             <div><span className="pw-eyebrow">Our Products</span><Link href="/chain" data-testid="link-footer-chain">PrimeWave Chain</Link><Link href="/dex" data-testid="link-footer-dex">PWDEX</Link><Link href="/swap" data-testid="link-footer-swap">PWSwap</Link><Link href="/wallet" data-testid="link-footer-wallet">PrimeWave Wallet</Link></div>
             <div><span className="pw-eyebrow">Explore</span><Link href="/developers" data-testid="link-footer-developers">Developers</Link><Link href="/network" data-testid="link-footer-network">Network</Link><Link href="/security" data-testid="link-footer-security">Security</Link><Link href="/ecosystem" data-testid="link-footer-ecosystem">Ecosystem</Link></div>
             <div><span className="pw-eyebrow">Company</span><Link href="/about" data-testid="link-footer-about">About PrimeWave</Link><Link href="/login" data-testid="link-footer-app">Launch App</Link></div>
           </div>

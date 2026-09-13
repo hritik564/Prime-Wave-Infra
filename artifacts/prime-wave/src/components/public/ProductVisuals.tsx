@@ -3,12 +3,12 @@ import { ArrowDown, ArrowUpRight, Check, Code2, Copy, LockKeyhole, RefreshCw, Se
 export function NetworkVisual() {
   const nodes = [{ x: 50, y: 35 }, { x: 25, y: 65 }, { x: 72, y: 67 }, { x: 40, y: 87 }, { x: 84, y: 38 }, { x: 16, y: 30 }];
   return <div className="visual-frame network-visual" data-testid="visual-network-map">
-    <div className="visual-topline"><span className="pw-mono">NETWORK / TOPOLOGY</span><span className="live-dot">LIVE PREVIEW</span></div>
+     <div className="visual-topline"><span className="pw-mono">NETWORK / TOPOLOGY</span><span className="visual-badge">PREVIEW</span></div>
     <svg viewBox="0 0 100 100" aria-label="Abstract connected network diagram">
       <g className="network-lines">{nodes.map((node, i) => <line key={i} x1="50" y1="35" x2={node.x} y2={node.y} />)}<line x1="25" y1="65" x2="40" y2="87" /><line x1="72" y1="67" x2="84" y2="38" /></g>
       {nodes.map((node, i) => <circle key={i} cx={node.x} cy={node.y} r={i === 0 ? 2.8 : 1.8} className={i === 0 ? "core-node" : ""} />)}
     </svg>
-    <div className="network-legend"><span><i className="legend-cyan" /> validator layer</span><span><i className="legend-muted" /> peer connection</span></div>
+     <div className="network-legend"><span><i className="legend-cyan" /> network core</span><span><i className="legend-muted" /> peer connection</span></div>
   </div>;
 }
 
@@ -23,18 +23,18 @@ export function DexVisual() {
 
 export function SwapVisual() {
   return <div className="visual-frame swap-visual" data-testid="visual-swap">
-    <div className="visual-topline"><span className="pw-mono">PWSWAP / ROUTER</span><span className="visual-badge">ROUTED</span></div>
+     <div className="visual-topline"><span className="pw-mono">PWSWAP / ROUTER</span><span className="visual-badge">COMING SOON</span></div>
     <div className="swap-row"><div><small>YOU SEND</small><strong>0.00</strong></div><span className="token-chip">PW <ArrowDown size={13} /></span></div>
     <div className="swap-switch"><RefreshCw size={15} /></div>
     <div className="swap-row"><div><small>YOU RECEIVE</small><strong>0.00</strong></div><span className="token-chip muted">SELECT <ArrowDown size={13} /></span></div>
-    <button className="visual-button" data-testid="button-preview-swap">Connect wallet <ArrowUpRight size={14} /></button>
-    <p className="visual-caption"><Zap size={13} /> route details available when network launches</p>
+     <span className="visual-button visual-button-disabled" aria-label="PWSwap coming soon">Coming Soon</span>
+     <p className="visual-caption"><Zap size={13} /> product preview — route details coming soon</p>
   </div>;
 }
 
 export function WalletVisual() {
   return <div className="visual-frame wallet-visual" data-testid="visual-wallet">
-    <div className="visual-topline"><span className="pw-mono">PRIMEWAVE WALLET</span><span className="wallet-lock"><LockKeyhole size={12} /> SECURE</span></div>
+     <div className="visual-topline"><span className="pw-mono">PRIMEWAVE WALLET</span><span className="visual-badge">COMING SOON</span></div>
     <div className="wallet-balance"><small>TOTAL BALANCE</small><strong>— — —</strong><span>values hidden in preview</span></div>
     <div className="wallet-card"><div><span className="pw-mono">PW WALLET</span><WalletCards size={21} /></div><strong>0x · · · · · · 7A4C</strong><span>PrimeWave network</span></div>
     <div className="wallet-actions"><span><Send size={14} /> Send</span><span><ArrowDown size={14} /> Receive</span><span><Copy size={14} /> Copy</span></div>
@@ -43,9 +43,9 @@ export function WalletVisual() {
 
 export function DeveloperVisual() {
   return <div className="visual-frame code-visual" data-testid="visual-developer-stack">
-    <div className="visual-topline"><span className="pw-mono">PRIMEWAVE / QUICKSTART</span><Code2 size={15} /></div>
-    <div className="code-lines"><span><b>01</b> <em>import</em> {"{ PrimeWave }"} <em>from</em> <i>"@primewave/sdk"</i></span><span><b>02</b></span><span><b>03</b> <em>const</em> client = <strong>new</strong> PrimeWave(&#123;</span><span><b>04</b>   network: <i>"preview"</i>,</span><span><b>05</b>   transport: <i>"typed"</i></span><span><b>06</b> &#125;)</span><span><b>07</b></span><span><b>08</b> client.ready().then(console.log)</span></div>
-    <div className="code-status"><Check size={13} /> SDK documentation <span>COMING SOON</span></div>
+    <div className="visual-topline"><span className="pw-mono">PRIMEWAVE / DEVELOPER SURFACE</span><Code2 size={15} /></div>
+    <div className="code-lines"><span><b>01</b> <em>DEVELOPER SDK</em></span><span><b>02</b></span><span><b>03</b> <strong>network infrastructure</strong></span><span><b>04</b> <strong>smart contract interfaces</strong></span><span><b>05</b> <strong>intelligent applications</strong></span><span><b>06</b> <i>developer resources</i></span><span><b>07</b></span><span><b>08</b> <em>COMING SOON</em></span></div>
+    <div className="code-status"><Check size={13} /> Developer resources <span>COMING SOON</span></div>
   </div>;
 }
 

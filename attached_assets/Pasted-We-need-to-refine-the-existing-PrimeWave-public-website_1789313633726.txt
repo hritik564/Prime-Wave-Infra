@@ -1,0 +1,854 @@
+We need to refine the existing PrimeWave public website you just built.
+
+IMPORTANT:
+DO NOT rebuild the website from scratch.
+
+The current visual design is already approved and should be preserved.
+
+I specifically like the current:
+- dark technical aesthetic
+- typography
+- cyan accent color
+- grid/background treatment
+- subtle animations
+- large editorial headings
+- product preview cards
+- network visualizations
+- spacing
+- overall premium infrastructure-company feel
+
+Do NOT replace this design with a generic AI website template.
+
+We are making a CONTENT, POSITIONING, NAVIGATION, AND ROUTING refinement while preserving the current visual language.
+
+==================================================
+1. NEW CORE POSITIONING
+==================================================
+
+PrimeWave should now be positioned as an:
+
+AI-powered Web3 technology ecosystem.
+
+The website should communicate that PrimeWave is building technology at the intersection of:
+
+AI
++
+Blockchain
++
+Decentralized Finance
++
+Self-Custody
+
+The website should feel like a company building intelligent decentralized technology, not simply a blockchain project.
+
+The core message should be closer to:
+
+"AI-powered infrastructure for a decentralized future."
+
+or:
+
+"Building intelligent infrastructure for the decentralized future."
+
+Use whichever version fits the existing visual design best.
+
+Do not overuse the phrase "AI-powered" in every paragraph.
+
+The AI positioning should feel intentional and technically credible.
+
+==================================================
+2. DO NOT INVENT AI FEATURES
+==================================================
+
+This is extremely important.
+
+Do NOT invent specific AI capabilities that have not been implemented or confirmed.
+
+Do not claim that PrimeWave has:
+
+- autonomous AI agents
+- AI trading bots
+- AI price prediction
+- AI financial advice
+- machine-learning trading
+- AI portfolio management
+- AI validators
+- AI consensus
+- AI-generated transactions
+- AI risk scoring
+- AI fraud detection
+- proprietary AI models
+- GPT integration
+- neural networks
+
+unless those capabilities already exist in the project and are verified.
+
+Instead, position PrimeWave as building toward the intersection of AI and decentralized infrastructure.
+
+Use language such as:
+
+"Intelligent interfaces for decentralized technology."
+
+"AI-assisted experiences across the PrimeWave ecosystem."
+
+"Building infrastructure for the next generation of intelligent applications."
+
+"Where intelligent software meets decentralized infrastructure."
+
+The copy must remain technically honest.
+
+==================================================
+3. NAVIGATION CHANGE
+==================================================
+
+The current top navigation lists:
+
+Chain
+PWDEX
+PWSwap
+Wallet
+
+Change this.
+
+Create ONE navigation item:
+
+OUR PRODUCTS ▾
+
+When clicked/hovered, show a polished dropdown containing:
+
+01
+PrimeWave Chain
+
+Blockchain infrastructure
+
+02
+PWDEX
+
+Decentralized markets
+
+03
+PWSwap
+
+Asset exchange
+
+04
+PrimeWave Wallet
+
+Self-custody
+
+The four products should no longer appear as four separate top-level navigation items.
+
+The main navigation should become approximately:
+
+PRIMEWAVE
+
+Our Products ▾
+Developers
+Security
+Ecosystem
+Network
+About
+
+Sign in ↗
+
+[Launch App ↗]
+
+Preserve the current visual styling.
+
+On mobile, make Our Products an expandable menu.
+
+==================================================
+4. GLOBAL LAUNCH APP BUTTON
+==================================================
+
+This needs to be implemented consistently.
+
+Every generic/global "Launch App" button on the public website should redirect to the EXISTING PrimeWave application/authentication page.
+
+This includes:
+
+- navbar Launch App
+- homepage Launch App
+- final CTA Launch App
+- footer Launch App if present
+- generic product-independent Launch App CTAs
+
+DO NOT create a new authentication page.
+
+DO NOT replace the existing authentication system.
+
+DO NOT modify the authentication logic.
+
+Use the existing authentication/application route already present in the project.
+
+If the existing auth route is /login, use that route.
+
+==================================================
+5. PRODUCT-SPECIFIC DESTINATIONS
+==================================================
+
+There are exceptions to the global Launch App behavior.
+
+PRIMEWAVE CHAIN:
+
+Any button specifically associated with the PrimeWave Chain product and labeled:
+
+"Launch App"
+
+"Explore Chain"
+
+"View Network"
+
+or an equivalent product CTA intended to open the live chain interface/explorer should link to:
+
+https://pwcscan.com
+
+Use an external-link indicator where appropriate.
+
+Do not create a fake internal chain application.
+
+PWDEX:
+
+Any button specifically associated with PWDEX and intended to open the live DEX should link to:
+
+https://dex.primewave.live
+
+Use an external-link indicator.
+
+Do not create a fake DEX application inside the marketing website.
+
+PWSWAP:
+
+PWSwap is NOT launched publicly yet.
+
+Its primary CTA should say:
+
+"Coming Soon"
+
+or:
+
+"Coming soon →"
+
+It must NOT link to a fake application.
+
+PRIMEWAVE WALLET:
+
+PrimeWave Wallet is NOT launched publicly yet.
+
+Its primary CTA should say:
+
+"Coming Soon"
+
+or:
+
+"Coming soon →"
+
+It must NOT link to a fake application.
+
+==================================================
+6. HOMEPAGE HERO
+==================================================
+
+Keep the current hero visual design.
+
+Change the messaging so it communicates the AI + Web3 direction.
+
+Current concept:
+
+"Infrastructure for a decentralized future."
+
+Refine it to something along the lines of:
+
+"Intelligent infrastructure for a decentralized future."
+
+or:
+
+"Building intelligent infrastructure for a decentralized future."
+
+Keep the large editorial typography and cyan emphasis.
+
+Suggested supporting copy:
+
+"PrimeWave brings AI-driven experiences, blockchain infrastructure, decentralized markets, asset exchange, and self-custody together in one evolving ecosystem."
+
+Only use "AI-driven" if it is safe to use as a broad product positioning statement.
+
+Alternative safer wording:
+
+"PrimeWave brings intelligent software, blockchain infrastructure, decentralized markets, asset exchange, and self-custody together in one evolving ecosystem."
+
+Use whichever is more technically defensible.
+
+Do NOT turn the hero into a generic AI slogan.
+
+==================================================
+7. CHANGE "FOUR CORE LAYERS"
+==================================================
+
+The current:
+
+"One ecosystem.
+Four core layers."
+
+is good visually.
+
+Keep the structure but adjust the framing.
+
+Use:
+
+"One ecosystem.
+Four connected products."
+
+or:
+
+"One ecosystem.
+Four intelligent building blocks."
+
+I prefer:
+
+"One ecosystem.
+Four connected products."
+
+This avoids incorrectly calling Wallet/Dex/Swap "layers" when they are actually products.
+
+Supporting copy should explain that PrimeWave combines:
+
+- blockchain infrastructure
+- decentralized markets
+- asset exchange
+- self-custody
+
+with intelligent software experiences.
+
+==================================================
+8. OUR PRODUCTS SECTION
+==================================================
+
+Rename the section:
+
+"OUR PRODUCTS"
+
+Keep the current four-product presentation.
+
+Product 01:
+
+PrimeWave Chain
+
+Category:
+
+BLOCKCHAIN INFRASTRUCTURE
+
+Description:
+
+"The foundation for PrimeWave applications and the decentralized infrastructure they run on."
+
+CTA:
+
+"Explore Chain →"
+
+CTA destination:
+
+https://pwcscan.com
+
+Product 02:
+
+PWDEX
+
+Category:
+
+DECENTRALIZED MARKETS
+
+Description:
+
+"A decentralized market interface designed for on-chain trading and liquidity."
+
+CTA:
+
+"Launch PWDEX →"
+
+CTA destination:
+
+https://dex.primewave.live
+
+Product 03:
+
+PWSwap
+
+Category:
+
+ASSET EXCHANGE
+
+Description:
+
+"A streamlined exchange experience being built for the PrimeWave ecosystem."
+
+CTA:
+
+"Coming Soon"
+
+No external destination.
+
+Product 04:
+
+PrimeWave Wallet
+
+Category:
+
+SELF-CUSTODY
+
+Description:
+
+"A self-custody wallet being built to connect users with the PrimeWave ecosystem."
+
+CTA:
+
+"Coming Soon"
+
+No external destination.
+
+==================================================
+9. ADD AI THROUGHOUT THE STORY
+==================================================
+
+The website should not simply say "AI" once in the hero.
+
+Introduce AI as one of the technology directions behind PrimeWave.
+
+Create a section after the product ecosystem section.
+
+Suggested section:
+
+"INTELLIGENCE, BUILT INTO THE EXPERIENCE."
+
+Supporting text:
+
+"PrimeWave is exploring how intelligent software can make decentralized technology easier to understand, interact with, and build upon."
+
+Then create three concepts:
+
+01
+INTELLIGENT INTERFACES
+
+"Interfaces designed to make complex decentralized systems easier to navigate and understand."
+
+02
+CONNECTED INFRASTRUCTURE
+
+"AI and blockchain working together as complementary layers of a broader technology stack."
+
+03
+INTELLIGENT APPLICATIONS
+
+"An ecosystem designed to support the next generation of decentralized applications."
+
+IMPORTANT:
+
+These should be presented as product direction / technology vision, not claims that all of these systems are already live.
+
+Use wording such as:
+
+"building"
+
+"exploring"
+
+"designed to"
+
+"future"
+
+where appropriate.
+
+==================================================
+10. PRIMEWAVE CHAIN PAGE
+==================================================
+
+Keep the existing technical aesthetic.
+
+Reposition the page around:
+
+"Blockchain infrastructure for intelligent applications."
+
+Explain that PrimeWave Chain provides the decentralized foundation for the PrimeWave ecosystem.
+
+Include:
+
+- blockchain infrastructure
+- smart contracts
+- EVM compatibility if already verified
+- decentralized applications
+- network infrastructure
+- developer infrastructure
+- future intelligent applications
+
+Do not fabricate network metrics.
+
+If data is not available:
+
+"Coming Soon"
+
+The main Chain CTA should link to:
+
+https://pwcscan.com
+
+==================================================
+11. PWDEX PAGE
+==================================================
+
+Position PWDEX as:
+
+"Decentralized markets for the next generation of applications."
+
+Explain:
+
+- on-chain markets
+- liquidity
+- decentralized trading
+- wallet connectivity
+- PrimeWave Chain integration
+
+Do not claim features that aren't implemented.
+
+The primary CTA should be:
+
+"Launch PWDEX ↗"
+
+and link to:
+
+https://dex.primewave.live
+
+==================================================
+12. PWSWAP PAGE
+==================================================
+
+PWSwap should clearly be presented as an upcoming product.
+
+Headline:
+
+"PWSwap"
+
+Subheadline:
+
+"Simple asset exchange, built for the PrimeWave ecosystem."
+
+Add a prominent status indicator:
+
+COMING SOON
+
+Keep the existing beautiful swap UI preview, but make it obvious that this is a product preview and NOT currently live.
+
+CTA:
+
+"Coming Soon"
+
+No fake functionality.
+
+==================================================
+13. WALLET PAGE
+==================================================
+
+PrimeWave Wallet should also clearly be presented as an upcoming product.
+
+Headline:
+
+"PrimeWave Wallet"
+
+Subheadline:
+
+"Self-custody, designed for the PrimeWave ecosystem."
+
+Status:
+
+COMING SOON
+
+Keep the current wallet preview because it looks good.
+
+But do not imply that users can currently download or use the wallet unless it already exists.
+
+CTA:
+
+"Coming Soon"
+
+==================================================
+14. DEVELOPER SECTION
+==================================================
+
+Change the messaging slightly so developers understand that PrimeWave is building infrastructure for both blockchain and intelligent applications.
+
+Headline:
+
+"Build what comes next."
+
+Supporting text:
+
+"PrimeWave is building the infrastructure and interfaces developers need to create the next generation of decentralized and intelligent applications."
+
+Keep:
+
+- network
+- smart contracts
+- wallet
+- developer resources
+
+Do NOT show a fake SDK implementation.
+
+The current SDK code preview:
+
+import { PrimeWave } from "@primewave/sdk"
+
+should be removed unless that SDK actually exists.
+
+Replace it with a more generic technical visual or clearly labeled:
+
+"Developer SDK — Coming Soon"
+
+Do not create fake package names.
+
+==================================================
+15. SECURITY SECTION
+==================================================
+
+Keep the current "Trust is a design constraint." concept.
+
+This is strong.
+
+However, don't make unsupported claims.
+
+Focus on principles:
+
+- transparency
+- user control
+- verifiable infrastructure
+- secure transaction handling
+- clear interfaces
+- minimizing unnecessary trust assumptions
+
+Do not claim:
+
+- audited
+- military-grade
+- institutional-grade
+- zero-risk
+- guaranteed security
+
+unless verified.
+
+==================================================
+16. ECOSYSTEM SECTION
+==================================================
+
+The ecosystem diagram should now show:
+
+                 PRIMEWAVE
+                     |
+             AI + WEB3 ECOSYSTEM
+                     |
+       ┌─────────────┼─────────────┐
+       |             |             |
+     CHAIN         PWDEX         PWSWAP
+       |             |             |
+       └─────────────┼─────────────┘
+                     |
+               PRIMEWAVE
+                 WALLET
+                     |
+               APPLICATIONS
+
+Keep the visual sophisticated.
+
+The important message is:
+
+PrimeWave is not four unrelated products.
+
+They are connected parts of one ecosystem.
+
+==================================================
+17. REMOVE / AVOID MLM POSITIONING
+==================================================
+
+The public website must remain completely separate from MLM positioning.
+
+Do not include:
+
+- referral
+- rewards
+- commissions
+- team
+- downline
+- recruitment
+- passive income
+- financial freedom
+- earning
+- ROI
+- investment
+- guaranteed returns
+- network marketing
+
+Do not create navigation links to MLM material.
+
+The only place the existing MLM authentication should be reached is through the generic "Launch App" / sign-in flow where specified above.
+
+The public website itself should remain technology/product focused.
+
+==================================================
+18. IMPORTANT ROUTING MAP
+==================================================
+
+Implement this exact behavior:
+
+GLOBAL WEBSITE CTA:
+
+Launch App
+→ existing PrimeWave authentication/application page
+
+SIGN IN:
+
+Sign in
+→ existing PrimeWave authentication page
+
+CHAIN:
+
+Explore Chain
+Launch App
+View Network
+
+→ https://pwcscan.com
+
+PWDEX:
+
+Explore PWDEX
+Launch PWDEX
+
+→ https://dex.primewave.live
+
+PWSWAP:
+
+Coming Soon
+→ no destination
+
+WALLET:
+
+Coming Soon
+→ no destination
+
+==================================================
+19. EXTERNAL LINKS
+==================================================
+
+For external destinations:
+
+https://pwcscan.com
+
+https://dex.primewave.live
+
+open them appropriately as external applications.
+
+Use external-link icons.
+
+Do not iframe them into the PrimeWave marketing website.
+
+Do not proxy them through the marketing website.
+
+==================================================
+20. DO NOT CHANGE THE APPROVED VISUAL DESIGN
+==================================================
+
+This is critical.
+
+The screenshots of the current website represent the visual direction we want.
+
+Preserve:
+
+- dark background
+- cyan accent
+- typography
+- large headings
+- subtle grid
+- network animation
+- technical labels
+- product preview cards
+- borders
+- spacing
+- restrained animations
+- editorial layout
+
+Do NOT:
+
+- add giant AI robot graphics
+- add humanoid AI imagery
+- add glowing brains
+- add generic circuit-board stock imagery
+- add crypto coin imagery
+- add excessive gradients
+- add neon purple AI aesthetics
+- turn the site into a SaaS landing page
+
+AI should be communicated through typography, technical diagrams, intelligent-interface visuals, and content.
+
+==================================================
+21. UPDATE THE FOOTER
+==================================================
+
+Products should be grouped together:
+
+OUR PRODUCTS
+
+PrimeWave Chain
+PWDEX
+PWSwap
+PrimeWave Wallet
+
+Explore:
+
+Developers
+Network
+Security
+Ecosystem
+
+Company:
+
+About PrimeWave
+
+The footer Launch App should go to the existing application/authentication page.
+
+==================================================
+22. PAGE TITLE / SEO
+==================================================
+
+Homepage:
+
+PrimeWave — Intelligent Infrastructure for a Decentralized Future
+
+Description:
+
+"PrimeWave is building an AI-powered Web3 ecosystem combining blockchain infrastructure, decentralized markets, asset exchange, self-custody, and intelligent applications."
+
+If the phrase "AI-powered" is considered too strong based on the actual implementation, use:
+
+"PrimeWave is building an intelligent Web3 ecosystem combining blockchain infrastructure, decentralized markets, asset exchange, self-custody, and intelligent applications."
+
+==================================================
+23. FINAL QA
+==================================================
+
+After making the changes, verify:
+
+1. Homepage still looks like the existing approved design.
+2. Our Products is now the primary product navigation item.
+3. Chain, PWDEX, PWSwap, and Wallet are inside Our Products.
+4. Global Launch App goes to the existing authentication/application page.
+5. Sign In goes to the existing authentication page.
+6. Chain product CTAs go to https://pwcscan.com.
+7. PWDEX product CTAs go to https://dex.primewave.live.
+8. PWSwap says Coming Soon.
+9. Wallet says Coming Soon.
+10. No fake SDK/package names remain.
+11. No fake blockchain statistics remain.
+12. No unsupported AI capabilities are claimed.
+13. No MLM/recruitment/income language appears anywhere on the public website.
+14. Existing authentication functionality has not been broken.
+15. Mobile navigation works.
+16. External links open correctly.
+17. No accidental horizontal scrolling exists.
+18. All existing animations remain performant.
+
+Do not rebuild the project.
+
+Modify the existing implementation surgically and preserve the current visual quality.
