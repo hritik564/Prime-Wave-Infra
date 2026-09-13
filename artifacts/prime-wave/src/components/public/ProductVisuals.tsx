@@ -12,6 +12,25 @@ export function NetworkVisual() {
   </div>;
 }
 
+export function EcosystemVisual() {
+  return <div className="visual-frame ecosystem-visual" data-testid="visual-ecosystem-map">
+    <div className="visual-topline"><span className="pw-mono">PRIMEWAVE / ECOSYSTEM MAP</span><span className="visual-badge">DIRECTION</span></div>
+    <div className="ecosystem-flow">
+      <div className="ecosystem-node ecosystem-root"><strong>PRIMEWAVE</strong><span>AI + WEB3 ECOSYSTEM</span></div>
+      <div className="ecosystem-stem" />
+      <div className="ecosystem-products">
+        <div className="ecosystem-branch"><span>CHAIN</span><i /></div>
+        <div className="ecosystem-branch"><span>PWDEX</span><i /></div>
+        <div className="ecosystem-branch"><span>PWSWAP</span><i /></div>
+      </div>
+      <div className="ecosystem-stem ecosystem-stem-lower" />
+      <div className="ecosystem-node ecosystem-wallet"><strong>PRIMEWAVE WALLET</strong><span>SELF-CUSTODY</span></div>
+      <div className="ecosystem-stem" />
+      <div className="ecosystem-node ecosystem-apps"><strong>APPLICATIONS</strong><span>FUTURE SURFACES</span></div>
+    </div>
+  </div>;
+}
+
 export function DexVisual() {
   return <div className="visual-frame product-visual dex-visual" data-testid="visual-dex">
     <div className="visual-topline"><span className="pw-mono">PWDEX / MARKETS</span><span className="visual-badge">PREVIEW</span></div>
