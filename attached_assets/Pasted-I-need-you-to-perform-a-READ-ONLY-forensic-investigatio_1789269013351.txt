@@ -1,0 +1,341 @@
+I need you to perform a READ-ONLY forensic investigation of the production/API instability shown in the recent Replit deployment logs.
+
+IMPORTANT:
+- Do NOT modify any code.
+- Do NOT modify the database.
+- Do NOT run migrations.
+- Do NOT change environment variables or secrets.
+- Do NOT restart, redeploy, publish, or alter production workflows unless absolutely required just to inspect information.
+- Do NOT change withdrawal logic, wallet logic, deposit logic, authentication, or maintenance mode.
+- Do NOT attempt a fix yet.
+- This is an investigation only.
+- Preserve the current workspace exactly as it is.
+
+I have attached/provided screenshots of the relevant Replit logs from 2026-09-13. Use those logs as evidence and then inspect the current code/configuration to determine the underlying cause.
+
+PRIMARY ERROR VISIBLE IN THE LOGS
+
+The API process repeatedly crashes with:
+
+PrismaClientKnownRequestError
+
+and:
+
+Can't reach database server at `ep-dry-resonance-b39e31jy.c-4.ap-southeast-1.aws.neon.tech:5432`
+
+followed by:
+
+Invalid `prisma.withdrawalRequest.findMany()` invocation
+
+The relevant stack trace points to:
+
+withdrawal-confirmation.service.ts:43:22
+
+The logs also show:
+
+[BOOT FATAL-unhandledRejection]
+
+followed by the API process exiting.
+
+Replit then reports:
+
+artifact process exited unexpectedly
+crash loop detected
+healthcheck failed
+/api returned status 500
+/ returned status 500
+
+There are also periods where the application successfully starts and binds ports 23022 and 8080 before later encountering the database failure.
+
+I want you to determine WHY this is happening.
+
+INVESTIGATION SCOPE
+
+1. DATABASE CONNECTIVITY
+
+Investigate the complete Prisma/Neon database connection path.
+
+Check:
+
+- DATABASE_URL / database connection configuration
+- Prisma initialization
+- Prisma client lifecycle
+- Neon database configuration
+- Connection pooling configuration
+- Connection timeout configuration
+- SSL configuration
+- Whether the application is connecting directly to Neon or through a pooler
+- Whether the configured hostname is expected to be reachable from the production runtime
+- Whether the database endpoint appears to be a development/temporary/branch endpoint rather than the intended production endpoint
+- Whether the endpoint can become unavailable due to Neon compute/database suspension or lifecycle behavior
+- Whether there is any code that changes or constructs the database URL
+- Whether multiple database URLs are being used
+- Whether production and development environments could be pointing at different databases
+
+DO NOT print or expose the actual DATABASE_URL, passwords, credentials, tokens, or secrets.
+
+If you need to report the database endpoint, redact credentials and sensitive query parameters.
+
+2. WITHDRAWAL CONFIRMATION SERVICE
+
+Inspect:
+
+artifacts/api-server/src/withdrawals/withdrawal-confirmation.service.ts
+
+especially the code around:
+
+line 43
+
+and:
+
+prisma.withdrawalRequest.findMany()
+
+Determine:
+
+- Why this query runs during startup/runtime
+- Whether it is part of a polling loop
+- Whether it is expected to run continuously
+- What happens when the database becomes temporarily unavailable
+- Why the database error becomes an unhandled rejection
+- Why the entire API process exits instead of recovering gracefully
+- Whether this behavior existed before the recent maintenance/permission/idempotency work
+- Whether recent changes could have indirectly affected this service
+
+Do NOT change the service yet.
+
+3. BOOT SEQUENCE
+
+Trace the API startup sequence.
+
+Determine the exact order of:
+
+- Environment loading
+- Prisma initialization
+- app.listen()
+- withdrawal confirmation polling
+- company wallet validation
+- other startup background jobs
+- healthcheck availability
+
+The logs show examples such as:
+
+[BOOT 1] Module body started — all static imports have been evaluated
+[BOOT 2] PORT=23022 NODE_ENV=production
+[BOOT 3] PORT validated: 23022 — calling app.listen()
+
+and:
+
+[BOOT 4] app.listen() called — waiting for OS to bind port 23022
+[BOOT 5] app.listen() callback fired — port 23022 is bound
+[BOOT 6] validateCompanyWallets() starting
+
+Determine whether any background database job can crash the process after the HTTP server has already started.
+
+4. HEALTHCHECK BEHAVIOR
+
+Inspect how:
+
+/
+and:
+/api
+and:
+/api/healthz
+
+are implemented and how Replit healthchecks interact with them.
+
+Determine:
+
+- Why /api returns 500 when the database connection fails
+- Whether /api/healthz itself requires the database
+- Whether the healthcheck is correctly designed
+- Whether the healthcheck failure is a consequence of the process crash or an independent problem
+- Whether the application can distinguish "HTTP server is alive" from "database is temporarily unavailable"
+
+Do NOT change healthcheck behavior yet.
+
+5. CRASH-LOOP ANALYSIS
+
+Build a precise sequence from the supplied logs.
+
+For example:
+
+Application starts
+→ ports bind
+→ background withdrawal confirmation polling starts
+→ Prisma attempts withdrawalRequest.findMany()
+→ Neon database connection fails
+→ Prisma throws
+→ rejection is unhandled
+→ API process exits
+→ Replit healthcheck fails
+→ Replit restarts process
+→ same sequence repeats
+
+Confirm or reject this sequence using the actual code.
+
+Do not assume it is correct merely because it appears plausible.
+
+6. TIMELINE
+
+Create a timeline from the supplied logs covering at least:
+
+- 02:03
+- 02:16
+- 02:49
+- 02:50
+- 02:58
+- 03:13
+- 03:18
+- 04:35
+- 05:12
+- 05:22
+- 08:30
+- 08:31
+
+For each important event, explain:
+
+- What happened
+- Whether it indicates startup, database failure, process termination, crash loop, or healthcheck failure
+- Whether it is likely a cause or a consequence
+
+7. RECENT CHANGES / REGRESSION CHECK
+
+Inspect the current git history/diff and determine whether the recent PrimeWave changes could have caused this.
+
+Relevant recent work includes:
+
+- Server-side QR upload
+- Temporary STAFF_OPERATIONS permissions
+- Manual Deposit access
+- Power Business access
+- Manual deposit idempotency
+- Maintenance gate/page
+
+Pay particular attention to whether any of these changes:
+
+- Modified Prisma initialization
+- Modified database connection handling
+- Modified startup execution
+- Modified withdrawal services
+- Modified app.ts startup order
+- Modified process-level error handling
+- Modified healthcheck behavior
+
+Do not blame recent changes without evidence.
+
+8. DETERMINE THE MOST LIKELY ROOT CAUSE
+
+At the end, classify the issue into one or more of:
+
+A. Database/provider availability problem
+B. Incorrect production DATABASE_URL
+C. Neon endpoint/branch/pooler problem
+D. Prisma connection/pooling problem
+E. Application error handling problem
+F. Withdrawal polling architecture problem
+G. Healthcheck configuration problem
+H. Recent code regression
+I. Replit infrastructure/runtime problem
+J. Multiple interacting causes
+
+Rank the causes by confidence.
+
+For each suspected cause, provide the exact evidence supporting it.
+
+9. IMPORTANT DISTINCTION
+
+Separate:
+
+ROOT CAUSE
+from
+TRIGGER
+from
+AMPLIFIER
+from
+SYMPTOM.
+
+For example, a database outage may be the trigger, while an unhandled rejection in the withdrawal confirmation poller may be the amplifier that turns a temporary database outage into a full API crash loop.
+
+Do not conflate these.
+
+10. FINAL REPORT FORMAT
+
+At the end provide:
+
+## Executive Summary
+
+A concise explanation of what is actually happening.
+
+## Root Cause
+
+The most likely root cause, with confidence level.
+
+## Trigger
+
+What caused the failure to occur.
+
+## Amplifier
+
+What caused the failure to escalate into repeated process crashes.
+
+## Evidence
+
+List the exact log/code evidence.
+
+## Timeline
+
+Chronological failure sequence.
+
+## Database Analysis
+
+What is known about the Neon/Prisma connection.
+
+## Withdrawal Polling Analysis
+
+Why withdrawal-confirmation.service.ts is involved.
+
+## Healthcheck Analysis
+
+Why Replit reports 500.
+
+## Regression Analysis
+
+Whether the recent PrimeWave changes are implicated.
+
+## Risk to Production
+
+Explain whether this affects:
+
+- Deposits
+- Withdrawals
+- Wallet balances
+- Power Business
+- Manual deposits
+- Authentication
+- Admin panel
+- Blockchain transactions
+- Database integrity
+
+Only claim impact that is supported by evidence.
+
+## Recommended Fix
+
+Give me a prioritized fix plan, but DO NOT implement it.
+
+Separate the recommendations into:
+
+1. Immediate stabilization
+2. Application-level resilience
+3. Database/infrastructure correction
+4. Monitoring/logging improvements
+5. Long-term architecture improvements
+
+## What NOT To Change
+
+Explicitly identify components that should remain untouched because they are unrelated.
+
+IMPORTANT FINAL REQUIREMENT:
+
+Do not make any modifications during this investigation.
+
+I want a forensic diagnosis first. Once you finish, stop and give me the report and recommended fixes. I will decide separately whether we should implement anything.
