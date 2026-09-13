@@ -8,6 +8,8 @@ const navItems = [
   { href: "/swap", label: "PWSwap" },
   { href: "/wallet", label: "Wallet" },
   { href: "/developers", label: "Developers" },
+  { href: "/security", label: "Security" },
+  { href: "/ecosystem", label: "Ecosystem" },
 ];
 
 export function PublicMeta({ title, description }: { title: string; description: string }) {

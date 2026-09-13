@@ -18,14 +18,14 @@ export default function PublicHomePage() {
       <div className="pw-container pw-hero-content">
         <div className="pw-kicker"><span className="kicker-line" /> PRIMEWAVE SYSTEMS <span className="pw-mono">/ 001</span></div>
         <h1>Infrastructure<br /><span>for a decentralized</span><br />future.</h1>
-        <p className="pw-hero-copy">The technology layer for people building what comes next. PrimeWave brings chain infrastructure, market access, and developer tools into one considered system.</p>
-        <div className="pw-hero-actions"><Link href="/login" className="pw-button" data-testid="link-hero-launch">Launch App <ArrowRight size={16} /></Link><Link href="/developers" className="pw-outline-button" data-testid="link-hero-developers">Explore the stack <ArrowDownRight size={16} /></Link></div>
+         <p className="pw-hero-copy">PrimeWave brings blockchain infrastructure, decentralized markets, asset exchange, and self-custody together in one integrated ecosystem.</p>
+         <div className="pw-hero-actions"><Link href="/ecosystem" className="pw-button" data-testid="link-hero-ecosystem">Explore the Ecosystem <ArrowRight size={16} /></Link><Link href="/login" className="pw-outline-button" data-testid="link-hero-launch">Launch App <ArrowDownRight size={16} /></Link></div>
         <div className="pw-hero-foot"><span className="pw-mono">SYSTEMS DESIGNED TO COMPOSE</span><span className="hero-scroll"><span /> scroll to explore</span></div>
       </div>
       <div className="pw-hero-orbit" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit-core"><span>PW</span></div><i className="orbit-point point-a" /><i className="orbit-point point-b" /><i className="orbit-point point-c" /></div>
     </section>
 
-    <section className="pw-section pw-intro"><div className="pw-container intro-grid"><div className="section-index">01 <span>/</span> WHY PRIMEWAVE</div><div><h2>One system.<br /><em>Many ways forward.</em></h2><p className="section-lead">Good infrastructure disappears into the work. It gives builders and users a firm surface to stand on — then gets out of the way.</p><Link href="/about" className="pw-text-link" data-testid="link-intro-about">Our point of view <ArrowRight size={14} /></Link></div></div></section>
+     <section className="pw-section pw-intro"><div className="pw-container intro-grid"><div className="section-index">01 <span>/</span> THE ECOSYSTEM</div><div><h2>One ecosystem.<br /><em>Four core layers.</em></h2><p className="section-lead">Good infrastructure disappears into the work. It gives builders and users a firm surface to stand on — then gets out of the way.</p><Link href="/about" className="pw-text-link" data-testid="link-intro-about">Our point of view <ArrowRight size={14} /></Link></div></div></section>
 
     <section className="pw-section pw-products"><div className="pw-container"><div className="section-heading"><div className="section-index">02 <span>/</span> THE STACK</div><h2>Four layers.<br /><em>One coherent experience.</em></h2></div><div className="product-list">{products.map((product) => <article className="product-row" key={product.number}><div className="product-copy"><span className="product-number">{product.number}</span><h3>{product.title}</h3><p>{product.copy}</p><Link href={product.href} className="pw-arrow-link" data-testid={`link-product-${product.number}`}>View layer <ArrowRight size={15} /></Link></div><div className="product-art">{product.visual}</div></article>)}</div></div></section>
 
