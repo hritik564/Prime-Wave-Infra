@@ -129,7 +129,7 @@ export default function ResetPasswordPage() {
               <Link href="/login">
                 <Button
                   className="w-full h-11 font-semibold"
-                  style={{ background: "#D4AF37", color: "#050B1A" }}
+                  style={{ background: "var(--pw-cyan)", color: "#071113" }}
                 >
                   Sign In
                 </Button>
@@ -152,11 +152,11 @@ export default function ResetPasswordPage() {
             <div
               className="mb-5 flex items-center gap-2.5 rounded-lg px-3 py-2.5"
               style={{
-                background: "rgba(212,175,55,0.06)",
-                border: "1px solid rgba(212,175,55,0.12)",
+                background: "rgba(82,230,224,0.06)",
+                border: "1px solid rgba(82,230,224,0.14)",
               }}
             >
-              <ShieldCheck className="h-4 w-4 shrink-0 text-gold" />
+              <ShieldCheck className="h-4 w-4 shrink-0 text-cyan-400" />
               <p className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
                 Your reset link is valid. Create a new password below.
               </p>
@@ -203,7 +203,7 @@ export default function ResetPasswordPage() {
                 type="submit"
                 className="w-full h-11 font-semibold"
                 disabled={isSubmitting}
-                style={{ background: "#D4AF37", color: "#050B1A" }}
+                style={{ background: "var(--pw-cyan)", color: "#071113" }}
               >
                 {isSubmitting ? (
                   <span className="flex items-center justify-center gap-2">

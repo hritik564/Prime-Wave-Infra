@@ -201,17 +201,17 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
             <div
               className={cn(
                 "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all duration-300",
-                isActive   && "text-navy-950 shadow-glow-gold",
-                isComplete && "text-gold",
+                isActive   && "text-navy-950 shadow-[0_0_20px_rgba(82,230,224,0.15)]",
+                isComplete && "text-cyan-400",
                 !isActive && !isComplete && "text-muted-foreground"
               )}
               style={{
                 background: isActive
-                  ? "#D4AF37"
+                  ? "var(--pw-cyan)"
                   : isComplete
-                  ? "rgba(212,175,55,0.15)"
+                  ? "rgba(82,230,224,0.15)"
                   : "hsl(var(--muted))",
-                border: isComplete ? "1px solid rgba(212,175,55,0.3)" : undefined,
+                border: isComplete ? "1px solid rgba(82,230,224,0.3)" : undefined,
               }}
             >
               {isComplete ? <Check className="h-3.5 w-3.5" /> : step}
@@ -219,7 +219,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
             {i < total - 1 && (
               <div
                 className="mx-1.5 h-0.5 w-8 rounded-full transition-all duration-500"
-                style={{ background: isComplete ? "#D4AF37" : "hsl(var(--border))" }}
+                style={{ background: isComplete ? "var(--pw-cyan)" : "hsl(var(--border))" }}
               />
             )}
           </div>
@@ -252,12 +252,12 @@ function LegPicker({ value, locked, onChange }: LegPickerProps) {
             className={cn(
               "flex flex-col items-center justify-center gap-1.5 py-3.5 px-4 rounded-xl font-semibold text-sm transition-all",
               locked && value !== side && "opacity-30 cursor-not-allowed",
-              !locked && !isSelected && "hover:border-yellow-500/40 cursor-pointer",
+              !locked && !isSelected && "hover:border-cyan-400/40 cursor-pointer",
             )}
             style={{
-              background: isSelected ? "rgba(212,175,55,0.15)" : "rgba(255,255,255,0.03)",
-              border:     `1px solid ${isSelected ? "rgba(212,175,55,0.45)" : "rgba(255,255,255,0.08)"}`,
-              color:      isSelected ? "#D4AF37" : "hsl(var(--muted-foreground))",
+              background: isSelected ? "rgba(82,230,224,0.15)" : "rgba(255,255,255,0.03)",
+              border:     `1px solid ${isSelected ? "rgba(82,230,224,0.45)" : "rgba(255,255,255,0.08)"}`,
+              color:      isSelected ? "var(--pw-cyan)" : "hsl(var(--muted-foreground))",
             }}
           >
             {isSelected && <Check className="h-4 w-4" />}
@@ -411,7 +411,7 @@ export default function RegisterPage() {
 
       <p
         className="text-center text-xs font-semibold uppercase tracking-widest mb-6"
-        style={{ color: "#D4AF37" }}
+        style={{ color: "var(--pw-cyan)" }}
       >
         Step {step}: {STEP_LABELS[step - 1]}
       </p>
@@ -547,8 +547,8 @@ export default function RegisterPage() {
                 <div
                   className="rounded-lg px-3 py-2.5 text-xs"
                   style={{
-                    background: "rgba(212,175,55,0.05)",
-                    border: "1px solid rgba(212,175,55,0.1)",
+                     background: "rgba(82,230,224,0.05)",
+                     border: "1px solid rgba(82,230,224,0.1)",
                     color: "hsl(var(--muted-foreground))",
                   }}
                 >
@@ -572,14 +572,14 @@ export default function RegisterPage() {
                     <div
                       className="flex items-center gap-3 rounded-xl px-4 py-3"
                       style={{
-                        background: "rgba(212,175,55,0.06)",
-                        border: "1px solid rgba(212,175,55,0.2)",
+                         background: "rgba(82,230,224,0.06)",
+                         border: "1px solid rgba(82,230,224,0.2)",
                       }}
                     >
-                      <Check className="h-4 w-4 shrink-0" style={{ color: "#D4AF37" }} />
+                      <Check className="h-4 w-4 shrink-0" style={{ color: "var(--pw-cyan)" }} />
                       <div className="flex-1 min-w-0">
                         <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5"
-                          style={{ color: "rgba(212,175,55,0.7)" }}>
+                          style={{ color: "rgba(82,230,224,0.7)" }}>
                           Referral Code
                         </p>
                         <p className="text-sm font-bold text-foreground tracking-wider">{urlRef}</p>
@@ -614,14 +614,14 @@ export default function RegisterPage() {
                     style={{
                       background: sponsorError
                         ? "rgba(248,113,113,0.06)"
-                        : "rgba(212,175,55,0.06)",
+                        : "rgba(82,230,224,0.06)",
                       border: `1px solid ${sponsorError
                         ? "rgba(248,113,113,0.2)"
-                        : "rgba(212,175,55,0.18)"}`,
+                        : "rgba(82,230,224,0.18)"}`,
                     }}
                   >
                     {sponsorLoading ? (
-                      <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(212,175,55,0.7)" }}>
+                      <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(82,230,224,0.7)" }}>
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         Verifying sponsor…
                       </div>
@@ -636,7 +636,7 @@ export default function RegisterPage() {
                         <div className="flex items-center gap-2.5">
                           <UserCheck className="h-4 w-4 shrink-0" style={{ color: "#34d399" }} />
                           <span className="text-[10px] font-semibold uppercase tracking-widest shrink-0"
-                            style={{ color: "rgba(212,175,55,0.6)", minWidth: "4.5rem" }}>
+                            style={{ color: "rgba(82,230,224,0.6)", minWidth: "4.5rem" }}>
                             Sponsor
                           </span>
                           <span className="text-sm font-semibold text-foreground truncate">
@@ -650,12 +650,12 @@ export default function RegisterPage() {
                         {/* Placement row — only shown once leg is chosen */}
                         {legValue && (
                           <div className="flex items-center gap-2.5">
-                            <Check className="h-4 w-4 shrink-0" style={{ color: "#D4AF37" }} />
+                            <Check className="h-4 w-4 shrink-0" style={{ color: "var(--pw-cyan)" }} />
                             <span className="text-[10px] font-semibold uppercase tracking-widest shrink-0"
-                              style={{ color: "rgba(212,175,55,0.6)", minWidth: "4.5rem" }}>
+                              style={{ color: "rgba(82,230,224,0.6)", minWidth: "4.5rem" }}>
                               Placement
                             </span>
-                            <span className="text-sm font-semibold" style={{ color: "#F3D37A" }}>
+                            <span className="text-sm font-semibold" style={{ color: "#a1f2ec" }}>
                               {legValue === "L" ? "Left Team" : "Right Team"}
                             </span>
                           </div>
@@ -745,13 +745,13 @@ export default function RegisterPage() {
                     >
                       I agree to the{" "}
                       <a href="#" className="font-semibold underline-offset-2 hover:underline"
-                        style={{ color: "#D4AF37" }}
+                         style={{ color: "var(--pw-cyan)" }}
                         onClick={(e) => e.preventDefault()}>
                         Terms & Conditions
                       </a>{" "}
                       and{" "}
                       <a href="#" className="font-semibold underline-offset-2 hover:underline"
-                        style={{ color: "#D4AF37" }}
+                         style={{ color: "var(--pw-cyan)" }}
                         onClick={(e) => e.preventDefault()}>
                         Privacy Policy
                       </a>
@@ -784,7 +784,7 @@ export default function RegisterPage() {
               type="button"
               onClick={goNext}
               className="gap-1.5 font-semibold"
-              style={{ background: "#D4AF37", color: "#050B1A" }}
+               style={{ background: "var(--pw-cyan)", color: "#071113" }}
             >
               Continue
               <ArrowRight className="h-4 w-4" />
@@ -794,7 +794,7 @@ export default function RegisterPage() {
               type="submit"
               disabled={isSubmitting}
               className="gap-1.5 font-semibold"
-              style={{ background: "#D4AF37", color: "#050B1A" }}
+               style={{ background: "var(--pw-cyan)", color: "#071113" }}
             >
               {isSubmitting ? (
                 <><Loader2 className="h-4 w-4 animate-spin" /> Creating Account…</>
@@ -812,7 +812,7 @@ export default function RegisterPage() {
       >
         Already have an account?{" "}
         <Link href="/login" className="font-semibold hover:underline underline-offset-2"
-          style={{ color: "#D4AF37" }}>
+          style={{ color: "var(--pw-cyan)" }}>
           Sign In
         </Link>
       </p>

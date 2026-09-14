@@ -77,13 +77,13 @@ export default function ForgotPasswordPage() {
             <div
               className="mt-6 rounded-lg px-4 py-3 text-xs text-left"
               style={{
-                background: "rgba(212,175,55,0.06)",
-                border: "1px solid rgba(212,175,55,0.12)",
+                background: "rgba(82,230,224,0.06)",
+                border: "1px solid rgba(82,230,224,0.14)",
                 color: "hsl(var(--muted-foreground))",
               }}
             >
               <div className="flex items-center gap-2">
-                <Mail className="h-3.5 w-3.5 shrink-0 text-gold" />
+                <Mail className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
                 <span>Didn&apos;t receive the email? Check your spam folder or request a new link.</span>
               </div>
             </div>
@@ -142,7 +142,7 @@ export default function ForgotPasswordPage() {
                 type="submit"
                 className="w-full h-11 font-semibold"
                 disabled={isSubmitting}
-                style={{ background: "#D4AF37", color: "#050B1A" }}
+                style={{ background: "var(--pw-cyan)", color: "#071113" }}
               >
                 {isSubmitting ? (
                   <span className="flex items-center justify-center gap-2">
