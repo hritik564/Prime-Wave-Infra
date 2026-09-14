@@ -569,6 +569,7 @@ function InvestmentsTab({ detail }: { m: DrawerMember; detail?: AdminUserDetail 
 function WalletsTab({ m, detail, onTabSwitch }: { m: DrawerMember; detail?: AdminUserDetail | null; onTabSwitch: (tab: Tab) => void }) {
   const adminRole    = getAdminRole();
   const isSuperAdmin = adminRole === "SUPER_ADMIN";
+  const canManageWallet = isSuperAdmin || adminRole === "STAFF_OPERATIONS";
 
   const [walletDetail,  setWalletDetail]  = useState<AdminWalletDetail | null>(null);
   const [loading,       setLoading]       = useState(true);
@@ -599,13 +600,13 @@ function WalletsTab({ m, detail, onTabSwitch }: { m: DrawerMember; detail?: Admi
   }, [m.id]);
 
   useEffect(() => {
-    if (!isSuperAdmin) return;
+    if (!canManageWallet) return;
     setAuditLoading(true);
     getWalletAuditLogs(m.id)
       .then(d => setAuditLogs(d.logs))
       .catch(() => setAuditLogs([]))
       .finally(() => setAuditLoading(false));
-  }, [m.id, isSuperAdmin]);
+  }, [m.id, canManageWallet]);
 
   const handleChangeWallet = async () => {
     setChangeError(null);
@@ -687,8 +688,8 @@ function WalletsTab({ m, detail, onTabSwitch }: { m: DrawerMember; detail?: Admi
         </div>
       )}
 
-      {/* ── SUPER_ADMIN: Withdrawal Wallet Management ─────────────────────── */}
-      {isSuperAdmin && (
+      {/* ── SUPER_ADMIN + STAFF_OPERATIONS: Withdrawal Wallet Management ──── */}
+      {canManageWallet && (
         <div style={{ marginTop: 20 }}>
           <SectionTitle title="WITHDRAWAL WALLET ADDRESS" />
 
@@ -718,7 +719,7 @@ function WalletsTab({ m, detail, onTabSwitch }: { m: DrawerMember; detail?: Admi
           ) : (
             <div style={{ background: BG2, border: `1px solid rgba(212,175,55,0.25)`, borderRadius: 10, padding: "14px" }}>
               <div style={{ fontSize: 10, color: GOLD, fontWeight: 700, marginBottom: 12, textTransform: "uppercase" as const, letterSpacing: "0.08em" }}>
-                🔐 Change Withdrawal Wallet — SUPER ADMIN ONLY
+                 🔐 Change Withdrawal Wallet — ADMIN ACCESS
               </div>
 
               <div style={{ marginBottom: 10 }}>

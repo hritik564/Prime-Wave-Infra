@@ -298,6 +298,7 @@ const supportOperationsGuard = requireAdminRoles("SUPER_ADMIN", "SUPPORT_ADMIN",
 const depositReadGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN", "STAFF_OPERATIONS");
 const walletReadGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN", "STAFF_OPERATIONS");
 const withdrawalReadGuard = requireAdminRoles("SUPER_ADMIN", "FINANCE_ADMIN", "STAFF_OPERATIONS");
+const walletChangeGuard = requireAdminRoles("SUPER_ADMIN", "STAFF_OPERATIONS");
 
 router.get(
   "/deposits",
@@ -527,11 +528,11 @@ router.post(
   releaseHoldWithdrawalHandler,
 );
 
-// ── Withdrawal wallet management — SUPER_ADMIN only ───────────────────────────
+// ── Withdrawal wallet management — SUPER_ADMIN + STAFF_OPERATIONS ─────────────
 router.patch(
   "/users/:id/wallet",
   adminLimiter,
-  superAdminGuard,
+  walletChangeGuard,
   validate(updateUserWalletSchema, "body"),
   updateUserWalletHandler,
 );
@@ -539,7 +540,7 @@ router.patch(
 router.get(
   "/users/:id/wallet-audit",
   adminLimiter,
-  superAdminGuard,
+  walletChangeGuard,
   getWalletAuditLogsHandler,
 );
 

@@ -369,7 +369,7 @@ export async function adminUpdateUser(
   return updated;
 }
 
-// ── Withdrawal wallet update (SUPER_ADMIN only) ───────────────────────────────
+// ── Withdrawal wallet update (SUPER_ADMIN + STAFF_OPERATIONS) ─────────────────
 
 export async function adminUpdateUserWallet(
   adminId:   string,
