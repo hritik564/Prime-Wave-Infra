@@ -1,5 +1,5 @@
 import { forwardRef, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -11,10 +11,13 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
     const [show, setShow] = useState(false);
 
     return (
-      <div className="relative">
+      <div className="auth-password-wrap relative">
+        <span className="auth-input-icon" aria-hidden="true">
+          <LockKeyhole />
+        </span>
         <Input
           type={show ? "text" : "password"}
-          className={cn("pr-10", className)}
+          className={cn("auth-input pl-10 pr-10", className)}
           ref={ref}
           {...props}
         />

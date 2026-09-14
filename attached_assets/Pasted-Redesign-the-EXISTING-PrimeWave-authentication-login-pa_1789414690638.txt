@@ -1,0 +1,666 @@
+Redesign the EXISTING PrimeWave authentication/login page.
+
+IMPORTANT:
+This is a visual redesign of the existing authentication page.
+
+DO NOT rebuild the authentication system.
+DO NOT change the authentication backend.
+DO NOT change database logic.
+DO NOT change API endpoints.
+DO NOT change session handling.
+DO NOT change password reset logic.
+DO NOT change signup logic.
+DO NOT break Google/Apple authentication if they are already implemented.
+DO NOT remove existing authentication functionality.
+
+First inspect the existing authentication implementation and identify the current login, signup, forgot-password, and social-auth flows.
+
+Then redesign ONLY the frontend presentation around them.
+
+==================================================
+DESIGN REFERENCE
+==================================================
+
+The attached screenshot is a visual reference.
+
+I like these characteristics:
+
+- pure/dark black background
+- cinematic flowing metallic lines
+- subtle gold/bronze highlights in the reference
+- glassmorphism login panel
+- translucent dark card
+- thin borders
+- large clean typography
+- soft glow
+- minimal interface
+- premium modern technology aesthetic
+- strong visual focus around the authentication card
+
+DO NOT copy the Instagram screenshot literally.
+
+PrimeWave must have its OWN visual identity.
+
+The new PrimeWave website already has an approved visual language:
+
+- near-black background
+- cyan/turquoise accent
+- white/off-white typography
+- subtle technical grid
+- thin borders
+- restrained glow
+- premium Web3 infrastructure aesthetic
+- sophisticated animations
+
+The authentication page should feel like it belongs to that website.
+
+==================================================
+1. OVERALL CONCEPT
+==================================================
+
+Create a premium PrimeWave authentication experience.
+
+Think:
+
+"Entering the PrimeWave ecosystem."
+
+The page should feel like a secure gateway into the platform.
+
+The visual hierarchy should be:
+
+PRIMEWAVE LOGO
+
+Welcome back.
+
+Access your PrimeWave account.
+
+[ authentication card ]
+
+No unnecessary content.
+
+No marketing-heavy sections.
+
+No MLM messaging.
+
+No income claims.
+
+No referral language.
+
+No recruitment language.
+
+==================================================
+2. BACKGROUND
+==================================================
+
+Create a full-screen near-black background.
+
+Use an abstract flowing-wave visual inspired by the attached screenshot.
+
+However, instead of gold/orange dominating the background, use PrimeWave's visual identity:
+
+- cyan/turquoise
+- very subtle blue-green tones
+- dark graphite
+- near-black
+
+The flowing forms should resemble:
+
+- energy
+- data
+- network flows
+- waves
+- computational paths
+
+Do NOT use generic AI imagery.
+
+Do NOT use robots.
+Do NOT use brains.
+Do NOT use crypto coins.
+Do NOT use stock photography.
+
+The background should feel like an abstract visualization of the PrimeWave network.
+
+The effect should be subtle enough that the login form remains the primary focus.
+
+==================================================
+3. PRIMEWAVE BRANDING
+==================================================
+
+At the top of the page, display the existing PrimeWave logo/wordmark if it already exists in the project.
+
+Do NOT create a new unrelated logo.
+
+Use the same logo treatment as the public PrimeWave website.
+
+Possible positioning:
+
+Top-left on desktop:
+
+[PrimeWave logo]
+
+Centered or top-left on mobile depending on what looks better.
+
+The authentication page should visually connect to primewave.live.
+
+==================================================
+4. MAIN HEADLINE
+==================================================
+
+Use:
+
+"Welcome back."
+
+Large, elegant typography.
+
+Below it:
+
+"Enter your credentials to access your PrimeWave account."
+
+Keep the text understated.
+
+Do not use:
+
+"Welcome Back 👋"
+
+Do not use exaggerated marketing language.
+
+Do not mention MLM.
+
+==================================================
+5. LOGIN CARD
+==================================================
+
+Create a premium translucent glass login card.
+
+The card should have:
+
+- dark translucent background
+- backdrop blur
+- subtle cyan border
+- soft shadow/glow
+- slightly rounded corners
+- clean spacing
+- responsive sizing
+
+The card should NOT look like a generic Bootstrap form.
+
+Desktop:
+
+Approximately 420–480px wide.
+
+Mobile:
+
+Approximately 90% width with comfortable margins.
+
+The card should contain the EXISTING authentication fields.
+
+Typical structure:
+
+Email Address
+
+[ email input ]
+
+Password
+
+[ password input ]
+
+[ Remember me ]                 Forgot password?
+
+[ Sign In → ]
+
+Then, if social authentication already exists:
+
+──────── OR CONTINUE WITH ────────
+
+[ Google ]    [ Apple ]
+
+Then:
+
+Don't have an account?
+Create account
+
+Use the actual existing functionality.
+
+If a particular social provider is not currently implemented, DO NOT create fake functionality for it.
+
+==================================================
+6. INPUT DESIGN
+==================================================
+
+Inputs should match the PrimeWave website.
+
+Dark translucent inputs.
+
+Thin subtle borders.
+
+Cyan focus state.
+
+Example:
+
+background:
+rgba(255,255,255,0.03)
+
+border:
+subtle dark/gray
+
+focus:
+PrimeWave cyan
+
+Placeholder:
+muted gray
+
+Text:
+white/off-white
+
+Include appropriate icons if the existing design system supports them:
+
+Email → mail icon
+Password → lock icon
+
+Password visibility toggle should remain functional if it already exists.
+
+==================================================
+7. PRIMARY BUTTON
+==================================================
+
+The Sign In button should use the PrimeWave cyan accent.
+
+Example:
+
+SIGN IN →
+
+or:
+
+Sign In →
+
+Make it visually strong.
+
+Add a subtle hover animation.
+
+Do not use the yellow button from the Instagram reference.
+
+PrimeWave cyan is the primary action color.
+
+The button must continue calling the EXISTING login function.
+
+Loading state must remain functional.
+
+For example:
+
+Signing in...
+
+Do not fake successful login states.
+
+==================================================
+8. SIGNUP
+==================================================
+
+At the bottom of the card:
+
+"Don't have an account?"
+
+"Create account →"
+
+Use the existing signup route/functionality.
+
+Do not redesign signup logic.
+
+The signup page should use the same visual system so the authentication experience feels consistent.
+
+==================================================
+9. FORGOT PASSWORD
+==================================================
+
+Keep the existing Forgot Password functionality.
+
+Style it as a subtle text link.
+
+Example:
+
+Forgot password?
+
+Use PrimeWave cyan on hover.
+
+Do not remove or disable the existing flow.
+
+==================================================
+10. AUTHENTICATION STATES
+==================================================
+
+Make sure the redesigned UI properly handles:
+
+- initial state
+- loading
+- successful login
+- incorrect credentials
+- invalid email
+- empty fields
+- network/API errors
+- password visibility
+- forgot password
+- signup navigation
+- social authentication if currently available
+
+Errors should appear elegantly inside the card.
+
+Example:
+
+Unable to sign in.
+Check your credentials and try again.
+
+Do not expose raw backend errors to the user unless the current application already requires them.
+
+==================================================
+11. SUBTLE ANIMATION
+==================================================
+
+Animation should be premium and restrained.
+
+Possible animations:
+
+- slowly moving background waves
+- subtle ambient glow
+- card fade-in
+- input focus transitions
+- button hover
+- logo fade-in
+
+Do NOT make the page flashy.
+
+No excessive particles.
+
+No random floating objects.
+
+No heavy WebGL effect that destroys performance.
+
+The background animation should be GPU-friendly.
+
+Respect:
+
+prefers-reduced-motion
+
+If the user has reduced motion enabled, significantly reduce or disable decorative animations.
+
+==================================================
+12. DESKTOP LAYOUT
+==================================================
+
+Desktop should feel cinematic.
+
+Full viewport:
+
+┌──────────────────────────────────────────────┐
+│ PrimeWave                                    │
+│                                              │
+│                                              │
+│             Welcome back.                   │
+│       Enter your credentials...              │
+│                                              │
+│           ┌──────────────────┐               │
+│           │ Email            │               │
+│           │                  │               │
+│           │ Password         │               │
+│           │                  │               │
+│           │ Sign In →        │               │
+│           │                  │               │
+│           │ Create account   │               │
+│           └──────────────────┘               │
+│                                              │
+│                         abstract waves       │
+└──────────────────────────────────────────────┘
+
+Do not literally implement this ASCII layout.
+
+It represents the desired hierarchy.
+
+==================================================
+13. MOBILE LAYOUT
+==================================================
+
+This is extremely important.
+
+The attached screenshot is mobile, so the PrimeWave authentication page must look excellent on phones.
+
+Use:
+
+100dvh where appropriate.
+
+Avoid content being hidden behind browser UI.
+
+Ensure the keyboard does not make the form unusable.
+
+On mobile:
+
+- logo near the top
+- headline centered
+- login card width approximately 90%
+- comfortable input height
+- comfortable button height
+- no horizontal overflow
+- background remains visible but subtle
+- form remains the focus
+
+The page must work properly on:
+
+iPhone-sized screens
+Android-sized screens
+small phones
+large phones
+desktop
+tablet
+
+==================================================
+14. BACKGROUND VISUAL DIRECTION
+==================================================
+
+I specifically want something inspired by the flowing metallic ribbons in the attached reference.
+
+But PrimeWave's version should look like:
+
+dark data streams / energy waves.
+
+Imagine several large smooth curves moving diagonally across the screen.
+
+Use:
+
+black → charcoal → very dark teal
+
+with restrained cyan highlights.
+
+Some curves can have a subtle luminous edge.
+
+Avoid turning the entire page cyan.
+
+The PrimeWave cyan should be an accent rather than the entire background.
+
+==================================================
+15. OPTIONAL TECHNICAL DETAIL
+==================================================
+
+Add very subtle PrimeWave-style technical elements in the background.
+
+For example:
+
+PRIMEWAVE / AUTH
+SECURE ACCESS
+NETWORK / ONLINE
+
+These should be tiny, low-opacity labels.
+
+Do NOT make them distracting.
+
+Do not claim something is "secure" in a technical/security-certification sense if the application does not actually support that claim.
+
+A safer label could simply be:
+
+PRIMEWAVE / ACCESS
+
+==================================================
+16. REMOVE OLD VISUAL LANGUAGE
+==================================================
+
+The old authentication page should no longer visually resemble:
+
+- MLM software
+- financial opportunity pages
+- generic admin dashboards
+- yellow/gold trading interfaces
+- template login pages
+
+The public PrimeWave website is now positioned as a technology ecosystem.
+
+The auth page must match that identity.
+
+==================================================
+17. IMPORTANT BRAND CONSISTENCY
+==================================================
+
+The authentication page and public website should feel like two parts of the same product.
+
+Public website:
+
+Dark
+Cyan
+Technical
+Minimal
+Infrastructure
+AI + Web3
+
+Authentication:
+
+Dark
+Cyan
+Technical
+Minimal
+Secure gateway
+AI + Web3 ecosystem
+
+Use the same:
+
+- typography
+- spacing philosophy
+- border treatment
+- cyan accent
+- background tone
+- button style
+- logo
+
+where practical.
+
+==================================================
+18. DO NOT CHANGE THE PUBLIC WEBSITE
+==================================================
+
+Do NOT modify the newly completed PrimeWave marketing website unless absolutely necessary for shared components.
+
+This task is specifically for the authentication experience.
+
+Do not change:
+
+- homepage
+- product pages
+- navigation
+- product descriptions
+- Chain links
+- PWDEX links
+- PWSwap coming-soon state
+- Wallet coming-soon state
+
+Only modify authentication-related UI.
+
+==================================================
+19. ROUTING
+==================================================
+
+The public website's:
+
+Launch App
+
+and
+
+Sign In
+
+buttons already lead to the authentication application.
+
+Keep those routes working.
+
+After successful authentication, preserve the existing destination behavior.
+
+Do not invent a new dashboard route.
+
+Do not modify existing auth redirects unless required for the redesign.
+
+==================================================
+20. TECHNICAL CONSTRAINTS
+==================================================
+
+I am using Replit free mode.
+
+Therefore:
+
+- modify the existing files
+- reuse existing dependencies
+- do not install unnecessary packages
+- do not introduce a large animation framework
+- do not add heavy libraries for the background
+- prefer CSS animations and existing project utilities
+- keep the implementation lightweight
+- keep bundle size reasonable
+- do not create unnecessary backend infrastructure
+
+Before adding a dependency, check whether the existing project already has an equivalent solution.
+
+==================================================
+21. SECURITY / FUNCTIONALITY
+==================================================
+
+This is an authentication page.
+
+Do not weaken authentication security for visual purposes.
+
+Do not:
+
+- expose passwords
+- log credentials
+- store credentials in localStorage
+- bypass authentication
+- hardcode users
+- create fake authentication
+- alter password handling
+- disable validation
+
+Only change presentation.
+
+==================================================
+22. FINAL QUALITY CHECK
+==================================================
+
+After implementation, test the actual page.
+
+Verify:
+
+✓ Existing login still works
+✓ Existing signup still works
+✓ Forgot password still works
+✓ Existing social auth still works if implemented
+✓ Loading states work
+✓ Error states work
+✓ Password visibility works
+✓ Existing redirects work
+✓ Desktop responsive layout works
+✓ Mobile responsive layout works
+✓ No horizontal scrolling
+✓ No console errors
+✓ No broken assets
+✓ No unnecessary dependencies
+✓ Background animation remains performant
+✓ prefers-reduced-motion is respected
+✓ Public website remains unchanged
+
+The final result should look like a premium authentication gateway for a serious AI + Web3 technology company.
+
+Do not copy the attached Instagram design.
+
+Use it only as visual inspiration.
+
+The PrimeWave version must feel original and consistent with the PrimeWave website we just built.

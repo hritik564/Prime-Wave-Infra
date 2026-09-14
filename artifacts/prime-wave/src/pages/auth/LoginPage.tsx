@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link, useLocation, useSearch } from "wouter";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mail, UserRound, ArrowRight } from "lucide-react";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { AuthHeader } from "@/components/auth/AuthHeader";
 import { PasswordInput } from "@/components/auth/PasswordInput";
@@ -96,21 +96,27 @@ export default function LoginPage() {
   return (
     <AuthCard>
       <AuthHeader
-        title="Welcome back"
-        subtitle="Sign in to your Prime Wave account"
+        title="Welcome back."
+        subtitle="Enter your credentials to access your PrimeWave account."
       />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} className="auth-form space-y-5" noValidate>
         {/* Identifier */}
         <div className="space-y-1.5">
           <Label htmlFor="identifier">Email or Username</Label>
-          <Input
-            id="identifier"
-            placeholder="you@example.com or @username"
-            autoComplete="username email"
-            aria-invalid={!!errors.identifier}
-            {...register("identifier")}
-          />
+          <div className="auth-input-wrap">
+            <span className="auth-input-icon" aria-hidden="true">
+              {isEmail(watch("identifier") ?? "") ? <Mail /> : <UserRound />}
+            </span>
+            <Input
+              id="identifier"
+              className="auth-input pl-10"
+              placeholder="you@example.com or @username"
+              autoComplete="username email"
+              aria-invalid={!!errors.identifier}
+              {...register("identifier")}
+            />
+          </div>
           {errors.identifier && (
             <p className="text-xs" style={{ color: "#f87171" }}>
               {errors.identifier.message}
@@ -124,8 +130,7 @@ export default function LoginPage() {
             <Label htmlFor="password">Password</Label>
             <Link
               href="/forgot-password"
-              className="text-xs font-medium transition-colors"
-              style={{ color: "#D4AF37" }}
+              className="auth-link text-xs font-medium transition-colors"
             >
               Forgot password?
             </Link>
@@ -168,9 +173,8 @@ export default function LoginPage() {
         {/* Submit */}
         <Button
           type="submit"
-          className="w-full h-11 font-semibold text-sm transition-all"
+          className="auth-submit w-full h-12 font-semibold text-sm transition-all"
           disabled={isSubmitting}
-          style={{ background: "#D4AF37", color: "#050B1A" }}
         >
           {isSubmitting ? (
             <span className="flex items-center justify-center gap-2">
@@ -178,7 +182,10 @@ export default function LoginPage() {
               Signing in…
             </span>
           ) : (
-            "Sign In"
+            <>
+              Sign In
+              <ArrowRight className="h-4 w-4" />
+            </>
           )}
         </Button>
       </form>
@@ -190,10 +197,9 @@ export default function LoginPage() {
         Don&apos;t have an account?{" "}
         <Link
           href="/register"
-          className="font-semibold transition-colors"
-          style={{ color: "#D4AF37" }}
+          className="auth-link font-semibold transition-colors"
         >
-          Create account
+          Create account <ArrowRight className="ml-1 inline h-3.5 w-3.5" />
         </Link>
       </p>
     </AuthCard>
