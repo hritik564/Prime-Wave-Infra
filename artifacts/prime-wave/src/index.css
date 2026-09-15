@@ -335,43 +335,10 @@
   pointer-events: none;
 }
 
-.auth-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 13px;
-  color: var(--pw-text);
-  font-size: 23px;
-  font-weight: 600;
-  letter-spacing: -.045em;
-  white-space: nowrap;
-}
-
-.auth-brand > span:last-child > span { color: var(--pw-cyan); }
 .auth-card-brand {
   justify-content: center;
   margin: 0 0 28px;
 }
-.auth-brand-mark {
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 2px;
-  padding: 4px;
-  border: 1px solid var(--pw-cyan);
-  transform: rotate(45deg);
-  box-shadow: 0 0 22px rgba(82, 230, 224, .14);
-}
-.auth-brand-mark i {
-  display: block;
-  width: 3px;
-  background: var(--pw-cyan);
-  transform: rotate(-45deg);
-}
-.auth-brand-mark i:nth-child(1) { height: 7px; opacity: .5; }
-.auth-brand-mark i:nth-child(2) { height: 11px; opacity: .8; }
-.auth-brand-mark i:nth-child(3) { height: 15px; }
 
 .auth-system-meta {
   display: inline-flex;
@@ -775,9 +742,6 @@
   }
   .auth-content-centered-mobile {
     justify-content: center;
-  }
-  .auth-brand {
-    font-size: 21px;
   }
   .auth-card {
     padding: 28px 22px 26px;

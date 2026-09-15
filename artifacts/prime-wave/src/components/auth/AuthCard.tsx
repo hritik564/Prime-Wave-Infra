@@ -52,15 +52,13 @@ export function AuthCard({
           className={`auth-card-shell relative w-full ${maxWidth}`}
         >
           <div className="auth-card">
-            <div className="auth-brand auth-card-brand" aria-label="PrimeWave">
-              <span className="auth-brand-mark" aria-hidden="true">
+            <div className="pw-brand auth-card-brand" aria-label="PrimeWave">
+              <span className="pw-mark" aria-hidden="true">
                 <i />
                 <i />
                 <i />
               </span>
-              <span>
-                Prime<span>Wave</span>
-              </span>
+              <span>prime<span>·</span>wave</span>
             </div>
             {children}
           </div>
