@@ -31,25 +31,25 @@
   }
 
   .light {
-    --background: 222 29% 7%;
-    --foreground: 210 18% 92%;
-    --card: 220 25% 10%;
-    --card-foreground: 210 18% 92%;
-    --popover: 220 25% 10%;
-    --popover-foreground: 210 18% 92%;
-    --primary: 184 91% 54%;
-    --primary-foreground: 222 29% 7%;
-    --secondary: 220 22% 15%;
-    --secondary-foreground: 210 18% 92%;
-    --muted: 220 22% 15%;
-    --muted-foreground: 214 15% 62%;
-    --accent: 184 91% 54%;
-    --accent-foreground: 222 29% 7%;
-    --destructive: 0 72% 51%;
+    --background: 198 30% 96%;
+    --foreground: 204 32% 13%;
+    --card: 0 0% 100%;
+    --card-foreground: 204 32% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 204 32% 13%;
+    --primary: 184 78% 35%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 195 24% 91%;
+    --secondary-foreground: 204 32% 16%;
+    --muted: 195 24% 91%;
+    --muted-foreground: 204 16% 40%;
+    --accent: 184 78% 35%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 100%;
-    --border: 215 22% 20%;
-    --input: 215 22% 18%;
-    --ring: 184 91% 54%;
+    --border: 195 22% 80%;
+    --input: 195 22% 84%;
+    --ring: 184 78% 35%;
 
     --sidebar-bg: #152240;
     --sidebar-border: rgba(212, 175, 55, 0.2);
@@ -203,6 +203,7 @@
    PRIMEWAVE PUBLIC / OBSIDIAN SYSTEMS
    ───────────────────────────────────────────────────────────── */
 :root { --pw-bg: #080b10; --pw-panel: #0d1219; --pw-panel-2: #111922; --pw-line: rgba(180, 205, 216, .14); --pw-line-strong: rgba(180, 205, 216, .24); --pw-text: #e6edf0; --pw-muted: #8c9aa3; --pw-soft: #b7c2c8; --pw-cyan: #52e6e0; --pw-green: #b7e36c; --pw-amber: #e0c47a; --pw-mono: 'IBM Plex Mono', monospace; }
+:root.light { --pw-bg: #eef6f7; --pw-panel: #ffffff; --pw-panel-2: #f3f9f9; --pw-line: rgba(28, 78, 87, .14); --pw-line-strong: rgba(28, 78, 87, .25); --pw-text: #102a31; --pw-muted: #5b737b; --pw-soft: #3e5c64; --pw-cyan: #008f98; --pw-green: #4f8f2d; --pw-amber: #a87817; }
 .pw-site { background: var(--pw-bg); color: var(--pw-text); min-height: 100vh; overflow: hidden; font-family: 'Space Grotesk', sans-serif; }
 .pw-site a { color: inherit; text-decoration: none; }
 .pw-container { width: min(1180px, calc(100% - 64px)); margin: 0 auto; position: relative; z-index: 1; }
@@ -562,6 +563,74 @@
 .auth-theme-toggle:hover {
   color: var(--pw-cyan) !important;
   background: rgba(82, 230, 224, .07) !important;
+}
+
+:root.light .auth-shell {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(0, 143, 152, .1), transparent 34%),
+    #eef6f7;
+}
+:root.light .auth-grid {
+  opacity: .45;
+  background-image:
+    linear-gradient(rgba(28, 78, 87, .1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(28, 78, 87, .1) 1px, transparent 1px);
+}
+:root.light .auth-card {
+  border-color: rgba(0, 126, 135, .42);
+  background: linear-gradient(145deg, rgba(255, 255, 255, .94), rgba(235, 247, 247, .94));
+  box-shadow:
+    0 28px 80px rgba(28, 78, 87, .16),
+    0 0 0 1px rgba(0, 143, 152, .11),
+    0 0 28px rgba(0, 143, 152, .13),
+    inset 0 1px 0 rgba(255, 255, 255, .9);
+}
+:root.light .auth-card label {
+  color: #274a52;
+}
+:root.light .auth-input {
+  border-color: rgba(28, 78, 87, .22) !important;
+  background: rgba(12, 78, 87, .045) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7);
+}
+:root.light .auth-input:hover {
+  border-color: rgba(0, 126, 135, .4) !important;
+}
+:root.light .auth-input::placeholder {
+  color: #789098;
+}
+:root.light .auth-input-icon,
+:root.light .auth-password-wrap > button {
+  color: #59757c !important;
+}
+:root.light .auth-link {
+  color: #007c84;
+}
+:root.light .auth-link:hover {
+  color: #005f66;
+}
+:root.light .auth-submit {
+  color: #f4ffff !important;
+  box-shadow: 0 9px 24px rgba(0, 126, 135, .2);
+}
+:root.light .auth-submit:hover {
+  color: #f4ffff !important;
+  background: #007c84 !important;
+  border-color: #007c84 !important;
+}
+:root.light .auth-theme-toggle {
+  color: #4f6b72 !important;
+  border-color: rgba(28, 78, 87, .2);
+  background: rgba(255, 255, 255, .72);
+}
+:root.light .auth-theme-toggle:hover {
+  color: #007c84 !important;
+  background: rgba(0, 143, 152, .08) !important;
+}
+:root.light .auth-system-meta,
+:root.light .auth-side-note,
+:root.light .auth-footer-meta {
+  color: rgba(28, 78, 87, .58);
 }
 
 .auth-grid {
