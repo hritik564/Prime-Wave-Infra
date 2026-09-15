@@ -1,0 +1,587 @@
+PRIMEWAVE AUTH PAGE — FINAL UI REDESIGN
+
+Use the attached image as the PRIMARY VISUAL REFERENCE for this redesign.
+
+The attached reference represents the visual direction I want:
+- minimal futuristic dark interface
+- premium AI/infrastructure aesthetic
+- restrained cyan lighting
+- elegant technical details
+- centered authentication experience
+- subtle AI/network symbolism
+
+DO NOT copy the reference image literally. Adapt the visual language to PrimeWave's existing branding and existing authentication system.
+
+==================================================
+1. MOST IMPORTANT RULE — DO NOT BREAK AUTH
+==================================================
+
+This is primarily a FRONTEND/UI redesign.
+
+Before making changes:
+- Inspect the existing authentication implementation.
+- Understand the current login, signup, forgot-password, validation, session, API, and routing logic.
+- Preserve all existing functionality.
+
+DO NOT:
+- change authentication APIs
+- change backend logic
+- change database logic
+- change routes
+- remove validation
+- remove error handling
+- remove loading states
+- change session behavior
+- replace working authentication with mock authentication
+- create a fake/demo login
+- store credentials insecurely
+- introduce unnecessary dependencies
+
+The current authentication implementation is the SOURCE OF TRUTH for functionality.
+
+The attached image is the SOURCE OF TRUTH for visual direction.
+
+==================================================
+2. PRIMEWAVE BRAND POSITIONING
+==================================================
+
+PrimeWave is building an AI-powered decentralized technology ecosystem.
+
+The ecosystem consists of:
+
+• PrimeWave Chain
+• PWDEX
+• PWSwap
+• PrimeWave Wallet
+
+The authentication page should feel like the secure gateway into this technology ecosystem.
+
+It should communicate:
+
+AI + blockchain + decentralized infrastructure + intelligent technology.
+
+It should NOT feel like:
+- a generic crypto website
+- a generic SaaS login
+- a gaming interface
+- an MLM/financial opportunity page
+
+DO NOT mention:
+- MLM
+- network marketing
+- commissions
+- referrals
+- ranks
+- income opportunities
+- recruitment
+- earning programs
+
+The authentication experience is for the PrimeWave technology ecosystem.
+
+==================================================
+3. OVERALL VISUAL DIRECTION
+==================================================
+
+Build a sophisticated, minimal, futuristic interface.
+
+Think:
+
+"AI infrastructure company meets decentralized network."
+
+The page should feel:
+- intelligent
+- technical
+- secure
+- premium
+- futuristic
+- calm
+- precise
+- trustworthy
+
+Avoid making it overly flashy.
+
+The previous version had too many background elements.
+
+THIS VERSION MUST BE SIGNIFICANTLY MORE MINIMAL.
+
+The login form must remain the primary visual focus.
+
+==================================================
+4. BACKGROUND — KEEP IT SIMPLE
+==================================================
+
+This is one of the most important requirements.
+
+DO NOT create a busy animated background.
+
+Use a nearly-black / deep charcoal background.
+
+Add only a few subtle visual elements:
+
+- extremely faint grid lines
+- one or two very large, extremely subtle orbital curves
+- a very soft cyan ambient glow
+- a few tiny nodes/points
+- extremely subtle AI/network geometry
+
+The background should be almost invisible at first glance.
+
+The user should notice the atmosphere before they notice the graphics.
+
+Do NOT use:
+- giant particle fields
+- hundreds of floating particles
+- complicated circuit boards
+- huge glowing AI brains
+- excessive network lines
+- rainbow gradients
+- purple neon
+- excessive 3D
+- busy animated backgrounds
+
+The reference image demonstrates the desired balance.
+
+The background should say:
+
+"AI-powered infrastructure"
+
+without literally showing an AI brain.
+
+==================================================
+5. SUBTLE AI VISUAL LANGUAGE
+==================================================
+
+Introduce AI through very restrained visual cues.
+
+For example:
+
+A small number of connected nodes with a central point.
+
+Or:
+
+A subtle orbital/data visualization behind the login card.
+
+Or:
+
+A faint flowing data path.
+
+The visual should suggest:
+
+intelligence → computation → network → decentralized infrastructure
+
+without becoming a decorative illustration.
+
+Use slow, barely noticeable animation if appropriate.
+
+For example:
+- a tiny node slowly pulses
+- a subtle line moves along an orbital path
+- a faint glow slowly changes intensity
+
+Animations should be extremely slow and elegant.
+
+If removing animation makes the page look cleaner, prefer removing it.
+
+==================================================
+6. PRIMEWAVE LOGO
+==================================================
+
+Use the EXISTING PrimeWave logo/assets from the project.
+
+Do not redesign the logo.
+
+Place the logo near the upper-left area with comfortable spacing.
+
+The branding should feel similar to the main PrimeWave website.
+
+Use the PrimeWave cyan/turquoise accent.
+
+==================================================
+7. OPTIONAL TECHNICAL MICROCOPY
+==================================================
+
+Use a few extremely subtle technical labels around the page.
+
+For example:
+
+PRIMEWAVE / INTELLIGENCE
+
+or
+
+PRIMEWAVE / SECURE ACCESS
+
+Possible small supporting labels:
+
+AI-POWERED INFRASTRUCTURE
+DECENTRALIZED SYSTEMS
+SECURE ACCESS
+PRIMEWAVE ECOSYSTEM
+
+Do not add too many.
+
+These should feel like interface metadata rather than marketing copy.
+
+==================================================
+8. AUTHENTICATION CARD
+==================================================
+
+The authentication card should be the HERO element.
+
+Use:
+
+- dark translucent surface
+- subtle glass effect
+- very thin cyan/blue-gray border
+- restrained backdrop blur
+- soft edge glow
+- premium spacing
+- large but controlled corner radius
+
+The card should NOT look excessively transparent.
+
+It should remain clearly readable against the background.
+
+Target approximate width on desktop:
+
+400–500px.
+
+Center it vertically/horizontally or use a slightly elevated centered composition depending on the existing layout.
+
+==================================================
+9. CARD HEADER
+==================================================
+
+At the top:
+
+PRIMEWAVE / ACCESS
+
+Use small uppercase technical typography with letter spacing.
+
+Main heading:
+
+Welcome back.
+
+Supporting text:
+
+Enter your credentials to securely access your PrimeWave account.
+
+Keep the hierarchy strong.
+
+Do not use excessive text.
+
+==================================================
+10. LOGIN FORM
+==================================================
+
+Preserve the EXISTING login fields and functionality.
+
+Email/Username:
+
+Label:
+Email or Username
+
+Placeholder:
+you@example.com or @username
+
+Password:
+
+Label:
+Password
+
+Include the existing:
+- password visibility toggle
+- forgot password
+- remember me
+- validation
+- error states
+- loading state
+
+Do not change their underlying functionality.
+
+Visually:
+
+Inputs should have:
+- dark charcoal background
+- subtle border
+- clean icons
+- comfortable height
+- cyan focus border
+- subtle focus glow
+- smooth transitions
+
+==================================================
+11. PRIMARY SIGN-IN BUTTON
+==================================================
+
+Use PrimeWave cyan/turquoise.
+
+Button text:
+
+Sign In  →
+
+Make it visually prominent but sophisticated.
+
+Use:
+- subtle cyan glow
+- smooth hover transition
+- slight brightness change on hover
+
+Do NOT make it look like a giant neon button.
+
+Preserve the existing loading state.
+
+==================================================
+12. SOCIAL LOGIN
+==================================================
+
+If Google and Apple authentication already exist in the current implementation, preserve them.
+
+Style them as secondary dark buttons with subtle borders.
+
+Keep the interface clean.
+
+If these buttons are not actually functional in the existing implementation, DO NOT invent functionality.
+
+==================================================
+13. CREATE ACCOUNT
+==================================================
+
+At the bottom of the card:
+
+Don't have an account? Create account →
+
+"Create account" should use PrimeWave cyan.
+
+Preserve the existing signup route and functionality.
+
+==================================================
+14. AI BRAND MESSAGE
+==================================================
+
+Add ONE concise AI-oriented statement outside or near the authentication card.
+
+Preferred:
+
+"AI-powered infrastructure for the decentralized future."
+
+Alternative:
+
+"Intelligent infrastructure. Decentralized by design."
+
+Keep this subtle.
+
+Do not turn it into a large marketing headline.
+
+The login page should remain a login page.
+
+==================================================
+15. DESKTOP COMPOSITION
+==================================================
+
+The overall composition should resemble:
+
+PrimeWave logo
+                              subtle AI/system metadata
+
+
+                 [ AUTHENTICATION CARD ]
+
+                 [                 ]
+                 [   Welcome back  ]
+                 [                 ]
+                 [      FORM       ]
+                 [                 ]
+                 [    SIGN IN      ]
+                 [                 ]
+
+      subtle AI/network element
+
+Keep large amounts of negative space.
+
+The page should feel expensive because of restraint.
+
+==================================================
+16. MOBILE DESIGN
+==================================================
+
+Mobile is extremely important.
+
+The authentication page must be fully responsive.
+
+On mobile:
+
+- PrimeWave logo near the top
+- authentication card fits comfortably within viewport
+- appropriate horizontal padding
+- no horizontal scrolling
+- no overlapping decorative elements
+- reduce or remove most background decoration
+- keep only very subtle AI visual cues
+- inputs must be touch-friendly
+- button must be easy to tap
+- maintain excellent typography and spacing
+
+On small screens, PRIORITIZE USABILITY OVER DECORATION.
+
+==================================================
+17. TYPOGRAPHY
+==================================================
+
+Use a modern premium sans-serif consistent with the existing PrimeWave website.
+
+Large heading:
+
+Welcome back.
+
+Technical labels:
+
+Use uppercase, letter-spaced typography.
+
+Do not overuse monospace fonts.
+
+Typography should feel like a serious technology company rather than a hacker/gaming website.
+
+==================================================
+18. COLOR SYSTEM
+==================================================
+
+Primary accent:
+
+PrimeWave cyan / turquoise.
+
+Background:
+
+Near-black / deep charcoal.
+
+Text:
+
+Off-white / white.
+
+Secondary text:
+
+Cool gray.
+
+Borders:
+
+Very subtle blue-gray/cyan.
+
+Avoid:
+- yellow
+- gold
+- purple-heavy gradients
+- pink neon
+- rainbow gradients
+- excessive electric blue
+
+PrimeWave cyan should be the recognizable accent.
+
+==================================================
+19. ANIMATION & PERFORMANCE
+==================================================
+
+Because this project is being developed using Replit's free tier:
+
+KEEP EVERYTHING LIGHTWEIGHT.
+
+Do not introduce:
+- heavy 3D libraries
+- unnecessary WebGL
+- large animation libraries
+- expensive rendering effects
+
+Prefer:
+- CSS
+- SVG
+- lightweight Canvas if genuinely necessary
+- existing project dependencies
+
+Use subtle animations only.
+
+Respect:
+
+prefers-reduced-motion
+
+Performance is more important than visual complexity.
+
+==================================================
+20. ACCESSIBILITY
+==================================================
+
+Maintain:
+
+- semantic HTML
+- proper form labels
+- keyboard navigation
+- visible focus states
+- accessible buttons
+- accessible password visibility control
+- sufficient contrast
+- screen-reader-friendly controls
+
+==================================================
+21. FINAL VISUAL QUALITY
+==================================================
+
+After implementing the redesign, do a visual refinement pass.
+
+Pay particular attention to:
+
+- card width
+- card positioning
+- spacing
+- typography
+- input height
+- button proportions
+- cyan intensity
+- border visibility
+- background subtlety
+- mobile responsiveness
+
+IMPORTANT:
+
+If the background looks "cool" but starts competing with the login card, REMOVE elements.
+
+The desired feeling is:
+
+"Quietly futuristic."
+
+Not:
+
+"Overloaded sci-fi dashboard."
+
+==================================================
+22. FINAL CHECK
+==================================================
+
+Before considering the task complete:
+
+1. Verify login still works.
+2. Verify signup still works.
+3. Verify forgot password still works.
+4. Verify password visibility still works.
+5. Verify remember-me behavior remains unchanged.
+6. Verify validation remains unchanged.
+7. Verify error messages remain functional.
+8. Verify loading state remains functional.
+9. Verify existing routes remain unchanged.
+10. Verify no authentication API was accidentally changed.
+11. Verify no console errors.
+12. Test desktop.
+13. Test mobile.
+14. Test keyboard navigation.
+15. Review the visual design against the attached reference.
+
+FINAL PRINCIPLE:
+
+The attached image is the visual inspiration.
+
+The existing PrimeWave authentication system is the functional foundation.
+
+Do not sacrifice functionality for visual design.
+
+Make PrimeWave look like a serious AI-powered decentralized technology company.
+
+Minimal.
+Intelligent.
+Technical.
+Premium.
