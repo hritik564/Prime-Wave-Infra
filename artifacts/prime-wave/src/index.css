@@ -399,13 +399,14 @@
 .auth-card {
   width: min(100%, 480px);
   padding: 36px;
-  border: 1px solid rgba(132, 219, 222, .25);
+  border: 1px solid rgba(112, 231, 229, .52);
   border-radius: 17px;
   background: linear-gradient(145deg, rgba(15, 27, 32, .86), rgba(6, 11, 15, .9));
   box-shadow:
     0 28px 80px rgba(0, 0, 0, .52),
-    0 0 0 1px rgba(82, 230, 224, .035),
-    0 0 60px rgba(46, 143, 148, .1);
+    0 0 0 1px rgba(82, 230, 224, .16),
+    0 0 28px rgba(46, 143, 148, .2),
+    inset 0 1px 0 rgba(210, 255, 253, .08);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
 }
