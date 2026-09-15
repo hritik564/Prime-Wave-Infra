@@ -397,6 +397,8 @@
   margin-inline: auto;
 }
 .auth-card {
+  position: relative;
+  overflow: hidden;
   width: min(100%, 480px);
   padding: 36px;
   border: 1px solid rgba(112, 231, 229, .52);
@@ -409,6 +411,54 @@
     inset 0 1px 0 rgba(210, 255, 253, .08);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
+}
+.auth-card::before,
+.auth-card::after {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  mix-blend-mode: screen;
+}
+.auth-card::before {
+  background-image:
+    radial-gradient(circle at 12% 19%, rgba(190, 255, 250, .9) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 31% 72%, rgba(82, 230, 224, .65) 0 1px, transparent 1.7px),
+    radial-gradient(circle at 57% 27%, rgba(230, 255, 253, .7) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 76% 64%, rgba(82, 230, 224, .7) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 91% 34%, rgba(190, 255, 250, .8) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 67% 89%, rgba(230, 255, 253, .55) 0 1px, transparent 1.7px);
+  opacity: .3;
+  animation:
+    auth-stars-drift 24s ease-in-out infinite alternate,
+    auth-stars-twinkle 7s ease-in-out infinite alternate;
+}
+.auth-card::after {
+  background-image:
+    radial-gradient(circle at 21% 44%, rgba(82, 230, 224, .75) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 45% 12%, rgba(230, 255, 253, .6) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 84% 18%, rgba(82, 230, 224, .62) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 71% 76%, rgba(190, 255, 250, .7) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 6% 84%, rgba(230, 255, 253, .5) 0 1px, transparent 1.7px);
+  opacity: .18;
+  animation:
+    auth-stars-drift 31s ease-in-out -9s infinite alternate-reverse,
+    auth-stars-twinkle 9s ease-in-out -3s infinite alternate-reverse;
+}
+.auth-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes auth-stars-drift {
+  0% { transform: translate3d(-1.5%, -1%, 0) rotate(-.4deg); }
+  100% { transform: translate3d(1.5%, 1%, 0) rotate(.4deg); }
+}
+
+@keyframes auth-stars-twinkle {
+  0%, 100% { opacity: .12; }
+  50% { opacity: .34; }
 }
 
 .auth-header {
@@ -676,4 +726,6 @@
 @media (prefers-reduced-motion: reduce) {
   .auth-card-shell { transition: none !important; }
   .auth-submit { transition: none !important; }
+  .auth-card::before,
+  .auth-card::after { animation: none !important; }
 }
