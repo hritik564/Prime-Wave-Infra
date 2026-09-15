@@ -345,6 +345,11 @@
   white-space: nowrap;
 }
 
+.auth-card-brand {
+  justify-content: center;
+  margin: 0 0 28px;
+}
+
 .auth-brand > span:last-child > span { color: var(--pw-cyan); }
 .auth-brand-mark {
   width: 26px;
@@ -372,6 +377,7 @@
   display: inline-flex;
   align-items: center;
   gap: 14px;
+  margin-left: auto;
   color: rgba(140, 154, 163, .5);
   font: 9px var(--pw-mono);
   letter-spacing: .15em;

@@ -25,16 +25,6 @@ export function AuthCard({
       <span className="auth-node auth-node-three" aria-hidden="true" />
 
       <div className="auth-topbar">
-        <div className="auth-brand" aria-label="PrimeWave">
-          <span className="auth-brand-mark" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </span>
-          <span>
-            Prime<span>Wave</span>
-          </span>
-        </div>
         <div className="auth-system-meta" aria-hidden="true">
           <span>AI × BLOCKCHAIN × A BETTER TOMORROW</span>
           <i />
@@ -61,7 +51,19 @@ export function AuthCard({
           transition={{ duration: 0.45, ease: "easeOut" }}
           className={`auth-card-shell relative w-full ${maxWidth}`}
         >
-          <div className="auth-card">{children}</div>
+          <div className="auth-card">
+            <div className="auth-brand auth-card-brand" aria-label="PrimeWave">
+              <span className="auth-brand-mark" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+              <span>
+                Prime<span>Wave</span>
+              </span>
+            </div>
+            {children}
+          </div>
         </motion.div>
       </div>
 
