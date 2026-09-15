@@ -13,6 +13,7 @@ import { adminSearchUsers, type AdminUserListItem } from "@/lib/api";
 import { SkeletonStyle, Skeleton } from "@/components/admin/Skeleton";
 import { useResponsive } from "@/hooks/useResponsive";
 import { PERMISSIONS, type Permission } from "@/lib/permissions";
+import { PrimeWaveLogo } from "@/components/shared/PrimeWaveLogo";
 
 const GOLD   = "#D4AF37";
 const GOLD_L = "#F3D37A";
@@ -586,20 +587,12 @@ function SidebarContent({
         borderBottom: `1px solid ${BORDER}`, flexShrink: 0,
         gap: 8,
       }}>
-        <div style={{
-          width: 26, height: 26, borderRadius: 7, flexShrink: 0,
-          background: "rgba(212,175,55,0.15)",
-          border: `1px solid rgba(212,175,55,0.3)`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: GOLD }}>PW</span>
-        </div>
-        {!collapsed && (
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: GOLD_L, lineHeight: 1.2 }}>Prime Wave</div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: collapsed ? "center" : "flex-start", gap: 2 }}>
+          <PrimeWaveLogo className={`admin-brand-logo ${collapsed ? "is-collapsed" : ""}`} />
+          {!collapsed && (
             <div style={{ fontSize: 9, color: MUTED, letterSpacing: "0.08em" }}>CONTROL CENTER</div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Nav groups */}

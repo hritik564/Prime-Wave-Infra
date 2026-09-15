@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowUpRight, ChevronDown, Menu, X } from "lucide-react";
+import { PrimeWaveLogo } from "@/components/shared/PrimeWaveLogo";
 
 const navItems = [
   { href: "/developers", label: "Developers" },
@@ -50,8 +51,7 @@ export default function PublicShell({ children }: { children: React.ReactNode })
       <header className="pw-header">
         <div className="pw-container pw-nav">
           <Link href="/" className="pw-brand" data-testid="link-brand-home">
-            <span className="pw-mark" aria-hidden="true"><i /><i /><i /></span>
-            <span>prime<span>·</span>wave</span>
+            <PrimeWaveLogo />
           </Link>
           <nav className={`pw-nav-links ${open ? "is-open" : ""}`} aria-label="Primary navigation">
              <div
@@ -106,8 +106,7 @@ export default function PublicShell({ children }: { children: React.ReactNode })
         <div className="pw-container pw-footer-grid">
           <div>
             <Link href="/" className="pw-brand" data-testid="link-footer-brand">
-              <span className="pw-mark" aria-hidden="true"><i /><i /><i /></span>
-              <span>prime<span>·</span>wave</span>
+              <PrimeWaveLogo />
             </Link>
              <p className="pw-footer-note">Intelligent infrastructure for a decentralized future.</p>
           </div>
