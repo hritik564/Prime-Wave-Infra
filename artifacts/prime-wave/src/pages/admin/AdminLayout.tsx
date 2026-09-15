@@ -599,7 +599,7 @@ function SidebarContent({
             <div style={{ fontSize: 12, fontWeight: 700, color: GOLD_L, lineHeight: 1.2 }}>Prime Wave</div>
             <div style={{ fontSize: 9, color: MUTED, letterSpacing: "0.08em" }}>CONTROL CENTER</div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Nav groups */}

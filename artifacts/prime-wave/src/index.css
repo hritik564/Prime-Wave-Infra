@@ -335,11 +335,9 @@
 }
 
 .auth-card-brand {
-  display: flex;
   justify-content: center;
   margin: 0 0 28px;
 }
-.auth-card-brand .pw-logo-horizontal { width: 178px; height: 37px; }
 
 .auth-system-meta {
   display: inline-flex;
