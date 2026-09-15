@@ -1,0 +1,550 @@
+PRIMEWAVE — AUTOMATIC WITHDRAWAL HARDENING
+PHASE 1: CODE-SAFETY AND FINANCIAL-INTEGRITY FIXES ONLY
+
+We are preparing PrimeWave's automatic BEP20/USDT withdrawal system for eventual production use.
+
+IMPORTANT: This is a CODE-HARDENING phase only.
+
+DO NOT:
+- Publish or deploy anything.
+- Modify the production database.
+- Run production migrations.
+- Change production environment variables.
+- Read, display, request, or create any hot-wallet private key.
+- Add or expose any blockchain credentials.
+- Set BLOCKCHAIN_DRY_RUN=false.
+- Fund or interact with the production hot wallet.
+- Sign any real blockchain transaction.
+- Broadcast any real blockchain transaction.
+- Enable live withdrawals.
+- Change withdrawal permissions.
+- Change existing user balances.
+- Modify existing production withdrawal records.
+- Disable existing safety guards.
+- Modify unrelated deposit, wallet, QR, Power Business, staff, authentication, or frontend functionality.
+
+The current production state must remain exactly as it is.
+
+Use the attached Automatic Withdrawal Readiness audit as the authoritative starting point. It identified the following blockers:
+
+1. No distributed queue claim/lease across production autoscale instances.
+2. Nonce locking is process-local.
+3. Confirmation does not validate the actual USDT transfer.
+4. Recovery can complete a withdrawal without releasing locked funds and recording the successful wallet ledger transaction.
+5. Ambiguous broadcast failures can potentially refund a withdrawal even if the blockchain transaction succeeded.
+6. USDT conversion uses floating-point arithmetic.
+7. Configured hot-wallet address and private key are not cryptographically cross-checked.
+8. PROCESSING withdrawals are not recovered.
+9. Confirmation configuration uses two different variables:
+   - BSC_REQUIRED_CONFIRMATIONS
+   - BSC_CONFIRMATIONS_REQUIRED
+10. Dedicated automatic-withdrawal test coverage is missing.
+
+The audit explicitly concluded that automatic withdrawals are NOT operationally ready.
+
+==================================================
+PHASE 1 OBJECTIVE
+==================================================
+
+Harden the withdrawal architecture so that the code is safe to proceed to a later configuration/testing phase.
+
+Do NOT attempt to activate withdrawals.
+
+The final system should remain safely non-live even if someone accidentally runs the application with the current production configuration.
+
+==================================================
+1. DISTRIBUTED WITHDRAWAL QUEUE CLAIMING
+==================================================
+
+Replace the current process-local withdrawal selection/locking mechanism with a database-backed atomic claim mechanism.
+
+Requirements:
+
+- Multiple autoscale API instances must not be able to process the same withdrawal simultaneously.
+- Claiming must be atomic.
+- A withdrawal must have an explicit worker ownership/claim concept OR an equivalent database lease mechanism.
+- Claims must have expiration/recovery behavior so a dead worker cannot permanently own a withdrawal.
+- State transitions must be conditional.
+- A worker must never assume that because it previously selected a withdrawal, it still owns it.
+- Completion/failure operations must verify the current state/ownership before applying financial side effects.
+
+Prefer a PostgreSQL-native atomic mechanism where appropriate.
+
+Do not introduce a simplistic in-memory mutex as the solution.
+
+The implementation must remain safe with multiple production instances.
+
+==================================================
+2. DISTRIBUTED NONCE COORDINATION
+==================================================
+
+The current nonce mutex is process-local.
+
+Design and implement distributed nonce coordination appropriate for multiple API instances.
+
+Requirements:
+
+- Multiple API instances must not independently allocate the same nonce.
+- Nonce allocation must be serialized across workers/instances.
+- Handle transaction replacement/retry scenarios safely.
+- Do not rely solely on JavaScript process memory.
+- Do not assume there is only one API process.
+- Preserve crash/restart recovery behavior.
+
+If a database-backed nonce reservation is the safest approach, implement it.
+
+Do not broadcast any transaction while developing or testing this.
+
+==================================================
+3. EXACT USDT AMOUNT CONVERSION
+==================================================
+
+Remove floating-point arithmetic from the blockchain token amount conversion path.
+
+Current problem:
+
+- parseFloat
+- Math.round
+- JavaScript floating-point arithmetic
+
+must not be used for financial token conversion.
+
+Implement exact decimal-to-integer conversion.
+
+Requirements:
+
+- Support the configured token decimals.
+- Reject invalid decimal values.
+- Reject negative values.
+- Reject values with more decimal places than the token supports.
+- Preserve exactness.
+- Avoid precision loss.
+- Ensure the generated integer token amount is deterministic.
+- Add unit tests for:
+  - 1 USDT
+  - 1.01 USDT
+  - 10.50 USDT
+  - 2500 USDT
+  - values with maximum supported decimals
+  - excessive decimal precision
+  - malformed values
+  - zero
+  - negative values
+
+Do not change the public withdrawal amount semantics unless required for correctness.
+
+==================================================
+4. ON-CHAIN TRANSFER VERIFICATION
+==================================================
+
+The confirmation logic must prove that the transaction corresponding to a withdrawal actually performed the intended USDT transfer.
+
+Do NOT merely verify:
+
+- transaction exists
+- receipt exists
+- receipt status is successful
+- sufficient block depth
+
+The confirmation layer must additionally verify, where applicable:
+
+- Correct BSC chain/network.
+- Correct USDT contract.
+- Correct sender/hot-wallet address.
+- Correct recipient withdrawal address.
+- Correct token transfer event.
+- Correct token amount.
+- Correct transaction hash.
+- Correct transaction receipt.
+- Required confirmation depth.
+
+For ERC-20 style transfers, inspect the actual Transfer event/log data rather than trusting only transaction success.
+
+The verification should be resistant to accidentally treating an unrelated successful transaction as the user's completed withdrawal.
+
+If multiple Transfer events exist, select and validate the event corresponding to the intended hot-wallet sender, recipient, token contract, and exact amount.
+
+Add tests for:
+
+- correct transfer
+- wrong token contract
+- wrong sender
+- wrong recipient
+- wrong amount
+- unrelated successful transaction
+- reverted transaction
+- missing receipt
+- insufficient confirmations
+- malformed/missing Transfer event
+
+No real blockchain transaction may be generated or broadcast during this work.
+
+==================================================
+5. AMBIGUOUS BROADCAST FAILURE HANDLING
+==================================================
+
+This is a critical financial-integrity issue.
+
+Current risk:
+
+A node may accept a raw transaction, but the client may receive a timeout/network error.
+
+The application must NOT automatically assume:
+
+"broadcast failed → refund user"
+
+when the blockchain outcome is actually unknown.
+
+Implement an explicit ambiguous-broadcast state/path.
+
+For example:
+
+BROADCASTING
+→ BROADCAST_UNKNOWN / equivalent safe state
+→ reconciliation
+→ determine whether transaction was accepted
+→ only then finalize success or failure/refund
+
+Requirements:
+
+- Never refund solely because the RPC request timed out.
+- Attempt deterministic reconciliation using transaction hash/raw transaction information where possible.
+- If outcome remains uncertain, place the withdrawal into a safe manual-review/reconciliation state rather than refunding automatically.
+- Ensure idempotent reconciliation.
+- Never create duplicate wallet credits.
+- Never release the user's locked balance twice.
+
+Do not invent an unsafe "retry until it works" mechanism.
+
+==================================================
+6. RECOVERY ACCOUNTING
+==================================================
+
+Fix startup recovery.
+
+The audit identified that recovery may mark a withdrawal COMPLETED without performing all required financial side effects.
+
+Completion must atomically and idempotently ensure:
+
+- Withdrawal status becomes COMPLETED.
+- lockedWithdrawalBalance is correctly released.
+- Available/user balance is correctly reflected according to the existing accounting model.
+- Successful wallet ledger transaction is created exactly once.
+- Admin/audit records remain consistent with the existing architecture.
+- Re-running recovery cannot duplicate any financial side effect.
+
+Use existing accounting conventions. Do not redesign the financial model unnecessarily.
+
+Add tests proving recovery is idempotent.
+
+==================================================
+7. STUCK PROCESSING RECOVERY
+==================================================
+
+Current recovery scans SIGNED, BROADCASTING and CONFIRMING but does not properly recover PROCESSING records.
+
+Implement a safe recovery mechanism for stale PROCESSING withdrawals.
+
+Requirements:
+
+- Define a clear stale-processing threshold.
+- Do not immediately fail a recently processing withdrawal.
+- Determine whether the worker is still active when possible.
+- Recover abandoned claims safely.
+- Prevent two workers from recovering the same withdrawal.
+- Preserve locked-balance integrity.
+- Never automatically refund a withdrawal if there is evidence that a blockchain transaction may already have been submitted.
+- Route ambiguous cases into reconciliation/manual review.
+
+Existing PROCESSING records must NOT be modified in production during this phase.
+
+Add tests for stale and non-stale PROCESSING records.
+
+==================================================
+8. CONFIRMATION CONFIGURATION
+==================================================
+
+There are currently two different configuration variables:
+
+- BSC_REQUIRED_CONFIRMATIONS
+- BSC_CONFIRMATIONS_REQUIRED
+
+This is dangerous.
+
+Unify the withdrawal confirmation configuration into ONE authoritative configuration value.
+
+Do not silently choose a value without documenting the decision.
+
+The code must have:
+
+- one source of truth
+- one environment variable
+- one default
+- one validation path
+- all withdrawal confirmation/recovery logic using the same setting
+
+For this phase, DO NOT change production environment variables.
+
+Document the chosen configuration name and intended confirmation depth.
+
+Make sure tests explicitly verify the value used by:
+
+- confirmation polling
+- startup recovery
+- withdrawal completion
+
+==================================================
+9. HOT-WALLET ADDRESS / PRIVATE-KEY SAFETY
+==================================================
+
+Do not request or inspect the real production private key.
+
+Improve the code so that when live signing is eventually configured, the system can verify that:
+
+derived address from configured private key
+==
+configured HOT_WALLET_ADDRESS
+
+Requirements:
+
+- Address comparison must be normalized safely.
+- Mismatch must fail startup/configuration validation.
+- Do not log the private key.
+- Do not log derived private-key material.
+- Do not expose secrets through API responses.
+- Do not perform this check against production credentials during this phase.
+
+If a test key is needed, generate/use a clearly non-production fixture only.
+
+==================================================
+10. WITHDRAWAL STATE MACHINE INTEGRITY
+==================================================
+
+Review all withdrawal state transitions.
+
+Create an explicit state-transition matrix.
+
+For every transition identify:
+
+- source state
+- destination state
+- allowed actor/process
+- required conditions
+- financial side effects
+- whether the transition is idempotent
+- what happens after worker crash
+- what happens after RPC timeout
+
+Prevent illegal transitions.
+
+Use conditional database updates/transactions where appropriate.
+
+Do not redesign unrelated withdrawal functionality.
+
+==================================================
+11. IDEMPOTENCY / DUPLICATE PROCESSING
+==================================================
+
+Ensure that:
+
+- The same withdrawal cannot be completed twice.
+- The same withdrawal cannot be failed/refunded twice.
+- The same blockchain transaction cannot produce two successful wallet ledger entries.
+- Recovery and normal processing cannot race into duplicate financial side effects.
+- Database uniqueness constraints are used where appropriate.
+
+Review existing transaction-hash uniqueness and strengthen it where required.
+
+==================================================
+12. TEST SUITE
+==================================================
+
+Create a dedicated automatic-withdrawal test suite.
+
+At minimum include:
+
+A. Amount conversion
+B. Queue claiming
+C. Concurrent workers
+D. Distributed ownership/lease behavior
+E. Nonce coordination
+F. State transitions
+G. Broadcast success
+H. Broadcast timeout/ambiguous result
+I. Transaction reconciliation
+J. Transfer event verification
+K. Wrong recipient
+L. Wrong amount
+M. Wrong token contract
+N. Wrong sender
+O. Confirmation depth
+P. Recovery
+Q. Recovery idempotency
+R. PROCESSING recovery
+S. Duplicate completion
+T. Duplicate refund
+U. Hot-wallet address/key mismatch
+V. Dry-run safety
+
+Use mocks/fixtures for blockchain interaction.
+
+NO test should broadcast a real production transaction.
+
+Where concurrency is tested, actually exercise concurrent execution paths rather than merely calling the same function twice sequentially.
+
+==================================================
+13. DRY-RUN SAFETY
+==================================================
+
+Preserve the current production safety posture.
+
+BLOCKCHAIN_DRY_RUN=true must continue to prevent:
+
+- real signing
+- real broadcast
+- real fund movement
+
+Do not weaken the hot-wallet guard.
+
+Do not introduce a new bypass.
+
+If dry-run currently causes PROCESSING records to remain stuck, fix that behavior in a way that makes dry-run deterministic and safe without modifying existing production records.
+
+==================================================
+14. OBSERVABILITY
+==================================================
+
+Improve structured logging around withdrawal processing without exposing secrets.
+
+Useful events include:
+
+- withdrawal claimed
+- claim expired
+- transaction prepared
+- broadcast attempted
+- broadcast unknown
+- reconciliation started
+- reconciliation result
+- confirmation started
+- confirmation verified
+- recovery started
+- recovery completed
+- manual review required
+
+Never log:
+
+- private keys
+- raw secrets
+- authorization tokens
+- sensitive credentials
+
+Include safe identifiers such as withdrawal ID and transaction hash where appropriate.
+
+==================================================
+15. PRODUCTION SAFETY CHECK
+==================================================
+
+Before finishing:
+
+Verify explicitly that this work did NOT:
+
+- modify production DB data
+- apply a production migration
+- modify production environment variables
+- configure a production hot wallet
+- configure a production private key
+- disable dry-run
+- broadcast a blockchain transaction
+- modify user balances
+- modify withdrawal records
+- change withdrawal permissions
+- alter deposit functionality
+- alter company wallet functionality
+- alter QR functionality
+- alter Power Business functionality
+- alter staff permissions
+
+If any such action was required, STOP and report it instead of performing it.
+
+==================================================
+16. VERIFICATION REQUIRED
+==================================================
+
+Run:
+
+- Dedicated withdrawal test suite
+- Full API test suite
+- API typecheck
+- API production build
+- Frontend typecheck
+- Frontend production build
+- git diff --check
+
+Also perform static inspection of:
+
+- withdrawal processor
+- BSC gateway
+- confirmation poller
+- startup recovery
+- nonce management
+- withdrawal state transitions
+- wallet accounting
+- relevant Prisma schema/migrations
+
+Report exact results.
+
+==================================================
+17. DATABASE MIGRATIONS
+==================================================
+
+If schema changes are required:
+
+- Generate the migration.
+- Validate it locally/development only.
+- DO NOT apply it to production.
+- Clearly list every schema change.
+- Confirm whether the migration is additive/destructive.
+- Do not run destructive migrations.
+
+==================================================
+18. FINAL REPORT FORMAT
+==================================================
+
+When finished, provide a detailed report with:
+
+1. Executive summary
+2. Files changed
+3. Distributed queue design
+4. Nonce coordination design
+5. Exact amount conversion implementation
+6. On-chain transfer verification
+7. Ambiguous broadcast handling
+8. Recovery/accounting changes
+9. PROCESSING recovery
+10. Confirmation configuration unification
+11. Hot-wallet key/address validation
+12. State-machine changes
+13. Idempotency protections
+14. Tests added
+15. Test results
+16. Build/typecheck results
+17. Database migration details, if any
+18. Production safety verification
+19. Remaining risks
+20. Explicit statement:
+
+"Automatic withdrawals remain DISABLED and no real blockchain transaction was signed or broadcast."
+
+IMPORTANT FINAL RULE:
+
+Do not enable automatic withdrawals after completing Phase 1.
+
+Do not configure the hot wallet.
+
+Do not configure the private key.
+
+Do not disable BLOCKCHAIN_DRY_RUN.
+
+Do not publish/deploy.
+
+Stop after the code-hardening and verification phase and wait for explicit approval for Phase 2.
