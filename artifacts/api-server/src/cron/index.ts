@@ -55,7 +55,7 @@ export function startScheduler(): void {
 
   // ── Withdrawal confirmation poller ─────────────────────────────────────────
   // Polls every 30 seconds for CONFIRMING withdrawals and advances them to
-  // COMPLETED once BSC_CONFIRMATIONS_REQUIRED is met.
+  // COMPLETED once BSC_REQUIRED_CONFIRMATIONS is met.
   startWithdrawalConfirmationPoller();
 
 }

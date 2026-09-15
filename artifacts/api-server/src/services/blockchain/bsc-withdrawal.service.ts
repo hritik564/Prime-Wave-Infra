@@ -29,13 +29,19 @@ import type {
   ChainTransaction,
   FeeEstimate,
   PreparedTransfer,
+  TokenTransfer,
+  TransferExpectation,
+  TransferVerification,
 } from "./blockchain.types";
-import { getNonceLock } from "./nonce-manager";
+import { withDistributedNonceLock } from "./nonce-manager";
+import { parseTokenAmount } from "./token-amount";
 
 // ── ABI helpers ───────────────────────────────────────────────────────────────
 
 /** ERC-20 transfer(address,uint256) selector */
 const TRANSFER_SELECTOR = "0xa9059cbb";
+const TRANSFER_TOPIC =
+  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a3c9c6f9e5";
 
 /** ERC-20 balanceOf(address) selector */
 const BALANCE_OF_SELECTOR = "0x70a08231";
@@ -73,8 +79,6 @@ function hexToBigInt(hex: string | null | undefined): bigint {
   return BigInt(hex);
 }
 
-/** USDT on BSC has 18 decimals (BSC USDT is not USDT-TRC20 which has 6) */
-const USDT_DECIMALS = 18;
 /** BNB has 18 decimals */
 const BNB_DECIMALS  = 18;
 /** Gwei = 1e9 wei */
@@ -97,6 +101,7 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
 
   private readonly rpc:          BscRpcClient;
   private readonly usdtContract: string;
+  private readonly usdtDecimals: number;
   private readonly chainId:      number;
   private readonly hotWallet:    string | null;
   private readonly privateKey:   `0x${string}` | null;
@@ -104,9 +109,14 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
   constructor(config: BscConfig, hotWalletAddress: string | null, dryRun: boolean, privateKey: string | null) {
     this.rpc          = new BscRpcClient(config);
     this.usdtContract = config.usdtContractAddress;
+    this.usdtDecimals = config.usdtDecimals;
     this.chainId      = config.chainId;
     this.hotWallet    = hotWalletAddress?.trim() || null;
     this.isDryRun     = dryRun;
+
+    if (this.hotWallet && !isValidEthAddress(this.hotWallet)) {
+      throw new Error("HOT_WALLET_ADDRESS must be a valid non-zero 20-byte address");
+    }
 
     // Validate private key format if provided
     if (privateKey) {
@@ -115,6 +125,12 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
         throw new Error("HOT_WALLET_PRIVATE_KEY must be a 32-byte hex string (64 hex chars)");
       }
       this.privateKey = pk as `0x${string}`;
+      if (this.hotWallet) {
+        const account = privateKeyToAccount(this.privateKey);
+        if (account.address.toLowerCase() !== this.hotWallet.toLowerCase()) {
+          throw new Error("HOT_WALLET_PRIVATE_KEY does not correspond to HOT_WALLET_ADDRESS");
+        }
+      }
     } else {
       this.privateKey = null;
     }
@@ -155,7 +171,7 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
     ]);
     const wei       = hexToBigInt(hex);
     const ms        = Date.now() - start;
-    const formatted = weiToDecimal(wei, USDT_DECIMALS);
+    const formatted = weiToDecimal(wei, this.usdtDecimals);
     logger.debug({ address, formatted, ms }, "blockchain.bsc: getTokenBalance");
     return { raw: hex ?? "0x0", formatted, symbol: "USDT" };
   }
@@ -170,8 +186,7 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
     }
     const from = this.hotWallet ?? "0x0000000000000000000000000000000000000001";
 
-    const amtDecimal = parseFloat(usdtAmount);
-    const amtWei     = BigInt(Math.round(amtDecimal * 1e9)) * 10n ** 9n;
+    const amtWei     = parseTokenAmount(usdtAmount, this.usdtDecimals);
     const calldata   = encodeTransfer(to, amtWei);
 
     const [gasHex, gasPriceHex] = await Promise.all([
@@ -216,8 +231,7 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
     }
 
     const from       = this.hotWallet;
-    const amtDecimal = parseFloat(usdtAmount);
-    const amtWei     = BigInt(Math.round(amtDecimal * 1e9)) * 10n ** 9n;
+    const amtWei     = parseTokenAmount(usdtAmount, this.usdtDecimals);
     const calldata   = encodeTransfer(to, amtWei);
 
     const [gasHex, gasPriceHex, nonceHex] = await Promise.all([
@@ -279,20 +293,20 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
       );
     }
 
-    const lock = getNonceLock(this.hotWallet);
-
-    return lock.withLock(async () => {
+    return withDistributedNonceLock(this.hotWallet, async () => {
       // ── 1. Fetch live gas price and nonce (inside the lock) ──────────────────
       const [gasPriceHex, nonceHex] = await Promise.all([
         this.rpc.call<string>("eth_gasPrice", []).catch(() => null as string | null),
         this.rpc.call<string>("eth_getTransactionCount", [this.hotWallet!, "pending"]),
       ]);
 
-      const gasPriceWei  = hexToBigInt(gasPriceHex ?? null);
+      if (!gasPriceHex) {
+        throw new GatewayBroadcastError("Unable to obtain a gas price; broadcast was not attempted");
+      }
+      const gasPriceWei  = hexToBigInt(gasPriceHex);
       const nonce        = Number(hexToBigInt(nonceHex));
       const gasLimit     = BigInt(prepared.estimatedGas);
-      const amtDecimal   = parseFloat(prepared.amount);
-      const amtWei       = BigInt(Math.round(amtDecimal * 1e9)) * 10n ** 9n;
+       const amtWei       = parseTokenAmount(prepared.amount, this.usdtDecimals);
       const gasPriceGwei = (Number(gasPriceWei) / 1e9).toFixed(4);
 
       logger.info(
@@ -377,14 +391,18 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
   // ── getTransaction ──────────────────────────────────────────────────────────
 
   async getTransaction(txHash: string): Promise<ChainTransaction | null> {
-    const [tx, receipt, blockHex] = await Promise.all([
+    const [tx, receipt, blockHex, chainHex] = await Promise.all([
       this.rpc.call<{
         blockNumber: string | null;
         from: string;
         to: string | null;
       } | null>("eth_getTransactionByHash", [txHash]),
-      this.rpc.call<{ status: string } | null>("eth_getTransactionReceipt", [txHash]),
+      this.rpc.call<{
+        status: string;
+        logs?: Array<{ address: string; topics: string[]; data: string }>;
+      } | null>("eth_getTransactionReceipt", [txHash]),
       this.rpc.call<string>("eth_blockNumber", []),
+      this.rpc.call<string>("eth_chainId", []),
     ]);
 
     if (!tx) return null;
@@ -398,14 +416,68 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
       status = receipt.status === "0x1" ? "success" : "failed";
     }
 
+    const tokenTransfers: TokenTransfer[] = [];
+    for (const log of receipt?.logs ?? []) {
+      if (
+        log.address.toLowerCase() !== this.usdtContract.toLowerCase() ||
+        log.topics[0]?.toLowerCase() !== TRANSFER_TOPIC ||
+        log.topics.length < 3
+      ) continue;
+
+      tokenTransfers.push({
+        tokenContract: log.address,
+        from: `0x${log.topics[1].slice(-40)}`,
+        to: `0x${log.topics[2].slice(-40)}`,
+        amountRaw: hexToBigInt(log.data).toString(),
+      });
+    }
+
     return {
       txHash,
       blockNumber: txBlock,
       from:        tx.from,
       to:          tx.to ?? "",
+      chainId:     Number(hexToBigInt(chainHex)),
       status,
       confirmations,
+      tokenTransfers,
     };
+  }
+
+  verifyTransfer(
+    transaction: ChainTransaction,
+    expected: TransferExpectation,
+  ): TransferVerification {
+    if (transaction.chainId !== this.chainId) {
+      return { valid: false, reason: `Unexpected chain ID ${transaction.chainId}` };
+    }
+    if (expected.tokenContract.toLowerCase() !== this.usdtContract.toLowerCase()) {
+      return { valid: false, reason: "Unexpected token contract" };
+    }
+    if (transaction.from.toLowerCase() !== expected.sender.toLowerCase()) {
+      return { valid: false, reason: "Transaction sender does not match the hot wallet" };
+    }
+    if (transaction.to.toLowerCase() !== this.usdtContract.toLowerCase()) {
+      return { valid: false, reason: "Transaction target is not the configured token contract" };
+    }
+
+    let expectedAmount: bigint;
+    try {
+      expectedAmount = parseTokenAmount(expected.amount, this.usdtDecimals);
+    } catch (err) {
+      return { valid: false, reason: err instanceof Error ? err.message : String(err) };
+    }
+
+    const transfer = transaction.tokenTransfers.find((candidate) =>
+      candidate.tokenContract.toLowerCase() === this.usdtContract.toLowerCase() &&
+      candidate.from.toLowerCase() === expected.sender.toLowerCase() &&
+      candidate.to.toLowerCase() === expected.recipient.toLowerCase() &&
+      candidate.amountRaw === expectedAmount.toString(),
+    );
+
+    return transfer
+      ? { valid: true, transfer }
+      : { valid: false, reason: "No matching USDT Transfer event found" };
   }
 
   // ── waitForConfirmations ────────────────────────────────────────────────────

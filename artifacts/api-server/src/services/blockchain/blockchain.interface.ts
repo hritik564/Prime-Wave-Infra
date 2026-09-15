@@ -13,6 +13,8 @@ import type {
   BlockchainHealthSnapshot,
   BroadcastResult,
   ChainTransaction,
+  TransferExpectation,
+  TransferVerification,
   AddressValidation,
   FeeEstimate,
   PreparedTransfer,
@@ -108,6 +110,15 @@ export interface IWithdrawalGateway {
    * Fetch on-chain transaction status by hash.
    */
   getTransaction(txHash: string): Promise<ChainTransaction | null>;
+
+  /**
+   * Validate the intended token transfer against receipt logs and network
+   * metadata. A successful receipt alone is never sufficient.
+   */
+  verifyTransfer(
+    transaction: ChainTransaction,
+    expected: TransferExpectation,
+  ): TransferVerification;
 
   /**
    * Poll until the transaction reaches the required confirmation depth,

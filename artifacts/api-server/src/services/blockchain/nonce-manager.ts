@@ -1,3 +1,5 @@
+import { prisma } from "../../config/prisma";
+
 // ── NonceLock — in-process nonce serializer ────────────────────────────────────
 //
 // Ensures that concurrent calls to signAndBroadcast() are serialized, so two
@@ -58,4 +60,21 @@ export function getNonceLock(walletAddress: string): NonceLock {
     _locks.set(key, lock);
   }
   return lock;
+}
+
+/**
+ * Hold a PostgreSQL transaction-scoped advisory lock while allocating a nonce,
+ * signing, and broadcasting. Unlike the in-process mutex above, this lock is
+ * shared by every API instance connected to the same database.
+ */
+export async function withDistributedNonceLock<T>(
+  walletAddress: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT pg_advisory_xact_lock(hashtextextended(${walletAddress.toLowerCase()}, 0))
+    `;
+    return fn();
+  }, { maxWait: 10_000, timeout: 120_000 });
 }

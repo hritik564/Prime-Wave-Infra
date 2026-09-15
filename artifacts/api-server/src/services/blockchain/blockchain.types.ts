@@ -74,9 +74,31 @@ export interface ChainTransaction {
   blockNumber:  number | null;
   from:         string;
   to:           string;
+  chainId:      number;
   status:       "success" | "failed" | "pending";
   confirmations: number;
+  tokenTransfers: TokenTransfer[];
   gasUsed?:     string;
+}
+
+export interface TokenTransfer {
+  tokenContract: string;
+  from:          string;
+  to:            string;
+  amountRaw:     string;
+}
+
+export interface TransferExpectation {
+  tokenContract: string;
+  sender:        string;
+  recipient:     string;
+  amount:        string;
+}
+
+export interface TransferVerification {
+  valid:   boolean;
+  reason?: string;
+  transfer?: TokenTransfer;
 }
 
 /** Gateway health snapshot. */

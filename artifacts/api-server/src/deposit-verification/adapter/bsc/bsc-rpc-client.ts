@@ -96,8 +96,9 @@ export class BscRpcClient {
     for (let pi = 0; pi < rpcProviders.length; pi++) {
       const provider = rpcProviders[pi];
       let attempt    = 0;
+      const maxAttempts = method === "eth_sendRawTransaction" ? 1 : rpcMaxRetries;
 
-      while (attempt < rpcMaxRetries) {
+      while (attempt < maxAttempts) {
         attempt++;
         try {
           const result = await this.callProvider<T>(provider, method, params);
@@ -119,23 +120,33 @@ export class BscRpcClient {
             // The node responded with a JSON-RPC error — fail over immediately,
             // retrying the same node won't help.
             logger.warn(
-              { method, provider, code: (err as RpcResponseError).code, msg: err.message },
+              { method, providerIndex: pi, code: (err as RpcResponseError).code, msg: err.message },
               "BSC RPC: JSON-RPC error — failing over to next provider",
             );
             break; // exit inner retry loop → try next provider
           }
 
+          // A raw broadcast is deliberately never retried or failed over after
+          // a network error: the node may have accepted it before the timeout.
+          if (method === "eth_sendRawTransaction") {
+            logger.warn(
+              { method, providerIndex: pi, err: lastError.message },
+              "BSC RPC: broadcast outcome unknown — no retry attempted",
+            );
+            throw lastError;
+          }
+
           // Network-level error — retry same provider with backoff
-          if (attempt < rpcMaxRetries) {
+          if (attempt < maxAttempts) {
             const backoffMs = 500 * Math.pow(2, attempt - 1);
             logger.warn(
-              { method, provider, attempt, backoffMs, err: lastError.message },
+              { method, providerIndex: pi, attempt, backoffMs, err: lastError.message },
               "BSC RPC: network error — retrying",
             );
             await sleep(backoffMs);
           } else {
             logger.warn(
-              { method, provider, attempts: attempt, err: lastError.message },
+              { method, providerIndex: pi, attempts: attempt, err: lastError.message },
               "BSC RPC: provider exhausted — failing over",
             );
           }

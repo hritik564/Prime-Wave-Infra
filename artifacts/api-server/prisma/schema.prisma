@@ -62,6 +62,7 @@ enum WithdrawalStatus {
   PROCESSING
   SIGNED
   BROADCASTING
+  BROADCAST_UNKNOWN
   CONFIRMING
   MANUAL_REVIEW
   UNDER_REVIEW
@@ -315,12 +316,14 @@ model WalletTransaction {
   // for a given deposit. PostgreSQL rejects any duplicate insert immediately,
   // even if application-level guards somehow fail simultaneously.
   sourceDepositId String?           @unique @map("source_deposit_id")
+  withdrawalRequestId String?       @unique @map("withdrawal_request_id")
   metadata        Json?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
   user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  withdrawal WithdrawalRequest? @relation(fields: [withdrawalRequestId], references: [id], onDelete: SetNull)
 
   @@index([walletId])
   @@index([userId])
@@ -988,10 +991,15 @@ model WithdrawalRequest {
   walletAddressSnapshot   String
   network                 WithdrawalNetwork
   status                  WithdrawalStatus  @default(PENDING)
+  claimOwner              String?
+  claimToken              String?           @unique
+  claimExpiresAt          DateTime?
   approvedByAdminId       String?
   completedByAdminId      String?
   txHash                  String?           @unique
   failureReason           String?
+  broadcastUnknownAt      DateTime?
+  broadcastUnknownReason  String?
   rejectedReason          String?
   adminNotes              String?
   preparedTxData          Json?
@@ -1012,11 +1020,14 @@ model WithdrawalRequest {
   approver  Admin? @relation("WithdrawalApprover",  fields: [approvedByAdminId],  references: [id], onDelete: SetNull)
   completer Admin? @relation("WithdrawalCompleter", fields: [completedByAdminId], references: [id], onDelete: SetNull)
   events    WithdrawalEvent[]
+  walletTransactions WalletTransaction[]
 
   @@index([userId])
   @@index([status])
   @@index([network])
   @@index([createdAt])
+  @@index([status, claimExpiresAt])
+  @@index([claimOwner, claimExpiresAt])
   @@map("withdrawal_requests")
 }
 

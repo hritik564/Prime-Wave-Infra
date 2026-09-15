@@ -11,6 +11,7 @@ export type WithdrawalEventType =
   | "PROCESSING"
   | "SIGNED"
   | "BROADCAST"
+  | "BROADCAST_UNKNOWN"
   | "CONFIRMING"
   | "CONFIRMATION_POLL"
   | "CONFIRMED"

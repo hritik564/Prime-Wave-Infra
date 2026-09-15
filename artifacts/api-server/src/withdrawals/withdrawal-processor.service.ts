@@ -1,6 +1,5 @@
 import { prisma } from "../config/prisma";
 import { logger } from "../lib/logger";
-import { enqueue, lockForProcessing } from "./withdrawal-queue.service";
 import { getWithdrawalSettings } from "./withdrawals.service";
 import { getWithdrawalGateway, isGatewayConfigured } from "../services/blockchain/blockchain.factory";
 import { GatewaySigningError, GatewayBroadcastError } from "../services/blockchain/blockchain.interface";
@@ -10,6 +9,15 @@ import { moveToManualReview } from "./withdrawal-confirmation.service";
 import { isWithdrawalEngineEnabled } from "./withdrawal-engine.service";
 import { checkHotWalletStatus } from "./withdrawal-hot-wallet.service";
 import { buildExplorerUrl } from "./withdrawal-hot-wallet.service";
+import {
+  claimPendingWithdrawals,
+  releaseClaimAfterUnexpectedError,
+  releaseDryRunClaim,
+  recoverExpiredClaims,
+  renewWithdrawalClaim,
+  transitionClaimedWithdrawal,
+  WITHDRAWAL_WORKER_ID,
+} from "./withdrawal-claims.service";
 
 /**
  * Withdrawal Processor Service — Sprint 31E
@@ -59,24 +67,8 @@ export async function processPendingWithdrawals(): Promise<ProcessResult> {
   // ── 3. Hold period filter ────────────────────────────────────────────────────
   const holdMinutes = parseInt(process.env["WITHDRAWAL_HOLD_MINUTES"] ?? "2", 10);
   const holdCutoff  = new Date(Date.now() - holdMinutes * 60 * 1_000);
-
-  const pending = await prisma.withdrawalRequest.findMany({
-    where:   {
-      status:      "PENDING",
-      requestedAt: { lte: holdCutoff }, // Only pick up requests past the hold window
-    },
-    orderBy: { requestedAt: "asc" },
-    select: {
-      id:                    true,
-      withdrawalId:          true,
-      idempotencyKey:        true,
-      userId:                true,
-      amount:                true,
-      network:               true,
-      walletAddressSnapshot: true,
-      requestedAt:           true,
-    },
-  });
+  await recoverExpiredClaims();
+  const pending = await claimPendingWithdrawals(holdCutoff, 20);
 
   const waitingCount = await prisma.withdrawalRequest.count({
     where: { status: "PENDING", requestedAt: { gt: holdCutoff } },
@@ -89,13 +81,14 @@ export async function processPendingWithdrawals(): Promise<ProcessResult> {
 
   for (const wr of pending) {
     try {
-      await runSingleWithdrawal(wr as typeof wr & { idempotencyKey: string });
+      await runSingleWithdrawal(wr);
       result.processed++;
     } catch (err) {
       result.failed++;
       const msg = err instanceof Error ? err.message : String(err);
       result.errors.push(`${wr.withdrawalId ?? wr.id}: ${msg}`);
       logger.error({ withdrawalId: wr.id, err }, "withdrawal.processor: error processing withdrawal");
+      await releaseClaimAfterUnexpectedError(wr.id, wr.claimToken);
     }
   }
 
@@ -112,12 +105,11 @@ async function runSingleWithdrawal(wr: {
   walletAddressSnapshot: string;
   idempotencyKey:        string;
   requestedAt:           Date;
+  claimToken:            string;
 }): Promise<void> {
-  const { id, withdrawalId: wId, idempotencyKey } = wr;
-  const logCtx = { withdrawalId: wId ?? id, idempotencyKey };
+  const { id, withdrawalId: wId, idempotencyKey, claimToken } = wr;
+  const logCtx = { withdrawalId: wId ?? id, idempotencyKey, workerId: WITHDRAWAL_WORKER_ID };
 
-  // ── PENDING → VALIDATING ─────────────────────────────────────────────────────
-  await prisma.withdrawalRequest.update({ where: { id }, data: { status: "VALIDATING" } });
   await logWithdrawalEvent(id, "VALIDATED");
   logger.info({ ...logCtx, status: "VALIDATING" }, "withdrawal.processor: validating");
 
@@ -126,29 +118,38 @@ async function runSingleWithdrawal(wr: {
 
   if (validation) {
     if (validation.action === "manual_review") {
-      await moveToManualReview(id, validation.reason);
+      await transitionClaimedWithdrawal(id, claimToken, ["VALIDATING"], "MANUAL_REVIEW", {
+        failureReason: validation.reason,
+      });
+      await logWithdrawalEvent(id, "MANUAL_REVIEW", { reason: validation.reason });
       logger.warn({ ...logCtx, reason: validation.reason }, "withdrawal.processor: risk limit → MANUAL_REVIEW");
     } else {
-      await failWithdrawal(id, wr.userId, wr.amount as import("@prisma/client").Prisma.Decimal, validation.reason);
+      await failWithdrawal(id, wr.userId, wr.amount as import("@prisma/client").Prisma.Decimal, validation.reason, claimToken);
       logger.warn({ ...logCtx, reason: validation.reason }, "withdrawal.processor: failed validation");
     }
     return;
   }
 
   // ── VALIDATING → QUEUED ──────────────────────────────────────────────────────
-  await enqueue(id);
+  if (!await transitionClaimedWithdrawal(id, claimToken, ["VALIDATING"], "QUEUED")) {
+    throw new Error("Withdrawal claim lost before QUEUED transition");
+  }
   await logWithdrawalEvent(id, "QUEUED");
 
   // ── QUEUED → PROCESSING ──────────────────────────────────────────────────────
-  await lockForProcessing(id);
+  if (!await transitionClaimedWithdrawal(id, claimToken, ["QUEUED"], "PROCESSING", {
+    processedAt: new Date(),
+  })) {
+    throw new Error("Withdrawal claim lost before PROCESSING transition");
+  }
   await logWithdrawalEvent(id, "PROCESSING");
   logger.info({ ...logCtx, status: "PROCESSING" }, "withdrawal.processor: reached PROCESSING");
 
   // ── Prepare transaction ──────────────────────────────────────────────────────
-  const prepared = await prepareBlockchainTransfer(id, wr, logCtx);
+  const prepared = await prepareBlockchainTransfer(id, wr, logCtx, claimToken);
 
   // ── Sign + broadcast ─────────────────────────────────────────────────────────
-  await signAndBroadcastWithdrawal(id, wr, prepared, logCtx);
+  await signAndBroadcastWithdrawal(id, wr, prepared, logCtx, claimToken);
 }
 
 // ── validateWithdrawal ────────────────────────────────────────────────────────
@@ -287,13 +288,26 @@ async function failWithdrawal(
   userId:        string,
   amount:        import("@prisma/client").Prisma.Decimal,
   failureReason: string,
+  claimToken:    string,
 ): Promise<void> {
   const { Prisma } = await import("@prisma/client");
   await prisma.$transaction(async (tx) => {
-    await tx.withdrawalRequest.update({
-      where: { id },
-      data:  { status: "FAILED", failureReason },
+    const changed = await tx.withdrawalRequest.updateMany({
+      where: {
+        id,
+        claimOwner: WITHDRAWAL_WORKER_ID,
+        claimToken,
+        status: { in: ["VALIDATING", "QUEUED", "PROCESSING", "SIGNED"] },
+      },
+      data: {
+        status: "FAILED",
+        failureReason,
+        claimOwner: null,
+        claimToken: null,
+        claimExpiresAt: null,
+      },
     });
+    if (changed.count !== 1) return;
 
     // Guard: only release what is actually locked to prevent the locked balance
     // from going further negative (can happen if a previous bug already drove it
@@ -329,6 +343,7 @@ async function prepareBlockchainTransfer(
   id:     string,
   wr:     { walletAddressSnapshot: string; amount: object; network: "BEP20"; withdrawalId: string | null; idempotencyKey: string },
   logCtx: object,
+  claimToken: string,
 ): Promise<PreparedTransfer | null> {
   if (!isGatewayConfigured(wr.network)) {
     logger.warn({ ...logCtx }, "withdrawal.processor: blockchain gateway not configured — skipping prepareTransfer");
@@ -380,30 +395,26 @@ async function signAndBroadcastWithdrawal(
   wr:      { walletAddressSnapshot: string; amount: object; network: "BEP20"; withdrawalId: string | null; idempotencyKey: string; userId: string },
   prepared: PreparedTransfer | null,
   logCtx:  object,
+  claimToken: string,
 ): Promise<void> {
   const amount = wr.amount as import("@prisma/client").Prisma.Decimal;
 
   if (!isGatewayConfigured(wr.network)) {
-    logger.info({ ...logCtx }, "withdrawal.processor: gateway not configured — leaving as PROCESSING");
+    await releaseDryRunClaim(id, claimToken, "Blockchain gateway is not configured");
     return;
   }
 
   const gw = getWithdrawalGateway(wr.network);
 
   if (gw.isDryRun) {
-    logger.info({ ...logCtx }, "withdrawal.processor: dry-run mode — skipping sign+broadcast");
+    await releaseDryRunClaim(id, claimToken, "Blockchain dry-run mode is enabled; no live transaction was attempted");
     return;
   }
 
-  // ── Concurrency guard: SELECT FOR UPDATE ─────────────────────────────────────
-  const locked = await prisma.$queryRaw<Array<{ id: string; status: string }>>`
-    SELECT id, status FROM withdrawal_requests WHERE id = ${id} FOR UPDATE
-  `;
-
-  if (!locked[0] || locked[0].status !== "PROCESSING") {
+  if (!await renewWithdrawalClaim(id, claimToken)) {
     logger.warn(
-      { ...logCtx, currentStatus: locked[0]?.status },
-      "withdrawal.processor: concurrency guard — withdrawal no longer PROCESSING, skipping",
+      { ...logCtx },
+      "withdrawal.processor: claim lost before signing — skipping",
     );
     return;
   }
@@ -434,7 +445,7 @@ async function signAndBroadcastWithdrawal(
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.error({ ...logCtx, err }, "withdrawal.processor: fresh prepareTransfer failed");
-        await failWithdrawal(id, wr.userId, amount, `Transaction preparation failed: ${msg}`);
+        await failWithdrawal(id, wr.userId, amount, `Transaction preparation failed: ${msg}`, claimToken);
         return;
       }
     }
@@ -448,18 +459,16 @@ async function signAndBroadcastWithdrawal(
   let broadcastAt: Date;
   let nonce:       number;
 
-  await prisma.withdrawalRequest.update({
-    where: { id },
-    data:  { status: "SIGNED", signedAt: new Date() },
-  });
+  if (!await transitionClaimedWithdrawal(id, claimToken, ["PROCESSING"], "SIGNED", { signedAt: new Date() })) {
+    throw new Error("Withdrawal claim lost before SIGNED transition");
+  }
   await logWithdrawalEvent(id, "SIGNED");
   logger.info({ ...logCtx, status: "SIGNED" }, "withdrawal.processor: signing started");
 
   try {
-    await prisma.withdrawalRequest.update({
-      where: { id },
-      data:  { status: "BROADCASTING" },
-    });
+    if (!await transitionClaimedWithdrawal(id, claimToken, ["SIGNED"], "BROADCASTING")) {
+      throw new Error("Withdrawal claim lost before BROADCASTING transition");
+    }
     await logWithdrawalEvent(id, "BROADCAST");
     logger.info({ ...logCtx, status: "BROADCASTING" }, "withdrawal.processor: broadcasting");
 
@@ -473,12 +482,19 @@ async function signAndBroadcastWithdrawal(
     const isBroadcastErr = err instanceof GatewayBroadcastError;
     const msg            = err instanceof Error ? err.message : String(err);
 
-    logger.error(
-      { ...logCtx, err: msg, isSignErr, isBroadcastErr },
-      "withdrawal.processor: sign/broadcast failed — marking FAILED and refunding",
-    );
+    logger.error({ ...logCtx, err: msg, isSignErr, isBroadcastErr },
+      "withdrawal.processor: sign/broadcast failed");
 
-    await failWithdrawal(id, wr.userId, amount, msg);
+    if (isBroadcastErr) {
+      await transitionClaimedWithdrawal(id, claimToken, ["BROADCASTING"], "BROADCAST_UNKNOWN", {
+        broadcastUnknownAt: new Date(),
+        broadcastUnknownReason: msg,
+        failureReason: "Broadcast outcome is unknown; no automatic refund was issued.",
+      });
+      await logWithdrawalEvent(id, "BROADCAST_UNKNOWN", { reason: msg });
+    } else {
+      await failWithdrawal(id, wr.userId, amount, msg, claimToken);
+    }
     return;
   }
 
@@ -486,36 +502,28 @@ async function signAndBroadcastWithdrawal(
   const explorerUrl = buildExplorerUrl(txHash);
   logger.info({ ...logCtx, txHash, nonce, explorerUrl }, "withdrawal.processor: txHash received — committing");
 
-  await prisma.$transaction(async (tx) => {
-    const current = await tx.withdrawalRequest.findUnique({
-      where:  { id },
-      select: { status: true },
-    });
-
-    if (!current || current.status !== "BROADCASTING") {
-      throw new Error(
-        `withdrawal.processor: unexpected status '${current?.status ?? "null"}' before CONFIRMING commit — aborting`,
-      );
-    }
-
-    // NOTE: Do NOT decrement lockedWithdrawalBalance here.
-    // The confirmation service (withdrawal-confirmation.service.ts) releases it
-    // atomically when the on-chain tx is confirmed (CONFIRMING → COMPLETED).
-    // Decrementing twice caused every completed withdrawal to double-decrement
-    // the locked balance, driving it negative.
-
-    await tx.withdrawalRequest.update({
-      where: { id },
-      data:  {
-        status:      "CONFIRMING",
-        txHash,
-        explorerUrl,
-        signedAt,
-        broadcastAt,
-        processedAt: broadcastAt,
-      },
-    });
+  const committed = await prisma.withdrawalRequest.updateMany({
+    where: {
+      id,
+      claimOwner: WITHDRAWAL_WORKER_ID,
+      claimToken,
+      status: "BROADCASTING",
+    },
+    data: {
+      status: "CONFIRMING",
+      txHash,
+      explorerUrl,
+      signedAt,
+      broadcastAt,
+      processedAt: broadcastAt,
+      claimOwner: null,
+      claimToken: null,
+      claimExpiresAt: null,
+    },
   });
+  if (committed.count !== 1) {
+    throw new Error("Withdrawal claim lost before CONFIRMING commit");
+  }
 
   await logWithdrawalEvent(id, "CONFIRMING", { txHash, nonce, explorerUrl });
 

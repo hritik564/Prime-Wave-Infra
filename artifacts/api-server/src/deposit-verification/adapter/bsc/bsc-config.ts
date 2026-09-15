@@ -9,6 +9,8 @@ export interface BscConfig {
   rpcProviders:           string[];
   /** USDT BEP20 token contract address on BSC (lowercase). */
   usdtContractAddress:    string;
+  /** Decimal precision used when encoding token amounts. */
+  usdtDecimals:           number;
   /** Expected BSC chain ID (56 = mainnet, 97 = testnet). */
   chainId:                number;
   /** Confirmations required before a deposit is credited. */
@@ -48,6 +50,7 @@ function readInt(key: string, fallback: number): number {
  *
  * Optional env vars (defaults to BSC mainnet values):
  *   BSC_USDT_CONTRACT         — USDT contract address (default: Binance-pegged USDT)
+ *   BSC_USDT_DECIMALS         — token decimals (default: 18)
  *   BSC_CHAIN_ID              — chain ID (default: 56)
  *   BSC_REQUIRED_CONFIRMATIONS — block depth before credit (default: 12)
  *   BSC_RPC_TIMEOUT_MS        — per-request timeout ms (default: 10000)
@@ -64,6 +67,7 @@ export function getBscConfig(): BscConfig {
   return {
     rpcProviders:          providers,
     usdtContractAddress:   rawContract.trim().toLowerCase(),
+    usdtDecimals:           readInt("BSC_USDT_DECIMALS",           18),
     chainId:               readInt("BSC_CHAIN_ID",               DEFAULT_CHAIN_ID),
     requiredConfirmations: readInt("BSC_REQUIRED_CONFIRMATIONS",  12),
     rpcTimeoutMs:          readInt("BSC_RPC_TIMEOUT_MS",          10_000),

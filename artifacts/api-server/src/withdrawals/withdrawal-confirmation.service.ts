@@ -2,6 +2,7 @@ import { prisma } from "../config/prisma";
 import { logger } from "../lib/logger";
 import { getWithdrawalGateway, isGatewayConfigured } from "../services/blockchain/blockchain.factory";
 import { logWithdrawalEvent } from "./withdrawal-events.service";
+import { getWithdrawalRequiredConfirmations } from "./withdrawal-config";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -35,10 +36,7 @@ export function startWithdrawalConfirmationPoller(): void {
 // ── runConfirmationPoll ───────────────────────────────────────────────────────
 
 async function runConfirmationPoll(): Promise<void> {
-  const requiredConfirmations = parseInt(
-    process.env["BSC_CONFIRMATIONS_REQUIRED"] ?? "3",
-    10,
-  );
+  const requiredConfirmations = getWithdrawalRequiredConfirmations();
 
   const confirming = await prisma.withdrawalRequest.findMany({
     where:   { status: "CONFIRMING", txHash: { not: null } },
@@ -50,6 +48,9 @@ async function runConfirmationPoll(): Promise<void> {
       network:     true,
       broadcastAt: true,
       userId:      true,
+      amount:      true,
+      walletAddress: true,
+      preparedTxData: true,
     },
   });
 
@@ -82,6 +83,9 @@ async function pollSingleWithdrawal(
     network:     "BEP20";
     broadcastAt: Date | null;
     userId:      string;
+    amount:      object;
+    walletAddress: string;
+    preparedTxData: unknown;
   },
   requiredConfirmations: number,
 ): Promise<void> {
@@ -145,6 +149,35 @@ async function pollSingleWithdrawal(
   }
 
   const confirmations = chainTx.confirmations;
+  if (chainTx.status === "pending") {
+    await logWithdrawalEvent(id, "CONFIRMATION_POLL", {
+      txHash,
+      confirmations,
+      requiredConfirmations,
+      status: "pending",
+    });
+    return;
+  }
+
+  const health = await gw.getHealth();
+  const prepared = wr.preparedTxData as { tokenContract?: string } | null;
+  const verification = gw.verifyTransfer(chainTx, {
+    tokenContract: prepared?.tokenContract ?? "",
+    sender: health.hotWalletAddress ?? "",
+    recipient: wr.walletAddress,
+    amount: wr.amount.toString(),
+  });
+  if (!verification.valid) {
+    logger.warn(
+      { ...logCtx, reason: verification.reason },
+      "WithdrawalConfirmationPoller: receipt does not match intended USDT transfer — MANUAL_REVIEW",
+    );
+    await moveToManualReview(
+      id,
+      verification.reason ?? "Intended USDT transfer was not found in receipt logs",
+    );
+    return;
+  }
 
   logger.info(
     { ...logCtx, confirmations, requiredConfirmations, blockNumber: chainTx.blockNumber, status: chainTx.status },
@@ -182,9 +215,9 @@ async function completeWithdrawal(
     select: { userId: true, amount: true, walletAddress: true, network: true },
   });
 
-  await prisma.$transaction(async (tx) => {
-    await tx.withdrawalRequest.update({
-      where: { id },
+  const completed = await prisma.$transaction(async (tx) => {
+    const changed = await tx.withdrawalRequest.updateMany({
+      where: { id, status: "CONFIRMING", txHash },
       data: {
         status:            "COMPLETED",
         completedAt:       new Date(),
@@ -193,13 +226,20 @@ async function completeWithdrawal(
         explorerUrl,
       },
     });
+    if (changed.count !== 1) return false;
 
     if (wr) {
       // Release the locked balance and record the wallet ledger entry so the
       // transaction appears in the member's Transaction History tab.
-      const wallet = await tx.wallet.update({
-        where:  { userId: wr.userId },
-        data:   { lockedWithdrawalBalance: { decrement: wr.amount } },
+      const walletChanged = await tx.wallet.updateMany({
+        where: { userId: wr.userId, lockedWithdrawalBalance: { gte: wr.amount } },
+        data:  { lockedWithdrawalBalance: { decrement: wr.amount } },
+      });
+      if (walletChanged.count !== 1) {
+        throw new Error("Withdrawal completion could not release the locked balance safely");
+      }
+      const wallet = await tx.wallet.findUniqueOrThrow({
+        where: { userId: wr.userId },
         select: { id: true },
       });
 
@@ -220,10 +260,14 @@ async function completeWithdrawal(
             confirmationCount,
             source:            "auto",
           },
+          withdrawalRequestId: id,
         },
       });
     }
+    return true;
   });
+
+  if (!completed) return;
 
   await logWithdrawalEvent(id, "CONFIRMED", {
     txHash,
@@ -244,10 +288,14 @@ export async function moveToManualReview(
   id:     string,
   reason: string,
 ): Promise<void> {
-  await prisma.withdrawalRequest.update({
-    where: { id },
+  const changed = await prisma.withdrawalRequest.updateMany({
+    where: {
+      id,
+      status: { notIn: ["COMPLETED", "FAILED", "REJECTED", "CANCELLED"] },
+    },
     data: { status: "MANUAL_REVIEW", failureReason: reason },
   });
+  if (changed.count !== 1) return;
 
   await logWithdrawalEvent(id, "MANUAL_REVIEW", { reason });
 

@@ -33,3 +33,4 @@
 - [Publish development-data copy](publish-development-data-copy.md) — Replit’s optional publish data setup copies all dev state to Production and can overwrite existing rows; keep it disabled for an existing authoritative DB.
 - [Staff Operations role](staff-operations-role.md) — least-privilege operational access uses role/session-version checks without changing existing admins
 - [Server-side QR uploads](server-side-qr-upload.md) — production App Storage browser PUTs can fail at CORS; use the authenticated API and Replit sidecar client for private QR uploads
+- [Withdrawal broadcast ambiguity](withdrawal-broadcast-ambiguity.md) — never retry or fail over a raw transaction submission after a network error; reconcile before any refund
