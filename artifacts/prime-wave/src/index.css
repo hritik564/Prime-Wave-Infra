@@ -345,12 +345,17 @@
   white-space: nowrap;
 }
 
-.auth-card-brand {
-  justify-content: center;
-  margin: 0 0 28px;
-}
-
 .auth-brand > span:last-child > span { color: var(--pw-cyan); }
+.auth-desktop-brand {
+  font-size: 20px;
+}
+.auth-desktop-brand .auth-brand-mark {
+  width: 26px;
+  height: 26px;
+}
+.auth-mobile-brand {
+  display: none;
+}
 .auth-brand-mark {
   width: 32px;
   height: 32px;
@@ -377,7 +382,6 @@
   display: inline-flex;
   align-items: center;
   gap: 14px;
-  margin-left: auto;
   color: rgba(140, 154, 163, .5);
   font: 9px var(--pw-mono);
   letter-spacing: .15em;
@@ -643,6 +647,12 @@
   .auth-system-meta,
   .auth-side-note,
   .auth-footer-meta { display: none; }
+  .auth-desktop-brand { display: none; }
+  .auth-mobile-brand {
+    display: inline-flex;
+    justify-content: center;
+    margin: 0 auto 34px;
+  }
   .auth-content {
     width: 100%;
     justify-content: flex-start;

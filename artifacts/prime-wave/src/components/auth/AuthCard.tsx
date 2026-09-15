@@ -25,6 +25,16 @@ export function AuthCard({
       <span className="auth-node auth-node-three" aria-hidden="true" />
 
       <div className="auth-topbar">
+        <div className="auth-brand auth-desktop-brand" aria-label="PrimeWave">
+          <span className="auth-brand-mark" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          <span>
+            Prime<span>Wave</span>
+          </span>
+        </div>
         <div className="auth-system-meta" aria-hidden="true">
           <span>AI × BLOCKCHAIN × A BETTER TOMORROW</span>
           <i />
@@ -45,25 +55,23 @@ export function AuthCard({
       </div>
 
       <div className={`auth-content${centerOnMobile ? " auth-content-centered-mobile" : ""}`}>
+        <div className="auth-brand auth-mobile-brand" aria-label="PrimeWave">
+          <span className="auth-brand-mark" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          <span>
+            Prime<span>Wave</span>
+          </span>
+        </div>
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
           className={`auth-card-shell relative w-full ${maxWidth}`}
         >
-          <div className="auth-card">
-            <div className="auth-brand auth-card-brand" aria-label="PrimeWave">
-              <span className="auth-brand-mark" aria-hidden="true">
-                <i />
-                <i />
-                <i />
-              </span>
-              <span>
-                Prime<span>Wave</span>
-              </span>
-            </div>
-            {children}
-          </div>
+          <div className="auth-card">{children}</div>
         </motion.div>
       </div>
 
