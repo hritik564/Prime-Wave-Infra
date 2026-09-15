@@ -7,4 +7,4 @@ Raw transaction submission is not equivalent to a read-only RPC call. A timeout 
 
 **Why:** Retrying a read-only query is usually safe, but retrying a broadcast or treating its error as proof of rejection can create duplicate processing, nonce conflicts, or a successful on-chain transfer plus an automatic refund.
 
-**How to apply:** Keep retry/failover behavior for read-only RPC methods, disable it for raw broadcast submission, persist an ambiguous state, and make reconciliation and completion/refund transitions conditional and idempotent.
+**How to apply:** Keep retry/failover behavior for read-only RPC methods, disable it for raw broadcast submission, persist an ambiguous state, and make reconciliation and completion/refund transitions conditional and idempotent. A row already in `MANUAL_REVIEW` must be excluded from the manual-review update so repeated reconciliation is a no-op.

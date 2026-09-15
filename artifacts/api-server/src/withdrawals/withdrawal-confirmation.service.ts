@@ -200,7 +200,7 @@ async function pollSingleWithdrawal(
 
 // ── completeWithdrawal ────────────────────────────────────────────────────────
 
-async function completeWithdrawal(
+export async function completeWithdrawal(
   id:                string,
   confirmationBlock: number,
   confirmationCount: number,
@@ -291,7 +291,7 @@ export async function moveToManualReview(
   const changed = await prisma.withdrawalRequest.updateMany({
     where: {
       id,
-      status: { notIn: ["COMPLETED", "FAILED", "REJECTED", "CANCELLED"] },
+      status: { notIn: ["COMPLETED", "FAILED", "REJECTED", "CANCELLED", "MANUAL_REVIEW"] },
     },
     data: { status: "MANUAL_REVIEW", failureReason: reason },
   });

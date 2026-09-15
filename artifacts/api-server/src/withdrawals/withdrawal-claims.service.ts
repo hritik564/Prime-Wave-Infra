@@ -1,5 +1,6 @@
 import os from "node:os";
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { logger } from "../lib/logger";
 import { logWithdrawalEvent } from "./withdrawal-events.service";
@@ -15,6 +16,8 @@ type ClaimRow = { id: string; claimToken: string };
 export async function claimPendingWithdrawals(
   holdCutoff: Date,
   limit: number,
+  workerId: string = WITHDRAWAL_WORKER_ID,
+  onlyIds?: readonly string[],
 ): Promise<Array<{
   id: string;
   withdrawalId: string | null;
@@ -30,12 +33,16 @@ export async function claimPendingWithdrawals(
 
   while (claimed.length < limit) {
     const claimToken = randomUUID();
+    const candidateScope = onlyIds
+      ? Prisma.sql`AND "id" IN (${Prisma.join(onlyIds)})`
+      : Prisma.empty;
     const rows = await prisma.$queryRaw<ClaimRow[]>`
       WITH candidate AS (
         SELECT "id"
         FROM "withdrawal_requests"
         WHERE "status" = 'PENDING'::"WithdrawalStatus"
           AND "requestedAt" <= ${holdCutoff}
+          ${candidateScope}
         ORDER BY "requestedAt" ASC
         FOR UPDATE SKIP LOCKED
         LIMIT 1
@@ -43,7 +50,7 @@ export async function claimPendingWithdrawals(
       UPDATE "withdrawal_requests" AS wr
       SET
         "status" = 'VALIDATING'::"WithdrawalStatus",
-        "claimOwner" = ${WITHDRAWAL_WORKER_ID},
+        "claimOwner" = ${workerId},
         "claimToken" = ${claimToken},
         "claimExpiresAt" = NOW() + (${WITHDRAWAL_CLAIM_LEASE_MS} * INTERVAL '1 millisecond'),
         "updatedAt" = NOW()
@@ -104,11 +111,12 @@ export async function transitionClaimedWithdrawal(
   from: Array<"VALIDATING" | "QUEUED" | "PROCESSING" | "SIGNED" | "BROADCASTING">,
   to: "QUEUED" | "PROCESSING" | "SIGNED" | "BROADCASTING" | "CONFIRMING" | "FAILED" | "MANUAL_REVIEW" | "BROADCAST_UNKNOWN",
   data: Record<string, unknown> = {},
+  workerId: string = WITHDRAWAL_WORKER_ID,
 ): Promise<boolean> {
   const result = await prisma.withdrawalRequest.updateMany({
     where: {
       id,
-      claimOwner: WITHDRAWAL_WORKER_ID,
+      claimOwner: workerId,
       claimToken,
       claimExpiresAt: { gt: new Date() },
       status: { in: from },
@@ -147,7 +155,10 @@ export async function releaseDryRunClaim(
   return result.count === 1;
 }
 
-export async function recoverExpiredClaims(): Promise<void> {
+export async function recoverExpiredClaims(onlyIds?: readonly string[]): Promise<void> {
+  const candidateScope = onlyIds
+    ? Prisma.sql`AND "id" IN (${Prisma.join(onlyIds)})`
+    : Prisma.empty;
   const recovered = await prisma.$queryRaw<Array<{ id: string; status: string }>>`
     UPDATE "withdrawal_requests"
     SET
@@ -183,6 +194,7 @@ export async function recoverExpiredClaims(): Promise<void> {
         'QUEUED'::"WithdrawalStatus",
         'PROCESSING'::"WithdrawalStatus"
       )
+      ${candidateScope}
     RETURNING "id", "status";
   `;
 
