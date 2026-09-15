@@ -428,10 +428,13 @@
     radial-gradient(circle at 57% 27%, rgba(230, 255, 253, .7) 0 1px, transparent 1.8px),
     radial-gradient(circle at 76% 64%, rgba(82, 230, 224, .7) 0 1px, transparent 1.8px),
     radial-gradient(circle at 91% 34%, rgba(190, 255, 250, .8) 0 1px, transparent 1.8px),
-    radial-gradient(circle at 67% 89%, rgba(230, 255, 253, .55) 0 1px, transparent 1.7px);
+    radial-gradient(circle at 67% 89%, rgba(230, 255, 253, .55) 0 1px, transparent 1.7px),
+    radial-gradient(circle at 43% 49%, rgba(82, 230, 224, .6) 0 1px, transparent 1.7px),
+    radial-gradient(circle at 88% 83%, rgba(230, 255, 253, .55) 0 1px, transparent 1.7px),
+    radial-gradient(circle at 4% 57%, rgba(190, 255, 250, .65) 0 1px, transparent 1.8px);
   opacity: .3;
   animation:
-    auth-stars-drift 24s ease-in-out infinite alternate,
+    auth-stars-drift 12s ease-in-out infinite alternate,
     auth-stars-twinkle 7s ease-in-out infinite alternate;
 }
 .auth-card::after {
@@ -440,10 +443,13 @@
     radial-gradient(circle at 45% 12%, rgba(230, 255, 253, .6) 0 1px, transparent 1.8px),
     radial-gradient(circle at 84% 18%, rgba(82, 230, 224, .62) 0 1px, transparent 1.8px),
     radial-gradient(circle at 71% 76%, rgba(190, 255, 250, .7) 0 1px, transparent 1.8px),
-    radial-gradient(circle at 6% 84%, rgba(230, 255, 253, .5) 0 1px, transparent 1.7px);
+    radial-gradient(circle at 6% 84%, rgba(230, 255, 253, .5) 0 1px, transparent 1.7px),
+    radial-gradient(circle at 35% 22%, rgba(82, 230, 224, .58) 0 1px, transparent 1.7px),
+    radial-gradient(circle at 59% 61%, rgba(230, 255, 253, .52) 0 1px, transparent 1.7px),
+    radial-gradient(circle at 96% 55%, rgba(190, 255, 250, .62) 0 1px, transparent 1.8px);
   opacity: .18;
   animation:
-    auth-stars-drift 31s ease-in-out -9s infinite alternate-reverse,
+    auth-stars-drift 15.5s ease-in-out -9s infinite alternate-reverse,
     auth-stars-twinkle 9s ease-in-out -3s infinite alternate-reverse;
 }
 .auth-card > * {
