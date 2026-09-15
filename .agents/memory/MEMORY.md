@@ -34,3 +34,4 @@
 - [Staff Operations role](staff-operations-role.md) — least-privilege operational access uses role/session-version checks without changing existing admins
 - [Server-side QR uploads](server-side-qr-upload.md) — production App Storage browser PUTs can fail at CORS; use the authenticated API and Replit sidecar client for private QR uploads
 - [Withdrawal broadcast ambiguity](withdrawal-broadcast-ambiguity.md) — never retry or fail over a raw transaction submission after a network error; reconcile before any refund
+- [BSC RPC log filters](rpc-eth-getlogs-topic-filter.md) — configured provider rejects topic-filtered eth_getLogs; use bounded address-only discovery and receipt verification

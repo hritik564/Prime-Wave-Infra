@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { privateKeyToAccount } from "viem/accounts";
 import { BscWithdrawalGateway } from "./bsc-withdrawal.service";
 import type { BscConfig } from "../../deposit-verification/adapter/bsc/bsc-config";
+import { BscRpcClient } from "../../deposit-verification/adapter/bsc/bsc-rpc-client";
 import type { ChainTransaction } from "./blockchain.types";
 
 const CONTRACT = "0x55d398326f99059fF775485246999027B3197955";
@@ -111,5 +112,44 @@ describe("BscWithdrawalGateway safety checks", () => {
       nonce: 0,
       dryRun: true,
     })).rejects.toThrow(/dry-run/);
+  });
+
+  it("extracts canonical ERC-20 Transfer events from receipts", async () => {
+    const transferTopic =
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+    const rpcCall = vi.spyOn(BscRpcClient.prototype, "call");
+    rpcCall.mockImplementation((method) => {
+      const result =
+        method === "eth_getTransactionByHash"
+          ? { blockNumber: "0x64", from: account.address, to: CONTRACT }
+          : method === "eth_getTransactionReceipt"
+            ? {
+                status: "0x1",
+                logs: [{
+                  address: CONTRACT,
+                  topics: [
+                    transferTopic,
+                    `0x${account.address.slice(2).padStart(64, "0")}`,
+                    `0x${recipient.slice(2).padStart(64, "0")}`,
+                  ],
+                  data: "0x" + (1010000000000000000n).toString(16).padStart(64, "0"),
+                }],
+              }
+            : method === "eth_blockNumber"
+              ? "0x70"
+              : "0x38";
+      return Promise.resolve(result) as Promise<never>;
+    });
+
+    const gateway = new BscWithdrawalGateway(config, account.address, true, null);
+    const transaction = await gateway.getTransaction("0xabc");
+
+    expect(transaction?.tokenTransfers).toEqual([{
+      tokenContract: CONTRACT,
+      from: account.address,
+      to: recipient,
+      amountRaw: "1010000000000000000",
+    }]);
+    rpcCall.mockRestore();
   });
 });

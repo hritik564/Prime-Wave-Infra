@@ -11,6 +11,10 @@ import type {
   UpdateWithdrawalNotesInput,
 } from "../withdrawals/withdrawals.schema";
 import { notificationService } from "../notifications/notifications.service";
+import { getBscConfig } from "../deposit-verification/adapter/bsc/bsc-config";
+import { getWithdrawalGateway, isGatewayConfigured } from "../services/blockchain/blockchain.factory";
+import { getWithdrawalRequiredConfirmations } from "../withdrawals/withdrawal-config";
+import { logWithdrawalEvent } from "../withdrawals/withdrawal-events.service";
 
 // ── Shared select ─────────────────────────────────────────────────────────────
 
@@ -335,6 +339,66 @@ export async function approveWithdrawal(
 
 // ── Complete (APPROVED → COMPLETED) ──────────────────────────────────────────
 
+async function verifyManualCompletionEvidence(
+  withdrawal: {
+    amount: Prisma.Decimal;
+    network: "BEP20";
+    walletAddress: string;
+    preparedTxData: unknown;
+  },
+  txHash: string,
+): Promise<void> {
+  if (!isGatewayConfigured(withdrawal.network)) {
+    throw new AppError(
+      "Blockchain gateway is not configured; on-chain completion cannot be verified",
+      HTTP_STATUS.SERVICE_UNAVAILABLE,
+      "BLOCKCHAIN_GATEWAY_NOT_CONFIGURED",
+    );
+  }
+
+  const gateway = getWithdrawalGateway(withdrawal.network);
+  const chainTx = await gateway.getTransaction(txHash);
+  if (!chainTx) {
+    throw new AppError(
+      "Transaction was not found on the configured blockchain",
+      HTTP_STATUS.CONFLICT,
+      "TRANSACTION_NOT_FOUND",
+    );
+  }
+  if (chainTx.status !== "success") {
+    throw new AppError(
+      "Transaction is not successfully mined",
+      HTTP_STATUS.CONFLICT,
+      "TRANSACTION_NOT_CONFIRMED",
+    );
+  }
+
+  const requiredConfirmations = getWithdrawalRequiredConfirmations();
+  if (chainTx.confirmations < requiredConfirmations) {
+    throw new AppError(
+      `Transaction has ${chainTx.confirmations} confirmations; ${requiredConfirmations} are required`,
+      HTTP_STATUS.CONFLICT,
+      "INSUFFICIENT_CONFIRMATIONS",
+    );
+  }
+
+  const health = await gateway.getHealth();
+  const prepared = withdrawal.preparedTxData as { tokenContract?: string } | null;
+  const verification = gateway.verifyTransfer(chainTx, {
+    tokenContract: prepared?.tokenContract ?? getBscConfig().usdtContractAddress,
+    sender: health.hotWalletAddress ?? "",
+    recipient: withdrawal.walletAddress,
+    amount: withdrawal.amount.toString(),
+  });
+  if (!verification.valid) {
+    throw new AppError(
+      verification.reason ?? "Transaction does not match the intended USDT transfer",
+      HTTP_STATUS.CONFLICT,
+      "TRANSACTION_MISMATCH",
+    );
+  }
+}
+
 export async function completeWithdrawal(
   adminId:      string,
   withdrawalId: string,
@@ -342,7 +406,15 @@ export async function completeWithdrawal(
 ) {
   const withdrawal = await prisma.withdrawalRequest.findUnique({
     where:  { id: withdrawalId },
-    select: { id: true, userId: true, amount: true, status: true, network: true, walletAddress: true },
+    select: {
+      id: true,
+      userId: true,
+      amount: true,
+      status: true,
+      network: true,
+      walletAddress: true,
+      preparedTxData: true,
+    },
   });
 
   if (!withdrawal) {
@@ -356,12 +428,13 @@ export async function completeWithdrawal(
     );
   }
 
+  await verifyManualCompletionEvidence(withdrawal, input.txHash);
   const completedAt = new Date();
 
   try {
     await prisma.$transaction(async (tx) => {
-      await tx.withdrawalRequest.update({
-        where: { id: withdrawalId },
+      const changed = await tx.withdrawalRequest.updateMany({
+        where: { id: withdrawalId, status: "APPROVED", txHash: null },
         data:  {
           status:             "COMPLETED",
           completedByAdminId: adminId,
@@ -370,10 +443,30 @@ export async function completeWithdrawal(
           ...(input.adminNotes !== undefined && { adminNotes: input.adminNotes }),
         },
       });
+      if (changed.count !== 1) {
+        throw new AppError(
+          "Withdrawal is no longer APPROVED or has already been settled",
+          HTTP_STATUS.CONFLICT,
+          "WITHDRAWAL_ALREADY_SETTLED",
+        );
+      }
 
-      const wallet = await tx.wallet.update({
+      const walletChanged = await tx.wallet.updateMany({
+        where: {
+          userId: withdrawal.userId,
+          lockedWithdrawalBalance: { gte: withdrawal.amount },
+        },
+        data: { lockedWithdrawalBalance: { decrement: withdrawal.amount } },
+      });
+      if (walletChanged.count !== 1) {
+        throw new AppError(
+          "Withdrawal completion could not release the locked balance safely",
+          HTTP_STATUS.CONFLICT,
+          "LOCKED_BALANCE_MISMATCH",
+        );
+      }
+      const wallet = await tx.wallet.findUniqueOrThrow({
         where: { userId: withdrawal.userId },
-        data:  { lockedWithdrawalBalance: { decrement: withdrawal.amount } },
         select: { id: true },
       });
 
@@ -392,6 +485,7 @@ export async function completeWithdrawal(
             txHash:        input.txHash,
             completedBy:   adminId,
           },
+          withdrawalRequestId: withdrawalId,
         },
       });
 
@@ -423,6 +517,12 @@ export async function completeWithdrawal(
     }
     throw err;
   }
+
+  await logWithdrawalEvent(withdrawalId, "COMPLETED", {
+    txHash: input.txHash,
+    completedBy: adminId,
+    source: "manual-admin",
+  });
 
   void notificationService.create({
     userId:  withdrawal.userId,
@@ -460,21 +560,44 @@ export async function rejectWithdrawal(
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.withdrawalRequest.update({
-      where: { id: withdrawalId },
+    const changed = await tx.withdrawalRequest.updateMany({
+      where: {
+        id: withdrawalId,
+        status: { in: [...REJECTABLE] },
+      },
       data:  {
         status:         "REJECTED",
         rejectedReason: input.rejectedReason,
         ...(input.adminNotes !== undefined && { adminNotes: input.adminNotes }),
       },
     });
+    if (changed.count !== 1) {
+      throw new AppError(
+        "Withdrawal is no longer in a rejectable state",
+        HTTP_STATUS.CONFLICT,
+        "WITHDRAWAL_ALREADY_SETTLED",
+      );
+    }
 
-    const wallet = await tx.wallet.update({
-      where: { userId: withdrawal.userId },
+    const walletChanged = await tx.wallet.updateMany({
+      where: {
+        userId: withdrawal.userId,
+        lockedWithdrawalBalance: { gte: withdrawal.amount },
+      },
       data:  {
         lockedWithdrawalBalance: { decrement: withdrawal.amount },
         withdrawalWallet:        { increment: withdrawal.amount },
       },
+    });
+    if (walletChanged.count !== 1) {
+      throw new AppError(
+        "Withdrawal rejection could not release the locked balance safely",
+        HTTP_STATUS.CONFLICT,
+        "LOCKED_BALANCE_MISMATCH",
+      );
+    }
+    const wallet = await tx.wallet.findUniqueOrThrow({
+      where: { userId: withdrawal.userId },
       select: { id: true },
     });
 
@@ -493,6 +616,7 @@ export async function rejectWithdrawal(
           rejectedReason: input.rejectedReason,
           rejectedBy:     adminId,
         },
+        withdrawalRequestId: withdrawalId,
       },
     });
 
@@ -510,6 +634,12 @@ export async function rejectWithdrawal(
         },
       },
     });
+  });
+
+  await logWithdrawalEvent(withdrawalId, "REJECTED", {
+    reason: input.rejectedReason,
+    rejectedBy: adminId,
+    source: "manual-admin",
   });
 
   void notificationService.create({

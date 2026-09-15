@@ -41,7 +41,7 @@ import { parseTokenAmount } from "./token-amount";
 /** ERC-20 transfer(address,uint256) selector */
 const TRANSFER_SELECTOR = "0xa9059cbb";
 const TRANSFER_TOPIC =
-  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a3c9c6f9e5";
+  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
 /** ERC-20 balanceOf(address) selector */
 const BALANCE_OF_SELECTOR = "0x70a08231";
