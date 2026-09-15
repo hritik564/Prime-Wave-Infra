@@ -1,0 +1,446 @@
+PRIMEWAVE — WITHDRAWAL HARDENING PHASE 1.5
+FINAL DEVELOPMENT-DATABASE VALIDATION BEFORE PHASE 2
+
+We have completed Phase 1 automatic-withdrawal hardening.
+
+DO NOT START PHASE 2.
+
+This phase exists only to close the remaining validation gaps identified in the Phase 1 audit.
+
+The Phase 1 report identified these remaining risks:
+
+1. The concurrent withdrawal-claim test currently uses a mocked atomic database boundary. We need a real PostgreSQL integration test proving that PostgreSQL `FOR UPDATE SKIP LOCKED` / the implemented claim mechanism actually prevents two concurrent workers from claiming the same withdrawal.
+
+2. The new withdrawal completion/recovery accounting paths need a real development-database integration test using actual withdrawal, user balance, locked balance, and wallet ledger rows.
+
+3. The new Prisma migration must be validated against a clean development database before we consider moving toward Phase 2.
+
+==================================================
+STRICT SAFETY RULES
+==================================================
+
+THIS IS DEVELOPMENT/LOCAL VALIDATION ONLY.
+
+DO NOT:
+
+- Publish.
+- Deploy.
+- Modify production.
+- Connect to the production database for writes.
+- Apply the migration to production.
+- Modify production environment variables.
+- Configure a production hot wallet.
+- Read or request a production private key.
+- Set BLOCKCHAIN_DRY_RUN=false.
+- Sign a real blockchain transaction.
+- Broadcast a real blockchain transaction.
+- Fund a wallet.
+- Modify production withdrawal records.
+- Modify production user balances.
+- Modify production wallet ledger entries.
+- Enable automatic withdrawals.
+- Change withdrawal permissions.
+- Modify unrelated deposit, company-wallet, QR, Power Business, staff, authentication, or frontend functionality.
+
+If any requested validation would require production access or a production write, STOP and report it.
+
+==================================================
+1. REAL POSTGRESQL CONCURRENCY TEST
+==================================================
+
+Create a genuine PostgreSQL integration test for the withdrawal claim mechanism.
+
+Do NOT mock the database transaction boundary.
+
+Use the actual development PostgreSQL database/schema.
+
+The test must create a realistic PENDING withdrawal and then launch at least two concurrent claim attempts representing two independent worker instances.
+
+The test must prove:
+
+- Both workers can attempt to claim simultaneously.
+- Exactly ONE worker obtains the withdrawal claim.
+- The other worker receives no claim.
+- The withdrawal cannot be claimed twice.
+- The winning worker owns the claim.
+- The claim token is unique.
+- The claim expiration is recorded correctly.
+- The database state after the race is internally consistent.
+- No duplicate processing state is created.
+
+Use actual PostgreSQL concurrency.
+
+Do not replace the test with:
+
+- sequential calls
+- JavaScript mutexes
+- fake transactions
+- mocked Prisma transactions
+- mocked `FOR UPDATE`
+- mocked claim results
+
+The test should exercise the actual database locking/transaction behavior.
+
+If the existing test infrastructure makes this difficult, create the smallest dedicated integration-test harness necessary.
+
+Do not weaken production code merely to make the test pass.
+
+==================================================
+2. REAL DEVELOPMENT-DATABASE ACCOUNTING TEST
+==================================================
+
+Create a real PostgreSQL integration test covering successful withdrawal completion.
+
+Use actual development database rows.
+
+Create a realistic test fixture containing:
+
+- User
+- Initial available balance
+- Initial locked withdrawal balance
+- Withdrawal request
+- Appropriate wallet transaction/accounting state
+
+Then execute the real completion/recovery service.
+
+Verify atomically that:
+
+1. Withdrawal becomes COMPLETED.
+2. Completion metadata is stored correctly.
+3. Locked withdrawal balance decreases exactly once.
+4. The amount released/decremented is correct.
+5. The wallet ledger contains exactly one successful withdrawal transaction.
+6. `withdrawalRequestId` uniqueness prevents duplicate ledger entries.
+7. Re-running the completion/recovery operation does not:
+   - decrement locked balance again
+   - create another wallet transaction
+   - duplicate any financial side effect
+8. A concurrent duplicate completion attempt cannot create duplicate financial effects.
+
+The test must use the actual development PostgreSQL database.
+
+Do not mock Prisma transactions for this integration test.
+
+==================================================
+3. RECOVERY / BROADCAST_UNKNOWN INTEGRATION TEST
+==================================================
+
+Add a development-database integration test for the ambiguous broadcast scenario.
+
+Create a realistic withdrawal that reaches the relevant state.
+
+Verify:
+
+- A timeout/network-level broadcast failure does NOT automatically refund the user.
+- The withdrawal enters `BROADCAST_UNKNOWN` or the implemented equivalent.
+- Locked funds remain protected.
+- No successful wallet ledger entry is created.
+- No duplicate refund is created.
+- Reconciliation can safely process the state later.
+- Re-running reconciliation remains idempotent.
+
+Do not perform any real blockchain broadcast.
+
+Mock only the blockchain/RPC boundary, not the database boundary.
+
+==================================================
+4. STALE PROCESSING RECOVERY INTEGRATION TEST
+==================================================
+
+Using the actual development database:
+
+Create:
+
+A. A recently-created PROCESSING withdrawal.
+
+B. A stale PROCESSING withdrawal older than the configured threshold.
+
+Verify:
+
+- Recently processing withdrawal remains PROCESSING.
+- Stale PROCESSING withdrawal transitions to BROADCAST_UNKNOWN.
+- No automatic refund occurs.
+- Locked funds remain protected.
+- Two concurrent recovery attempts cannot both recover the same withdrawal.
+
+Again, use the real PostgreSQL database for concurrency/state behavior.
+
+==================================================
+5. MIGRATION VALIDATION
+==================================================
+
+Validate migration:
+
+20260915000000_withdrawal_hardening_phase1
+
+against a CLEAN development database.
+
+The objective is to prove the migration can create all required schema objects from the pre-Phase-1 schema.
+
+Verify:
+
+- Migration applies successfully.
+- Prisma schema validates.
+- Prisma client generation succeeds.
+- All expected columns exist.
+- `BROADCAST_UNKNOWN` exists.
+- Claim fields exist.
+- Claim indexes exist.
+- `wallet_transactions.withdrawal_request_id` exists.
+- Required uniqueness constraint/index exists.
+- Foreign key is correct.
+- No destructive migration operation exists.
+
+If possible, also perform:
+
+clean database
+→ migrate deploy
+→ Prisma validation
+→ integration tests
+
+Do NOT perform this against production.
+
+==================================================
+6. MIGRATION SAFETY REVIEW
+==================================================
+
+Inspect:
+
+artifacts/api-server/prisma/migrations/20260915000000_withdrawal_hardening_phase1/migration.sql
+
+Confirm explicitly:
+
+- No DROP TABLE
+- No DROP COLUMN
+- No DELETE
+- No TRUNCATE
+- No destructive data rewrite
+- No wallet balance modification
+- No withdrawal record modification
+- No production-side effects
+
+If any destructive operation is found, STOP and report it.
+
+==================================================
+7. STATE-MACHINE INTEGRATION VALIDATION
+==================================================
+
+Using actual development database rows, validate the most important state transitions.
+
+At minimum test:
+
+PENDING → VALIDATING
+
+VALIDATING → QUEUED
+
+QUEUED → PROCESSING
+
+PROCESSING → BROADCASTING
+
+BROADCASTING → BROADCAST_UNKNOWN
+
+BROADCASTING → CONFIRMING
+
+CONFIRMING → COMPLETED
+
+BROADCAST_UNKNOWN → MANUAL_REVIEW / reconciliation path
+
+Verify invalid transitions are rejected.
+
+Verify terminal states cannot be processed again.
+
+Verify concurrent transitions cannot produce contradictory final states.
+
+==================================================
+8. FINANCIAL INVARIANTS
+==================================================
+
+Add assertions for financial invariants.
+
+For a successful withdrawal:
+
+- User balance must not be decremented twice.
+- Locked withdrawal balance must not be released twice.
+- Wallet ledger must contain exactly one successful withdrawal record.
+- Withdrawal must have exactly one successful completion.
+
+For ambiguous/failed withdrawal:
+
+- No successful ledger entry should exist.
+- No accidental double refund should occur.
+- Locked balance must remain consistent with the withdrawal state.
+
+These tests should use actual database rows.
+
+==================================================
+9. DO NOT CHANGE BUSINESS RULES
+==================================================
+
+Do not use this phase to redesign withdrawal behavior.
+
+Do not change:
+
+- withdrawal minimum
+- withdrawal maximum
+- withdrawal permissions
+- withdrawal fee rules
+- existing user-facing withdrawal workflow
+- confirmation policy
+- hot-wallet thresholds
+- deposit behavior
+- company wallet behavior
+- QR behavior
+- Power Business
+- staff permissions
+
+This is validation and hardening only.
+
+If a genuine bug is discovered that requires a code correction to make the architecture safe, fix only that bug and document it clearly.
+
+==================================================
+10. TEST EXECUTION
+==================================================
+
+Run:
+
+1. Dedicated withdrawal integration tests
+2. Existing withdrawal hardening tests
+3. Full API test suite
+4. API typecheck
+5. Prisma validation
+6. API production build, ONLY if it does not execute production migrations
+7. Frontend typecheck
+8. Frontend production build
+9. git diff --check
+
+IMPORTANT:
+
+If `build:prod` executes `prisma migrate deploy`, do NOT run it.
+
+Use a safe build command that does not modify any database.
+
+==================================================
+11. TEST RESULT REQUIREMENTS
+==================================================
+
+Do not report only "tests passed."
+
+Report exact counts.
+
+For example:
+
+Development PostgreSQL integration:
+- X tests passed
+- X tests failed
+
+Withdrawal hardening:
+- X tests passed
+
+Full API:
+- X tests passed across X files
+
+Typecheck:
+- PASS/FAIL
+
+Prisma validation:
+- PASS/FAIL
+
+Production build:
+- PASS/NOT RUN — reason
+
+Frontend build:
+- PASS/FAIL
+
+git diff --check:
+- PASS/FAIL
+
+==================================================
+12. FINAL PRODUCTION-SAFETY CHECK
+==================================================
+
+Before completing, verify:
+
+Production database:
+UNCHANGED
+
+Production environment:
+UNCHANGED
+
+Production secrets:
+UNCHANGED
+
+Hot wallet:
+NOT CONFIGURED
+
+Private key:
+NOT REQUESTED / NOT INSPECTED
+
+BLOCKCHAIN_DRY_RUN:
+UNCHANGED
+
+Automatic withdrawals:
+NOT ENABLED
+
+Blockchain:
+NO REAL TRANSACTION SIGNED
+
+Blockchain:
+NO REAL TRANSACTION BROADCAST
+
+User balances:
+UNCHANGED IN PRODUCTION
+
+Withdrawal records:
+UNCHANGED IN PRODUCTION
+
+Deployment:
+NOT PERFORMED
+
+Publish:
+NOT PERFORMED
+
+==================================================
+13. FINAL REPORT
+==================================================
+
+Return a detailed report containing:
+
+1. Executive summary
+2. PostgreSQL concurrency test design
+3. PostgreSQL accounting integration test design
+4. BROADCAST_UNKNOWN integration validation
+5. PROCESSING recovery integration validation
+6. Migration validation
+7. State-machine validation
+8. Financial invariants tested
+9. Files changed
+10. Tests added
+11. Exact test counts
+12. Typecheck results
+13. Build results
+14. Migration results
+15. Any bugs discovered and fixed
+16. Remaining risks
+17. Production safety verification
+
+At the end provide one of these exact conclusions:
+
+SAFE TO PROCEED TO PHASE 2
+
+or
+
+NOT READY FOR PHASE 2
+
+Do not proceed to Phase 2 automatically.
+
+DO NOT publish.
+
+DO NOT deploy.
+
+DO NOT enable automatic withdrawals.
+
+DO NOT configure the hot wallet.
+
+DO NOT disable BLOCKCHAIN_DRY_RUN.
+
+STOP after completing this validation phase and wait for explicit approval.
