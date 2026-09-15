@@ -1,0 +1,570 @@
+PRIMEWAVE — PHASE 2 REMEDIATION
+GET AUTOMATIC WITHDRAWALS PRODUCTION-READY
+
+We need to move PrimeWave automatic BEP20/USDT withdrawals toward production as quickly as safely possible.
+
+Phase 1 and Phase 1.5 are complete.
+
+The Phase 2 audit identified these blockers:
+
+1. Production is missing the withdrawal-hardening migration.
+2. Production currently contains 3 withdrawals in PROCESSING.
+3. Production hot-wallet configuration is missing.
+4. Hot-wallet BNB/USDT balances therefore cannot yet be verified.
+5. eth_getLogs validation against the configured RPC needs investigation.
+6. The existing manual-admin withdrawal completion path needs an integrity review/fix before unrestricted live operation.
+
+DO NOT simply enable live withdrawals.
+
+Resolve these blockers sequentially and stop whenever an explicit production approval is required.
+
+==================================================
+ABSOLUTE SAFETY RULES
+==================================================
+
+DO NOT:
+
+- Set BLOCKCHAIN_DRY_RUN=false.
+- Broadcast any real blockchain transaction.
+- Sign any real transaction.
+- Send real USDT.
+- Send real BNB.
+- Move production funds.
+- Modify production wallet balances manually.
+- Delete production withdrawal records.
+- Automatically refund a production withdrawal.
+- Invent transaction hashes.
+- Mark a withdrawal COMPLETED without valid evidence.
+- Expose private keys.
+- Print private keys.
+- Log private keys.
+- Put private keys in source code.
+- Put secrets in frontend code.
+- Commit secrets.
+- Bypass withdrawal state validation.
+- Bypass accounting idempotency.
+- Disable safety limits.
+- Disable confirmation requirements.
+- Automatically activate live withdrawals.
+
+BLOCKCHAIN_DRY_RUN MUST REMAIN TRUE THROUGHOUT THIS TASK.
+
+==================================================
+PHASE A — RE-INSPECT CURRENT PRODUCTION STATE
+==================================================
+
+Before modifying anything, perform a fresh read-only audit.
+
+Report:
+
+- Current migration status.
+- Current withdrawal state counts.
+- IDs and non-sensitive metadata of the 3 PROCESSING withdrawals.
+- Their:
+  - createdAt
+  - updatedAt
+  - amount
+  - recipient
+  - claimOwner if available
+  - claim expiration if available
+  - transaction hash if available
+  - current processing state
+  - relevant timestamps
+
+DO NOT modify these withdrawals yet.
+
+For each of the 3 PROCESSING withdrawals determine:
+
+A. Was it actually broadcast?
+B. Is there a transaction hash?
+C. Can the transaction be located on-chain?
+D. Does the transaction belong to the configured USDT contract?
+E. Does the transaction contain the expected Transfer event?
+F. Is the recipient correct?
+G. Is the amount correct?
+H. Are required confirmations available?
+I. Is there evidence it was never broadcast?
+J. Is the withdrawal stale?
+
+Do not guess.
+
+If blockchain evidence is unavailable, classify the withdrawal as UNKNOWN rather than successful or failed.
+
+==================================================
+PHASE B — MIGRATION SAFETY REVIEW
+==================================================
+
+Inspect the exact Phase 1 withdrawal-hardening migration.
+
+Identify:
+
+- Migration filename.
+- SQL statements.
+- Tables affected.
+- Columns added.
+- Enum values added.
+- Indexes added.
+- Constraints added.
+- Foreign keys.
+- Any functions/triggers.
+- Any data migration behavior.
+- Any destructive SQL.
+
+Compare the migration against the current production schema.
+
+IMPORTANT:
+
+Do not run migrate dev.
+Do not run migrate reset.
+Do not use db push against production.
+
+For production, use the deployment migration mechanism only.
+
+Prisma's production workflow uses:
+
+prisma migrate deploy
+
+Do not run it until the migration safety report is complete.
+
+==================================================
+PHASE C — PRODUCTION MIGRATION
+==================================================
+
+If and only if:
+
+- The migration is the expected reviewed Phase 1 migration.
+- No destructive operation exists.
+- The current production state is compatible.
+- The 3 PROCESSING withdrawals have been documented.
+- No migration conflict exists.
+
+Then prepare the production migration deployment.
+
+Before applying it, report:
+
+PENDING MIGRATION:
+<filename>
+
+EXPECTED CHANGES:
+<exact schema changes>
+
+DESTRUCTIVE OPERATIONS:
+NONE / DETAILS
+
+DATA LOSS RISK:
+NONE / DETAILS
+
+Then apply the migration using the normal production deployment mechanism.
+
+DO NOT use:
+
+- migrate dev
+- migrate reset
+- db push
+- manual schema reconstruction
+
+After migration:
+
+Verify:
+
+- Migration recorded successfully.
+- Required columns exist.
+- Required enum/state exists.
+- Claim indexes exist.
+- Unique ledger constraint exists.
+- Withdrawal→wallet transaction relationship exists.
+- Production application can initialize successfully.
+
+==================================================
+PHASE D — HANDLE THE 3 PROCESSING WITHDRAWALS
+==================================================
+
+After the migration is applied, DO NOT automatically mark the 3 withdrawals completed or failed.
+
+Re-inspect them using the newly available hardening fields.
+
+For each:
+
+1. Determine claim state.
+2. Determine whether claim is stale.
+3. Determine whether a transaction hash exists.
+4. If hash exists, reconcile against BSC read-only.
+5. Verify contract.
+6. Verify recipient.
+7. Verify amount.
+8. Verify Transfer event.
+9. Verify confirmations.
+10. Determine the safest state.
+
+Allowed outcomes:
+
+- PROCESSING
+- BROADCAST_UNKNOWN
+- MANUAL_REVIEW
+- COMPLETED
+
+Do NOT invent a successful result.
+
+If a withdrawal cannot be conclusively reconciled:
+
+→ BROADCAST_UNKNOWN
+or
+→ MANUAL_REVIEW
+
+depending on the existing state-machine rules.
+
+Never refund merely because a transaction cannot immediately be found.
+
+Never complete merely because a transaction hash exists.
+
+If a production write is required to reconcile these records, STOP and show me:
+
+- withdrawal ID
+- current state
+- proposed new state
+- exact reason
+- exact database effect
+- financial effect
+
+Do not perform the write until explicitly approved.
+
+==================================================
+PHASE E — FIX THE MANUAL ADMIN COMPLETION GAP
+==================================================
+
+Review the existing manual admin withdrawal completion/rejection path.
+
+The Phase 2 audit identified that this path does not fully use:
+
+- withdrawalRequestId ledger linkage
+- automatic on-chain Transfer verification
+- hardened state/claim checks
+
+Determine whether this path can cause:
+
+- duplicate ledger entries
+- double release of locked balance
+- completion without on-chain proof
+- completion of the wrong withdrawal
+- inconsistent state transitions
+
+If a vulnerability exists:
+
+Fix it.
+
+Requirements:
+
+- Preserve existing intended admin functionality.
+- Add the same financial idempotency guarantees as automatic completion.
+- Require appropriate authorization.
+- Prevent duplicate settlement.
+- Require appropriate blockchain evidence where the operation represents a completed on-chain withdrawal.
+- Preserve audit logging.
+- Do not modify unrelated withdrawal behavior.
+
+Run focused tests and the full API suite after the fix.
+
+==================================================
+PHASE F — RPC eth_getLogs INVESTIGATION
+==================================================
+
+Investigate the previous:
+
+eth_getLogs
+-32602
+
+failure.
+
+Determine whether the failure is caused by:
+
+- invalid parameters
+- provider limitations
+- block range
+- topic formatting
+- address formatting
+- RPC provider restrictions
+- unsupported method
+- implementation bug
+
+Do not weaken Transfer verification to make the RPC pass.
+
+The system must continue requiring authoritative on-chain evidence.
+
+Test using safe read-only queries.
+
+Verify:
+
+- USDT contract address.
+- Transfer topic.
+- bounded block ranges.
+- receipt/log retrieval.
+- transaction receipt retrieval.
+
+If the configured provider cannot reliably support the required operation:
+
+DO NOT silently switch behavior.
+
+Report:
+
+CURRENT RPC:
+<masked>
+
+PROBLEM:
+<details>
+
+SAFE SOLUTION:
+<provider/configuration/code change>
+
+==================================================
+PHASE G — HOT WALLET PREPARATION
+==================================================
+
+DO NOT ask me to paste the private key into chat.
+
+DO NOT print it.
+
+DO NOT log it.
+
+DO NOT store it in source code.
+
+The hot-wallet secret must use the secure production secret mechanism.
+
+First determine:
+
+HOT_WALLET_ADDRESS:
+PRESENT / MISSING
+
+HOT_WALLET_PRIVATE_KEY:
+PRESENT / MISSING
+
+If missing, STOP this phase and tell me exactly which secure production secrets need to be configured.
+
+If both exist, verify correspondence safely:
+
+- Read the configured address.
+- Read the private key in memory only.
+- Derive the corresponding public address.
+- Compare normalized addresses.
+- Do not print the private key.
+- Do not persist it.
+- Do not log it.
+
+Expected:
+
+DERIVED ADDRESS == CONFIGURED HOT WALLET ADDRESS
+
+If mismatch:
+
+STOP.
+
+==================================================
+PHASE H — HOT WALLET BALANCES
+==================================================
+
+Once the hot wallet address is verified:
+
+Perform READ-ONLY BSC queries.
+
+Retrieve:
+
+- BNB balance.
+- USDT balance.
+
+Do not transfer anything.
+
+Do not create a transaction.
+
+Do not sign anything.
+
+Report:
+
+BNB:
+<actual value>
+
+USDT:
+<actual value>
+
+Then compare against existing withdrawal limits and reserve policy.
+
+If no reserve policy exists:
+
+DO NOT invent one.
+
+Report:
+
+RESERVE POLICY:
+MISSING
+
+Recommend a policy for explicit approval.
+
+==================================================
+PHASE I — WITHDRAWAL LIMITS AND SAFETY
+==================================================
+
+Review:
+
+- minimum withdrawal
+- maximum withdrawal
+- daily user limit
+- system limit
+- fee
+- processing frequency
+- confirmation count
+- retry limit
+- stale claim timeout
+- broadcast timeout
+- manual-review behavior
+- hot-wallet reserve requirements
+
+Do not silently change financial limits.
+
+If a limit is unsafe or missing:
+
+mark it WARNING or BLOCKER.
+
+==================================================
+PHASE J — LIVE BROADCAST PROTECTION
+==================================================
+
+Verify that:
+
+BLOCKCHAIN_DRY_RUN=true
+
+remains true.
+
+Verify dry-run prevents:
+
+- real signing
+- real broadcast
+- real token transfer
+- real BNB expenditure
+
+Do not change this value.
+
+==================================================
+PHASE K — CONTROLLED SIMULATION
+==================================================
+
+Run a complete mocked withdrawal flow if possible:
+
+PENDING
+→ VALIDATING
+→ QUEUED
+→ PROCESSING
+→ SIGNED
+→ BROADCASTING
+→ CONFIRMING
+→ COMPLETED
+
+Use mock blockchain responses only.
+
+Also simulate:
+
+- RPC timeout
+- duplicate worker
+- stale claim
+- duplicate completion
+- unknown broadcast
+- missing receipt
+- wrong recipient
+- wrong amount
+- wrong token contract
+- insufficient confirmation
+- retry
+
+Verify that every failure path preserves funds correctly.
+
+No real transaction.
+
+==================================================
+PHASE L — TESTING
+==================================================
+
+Run:
+
+- Focused withdrawal tests.
+- PostgreSQL integration tests.
+- Full API test suite.
+- API typecheck.
+- Frontend typecheck.
+- API production build.
+- Frontend production build.
+- Prisma validation.
+- git diff --check.
+
+Report exact counts.
+
+==================================================
+PHASE M — FINAL READINESS AUDIT
+==================================================
+
+Produce:
+
+| Component | Status | Evidence | Blocker |
+|---|---|---|---|
+| Production migration | | | |
+| Existing PROCESSING withdrawals | | | |
+| BSC RPC | | | |
+| Chain ID | | | |
+| USDT contract | | | |
+| Transfer verification | | | |
+| Hot-wallet address | | | |
+| Private-key correspondence | | | |
+| BNB balance | | | |
+| USDT balance | | | |
+| Withdrawal limits | | | |
+| Confirmation config | | | |
+| Worker claiming | | | |
+| Nonce management | | | |
+| Broadcast reconciliation | | | |
+| Accounting | | | |
+| Manual admin completion | | | |
+| Authorization | | | |
+| Dry-run protection | | | |
+| Tests | | | |
+
+Use only:
+
+PASS
+WARNING
+BLOCKER
+NOT VERIFIED
+
+Do not call something PASS without evidence.
+
+==================================================
+CRITICAL FINAL RULE
+==================================================
+
+At the end:
+
+DO NOT:
+
+- Set BLOCKCHAIN_DRY_RUN=false.
+- Enable automatic withdrawals.
+- Broadcast a transaction.
+- Sign a transaction.
+- Move funds.
+- Publish.
+- Deploy additional changes without approval.
+
+Instead produce:
+
+1. What has been fixed.
+2. What was changed in production.
+3. What remains blocked.
+4. What requires my explicit approval.
+5. Exact next activation steps.
+
+End with:
+
+"PHASE 2 REMEDIATION COMPLETE.
+
+Automatic withdrawals remain DISABLED.
+BLOCKCHAIN_DRY_RUN remains TRUE.
+No real blockchain transaction was signed or broadcast unless explicitly stated as an approved operation.
+No production funds were intentionally moved.
+
+Awaiting explicit approval for any live-transaction activation step."
+
+STOP.
