@@ -20,7 +20,6 @@ import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/providers/AuthProvider";
 import { getActiveStatus, type ActiveStatus } from "@/lib/api";
-import { PrimeWaveLogo } from "@/components/shared/PrimeWaveLogo";
 
 interface NavItem {
   label: string;
@@ -96,9 +95,21 @@ export default function Sidebar({ onClose }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex h-16 items-center justify-between px-6">
-        <div className="flex flex-col gap-0.5">
-          <PrimeWaveLogo className="app-sidebar-logo" />
+        <div className="flex items-center gap-2.5">
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0"
+            style={{
+              background: "linear-gradient(135deg, #D4AF37 0%, #F3D37A 100%)",
+            }}
+          >
+            <span className="text-xs font-bold" style={{ color: "#0E1B37" }}>
+              PW
+            </span>
+          </div>
           <div className="flex flex-col">
+            <span className="text-sm font-bold text-white leading-none">
+              Prime Wave
+            </span>
             <span
               className="text-[10px] leading-tight tracking-wider uppercase"
               style={{ color: "hsl(var(--muted-foreground))" }}

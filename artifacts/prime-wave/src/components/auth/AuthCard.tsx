@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
 import { ThemeToggle } from "@/components/auth/ThemeToggle";
-import { PrimeWaveLogo } from "@/components/shared/PrimeWaveLogo";
 
 interface AuthCardProps {
   children: React.ReactNode;
@@ -53,8 +52,13 @@ export function AuthCard({
           className={`auth-card-shell relative w-full ${maxWidth}`}
         >
           <div className="auth-card">
-            <div className="auth-card-brand">
-              <PrimeWaveLogo />
+            <div className="pw-brand auth-card-brand" aria-label="PrimeWave">
+              <span className="pw-mark" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+              <span>prime<span>·</span>wave</span>
             </div>
             {children}
           </div>
