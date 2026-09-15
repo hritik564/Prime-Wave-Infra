@@ -1,0 +1,57 @@
+We have decided to reconcile the three stale production withdrawals by rejecting them and releasing/crediting the locked withdrawal funds back to their respective users.
+
+Withdrawals:
+- PW-WD-000118 — 60.00000000 USDT
+- PW-WD-000121 — 1.02000000 USDT
+- PW-WD-000123 — 46.00000000 USDT
+
+IMPORTANT: This is a production financial operation. Do NOT execute immediately.
+
+First perform a READ-ONLY preflight for exactly these three withdrawal IDs and report:
+
+1. Current status and complete withdrawal timeline.
+2. User ID and username.
+3. Original withdrawal amount.
+4. Current available withdrawal balance.
+5. Current locked withdrawal balance.
+6. Existing wallet transaction/ledger records linked to each withdrawal.
+7. txHash, signedAt, broadcastAt, processedAt and any blockchain evidence.
+8. Confirm that no successful withdrawal settlement already exists.
+9. Confirm that no previous refund/rejection accounting entry exists.
+10. Confirm that each record is currently BROADCAST_UNKNOWN.
+11. Confirm that the available locked balance is sufficient to release the exact withdrawal amount.
+
+Do NOT query or expose any private key or signing material.
+Do NOT broadcast, sign, rebroadcast, or attempt another blockchain transaction.
+Do NOT modify any production database records during the preflight.
+
+After the read-only preflight, determine whether the existing withdrawal state machine supports a safe:
+
+BROADCAST_UNKNOWN → REJECTED
+
+transition.
+
+If that transition is supported, prepare the exact accounting operation that would:
+
+- transition the withdrawal to REJECTED using the existing conditional/state-transition mechanism;
+- release the corresponding locked withdrawal balance exactly once;
+- credit the exact original withdrawal amount back to the user's available withdrawal balance according to the existing wallet/accounting model;
+- create the appropriate wallet ledger transaction linked to withdrawalRequestId;
+- record the rejection/refund reason and audit/timeline event;
+- remain idempotent if the operation is retried;
+- prevent any duplicate refund;
+- preserve the original withdrawal amount and user association.
+
+The entire financial operation must be atomic. If any part fails, the transaction must roll back without partially releasing or crediting funds.
+
+Do NOT invent a new accounting mechanism if an existing rejection/refund service already handles this correctly. Reuse the existing hardened service and transaction logic where possible.
+
+Do NOT modify any other withdrawals, users, balances, wallets, or ledger records.
+
+Do NOT enable automatic withdrawals.
+Do NOT change BLOCKCHAIN_DRY_RUN.
+Do NOT configure the hot wallet.
+Do NOT rotate or modify RPC credentials as part of this operation.
+Do NOT publish or deploy anything.
+
+STOP after the read-only preflight and proposed accounting plan. Show me the exact changes that would be made for PW-WD-000118, PW-WD-000121, and PW-WD-000123 and wait for explicit approval before performing the production financial operation.
