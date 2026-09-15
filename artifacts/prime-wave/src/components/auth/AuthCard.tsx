@@ -12,22 +12,14 @@ export function AuthCard({ children, maxWidth = "max-w-md" }: AuthCardProps) {
       <div className="auth-grid" aria-hidden="true" />
       <div className="auth-glow auth-glow-top" aria-hidden="true" />
       <div className="auth-glow auth-glow-bottom" aria-hidden="true" />
-      <div className="auth-wave auth-wave-one" aria-hidden="true" />
-      <div className="auth-wave auth-wave-two" aria-hidden="true" />
-      <div className="auth-wave auth-wave-three" aria-hidden="true" />
+      <div className="auth-orbit auth-orbit-primary" aria-hidden="true" />
+      <div className="auth-orbit auth-orbit-secondary" aria-hidden="true" />
+      <div className="auth-orbit auth-orbit-tertiary" aria-hidden="true" />
+      <span className="auth-node auth-node-one" aria-hidden="true" />
+      <span className="auth-node auth-node-two" aria-hidden="true" />
+      <span className="auth-node auth-node-three" aria-hidden="true" />
 
-      <div className="auth-corner-label auth-corner-label-top" aria-hidden="true">
-        PRIMEWAVE / ACCESS
-      </div>
-      <div className="auth-corner-label auth-corner-label-bottom" aria-hidden="true">
-        SYSTEM / ONLINE
-      </div>
-
-      <div className="fixed right-4 top-4 z-50 sm:right-7 sm:top-7">
-        <ThemeToggle className="auth-theme-toggle" />
-      </div>
-
-      <div className="auth-content">
+      <div className="auth-topbar">
         <div className="auth-brand" aria-label="PrimeWave">
           <span className="auth-brand-mark" aria-hidden="true">
             <i />
@@ -38,7 +30,26 @@ export function AuthCard({ children, maxWidth = "max-w-md" }: AuthCardProps) {
             Prime<span>Wave</span>
           </span>
         </div>
+        <div className="auth-system-meta" aria-hidden="true">
+          <span>AI × BLOCKCHAIN × A BETTER TOMORROW</span>
+          <i />
+        </div>
+      </div>
 
+      <div className="fixed right-4 top-4 z-50 sm:right-7 sm:top-7">
+        <ThemeToggle className="auth-theme-toggle" />
+      </div>
+
+      <div className="auth-side-note auth-side-note-left" aria-hidden="true">
+        <span className="auth-side-rule" />
+        <span>INTELLIGENCE<br />POWERS<br />PROGRESS</span>
+      </div>
+      <div className="auth-side-note auth-side-note-right" aria-hidden="true">
+        <span className="auth-side-rule" />
+        <span>AI-POWERED<br />INFRASTRUCTURE<br />FOR A DECENTRALIZED<br />FUTURE.</span>
+      </div>
+
+      <div className="auth-content">
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
@@ -47,6 +58,13 @@ export function AuthCard({ children, maxWidth = "max-w-md" }: AuthCardProps) {
         >
           <div className="auth-card">{children}</div>
         </motion.div>
+      </div>
+
+      <div className="auth-footer-meta auth-footer-meta-left" aria-hidden="true">
+        <span className="auth-side-rule" /> PRIMEWAVE ECOSYSTEM
+      </div>
+      <div className="auth-footer-meta auth-footer-meta-right" aria-hidden="true">
+        <i /> SECURE ACCESS
       </div>
     </main>
   );
