@@ -1,0 +1,307 @@
+We are preparing to bring PrimeWave automatic BEP20/USDT withdrawals back online.
+
+DO NOT enable automatic withdrawals yet.
+DO NOT publish, deploy, restart production, modify production environment variables, modify the database, change withdrawal settings, or broadcast any blockchain transaction.
+
+First perform a complete READ-ONLY production configuration and code audit.
+
+The objective is to determine whether automatic BEP20 withdrawal is currently fully configured and, if not, exactly what is missing.
+
+IMPORTANT SECURITY RULES:
+- Never print, display, copy, or expose any private key, seed phrase, secret, password, API token, or credential value.
+- If a secret exists, report only CONFIGURED / NOT CONFIGURED.
+- Never include secret values in the final report.
+- Do not modify any production secret.
+- Do not perform a real withdrawal.
+- Do not sign or broadcast a blockchain transaction.
+- Do not change BLOCKCHAIN_DRY_RUN.
+- Do not change the hot-wallet address.
+- Do not change withdrawal limits or database records.
+
+AUDIT THE FOLLOWING:
+
+1. WITHDRAWAL PROCESSOR
+
+Inspect the complete automatic withdrawal flow and identify:
+
+- withdrawal queue/processor
+- withdrawal confirmation service
+- withdrawal processor service
+- withdrawal gateway factory
+- BscWithdrawalGateway
+- transaction preparation
+- transaction signing
+- transaction broadcasting
+- nonce management
+- transaction tracking
+- confirmation handling
+- failure/retry handling
+- database state transitions
+- idempotency protections
+- duplicate-processing protections
+
+Map the exact production flow:
+
+Withdrawal request
+→ validation
+→ queue/state
+→ processor
+→ risk/eligibility checks
+→ hot-wallet checks
+→ transaction construction
+→ signing
+→ broadcast
+→ tx hash persistence
+→ confirmation tracking
+→ final withdrawal state
+
+Confirm that there is no missing link.
+
+2. PRODUCTION ENVIRONMENT
+
+Inspect the ACTUAL production runtime configuration, not merely .replit or development configuration.
+
+Check whether these are configured in the production runtime:
+
+- BSC_RPC_PRIMARY
+- BSC_RPC_SECONDARY, if supported/configured
+- BSC_RPC_TERTIARY, if supported/configured
+- BSC_CHAIN_ID
+- BSC_REQUIRED_CONFIRMATIONS
+- BSC_RPC_TIMEOUT_MS
+- BSC_RPC_MAX_RETRIES
+- BLOCKCHAIN_DRY_RUN
+- HOT_WALLET_ADDRESS
+- HOT_WALLET_PRIVATE_KEY
+- MIN_HOT_WALLET_BNB
+- MIN_HOT_WALLET_USDT
+
+For each variable report only:
+
+CONFIGURED
+NOT CONFIGURED
+DEFAULTED
+INVALID
+NOT REQUIRED
+
+Never print the value of any secret.
+
+Specifically verify the environment inherited by the ACTUAL production API process.
+
+Do not assume that values in:
+- .replit
+- local development
+- preview
+- shell history
+- source files
+
+are being used by the production service.
+
+3. SYSTEMD / PRODUCTION SERVICE
+
+Inspect the production service definition and determine:
+
+- which EnvironmentFile is loaded
+- whether the withdrawal configuration is actually inherited by the running API process
+- whether a restart would be required for environment changes
+- whether another service/process is responsible for the withdrawal worker
+- whether the processor is actually running
+- whether there is a crash loop
+- whether there are multiple API/processor instances that could process the same withdrawal
+
+Do not restart anything.
+
+4. BLOCKCHAIN CONFIGURATION
+
+Verify that the withdrawal gateway is configured for:
+
+- BSC mainnet
+- BEP20
+- USDT
+
+Verify the configured chain ID and token contract used by the withdrawal implementation.
+
+Verify that the RPC provider is reachable using a READ-ONLY RPC call only.
+
+Safe checks may include:
+- chain ID
+- latest block number
+- gas price / fee estimation
+- token contract metadata
+- hot-wallet public balance
+
+Do NOT sign or broadcast anything.
+
+5. HOT WALLET READINESS
+
+Without exposing any secret:
+
+- confirm HOT_WALLET_ADDRESS is configured
+- confirm the private key secret exists
+- confirm the private key format is valid
+- confirm the private key corresponds to the configured hot-wallet address
+- confirm the address is valid for BSC
+- confirm the hot wallet has sufficient BNB for gas
+- confirm the hot wallet has sufficient USDT liquidity
+- report current balances only if safe to expose them
+- compare balances against configured minimum thresholds
+
+Do NOT transfer funds.
+
+6. TRANSACTION ENGINE
+
+Inspect the BSC withdrawal implementation for:
+
+- ERC20/BEP20 transfer construction
+- USDT contract interaction
+- decimals handling
+- amount conversion
+- gas estimation
+- gas-limit handling
+- nonce handling
+- concurrent withdrawal protection
+- replacement transaction handling
+- RPC retry behavior
+- broadcast error handling
+- transaction hash persistence
+- confirmation polling
+- timeout handling
+
+Pay particular attention to USDT's token decimals and ensure there is no floating-point arithmetic used for blockchain token amounts.
+
+7. WITHDRAWAL STATE MACHINE
+
+Document every withdrawal status and transition.
+
+Verify that a withdrawal cannot accidentally:
+
+- be processed twice
+- be signed twice
+- be broadcast twice
+- deduct the user's balance twice
+- become marked completed before a valid transaction exists
+- remain permanently stuck after a broadcast failure
+- be retried incorrectly after a successful broadcast
+
+Verify transaction hash uniqueness/idempotency.
+
+8. SECURITY
+
+Verify:
+
+- private key is not committed to Git
+- private key is not present in frontend code
+- private key is not returned through an API
+- private key is not logged
+- private key is not exposed through admin APIs
+- withdrawal signing is server-side only
+- withdrawal authorization remains server-side
+- admin/staff permissions have not accidentally been broadened
+- maintenance mode does not affect the withdrawal processor incorrectly
+- no client can trigger arbitrary blockchain transfers
+- withdrawal destination validation remains enforced
+
+9. EXISTING WITHDRAWAL CONFIGURATION
+
+Inspect the previous withdrawal implementation and determine exactly what state it is currently in.
+
+Specifically answer:
+
+A. Is automatic withdrawal code implemented?
+B. Is the BSC withdrawal gateway registered?
+C. Is the withdrawal processor running?
+D. Is the BSC RPC configured in production?
+E. Is the hot wallet configured in production?
+F. Is the private signing key configured in production?
+G. Is BLOCKCHAIN_DRY_RUN currently enabled or disabled?
+H. Is the hot wallet funded?
+I. Is the USDT contract configuration correct?
+J. Are confirmation settings configured?
+K. Are withdrawal limits/risk checks configured?
+L. Is the complete automatic withdrawal path operational?
+M. What exact blockers remain?
+
+10. TESTING
+
+Do NOT perform a real withdrawal.
+
+Instead perform:
+
+- unit tests
+- withdrawal gateway tests
+- processor tests
+- typecheck
+- production build
+- static analysis
+- configuration validation
+- READ-ONLY BSC RPC checks
+- hot-wallet address/public-balance verification
+- transaction construction test without signing/broadcasting
+- dry-run processor test if supported
+
+If there is an existing test fixture or sandbox mode, use it rather than touching production funds.
+
+11. FINAL REPORT
+
+Return a clear report with:
+
+## Automatic Withdrawal Readiness
+
+Overall:
+READY
+NOT READY
+READY WITH BLOCKERS
+
+## Code Status
+- Processor:
+- Gateway:
+- Signing:
+- Broadcasting:
+- Confirmation:
+- Retry/idempotency:
+
+## Production Configuration
+Use only:
+CONFIGURED / NOT CONFIGURED / INVALID / DEFAULTED
+
+for every relevant environment variable.
+
+## Blockchain
+- Network:
+- Chain ID:
+- USDT contract:
+- RPC:
+- Confirmation policy:
+
+## Hot Wallet
+- Address configured:
+- Private key configured:
+- Key/address match:
+- BNB gas balance sufficient:
+- USDT liquidity sufficient:
+
+Never reveal the private key.
+
+## Runtime
+- Production API:
+- Withdrawal processor:
+- Queue:
+- Current errors:
+- Crash loops:
+
+## Tests
+List exactly what passed and failed.
+
+## Blockers
+List every blocker in priority order.
+
+## Required Changes
+List only the changes necessary to make automatic withdrawal production-ready.
+
+IMPORTANT:
+Do not fix anything yet.
+Do not change anything.
+Do not restart production.
+Do not enable automatic withdrawals.
+
+This is a READ-ONLY readiness audit only.
