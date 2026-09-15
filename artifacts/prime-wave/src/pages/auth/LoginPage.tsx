@@ -94,7 +94,7 @@ export default function LoginPage() {
   };
 
   return (
-    <AuthCard>
+    <AuthCard centerOnMobile>
       <AuthHeader
         title="Welcome back."
         subtitle="Enter your credentials to access your PrimeWave account."

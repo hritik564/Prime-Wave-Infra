@@ -642,6 +642,9 @@
     justify-content: flex-start;
     padding: 94px 16px 30px;
   }
+  .auth-content-centered-mobile {
+    justify-content: center;
+  }
   .auth-brand {
     font-size: 19px;
   }

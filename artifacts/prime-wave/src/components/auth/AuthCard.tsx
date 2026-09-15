@@ -4,9 +4,14 @@ import { ThemeToggle } from "@/components/auth/ThemeToggle";
 interface AuthCardProps {
   children: React.ReactNode;
   maxWidth?: string;
+  centerOnMobile?: boolean;
 }
 
-export function AuthCard({ children, maxWidth = "max-w-md" }: AuthCardProps) {
+export function AuthCard({
+  children,
+  maxWidth = "max-w-md",
+  centerOnMobile = false,
+}: AuthCardProps) {
   return (
     <main className="auth-shell">
       <div className="auth-grid" aria-hidden="true" />
@@ -49,7 +54,7 @@ export function AuthCard({ children, maxWidth = "max-w-md" }: AuthCardProps) {
         <span>AI-POWERED<br />INFRASTRUCTURE<br />FOR A DECENTRALIZED<br />FUTURE.</span>
       </div>
 
-      <div className="auth-content">
+      <div className={`auth-content${centerOnMobile ? " auth-content-centered-mobile" : ""}`}>
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
