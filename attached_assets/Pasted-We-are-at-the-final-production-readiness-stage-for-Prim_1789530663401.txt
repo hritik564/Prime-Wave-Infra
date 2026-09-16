@@ -1,0 +1,168 @@
+We are at the final production-readiness stage for PrimeWave automatic withdrawals.
+
+I want you to complete as many of the remaining tasks as possible in one controlled pass, but DO NOT activate live withdrawals yet.
+
+OBJECTIVE:
+Bring the withdrawal system to a state where the only remaining step is my explicit approval to switch BLOCKCHAIN_DRY_RUN from true to false.
+
+PHASE 1 — PROTECT THE REMAINING APPROVED WITHDRAWAL
+
+1. Verify PW-WD-000103 is still APPROVED.
+2. Using the newly implemented guarded reconciliation endpoint, move ONLY PW-WD-000103:
+   APPROVED → MANUAL_REVIEW
+3. Do this through the normal authenticated admin mechanism.
+4. Do NOT refund, credit, debit, or otherwise modify any wallet/accounting balance.
+5. Afterward verify:
+   - status = MANUAL_REVIEW
+   - no longer automatically claimable
+   - available balance unchanged
+   - locked balance unchanged
+   - ledger unchanged
+   - no transaction hash/signing/broadcast fields modified
+6. Do not modify any other production withdrawal.
+
+PHASE 2 — PRODUCTION CONFIGURATION AUDIT
+
+Perform a read-only audit of the effective production configuration.
+
+Verify:
+- BSC_RPC_PRIMARY
+- HOT_WALLET_ADDRESS
+- HOT_WALLET_PRIVATE_KEY presence only
+- BLOCKCHAIN_DRY_RUN
+- MIN_HOT_WALLET_BNB
+- MIN_HOT_WALLET_USDT
+- effective chain ID
+- effective USDT contract
+- USDT decimals
+- required confirmation configuration
+- RPC timeout/retry configuration
+
+NEVER print, log, hash, expose, or include any private key or credential in the report.
+
+For secrets, report only:
+PRESENT / MISSING / INVALID CONFIGURATION
+
+PHASE 3 — RPC SECURITY
+
+1. Verify the current production RPC works read-only.
+2. Verify:
+   - chain ID = 56
+   - latest block retrieval
+   - gas estimation
+   - USDT contract bytecode
+   - USDT symbol/name/decimals
+3. Do NOT broadcast a transaction.
+4. Do NOT weaken receipt verification.
+5. Confirm whether the historically exposed RPC credential has been rotated.
+6. If rotation cannot be verified, mark it as REQUIRED and tell me exactly which secret needs to be replaced.
+7. Do not expose the old or new credential.
+
+If only one RPC provider exists, report that as an operational risk but do not automatically change provider configuration.
+
+PHASE 4 — HOT WALLET READINESS
+
+Verify whether the effective production configuration contains:
+- HOT_WALLET_ADDRESS
+- HOT_WALLET_PRIVATE_KEY
+
+If the private key is present, NEVER display it.
+
+If secure runtime verification can safely derive the address from the configured private key without exposing the key, compare the derived address against HOT_WALLET_ADDRESS and report only:
+
+MATCH
+or
+MISMATCH
+or
+UNABLE TO VERIFY
+
+Then perform read-only balance checks:
+- BNB balance
+- USDT balance
+
+Do not transfer funds.
+
+If balances are below configured minimums, report the exact deficiency and STOP there.
+
+PHASE 5 — LIVE PROCESSING GATE
+
+Run the existing fail-closed activation/readiness gate.
+
+It must verify all of the following:
+- production schema ready
+- RPC healthy
+- chain ID correct
+- USDT contract valid
+- hot-wallet configuration valid
+- private-key/address correspondence valid
+- BNB balance sufficient
+- USDT balance sufficient
+- no unresolved withdrawal that is accidentally claimable
+- no unsafe stale APPROVED withdrawal
+- dry-run status
+
+Do NOT bypass or weaken any safety gate.
+
+PHASE 6 — TESTS
+
+Run the relevant:
+- withdrawal tests
+- accounting/idempotency tests
+- reconciliation tests
+- BSC/RPC tests
+- full API test suite
+- API typecheck
+- frontend typecheck
+- production builds
+- Prisma validation
+- git diff --check
+
+Fix only issues directly related to getting this withdrawal system safely production-ready.
+
+Do not introduce unrelated refactors.
+
+PHASE 7 — PRODUCTION SAFETY
+
+ABSOLUTELY DO NOT:
+- set BLOCKCHAIN_DRY_RUN=false
+- sign a real transaction
+- broadcast a transaction
+- send funds
+- configure a private key from chat
+- create or modify a wallet
+- automatically refund any withdrawal
+- reconcile PW-WD-000118
+- reconcile PW-WD-000121
+- reconcile PW-WD-000123
+- modify PW-WD-000103 beyond the approved APPROVED → MANUAL_REVIEW reconciliation
+- publish/deploy unless explicitly required for the guarded reconciliation code to function in production
+
+If a publish is technically required for the new reconciliation endpoint or readiness gate to exist in production, STOP BEFORE PUBLISHING and tell me exactly why publishing is required and what will be deployed.
+
+FINAL REPORT
+
+At the end provide a concise production-readiness report with:
+
+1. Tasks completed
+2. Tasks still blocked
+3. Exact production secrets/configuration still required
+4. Hot-wallet balance status
+5. RPC status
+6. PW-WD-000103 final status
+7. Status of the three BROADCAST_UNKNOWN withdrawals
+8. Test results
+9. Whether the live activation gate passes
+10. Exact remaining action required from me
+
+The desired final state is:
+
+Automatic withdrawals = READY FOR EXPLICIT ACTIVATION
+
+but:
+
+BLOCKCHAIN_DRY_RUN must remain TRUE
+No transaction signed
+No transaction broadcast
+No funds moved
+
+Do not interpret this request as approval to activate live withdrawals.
