@@ -30,10 +30,11 @@ import {
  * Added operational controls:
  *   1. Engine switch  — skip entire batch if engine is disabled
  *   2. Hot wallet guard — skip batch if BNB or USDT is below minimum thresholds
- *   3. Hold period    — ignore APPROVED withdrawals younger than WITHDRAWAL_HOLD_MINUTES
+ *   3. Hold period    — ignore PENDING/APPROVED withdrawals younger than WITHDRAWAL_HOLD_MINUTES
  *   4. Risk limits    — large / high-frequency withdrawals → MANUAL_REVIEW (no refund)
  *
- * Core state machine remains: PENDING → APPROVED → QUEUED → PROCESSING →
+ * Core state machine supports the normal path PENDING → QUEUED → PROCESSING →
+ * and the legacy administrative path APPROVED → QUEUED → PROCESSING →
  * SIGNED → BROADCASTING → CONFIRMING  (Sprint 31C/D unchanged)
  */
 
@@ -49,7 +50,7 @@ export async function processPendingWithdrawals(): Promise<ProcessResult> {
   const result: ProcessResult = { processed: 0, failed: 0, skipped: 0, errors: [] };
 
   // Live mode must prove the complete operational safety envelope before any
-  // APPROVED request is claimed. Dry-run remains intentionally non-financial.
+  // eligible request is claimed. Dry-run remains intentionally non-financial.
   const activationGate = await evaluateWithdrawalActivationGate();
   if (!activationGate.allowed) {
     logger.error(
@@ -87,7 +88,10 @@ export async function processPendingWithdrawals(): Promise<ProcessResult> {
   const pending = await claimPendingWithdrawals(holdCutoff, 20);
 
   const waitingCount = await prisma.withdrawalRequest.count({
-    where: { status: "APPROVED", requestedAt: { gt: holdCutoff } },
+    where: {
+      status: { in: ["PENDING", "APPROVED"] },
+      requestedAt: { gt: holdCutoff },
+    },
   });
 
   logger.info(
@@ -126,7 +130,7 @@ async function runSingleWithdrawal(wr: {
   const { id, withdrawalId: wId, idempotencyKey, claimToken } = wr;
   const logCtx = { withdrawalId: wId ?? id, idempotencyKey, workerId: WITHDRAWAL_WORKER_ID };
 
-  await logWithdrawalEvent(id, "VALIDATED");
+  await logWithdrawalEvent(id, "QUEUED", { automatic: true });
   logger.info({ ...logCtx, status: "QUEUED" }, "withdrawal.processor: validating");
 
   // ── Run validations ──────────────────────────────────────────────────────────
@@ -151,6 +155,8 @@ async function runSingleWithdrawal(wr: {
     }
     return;
   }
+
+  await logWithdrawalEvent(id, "VALIDATED", { automatic: true });
 
   // ── QUEUED → PROCESSING ──────────────────────────────────────────────────────
   if (!await transitionClaimedWithdrawal(id, claimToken, ["QUEUED"], "PROCESSING", {

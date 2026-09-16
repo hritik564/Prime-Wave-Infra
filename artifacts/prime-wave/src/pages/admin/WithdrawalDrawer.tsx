@@ -128,7 +128,7 @@ function SummaryTab({w}:{w:DrawerWithdrawal}) {
       {w.status === "PENDING" && (
         <div style={{background:"rgba(251,191,36,0.05)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:9,padding:"10px 12px",marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
           <AlertTriangle size={12} style={{color:"#fbbf24",flexShrink:0}}/>
-          <span style={{fontSize:11,color:"#fbbf24"}}>Awaiting admin review and approval.</span>
+          <span style={{fontSize:11,color:"#fbbf24"}}>Held for automatic validation and processing.</span>
         </div>
       )}
     </div>
@@ -287,9 +287,9 @@ function buildTimeline(w:DrawerWithdrawal): TxEvent[] {
   const b = w.requestedAt.getTime();
   const events: TxEvent[] = [
     {label:"Withdrawal Requested",time:w.requestedAt,                          admin:w.username,           color:"#60a5fa",icon:ArrowDownLeft, done:true},
-    {label:"Queued for Review",   time:new Date(b+300000),                     admin:"system",             color:"#fbbf24",icon:Clock,         done:true},
-    {label:"Assigned to Admin",   time:new Date(b+1800000),                    admin:w.assignedAdmin??"system",color:"#a78bfa",icon:Users,     done:!!w.assignedAdmin},
-    {label:"Approved",            time:w.processedAt??new Date(b+7200000),     admin:w.assignedAdmin??"—", color:"#34d399",icon:CheckCircle,   done:w.status==="APPROVED"||w.status==="RELEASED"||w.status==="COMPLETED"},
+    {label:"Queued for Automatic Processing", time:new Date(b+300000),          admin:"system",             color:"#fbbf24",icon:Clock,       done:true},
+    {label:"Assigned for Legacy Review",     time:new Date(b+1800000),          admin:w.assignedAdmin??"system",color:"#a78bfa",icon:Users,   done:!!w.assignedAdmin},
+    {label:w.status==="APPROVED"?"Approved":"Validated", time:w.processedAt??new Date(b+7200000), admin:w.assignedAdmin??"system", color:"#34d399",icon:CheckCircle, done:w.status==="APPROVED"||w.status==="RELEASED"||w.status==="COMPLETED"},
     {label:"Released to Network", time:new Date((w.processedAt?.getTime()??b+7200000)+3600000),admin:"system",color:"#34d399",icon:TrendingUp,done:w.status==="RELEASED"||w.status==="COMPLETED"},
     {label:"Completed",           time:new Date((w.processedAt?.getTime()??b+7200000)+14400000),admin:"system",color:GOLD,    icon:CheckCircle,done:false},
   ];
@@ -438,11 +438,10 @@ function AuditTab({w, adminLogs}: {w:DrawerWithdrawal; adminLogs?: DrawerAuditLo
 // WithdrawalDrawer
 // ─────────────────────────────────────────────────────────────────────────────
 export default function WithdrawalDrawer({
-  withdrawal, onClose, onApprove, onReject, onCorrectFalsePositive, adminLogs, onSaveNote,
+  withdrawal, onClose, onReject, onCorrectFalsePositive, adminLogs, onSaveNote,
 }: {
   withdrawal:  DrawerWithdrawal | null;
   onClose:     () => void;
-  onApprove?:  (w: DrawerWithdrawal) => void;
   onReject?:   (w: DrawerWithdrawal) => void;
   onCorrectFalsePositive?: (w: DrawerWithdrawal) => void;
   adminLogs?:  DrawerAuditLog[];
@@ -473,9 +472,8 @@ export default function WithdrawalDrawer({
                   <div style={{fontSize:12,color:MUTED}}>@{withdrawal.username} · {withdrawal.country}</div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
-                   {(displayStatus === "PENDING" || ["APPROVED", "UNDER_REVIEW", "MANUAL_REVIEW"].includes(displayStatus)) && (onApprove || onReject) && (
+                    {["PENDING", "APPROVED", "UNDER_REVIEW", "MANUAL_REVIEW"].includes(displayStatus) && onReject && (
                     <>
-                      {onApprove && displayStatus === "PENDING" && <button onClick={()=>onApprove(withdrawal)} style={{padding:"5px 12px",background:"rgba(52,211,153,0.1)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:700,color:"#34d399"}}>Approve</button>}
                       {onReject && ["PENDING", "APPROVED", "UNDER_REVIEW", "MANUAL_REVIEW"].includes(displayStatus) && <button onClick={()=>onReject(withdrawal)}  style={{padding:"5px 12px",background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:700,color:"#f87171"}}>Reject</button>}
                     </>
                   )}

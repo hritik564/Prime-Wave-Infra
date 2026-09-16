@@ -23,7 +23,7 @@ export type WithdrawalState =
  * automatic transitions.
  */
 export const WITHDRAWAL_STATE_TRANSITIONS: Readonly<Record<WithdrawalState, readonly WithdrawalState[]>> = {
-  PENDING: ["APPROVED", "CANCELLED", "REJECTED"],
+  PENDING: ["APPROVED", "QUEUED", "CANCELLED", "REJECTED"],
   VALIDATING: ["QUEUED", "FAILED", "MANUAL_REVIEW", "PENDING"],
   QUEUED: ["PROCESSING", "PENDING", "FAILED", "MANUAL_REVIEW"],
   PROCESSING: ["SIGNED", "BROADCAST_UNKNOWN", "FAILED", "MANUAL_REVIEW"],

@@ -10,7 +10,7 @@ const readProjectFile = (relativePath: string) =>
 describe("withdrawal admin action regression contract", () => {
   it("keeps only the intended financial actions for each state", () => {
     const policy = readProjectFile("prime-wave/src/pages/admin/withdrawal-action-policy.ts");
-    expect(policy).toContain('PENDING: ["APPROVE", "REJECT"]');
+    expect(policy).toContain('PENDING: ["REJECT"]');
     expect(policy).toContain('APPROVED: ["REJECT", "MOVE_TO_MANUAL_REVIEW"]');
     expect(policy).toContain("PROCESSING: []");
     expect(policy).toContain('BROADCAST_UNKNOWN: ["REJECT_AND_REFUND"]');
@@ -52,7 +52,10 @@ describe("withdrawal admin action regression contract", () => {
 
   it("retains the intended UI action predicates", () => {
     const page = readProjectFile("prime-wave/src/pages/admin/WithdrawalsPage.tsx");
-    expect(page).toContain("canApproveStatus");
+    expect(page).not.toContain("canApproveStatus");
+    expect(page).not.toContain("Bulk Approve");
+    expect(page).not.toContain("ApprovalModal");
+    expect(page).not.toContain("Review, approve, reject");
     expect(page).toContain("canRejectStatus");
     expect(page).toContain("canMoveToManualReviewStatus");
     expect(page).toContain("canRejectAndRefundBroadcastUnknownStatus");

@@ -10,6 +10,8 @@ import { logger } from "../lib/logger";
 
 // Statuses that represent an active (in-flight) withdrawal
 const ACTIVE_QUEUE_STATUSES = [
+  "PENDING",
+  "APPROVED",
   "VALIDATING",
   "QUEUED",
   "PROCESSING",

@@ -51,4 +51,18 @@ describe("database withdrawal claims", () => {
     expect(first[0].id).not.toBe(second[0].id);
     expect(new Set([first[0].claimToken, second[0].claimToken]).size).toBe(2);
   });
+
+  it("uses the automatic PENDING path while preserving legacy APPROVED claims", async () => {
+    (prisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (prisma.withdrawalRequest.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    await claimPendingWithdrawals(new Date(), 1);
+
+    const [query] = (prisma.$queryRaw as ReturnType<typeof vi.fn>).mock.calls[0];
+    const sql = Array.from(query as TemplateStringsArray).join(" ");
+    expect(sql).toContain("'PENDING'::\"WithdrawalStatus\"");
+    expect(sql).toContain("'APPROVED'::\"WithdrawalStatus\"");
+    expect(sql).toContain('"requestedAt" <= ');
+    expect(sql).toContain('"status" IN');
+  });
 });

@@ -15,14 +15,13 @@ import { useResponsive } from "@/hooks/useResponsive";
 import { useAuth } from "@/providers/AuthProvider";
 import AdminLayout from "./AdminLayout";
 import WithdrawalDrawer, { type DrawerWithdrawal, type DrawerAuditLog } from "./WithdrawalDrawer";
-import { ApprovalModal, RejectModal, RejectAndRefundModal, ManualReviewModal, FalsePositiveStageCorrectionModal } from "./WithdrawalModals";
+import { RejectModal, RejectAndRefundModal, ManualReviewModal, FalsePositiveStageCorrectionModal } from "./WithdrawalModals";
 import { canCorrectFalsePositiveStage, getWithdrawalAdminActions } from "./withdrawal-action-policy";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
 import {
   getAdminWithdrawals,
   getAdminWithdrawalStats,
   getAdminWithdrawalById,
-  adminApproveWithdrawal,
   adminRejectWithdrawal,
   adminRejectAndRefundBroadcastUnknown,
   adminCorrectFalsePositiveWithdrawalStage,
@@ -55,10 +54,6 @@ const ago = (d: Date) => {
   if(s<60)return"just now";if(s<3600)return`${Math.floor(s/60)}m`;
   if(s<86400)return`${Math.floor(s/3600)}h`;return`${Math.floor(s/86400)}d`;
 };
-
-function canApproveStatus(status: string): boolean {
-  return getWithdrawalAdminActions(getAdminWithdrawalDisplayStatus(status)).includes("APPROVE");
-}
 
 function canRejectStatus(status: string): boolean {
   return getWithdrawalAdminActions(getAdminWithdrawalDisplayStatus(status)).includes("REJECT");
@@ -263,9 +258,9 @@ function ProcessingQueue({stats}:{stats:AdminWithdrawalStats|null}) {
 }
 
 // ─── ActionDropdown ───────────────────────────────────────────────────────────
-function ActionDropdown({ w, onApprove, onReject, onRejectAndRefund, onCorrectFalsePositive, onMoveToManualReview, onView, canMutate = true }: {
+function ActionDropdown({ w, onReject, onRejectAndRefund, onCorrectFalsePositive, onMoveToManualReview, onView, canMutate = true }: {
   w: AdminWithdrawalItem;
-  onApprove:(w:AdminWithdrawalItem)=>void; onReject:(w:AdminWithdrawalItem)=>void;
+  onReject:(w:AdminWithdrawalItem)=>void;
   onRejectAndRefund:(w:AdminWithdrawalItem)=>void;
   onCorrectFalsePositive:(w:AdminWithdrawalItem)=>void;
   onMoveToManualReview:(w:AdminWithdrawalItem)=>void; onView:(w:AdminWithdrawalItem)=>void;
@@ -274,9 +269,6 @@ function ActionDropdown({ w, onApprove, onReject, onRejectAndRefund, onCorrectFa
   const [open,setOpen]=useState(false);
   const items=[
     {icon:Eye,         label:"View Details",    color:"rgba(255,255,255,0.7)", fn:()=>onView(w)},
-    ...(canMutate && canApproveStatus(w.status)?[
-      {icon:CheckCircle, label:"Approve",         color:"#34d399", fn:()=>onApprove(w)},
-    ]:[]),
     ...(canMutate && canRejectStatus(w.status)?[
       {icon:X,           label:"Reject",          color:"#f87171", fn:()=>onReject(w)},
     ]:[]),
@@ -314,9 +306,9 @@ function ActionDropdown({ w, onApprove, onReject, onRejectAndRefund, onCorrectFa
 }
 
 // ─── Table Row (memoized) ─────────────────────────────────────────────────────
-const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowClick, onApprove, onReject, onRejectAndRefund, onCorrectFalsePositive, onMoveToManualReview, isHover, onHoverSet, canMutate = true }: {
+const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowClick, onReject, onRejectAndRefund, onCorrectFalsePositive, onMoveToManualReview, isHover, onHoverSet, canMutate = true }: {
   w:AdminWithdrawalItem; checked:boolean; onToggle:()=>void; onRowClick:()=>void;
-  onApprove:(w:AdminWithdrawalItem)=>void; onReject:(w:AdminWithdrawalItem)=>void;
+  onReject:(w:AdminWithdrawalItem)=>void;
   onRejectAndRefund:(w:AdminWithdrawalItem)=>void;
   onCorrectFalsePositive:(w:AdminWithdrawalItem)=>void;
   onMoveToManualReview:(w:AdminWithdrawalItem)=>void;
@@ -370,7 +362,7 @@ const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowC
         </span>
       </td>
       <td style={{padding:"11px 8px"}} onClick={e=>e.stopPropagation()}>
-          <ActionDropdown w={w} onApprove={onApprove} onReject={onReject} onRejectAndRefund={onRejectAndRefund} onCorrectFalsePositive={onCorrectFalsePositive} onMoveToManualReview={onMoveToManualReview} onView={onRowClick as never} canMutate={canMutate}/>
+          <ActionDropdown w={w} onReject={onReject} onRejectAndRefund={onRejectAndRefund} onCorrectFalsePositive={onCorrectFalsePositive} onMoveToManualReview={onMoveToManualReview} onView={onRowClick as never} canMutate={canMutate}/>
       </td>
     </tr>
   );
@@ -469,13 +461,12 @@ const ROWS_OPTIONS = [25, 50, 100];
 const DEBOUNCE_MS = 400;
 
 // ─── Mobile card ─────────────────────────────────────────────────────────────
-function MobileWithdrawalCard({ w, onClick, onReject, onRejectAndRefund, onCorrectFalsePositive, onApprove, onMoveToManualReview, canMutate = true }: {
+function MobileWithdrawalCard({ w, onClick, onReject, onRejectAndRefund, onCorrectFalsePositive, onMoveToManualReview, canMutate = true }: {
   w: AdminWithdrawalItem;
   onClick: () => void;
   onReject: (w: AdminWithdrawalItem) => void;
   onRejectAndRefund: (w: AdminWithdrawalItem) => void;
   onCorrectFalsePositive: (w: AdminWithdrawalItem) => void;
-  onApprove: (w: AdminWithdrawalItem) => void;
   onMoveToManualReview: (w: AdminWithdrawalItem) => void;
   canMutate?: boolean;
 }) {
@@ -484,7 +475,7 @@ function MobileWithdrawalCard({ w, onClick, onReject, onRejectAndRefund, onCorre
   const sc = cfg.color;
   const priority = derivePriority(parseFloat(w.amount));
   const pc = priority === "URGENT" ? "#f87171" : priority === "VIP" ? "#a78bfa" : priority === "HIGH" ? "#fbbf24" : MUTED;
-   const isActionable = canApproveStatus(w.status) || canRejectStatus(w.status) || canRejectAndRefundBroadcastUnknownStatus(w.status) || canCorrectFalsePositiveStageForWithdrawal(w) || canMoveToManualReviewStatus(w.status);
+   const isActionable = canRejectStatus(w.status) || canRejectAndRefundBroadcastUnknownStatus(w.status) || canCorrectFalsePositiveStageForWithdrawal(w) || canMoveToManualReviewStatus(w.status);
   return (
     <div style={{ borderBottom: `1px solid ${BORDER}` }}>
       <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", cursor: "pointer" }}>
@@ -506,12 +497,6 @@ function MobileWithdrawalCard({ w, onClick, onReject, onRejectAndRefund, onCorre
       </div>
       {canMutate && isActionable && (
         <div style={{ display: "flex", gap: 8, padding: "0 14px 12px" }}>
-          {canApproveStatus(w.status) && (
-            <button
-              onClick={e => { e.stopPropagation(); onApprove(w); }}
-              style={{ flex: 1, padding: "7px 0", background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.3)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#34d399" }}
-            >✓ Approve</button>
-          )}
           {canRejectStatus(w.status) && <button
             onClick={e => { e.stopPropagation(); onReject(w); }}
             style={{ flex: 1, padding: "7px 0", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#f87171" }}
@@ -638,7 +623,6 @@ export default function WithdrawalsPage() {
   const closeDrawer = useCallback(() => { setDrawerW(null); setDrawerDetail(null); }, []);
 
   // ── Action handlers ────────────────────────────────────────────────────────
-  const openApprove    = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("approve");},[]);
   const openReject     = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("reject");},[]);
   const openRejectAndRefund = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("reject-refund");},[]);
   const openFalsePositiveCorrection = useCallback((w:AdminWithdrawalItem)=>{
@@ -647,10 +631,6 @@ export default function WithdrawalsPage() {
   const openManualReview = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("manual-review");},[]);
   const closeModal  = useCallback(()=>{setModal(null);setModalW(null);},[]);
 
-  const openDrawerApprove = useCallback((dw: DrawerWithdrawal) => {
-    const item = withdrawals.find(w => w.id === dw.id);
-    if (item) { setModalW(item); setModal("approve"); }
-  }, [withdrawals]);
   const openDrawerReject = useCallback((dw: DrawerWithdrawal) => {
     const item = withdrawals.find(w => w.id === dw.id);
     if (item) { setModalW(item); setModal("reject"); }
@@ -676,22 +656,6 @@ export default function WithdrawalsPage() {
       }
     }
   }, [drawerW, fetchStats]);
-
-  const confirmApprove = useCallback(async (comment: string) => {
-    if (isStaffOperations) return;
-    if (!modalW) return;
-    setActionLoading(true);
-    try {
-      await adminApproveWithdrawal(modalW.id, comment || undefined);
-      toast(`Withdrawal approved`, "success");
-      closeModal();
-      await refreshRowAndStats(modalW.id);
-    } catch (e: unknown) {
-      toast(e instanceof Error ? e.message : "Approval failed", "error");
-    } finally {
-      setActionLoading(false);
-    }
-  }, [modalW, closeModal, toast, refreshRowAndStats, isStaffOperations]);
 
   const confirmReject = useCallback(async (reason: string, comment: string) => {
     if (isStaffOperations) return;
@@ -797,7 +761,7 @@ export default function WithdrawalsPage() {
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:24,gap:12,flexWrap:"wrap"}}>
         <div>
           <h1 style={{margin:0,fontSize:isMobile?16:22,fontWeight:800,color:"rgba(255,255,255,0.92)"}}>Withdrawal Control Center</h1>
-          {!isMobile && <p style={{margin:"4px 0 0",fontSize:12,color:MUTED}}>Review, approve, reject and monitor every withdrawal request.</p>}
+        {!isMobile && <p style={{margin:"4px 0 0",fontSize:12,color:MUTED}}>Monitor automatic processing, reject requests and investigate exceptions.</p>}
         </div>
         <div style={{display:"flex",gap:8,flexShrink:0}}>
           <button onClick={()=>{void fetchWithdrawals();void fetchStats();}} style={{...sel,display:"flex",alignItems:"center",gap:5}}>
@@ -824,7 +788,7 @@ export default function WithdrawalsPage() {
       {/* KPI Cards */}
       <div style={{display:"grid",gridTemplateColumns:`repeat(${isMobile?2:4},1fr)`,gap:12,marginBottom:20}}>
         <StatCard icon={FileText}    label="Total Requests"   value={statsLoading?"—":String(stats?.totalCount??0)}       sub="All time"                                             color="#60a5fa" bg="rgba(96,165,250,0.12)"    loading={statsLoading}/>
-        <StatCard icon={Clock}       label="Pending Approval" value={statsLoading?"—":String(stats?.pendingCount??0)}      sub={stats?`${$(stats.pendingAmount)} pending`:""}         color="#fbbf24" bg="rgba(251,191,36,0.12)"   loading={statsLoading}/>
+        <StatCard icon={Clock}       label="Pending Auto-Processing" value={statsLoading?"—":String(stats?.pendingCount??0)} sub={stats?`${$(stats.pendingAmount)} pending`:""} color="#fbbf24" bg="rgba(251,191,36,0.12)" loading={statsLoading}/>
         <StatCard icon={CheckCircle} label="Approved Today"   value={statsLoading?"—":String(stats?.approvedToday??0)}    sub={stats?`${$(stats.approvedTodayAmount)} released`:""}  color="#34d399" bg="rgba(52,211,153,0.12)"   loading={statsLoading}/>
         <StatCard icon={X}           label="Rejected Today"   value={statsLoading?"—":String(stats?.rejectedToday??0)}    sub="Requires follow-up"                                   color="#f87171" bg="rgba(248,113,113,0.12)"  loading={statsLoading}/>
       </div>
@@ -882,7 +846,7 @@ export default function WithdrawalsPage() {
       {selected.size>0&&(
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",background:"rgba(212,175,55,0.06)",border:`1px solid rgba(212,175,55,0.15)`,borderRadius:9,marginBottom:12}}>
           <span style={{fontSize:12,color:GOLD_L,fontWeight:600}}>{selected.size} selected</span>
-          {[{label:"Bulk Approve",c:"#34d399"},{label:"Bulk Reject",c:"#f87171"},{label:"Export",c:MUTED}].map(b=>(
+          {[{label:"Bulk Reject",c:"#f87171"},{label:"Export",c:MUTED}].map(b=>(
             <button key={b.label} style={{padding:"5px 11px",background:"rgba(255,255,255,0.05)",border:`1px solid ${BORDER}`,borderRadius:6,cursor:"pointer",fontSize:11,color:b.c}}>{b.label}</button>
           ))}
           <button onClick={()=>setSelected(new Set())} style={{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:MUTED}}><X size={13}/></button>
@@ -905,7 +869,7 @@ export default function WithdrawalsPage() {
                 ))
               : withdrawals.length===0
                 ? <div style={{padding:"48px",textAlign:"center",color:MUTED,fontSize:12}}>{error ? "Error loading withdrawals." : "No withdrawals match your filters."}</div>
-                : withdrawals.map(w=><MobileWithdrawalCard key={w.id} w={w} onClick={()=>void openDrawer(w)} onReject={openReject} onRejectAndRefund={openRejectAndRefund} onCorrectFalsePositive={openFalsePositiveCorrection} onApprove={openApprove} onMoveToManualReview={openManualReview} canMutate={!isStaffOperations}/>)
+                : withdrawals.map(w=><MobileWithdrawalCard key={w.id} w={w} onClick={()=>void openDrawer(w)} onReject={openReject} onRejectAndRefund={openRejectAndRefund} onCorrectFalsePositive={openFalsePositiveCorrection} onMoveToManualReview={openManualReview} canMutate={!isStaffOperations}/>)
             }
           </div>
         ) : (
@@ -941,7 +905,7 @@ export default function WithdrawalsPage() {
                     checked={selected.has(w.id)}
                     onToggle={()=>toggleRow(w.id)}
                     onRowClick={()=>void openDrawer(w)}
-                      onApprove={openApprove} onReject={openReject} onRejectAndRefund={openRejectAndRefund} onCorrectFalsePositive={openFalsePositiveCorrection} onMoveToManualReview={openManualReview}
+                      onReject={openReject} onRejectAndRefund={openRejectAndRefund} onCorrectFalsePositive={openFalsePositiveCorrection} onMoveToManualReview={openManualReview}
                     canMutate={!isStaffOperations}
                     isHover={hovered===w.id}
                     onHoverSet={setHovered}
@@ -986,7 +950,6 @@ export default function WithdrawalsPage() {
       <WithdrawalDrawer
         withdrawal={drawerW}
         onClose={closeDrawer}
-         onApprove={isStaffOperations ? undefined : openDrawerApprove}
          onReject={isStaffOperations ? undefined : openDrawerReject}
          onCorrectFalsePositive={isStaffOperations ? undefined : openDrawerFalsePositiveCorrection}
         adminLogs={drawerDetail?.adminLogs as DrawerAuditLog[] | undefined}
@@ -994,13 +957,6 @@ export default function WithdrawalsPage() {
       />
 
       {/* Modals */}
-      {!isStaffOperations && modal==="approve"&&modalW&&(
-        <ApprovalModal
-          w={{id:modalW.id,amount:parseFloat(modalW.amount),fee:0,username:modalW.user.username,walletType:"WITHDRAWAL",network:modalW.network,status:getAdminWithdrawalDisplayStatus(modalW.status),destinationAddress:modalW.walletAddress}}
-          onClose={closeModal}
-          onConfirm={(comment)=>void confirmApprove(comment)}
-        />
-      )}
       {!isStaffOperations && modal==="reject"&&modalW&&(
         <RejectModal
           w={{id:modalW.id,amount:parseFloat(modalW.amount),fee:0,username:modalW.user.username,walletType:"WITHDRAWAL",network:modalW.network,status:getAdminWithdrawalDisplayStatus(modalW.status),destinationAddress:modalW.walletAddress}}

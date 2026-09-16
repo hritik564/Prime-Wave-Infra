@@ -60,6 +60,8 @@ const BSC_CONFIRMATIONS_REQUIRED = parseInt(
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
+  PENDING:      { bg: "rgba(251,191,36,0.12)",    color: "#fbbf24" },
+  APPROVED:     { bg: "rgba(52,211,153,0.12)",     color: "#34d399" },
   VALIDATING:   { bg: "rgba(251,146,60,0.12)",   color: "#fb923c" },
   QUEUED:       { bg: "rgba(96,165,250,0.12)",   color: "#60a5fa" },
   PROCESSING:   { bg: "rgba(212,175,55,0.12)",   color: GOLD },
@@ -72,6 +74,8 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
+  PENDING:      <Clock        className="h-3 w-3" />,
+  APPROVED:     <CheckCircle  className="h-3 w-3" />,
   VALIDATING:   <Filter       className="h-3 w-3" />,
   QUEUED:       <Clock        className="h-3 w-3" />,
   PROCESSING:   <Zap          className="h-3 w-3" />,
@@ -354,8 +358,8 @@ function TimelineDrawer({
 }
 
 // ─── All filter tabs ──────────────────────────────────────────────────────────
-type FilterKey = "ALL" | "VALIDATING" | "QUEUED" | "PROCESSING" | "SIGNED" | "BROADCASTING" | "BROADCAST_UNKNOWN" | "CONFIRMING" | "MANUAL_REVIEW";
-const FILTER_TABS: FilterKey[] = ["ALL", "VALIDATING", "QUEUED", "PROCESSING", "SIGNED", "BROADCASTING", "BROADCAST_UNKNOWN", "CONFIRMING", "MANUAL_REVIEW"];
+type FilterKey = "ALL" | "PENDING" | "APPROVED" | "VALIDATING" | "QUEUED" | "PROCESSING" | "SIGNED" | "BROADCASTING" | "BROADCAST_UNKNOWN" | "CONFIRMING" | "MANUAL_REVIEW";
+const FILTER_TABS: FilterKey[] = ["ALL", "PENDING", "APPROVED", "VALIDATING", "QUEUED", "PROCESSING", "SIGNED", "BROADCASTING", "BROADCAST_UNKNOWN", "CONFIRMING", "MANUAL_REVIEW"];
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 25;

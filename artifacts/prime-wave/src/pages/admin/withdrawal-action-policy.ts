@@ -21,7 +21,7 @@ export function canCorrectFalsePositiveStage(candidate: FalsePositiveStageCandid
 }
 
 const ACTIONS_BY_STATUS: Record<string, readonly WithdrawalAdminAction[]> = {
-  PENDING: ["APPROVE", "REJECT"],
+  PENDING: ["REJECT"],
   APPROVED: ["REJECT", "MOVE_TO_MANUAL_REVIEW"],
   PROCESSING: [],
   BROADCAST_UNKNOWN: ["REJECT_AND_REFUND"],

@@ -361,7 +361,11 @@ describe.skipIf(!integrationEnabled)("withdrawal development PostgreSQL integrat
   });
 });
 
-async function createFixture(label: string, amount: string): Promise<Fixture> {
+async function createFixture(
+  label: string,
+  amount: string,
+  status: "PENDING" | "APPROVED" = "PENDING",
+): Promise<Fixture> {
   const marker = `phase15-${label}-${randomUUID()}`;
   const user = await prisma.user.create({
     data: {
@@ -390,7 +394,7 @@ async function createFixture(label: string, amount: string): Promise<Fixture> {
       walletAddress: "0x1111111111111111111111111111111111111111",
       walletAddressSnapshot: "0x1111111111111111111111111111111111111111",
       network: "BEP20",
-      status: "APPROVED",
+      status,
       requestedAt: new Date(Date.now() - 1_000),
       idempotencyKey: `${marker}-idempotency`,
     },

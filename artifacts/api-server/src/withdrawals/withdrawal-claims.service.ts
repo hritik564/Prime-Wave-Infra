@@ -41,7 +41,10 @@ export async function claimPendingWithdrawals(
       WITH candidate AS (
         SELECT "id"
         FROM "withdrawal_requests"
-        WHERE "status" = 'APPROVED'::"WithdrawalStatus"
+        WHERE "status" IN (
+            'PENDING'::"WithdrawalStatus",
+            'APPROVED'::"WithdrawalStatus"
+          )
           AND "requestedAt" <= ${holdCutoff}
           ${candidateScope}
         ORDER BY "requestedAt" ASC
@@ -57,7 +60,10 @@ export async function claimPendingWithdrawals(
         "updatedAt" = NOW()
       FROM candidate
       WHERE wr."id" = candidate."id"
-        AND wr."status" = 'APPROVED'::"WithdrawalStatus"
+        AND wr."status" IN (
+          'PENDING'::"WithdrawalStatus",
+          'APPROVED'::"WithdrawalStatus"
+        )
       RETURNING wr."id", wr."claimToken";
     `;
 
