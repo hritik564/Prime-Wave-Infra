@@ -341,7 +341,7 @@ describe("Temporary Staff Operations feature authorization", () => {
     ["withdrawal rejection", ["SUPER_ADMIN", "FINANCE_ADMIN"]],
     ["withdrawal reprocessing", ["SUPER_ADMIN", "FINANCE_ADMIN"]],
     ["withdrawal completion", ["SUPER_ADMIN", "FINANCE_ADMIN"]],
-    ["withdrawal hold and release", ["SUPER_ADMIN", "FINANCE_ADMIN"]],
+    ["withdrawal hold, release, and reconciliation", ["SUPER_ADMIN", "FINANCE_ADMIN"]],
     ["withdrawal engine controls", ["SUPER_ADMIN"]],
     ["withdrawal settings", ["SUPER_ADMIN", "FINANCE_ADMIN"]],
     ["role management", ["SUPER_ADMIN"]],

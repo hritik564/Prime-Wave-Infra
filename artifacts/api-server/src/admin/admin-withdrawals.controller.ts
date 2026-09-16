@@ -12,6 +12,7 @@ import {
   completeWithdrawal,
   rejectWithdrawal,
   reprocessWithdrawal,
+  reconcileApprovedWithdrawal,
   releaseHoldWithdrawal,
 } from "./admin-withdrawals.service";
 import { getWithdrawalSettingsPublic, updateWithdrawalSettings } from "../withdrawals/withdrawals.service";
@@ -30,6 +31,7 @@ import type {
   CompleteWithdrawalInput,
   RejectWithdrawalInput,
   HoldWithdrawalInput,
+  ReconcileWithdrawalInput,
   UpdateWithdrawalNotesInput,
   UpdateWithdrawalSettingsInput,
 } from "../withdrawals/withdrawals.schema";
@@ -150,6 +152,24 @@ export async function reprocessWithdrawalHandler(
     const withdrawalId = String(req.params["id"] ?? "");
     const result       = await reprocessWithdrawal(user.sub, withdrawalId);
     sendSuccess(res, result, "Withdrawal queued for reprocessing");
+  } catch (err) { next(err); }
+}
+
+export async function reconcileApprovedWithdrawalHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user }     = req as AuthenticatedRequest;
+    const withdrawalId = String(req.params["id"] ?? "");
+    const input        = req.body as ReconcileWithdrawalInput;
+    const result       = await reconcileApprovedWithdrawal(user.sub, withdrawalId, input);
+    sendSuccess(
+      res,
+      result,
+      result.alreadyReconciled
+        ? "Withdrawal was already in manual review"
+        : "Withdrawal moved to manual review",
+    );
   } catch (err) { next(err); }
 }
 

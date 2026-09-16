@@ -148,3 +148,61 @@ export function HoldModal({ w, onClose, onConfirm }: { w: WithdrawalStub; onClos
     </Shell>
   );
 }
+
+// ─── Reconciliation / Manual Review ────────────────────────────────────────────
+export const MANUAL_REVIEW_RECONCILIATION_REASON =
+  "Withdrawal requires reconciliation before automatic processing; no financial settlement performed.";
+
+export function ManualReviewModal({ w, onClose, onConfirm }: {
+  w: WithdrawalStub;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const [checked, setChecked] = useState(false);
+
+  return (
+    <Shell width={500} onClose={onClose}>
+      <Header
+        icon={AlertTriangle}
+        title="Move to Manual Review"
+        sub={w.id}
+        color="#c084fc"
+        bg="rgba(192,132,252,0.1)"
+        onClose={onClose}
+      />
+      <div style={{ padding: "16px 20px 20px" }}>
+        <AmountRow label="Withdrawal ID" value={w.id} />
+        <AmountRow label="Amount" value={`$${w.amount.toLocaleString()}`} color={GOLD_L} />
+        <AmountRow label="Member" value={`@${w.username}`} />
+        <AmountRow label="Current Status" value={w.status} />
+        <AmountRow label="Destination" value={w.destinationAddress} />
+        <AmountRow label="Network" value={w.network} />
+        <div style={{ marginTop: 16, padding: "12px 13px", borderRadius: 9, background: "rgba(192,132,252,0.08)", border: "1px solid rgba(192,132,252,0.22)" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#c084fc", marginBottom: 5 }}>Protection only</div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", lineHeight: 1.55 }}>
+            This changes only the withdrawal state from APPROVED to MANUAL_REVIEW so the automatic worker cannot claim it.
+            No refund, balance change, ledger entry, transaction signing, or broadcast will occur.
+          </div>
+        </div>
+        <div style={{ marginTop: 12, marginBottom: 16, fontSize: 11, color: MUTED, lineHeight: 1.5 }}>
+          Reason: {MANUAL_REVIEW_RECONCILIATION_REASON}
+        </div>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer", fontSize: 12, color: "rgba(255,255,255,0.65)", marginBottom: 16, lineHeight: 1.5 }}>
+          <input type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} style={{ accentColor: "#c084fc", width: 14, height: 14, marginTop: 2, flexShrink: 0 }} />
+          I confirm this is a reconciliation/protection action only and must not refund or change any balance.
+        </label>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Btn label="Cancel" onClick={onClose} />
+          <Btn
+            label="Move to Manual Review"
+            onClick={() => { if (checked) { onConfirm(MANUAL_REVIEW_RECONCILIATION_REASON); onClose(); } }}
+            disabled={!checked}
+            color="#c084fc"
+            bg="rgba(192,132,252,0.1)"
+            border="rgba(192,132,252,0.3)"
+          />
+        </div>
+      </div>
+    </Shell>
+  );
+}

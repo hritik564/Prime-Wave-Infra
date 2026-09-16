@@ -8,6 +8,7 @@ import type {
   CompleteWithdrawalInput,
   RejectWithdrawalInput,
   HoldWithdrawalInput,
+  ReconcileWithdrawalInput,
   UpdateWithdrawalNotesInput,
 } from "../withdrawals/withdrawals.schema";
 import { notificationService } from "../notifications/notifications.service";
@@ -258,6 +259,108 @@ export async function holdWithdrawal(
   });
 
   return { withdrawalId, status: "PENDING", holdNote };
+}
+
+// ── Reconcile (APPROVED → MANUAL_REVIEW, no financial operation) ─────────────
+
+export async function reconcileApprovedWithdrawal(
+  adminId:      string,
+  withdrawalId: string,
+  input:        ReconcileWithdrawalInput,
+) {
+  const reconciledAt = new Date();
+  const result = await prisma.$transaction(async (tx) => {
+    const withdrawal = await tx.withdrawalRequest.findUnique({
+      where: { id: withdrawalId },
+      select: {
+        id: true,
+        userId: true,
+        amount: true,
+        network: true,
+        status: true,
+        walletAddress: true,
+      },
+    });
+
+    if (!withdrawal) {
+      throw new AppError("Withdrawal not found", HTTP_STATUS.NOT_FOUND, "WITHDRAWAL_NOT_FOUND");
+    }
+
+    if (withdrawal.status === "MANUAL_REVIEW") {
+      return {
+        withdrawalId,
+        status: "MANUAL_REVIEW" as const,
+        alreadyReconciled: true,
+      };
+    }
+
+    if (withdrawal.status !== "APPROVED") {
+      throw new AppError(
+        `Only APPROVED withdrawals can be moved to MANUAL_REVIEW; current status is ${withdrawal.status}`,
+        HTTP_STATUS.CONFLICT,
+        "WITHDRAWAL_NOT_APPROVED",
+      );
+    }
+
+    const changed = await tx.withdrawalRequest.updateMany({
+      where: {
+        id: withdrawalId,
+        status: "APPROVED",
+      },
+      data: {
+        status: "MANUAL_REVIEW",
+      },
+    });
+
+    if (changed.count !== 1) {
+      throw new AppError(
+        "Withdrawal changed state before reconciliation could be completed",
+        HTTP_STATUS.CONFLICT,
+        "WITHDRAWAL_STATE_CHANGED",
+      );
+    }
+
+    const auditDetails = {
+      withdrawalId,
+      amount: withdrawal.amount.toString(),
+      network: withdrawal.network,
+      walletAddress: withdrawal.walletAddress,
+      previousState: "APPROVED",
+      newState: "MANUAL_REVIEW",
+      reconciliationReason: input.reason,
+      financialOperation: "NONE",
+      reconciledAt: reconciledAt.toISOString(),
+    };
+
+    await tx.adminLog.create({
+      data: {
+        adminId,
+        action: "WITHDRAWAL_MOVED_TO_MANUAL_REVIEW",
+        targetUserId: withdrawal.userId,
+        details: auditDetails,
+      },
+    });
+
+    await tx.withdrawalEvent.create({
+      data: {
+        withdrawalId,
+        eventType: "MANUAL_REVIEW",
+        details: {
+          ...auditDetails,
+          administrativeActor: adminId,
+        },
+        createdAt: reconciledAt,
+      },
+    });
+
+    return {
+      withdrawalId,
+      status: "MANUAL_REVIEW" as const,
+      alreadyReconciled: false,
+    };
+  });
+
+  return result;
 }
 
 // ── Update admin notes ────────────────────────────────────────────────────────

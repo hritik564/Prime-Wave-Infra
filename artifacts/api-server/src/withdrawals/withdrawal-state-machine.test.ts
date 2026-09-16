@@ -8,6 +8,7 @@ describe("withdrawal state transition matrix", () => {
   it("allows the guarded automatic path and safe unknown-broadcast branch", () => {
     expect(isWithdrawalTransitionAllowed("PENDING", "APPROVED")).toBe(true);
     expect(isWithdrawalTransitionAllowed("APPROVED", "QUEUED")).toBe(true);
+    expect(isWithdrawalTransitionAllowed("APPROVED", "MANUAL_REVIEW")).toBe(true);
     expect(isWithdrawalTransitionAllowed("PROCESSING", "SIGNED")).toBe(true);
     expect(isWithdrawalTransitionAllowed("BROADCASTING", "CONFIRMING")).toBe(true);
     expect(isWithdrawalTransitionAllowed("BROADCASTING", "BROADCAST_UNKNOWN")).toBe(true);
@@ -29,5 +30,10 @@ describe("withdrawal state transition matrix", () => {
     expect(isWithdrawalTransitionAllowed("PENDING", "COMPLETED")).toBe(false);
     expect(isWithdrawalTransitionAllowed("CONFIRMING", "FAILED")).toBe(false);
     expect(isWithdrawalTransitionAllowed("COMPLETED", "PENDING")).toBe(false);
+  });
+
+  it("keeps manual review outside the automatic claim path", () => {
+    expect(isWithdrawalTransitionAllowed("MANUAL_REVIEW", "QUEUED")).toBe(false);
+    expect(isWithdrawalTransitionAllowed("MANUAL_REVIEW", "PROCESSING")).toBe(true);
   });
 });

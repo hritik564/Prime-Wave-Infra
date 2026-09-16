@@ -44,6 +44,7 @@ import {
   completeWithdrawalHandler,
   rejectWithdrawalHandler,
   reprocessWithdrawalHandler,
+  reconcileApprovedWithdrawalHandler,
   releaseHoldWithdrawalHandler,
   getAdminWithdrawalSettingsHandler,
   updateAdminWithdrawalSettingsHandler,
@@ -222,6 +223,7 @@ import {
   completeWithdrawalSchema,
   rejectWithdrawalSchema,
   holdWithdrawalSchema,
+  reconcileWithdrawalSchema,
   updateWithdrawalNotesSchema,
   updateWithdrawalSettingsSchema,
 } from "../withdrawals/withdrawals.schema";
@@ -762,6 +764,14 @@ router.post(
   adminLimiter,
   withdrawalAdminGuard,
   reprocessWithdrawalHandler,
+);
+
+router.post(
+  "/withdrawals/:id/move-to-manual-review",
+  adminLimiter,
+  withdrawalAdminGuard,
+  validate(reconcileWithdrawalSchema),
+  reconcileApprovedWithdrawalHandler,
 );
 
 router.post(

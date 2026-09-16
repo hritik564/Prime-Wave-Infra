@@ -2005,6 +2005,17 @@ export function adminReprocessWithdrawal(id: string) {
   );
 }
 
+export function adminMoveWithdrawalToManualReview(id: string, reason: string) {
+  return request<{
+    withdrawalId: string;
+    status: "MANUAL_REVIEW";
+    alreadyReconciled: boolean;
+  }>(
+    `/api/admin/withdrawals/${id}/move-to-manual-review`,
+    { method: "POST", body: JSON.stringify({ reason }) },
+  );
+}
+
 export function adminUpdateWithdrawalNotes(id: string, adminNotes: string) {
   return request<{ withdrawalId: string; adminNotes: string }>(
     `/api/admin/withdrawals/${id}/notes`,
