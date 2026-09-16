@@ -1,0 +1,392 @@
+URGENT — REMOVE MANUAL APPROVAL FROM THE LIVE WITHDRAWAL FLOW
+
+We just performed a controlled $1 withdrawal from the master account.
+
+Observed behavior:
+- The withdrawal was created successfully.
+- It showed as eligible for processing.
+- It did NOT appear in the Withdrawal Queue as expected.
+- The withdrawal did NOT automatically enter processing.
+- I manually clicked ADMIN APPROVE.
+- Immediately after approval, the withdrawal processed automatically and completed successfully.
+
+This proves the live processor, blockchain configuration, nonce handling, signing, broadcast, and settlement path can work.
+
+The problem is now the WORKFLOW: a normal eligible withdrawal currently requires manual ADMIN APPROVAL before the automatic processor will claim it.
+
+I DO NOT WANT MANUAL ADMIN APPROVAL FOR NORMAL USER WITHDRAWALS.
+
+The intended production flow is:
+
+USER REQUESTS WITHDRAWAL
+        ↓
+VALIDATION / ELIGIBILITY CHECK
+        ↓
+PENDING / QUEUED
+        ↓
+AUTOMATIC PROCESSOR CLAIMS IT
+        ↓
+PROCESSING
+        ↓
+NONCE LOCK
+        ↓
+PREPARE TRANSFER
+        ↓
+CRYPTOGRAPHIC SIGNING
+        ↓
+SIGNED
+        ↓
+BROADCASTING
+        ↓
+eth_sendRawTransaction
+        ↓
+TX HASH
+        ↓
+CONFIRMING
+        ↓
+COMPLETED
+
+There should be NO manual admin approval step for a normal eligible withdrawal.
+
+IMPORTANT SAFETY REQUIREMENTS:
+
+Do NOT:
+- bypass the activation gate
+- disable any blockchain safety checks
+- disable nonce locking
+- disable claim locking
+- automatically process BROADCAST_UNKNOWN
+- automatically process MANUAL_REVIEW
+- automatically process REJECTED
+- automatically process FAILED
+- automatically process UNDER_REVIEW
+- remove balance/ledger safeguards
+- weaken authorization
+- remove transaction-state protections
+- create a second withdrawal processor
+- hard-code a special case for the $1 withdrawal
+- modify production data
+- approve/reject/refund any production withdrawal during this investigation
+- sign or broadcast another blockchain transaction during this investigation
+- publish or deploy anything until I explicitly approve it
+
+The objective is to identify WHY a newly created eligible withdrawal remains waiting for ADMIN APPROVAL instead of entering the automatic processor.
+
+==================================================
+1. TRACE THE $1 TEST WITHDRAWAL
+==================================================
+
+Find the exact withdrawal created by the recent $1 master-account test.
+
+Report:
+
+- withdrawal ID
+- current status
+- amount
+- requestedAt
+- wallet/account
+- network
+- recipient
+- whether balance was locked
+- whether it has a wallet transaction
+- whether it appears in the withdrawal queue query
+- whether it appears in the processor claim query
+- claimOwner
+- claimToken
+- claimExpiresAt
+- all timeline/event states for this withdrawal
+- exact reason it was not automatically processed
+
+DO NOT MODIFY THE RECORD.
+
+==================================================
+2. TRACE THE CREATION → PROCESSOR PIPELINE
+==================================================
+
+Inspect the complete source path from user withdrawal creation to automatic processing.
+
+Find:
+
+A. Withdrawal creation
+B. Eligibility/validation
+C. Status assignment
+D. Queue visibility query
+E. Processor polling query
+F. Claim logic
+G. Activation gate
+H. State-machine transitions
+I. Worker scheduling
+J. Automatic processor invocation
+
+Determine exactly where the withdrawal stops.
+
+Do not assume that "eligible for processing" means it has actually entered the processor queue.
+
+Identify the exact condition preventing automatic processing.
+
+==================================================
+3. CRITICAL QUESTION — WHAT STATUS SHOULD A NORMAL ELIGIBLE WITHDRAWAL HAVE?
+==================================================
+
+Determine the intended status for a newly created eligible withdrawal.
+
+Compare:
+
+- PENDING
+- APPROVED
+- PROCESSING
+- QUEUED
+- any VALIDATING state
+- any other internal state
+
+The automatic processor currently claims only APPROVED rows.
+
+Determine whether that is still correct for the intended architecture.
+
+If normal user withdrawals are supposed to be fully automatic, the processor must NOT depend on a human admin changing:
+
+PENDING → APPROVED
+
+for every withdrawal.
+
+Instead determine the safest architecture where an eligible user withdrawal can automatically become claimable without human intervention.
+
+DO NOT implement yet.
+
+First report the exact current design and the safest minimal change.
+
+==================================================
+4. DO NOT CONFUSE ADMIN APPROVAL WITH ELIGIBILITY
+==================================================
+
+There may be two different concepts:
+
+1. Administrative approval/review
+2. Automated eligibility/authorization for processing
+
+These must not be conflated.
+
+Determine whether the current code incorrectly treats:
+
+"eligible withdrawal"
+
+as:
+
+"admin-approved withdrawal"
+
+If so, identify every place where that coupling exists.
+
+==================================================
+5. WITHDRAWAL QUEUE INVESTIGATION
+==================================================
+
+The test withdrawal did not appear in the Withdrawal Queue.
+
+Inspect the queue backend query and frontend filtering.
+
+Determine:
+
+- which statuses the queue considers active
+- whether PENDING withdrawals are included
+- whether newly created withdrawals are excluded by a hidden predicate
+- whether account/user filters are excluding the master account
+- whether pagination is hiding the record
+- whether date filters are involved
+- whether the queue query differs from the processor claim query
+- whether the withdrawal was actually created in the expected database/environment
+
+Report the exact SQL/ORM predicates responsible.
+
+Do not modify them yet.
+
+==================================================
+6. PROCESSOR CLAIM QUERY
+==================================================
+
+Inspect the automatic worker claim query.
+
+Confirm exactly what it selects.
+
+If it currently contains:
+
+status = APPROVED
+
+determine whether that is the reason the $1 withdrawal waits indefinitely.
+
+Do NOT simply change APPROVED to PENDING without analyzing the consequences.
+
+We need to preserve:
+
+- row locking
+- FOR UPDATE SKIP LOCKED
+- claimOwner
+- claimToken
+- claimExpiresAt
+- duplicate-worker protection
+- activation gate
+- state-machine safety
+- manual-review exclusions
+- ambiguous-broadcast exclusions
+
+The automatic processor must only claim withdrawals that are genuinely eligible for automatic processing.
+
+==================================================
+7. DESIGN THE CORRECT STATE MACHINE
+==================================================
+
+Propose the minimal safe state-machine change required for:
+
+NORMAL USER WITHDRAWAL
+
+to automatically proceed without admin approval.
+
+For example, determine whether the correct flow should be:
+
+PENDING
+→ automatic eligibility validation
+→ automatically claimable
+→ PROCESSING
+
+or:
+
+PENDING
+→ QUEUED
+→ automatically claimable
+→ PROCESSING
+
+or another existing architecture.
+
+Do not invent a new state unless necessary.
+
+Preserve the ability for administrators to manually intervene when required.
+
+==================================================
+8. MANUAL REVIEW MUST REMAIN DIFFERENT
+==================================================
+
+The following must remain non-automatic:
+
+- BROADCAST_UNKNOWN
+- MANUAL_REVIEW
+- UNDER_REVIEW
+- REJECTED
+- FAILED
+- COMPLETED
+
+If a withdrawal requires manual review, it must never become automatically claimable merely because we remove the normal approval requirement.
+
+Also preserve the existing guarded:
+
+BROADCAST_UNKNOWN → MANUAL_REVIEW
+
+correction workflow.
+
+==================================================
+9. ADMIN ACTIONS
+==================================================
+
+After identifying the root cause, determine what should happen to:
+
+PENDING → Approve
+APPROVED → Reject / Move to Manual Review
+BROADCAST_UNKNOWN → Reject & Refund
+MANUAL_REVIEW → Reject
+etc.
+
+We may no longer need "Approve" as a normal operational action if normal withdrawals become automatic.
+
+Do NOT remove admin controls yet.
+
+First explain which actions become obsolete and which must remain for exceptional/manual workflows.
+
+==================================================
+10. ACTIVATION GATE
+==================================================
+
+The automatic processor MUST continue respecting the existing activation gate.
+
+Before any automatic withdrawal is processed, all required safety conditions must still pass:
+
+- schema readiness
+- withdrawal ledger index
+- RPC readiness
+- chain ID
+- USDT contract
+- USDT metadata
+- gas estimation
+- wallet configuration
+- key/address correspondence
+- BNB threshold
+- USDT threshold
+- BLOCKCHAIN_DRY_RUN=false
+- BROADCAST_UNKNOWN = 0
+- MANUAL_REVIEW blocker rules
+- worker readiness
+
+Do not weaken or bypass this gate.
+
+==================================================
+11. IMPORTANT — INVESTIGATE ONLY
+==================================================
+
+At this stage:
+
+DO NOT:
+- change code
+- change database records
+- change production configuration
+- approve/reject/refund anything
+- retry the $1 withdrawal
+- create another withdrawal
+- sign a transaction
+- broadcast a transaction
+- publish
+- deploy
+
+This is a ROOT-CAUSE INVESTIGATION ONLY.
+
+==================================================
+12. REQUIRED FINAL REPORT
+==================================================
+
+Return:
+
+A. EXACT TEST WITHDRAWAL ID
+
+B. CURRENT STATUS
+
+C. WHY IT DID NOT AUTOMATICALLY PROCESS
+
+D. WHY IT DID NOT APPEAR IN THE WITHDRAWAL QUEUE
+
+E. EXACT CODE PATH THAT REQUIRES ADMIN APPROVAL
+
+F. WHETHER PENDING IS CURRENTLY CLAIMABLE
+
+G. WHETHER APPROVED IS CURRENTLY THE ONLY AUTOMATIC PROCESSOR INPUT
+
+H. SAFEST MINIMAL ARCHITECTURAL FIX
+
+I. PROPOSED NEW NORMAL WITHDRAWAL STATE FLOW
+
+J. ADMIN ACTIONS THAT WOULD BECOME OBSOLETE
+
+K. ADMIN ACTIONS THAT MUST REMAIN
+
+L. SAFETY CONTROLS THAT WILL REMAIN UNCHANGED
+
+M. FILES THAT WOULD NEED TO CHANGE
+
+N. TESTS THAT MUST BE ADDED
+
+O. WHETHER THE FIX CAN BE IMPLEMENTED WITHOUT CHANGING BLOCKCHAIN SIGNING/BROADCAST LOGIC
+
+Do not implement the fix yet.
+
+The key requirement is:
+
+A normal eligible user withdrawal must automatically enter the withdrawal processor without requiring an administrator to click APPROVE.
+
+But exceptional withdrawals must remain protected and manually controllable.
+
+Be conservative. Find the actual root cause from the current production/source implementation rather than guessing.
