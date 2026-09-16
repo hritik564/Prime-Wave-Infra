@@ -1872,6 +1872,7 @@ export interface AdminWithdrawalAdmin {
 
 export interface AdminWithdrawalItem {
   id:                    string;
+  withdrawalId:          string | null;
   amount:                string;
   walletAddress:         string;
   walletAddressSnapshot: string;
@@ -1879,6 +1880,8 @@ export interface AdminWithdrawalItem {
   status:                AdminWithdrawalStatus;
   adminNotes:            string | null;
   txHash:                string | null;
+  signedAt:              string | null;
+  broadcastAt:           string | null;
   rejectedReason:        string | null;
   approvedAt:            string | null;
   completedAt:           string | null;

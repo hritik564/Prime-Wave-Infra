@@ -15,8 +15,8 @@ import { useResponsive } from "@/hooks/useResponsive";
 import { useAuth } from "@/providers/AuthProvider";
 import AdminLayout from "./AdminLayout";
 import WithdrawalDrawer, { type DrawerWithdrawal, type DrawerAuditLog } from "./WithdrawalDrawer";
-import { ApprovalModal, RejectModal, RejectAndRefundModal, ManualReviewModal } from "./WithdrawalModals";
-import { getWithdrawalAdminActions } from "./withdrawal-action-policy";
+import { ApprovalModal, RejectModal, RejectAndRefundModal, ManualReviewModal, FalsePositiveStageCorrectionModal } from "./WithdrawalModals";
+import { canCorrectFalsePositiveStage, getWithdrawalAdminActions } from "./withdrawal-action-policy";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
 import {
   getAdminWithdrawals,
@@ -25,6 +25,7 @@ import {
   adminApproveWithdrawal,
   adminRejectWithdrawal,
   adminRejectAndRefundBroadcastUnknown,
+  adminCorrectFalsePositiveWithdrawalStage,
   adminMoveWithdrawalToManualReview,
   adminUpdateWithdrawalNotes,
   type AdminWithdrawalItem,
@@ -67,6 +68,10 @@ function canMoveToManualReviewStatus(status: string): boolean {
   return getWithdrawalAdminActions(getAdminWithdrawalDisplayStatus(status)).includes("MOVE_TO_MANUAL_REVIEW");
 }
 
+export function canCorrectFalsePositiveStageForWithdrawal(w: Pick<AdminWithdrawalItem, "withdrawalId" | "status" | "txHash" | "signedAt" | "broadcastAt">): boolean {
+  return canCorrectFalsePositiveStage(w);
+}
+
 export function canRejectAndRefundBroadcastUnknownStatus(status: string): boolean {
   return getWithdrawalAdminActions(getAdminWithdrawalDisplayStatus(status)).includes("REJECT_AND_REFUND");
 }
@@ -84,6 +89,7 @@ function mapToDrawerWithdrawal(item: AdminWithdrawalItem | AdminWithdrawalDetail
   const wallet = detail.user?.wallet;
   return {
     id:               item.id,
+    incidentId:       item.withdrawalId,
     username:         item.user.username,
     firstName:        item.user.firstName,
     lastName:         item.user.lastName,
@@ -95,6 +101,8 @@ function mapToDrawerWithdrawal(item: AdminWithdrawalItem | AdminWithdrawalDetail
     network:          item.network,
     walletAddress:    item.walletAddress,
     transactionHash:  item.txHash,
+    signedAt:         item.signedAt,
+    broadcastAt:      item.broadcastAt,
     status:           getAdminWithdrawalDisplayStatus(item.status),
     priority:         derivePriority(amountNum),
     requestedAt:      new Date(item.createdAt),
@@ -255,10 +263,11 @@ function ProcessingQueue({stats}:{stats:AdminWithdrawalStats|null}) {
 }
 
 // ─── ActionDropdown ───────────────────────────────────────────────────────────
-function ActionDropdown({ w, onApprove, onReject, onRejectAndRefund, onMoveToManualReview, onView, canMutate = true }: {
+function ActionDropdown({ w, onApprove, onReject, onRejectAndRefund, onCorrectFalsePositive, onMoveToManualReview, onView, canMutate = true }: {
   w: AdminWithdrawalItem;
   onApprove:(w:AdminWithdrawalItem)=>void; onReject:(w:AdminWithdrawalItem)=>void;
   onRejectAndRefund:(w:AdminWithdrawalItem)=>void;
+  onCorrectFalsePositive:(w:AdminWithdrawalItem)=>void;
   onMoveToManualReview:(w:AdminWithdrawalItem)=>void; onView:(w:AdminWithdrawalItem)=>void;
   canMutate?: boolean;
 }) {
@@ -273,6 +282,9 @@ function ActionDropdown({ w, onApprove, onReject, onRejectAndRefund, onMoveToMan
     ]:[]),
     ...(canMutate && canRejectAndRefundBroadcastUnknownStatus(w.status)?[
       {icon:ShieldX,     label:"Reject & Refund", color:"#f87171", fn:()=>onRejectAndRefund(w)},
+    ]:[]),
+    ...(canMutate && canCorrectFalsePositiveStageForWithdrawal(w)?[
+      {icon:AlertTriangle, label:"Correct False-Positive Stage", color:"#facc15", fn:()=>onCorrectFalsePositive(w)},
     ]:[]),
     ...(canMutate && canMoveToManualReviewStatus(w.status)?[
       {icon:AlertTriangle, label:"Move to Manual Review", color:"#c084fc", fn:()=>onMoveToManualReview(w)},
@@ -302,10 +314,11 @@ function ActionDropdown({ w, onApprove, onReject, onRejectAndRefund, onMoveToMan
 }
 
 // ─── Table Row (memoized) ─────────────────────────────────────────────────────
-const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowClick, onApprove, onReject, onRejectAndRefund, onMoveToManualReview, isHover, onHoverSet, canMutate = true }: {
+const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowClick, onApprove, onReject, onRejectAndRefund, onCorrectFalsePositive, onMoveToManualReview, isHover, onHoverSet, canMutate = true }: {
   w:AdminWithdrawalItem; checked:boolean; onToggle:()=>void; onRowClick:()=>void;
   onApprove:(w:AdminWithdrawalItem)=>void; onReject:(w:AdminWithdrawalItem)=>void;
   onRejectAndRefund:(w:AdminWithdrawalItem)=>void;
+  onCorrectFalsePositive:(w:AdminWithdrawalItem)=>void;
   onMoveToManualReview:(w:AdminWithdrawalItem)=>void;
   isHover:boolean; onHoverSet:(id:string|null)=>void;
   canMutate?: boolean;
@@ -357,7 +370,7 @@ const WithdrawalRow = memo(function WithdrawalRow({ w, checked, onToggle, onRowC
         </span>
       </td>
       <td style={{padding:"11px 8px"}} onClick={e=>e.stopPropagation()}>
-         <ActionDropdown w={w} onApprove={onApprove} onReject={onReject} onRejectAndRefund={onRejectAndRefund} onMoveToManualReview={onMoveToManualReview} onView={onRowClick as never} canMutate={canMutate}/>
+          <ActionDropdown w={w} onApprove={onApprove} onReject={onReject} onRejectAndRefund={onRejectAndRefund} onCorrectFalsePositive={onCorrectFalsePositive} onMoveToManualReview={onMoveToManualReview} onView={onRowClick as never} canMutate={canMutate}/>
       </td>
     </tr>
   );
@@ -451,16 +464,17 @@ function AnalyticsSection({data, stats}:{data:AdminWithdrawalItem[];stats:AdminW
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
-type ModalKind = "approve" | "reject" | "reject-refund" | "manual-review" | null;
+type ModalKind = "approve" | "reject" | "reject-refund" | "false-positive-correction" | "manual-review" | null;
 const ROWS_OPTIONS = [25, 50, 100];
 const DEBOUNCE_MS = 400;
 
 // ─── Mobile card ─────────────────────────────────────────────────────────────
-function MobileWithdrawalCard({ w, onClick, onReject, onRejectAndRefund, onApprove, onMoveToManualReview, canMutate = true }: {
+function MobileWithdrawalCard({ w, onClick, onReject, onRejectAndRefund, onCorrectFalsePositive, onApprove, onMoveToManualReview, canMutate = true }: {
   w: AdminWithdrawalItem;
   onClick: () => void;
   onReject: (w: AdminWithdrawalItem) => void;
   onRejectAndRefund: (w: AdminWithdrawalItem) => void;
+  onCorrectFalsePositive: (w: AdminWithdrawalItem) => void;
   onApprove: (w: AdminWithdrawalItem) => void;
   onMoveToManualReview: (w: AdminWithdrawalItem) => void;
   canMutate?: boolean;
@@ -470,7 +484,7 @@ function MobileWithdrawalCard({ w, onClick, onReject, onRejectAndRefund, onAppro
   const sc = cfg.color;
   const priority = derivePriority(parseFloat(w.amount));
   const pc = priority === "URGENT" ? "#f87171" : priority === "VIP" ? "#a78bfa" : priority === "HIGH" ? "#fbbf24" : MUTED;
-   const isActionable = canApproveStatus(w.status) || canRejectStatus(w.status) || canRejectAndRefundBroadcastUnknownStatus(w.status) || canMoveToManualReviewStatus(w.status);
+   const isActionable = canApproveStatus(w.status) || canRejectStatus(w.status) || canRejectAndRefundBroadcastUnknownStatus(w.status) || canCorrectFalsePositiveStageForWithdrawal(w) || canMoveToManualReviewStatus(w.status);
   return (
     <div style={{ borderBottom: `1px solid ${BORDER}` }}>
       <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", cursor: "pointer" }}>
@@ -506,6 +520,10 @@ function MobileWithdrawalCard({ w, onClick, onReject, onRejectAndRefund, onAppro
             onClick={e => { e.stopPropagation(); onRejectAndRefund(w); }}
             style={{ flex: 1, padding: "7px 0", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#f87171" }}
           >↩ Reject & Refund</button>}
+           {canCorrectFalsePositiveStageForWithdrawal(w) && <button
+             onClick={e => { e.stopPropagation(); onCorrectFalsePositive(w); }}
+             style={{ flex: 1, padding: "7px 0", background: "rgba(250,204,21,0.1)", border: "1px solid rgba(250,204,21,0.3)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#facc15" }}
+           >⚠ Correct Stage</button>}
           {canMoveToManualReviewStatus(w.status) && <button
             onClick={e => { e.stopPropagation(); onMoveToManualReview(w); }}
             style={{ flex: 1, padding: "7px 0", background: "rgba(192,132,252,0.1)", border: "1px solid rgba(192,132,252,0.3)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#c084fc" }}
@@ -623,6 +641,9 @@ export default function WithdrawalsPage() {
   const openApprove    = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("approve");},[]);
   const openReject     = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("reject");},[]);
   const openRejectAndRefund = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("reject-refund");},[]);
+  const openFalsePositiveCorrection = useCallback((w:AdminWithdrawalItem)=>{
+    if (canCorrectFalsePositiveStageForWithdrawal(w)) { setModalW(w); setModal("false-positive-correction"); }
+  },[]);
   const openManualReview = useCallback((w:AdminWithdrawalItem)=>{setModalW(w);setModal("manual-review");},[]);
   const closeModal  = useCallback(()=>{setModal(null);setModalW(null);},[]);
 
@@ -633,6 +654,13 @@ export default function WithdrawalsPage() {
   const openDrawerReject = useCallback((dw: DrawerWithdrawal) => {
     const item = withdrawals.find(w => w.id === dw.id);
     if (item) { setModalW(item); setModal("reject"); }
+  }, [withdrawals]);
+  const openDrawerFalsePositiveCorrection = useCallback((dw: DrawerWithdrawal) => {
+    const item = withdrawals.find(w => w.id === dw.id);
+    if (item && canCorrectFalsePositiveStageForWithdrawal(item)) {
+      setModalW(item);
+      setModal("false-positive-correction");
+    }
   }, [withdrawals]);
   const refreshRowAndStats = useCallback(async (id: string) => {
     const [freshDetail] = await Promise.allSettled([
@@ -718,6 +746,27 @@ export default function WithdrawalsPage() {
       await refreshRowAndStats(modalW.id);
     } catch (e: unknown) {
       toast(e instanceof Error ? e.message : "Manual review reconciliation failed", "error");
+    } finally {
+      setActionLoading(false);
+    }
+  }, [modalW, closeModal, toast, refreshRowAndStats, isStaffOperations]);
+
+  const confirmFalsePositiveCorrection = useCallback(async (reason: string) => {
+    if (isStaffOperations) return;
+    if (!modalW || !canCorrectFalsePositiveStageForWithdrawal(modalW)) return;
+    setActionLoading(true);
+    try {
+      const result = await adminCorrectFalsePositiveWithdrawalStage(modalW.id, reason);
+      toast(
+        result.alreadyReconciled
+          ? "False-positive stage correction was already applied"
+          : "False-positive stage corrected; withdrawal moved to manual review",
+        "success",
+      );
+      closeModal();
+      await refreshRowAndStats(modalW.id);
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : "False-positive stage correction failed", "error");
     } finally {
       setActionLoading(false);
     }
@@ -856,7 +905,7 @@ export default function WithdrawalsPage() {
                 ))
               : withdrawals.length===0
                 ? <div style={{padding:"48px",textAlign:"center",color:MUTED,fontSize:12}}>{error ? "Error loading withdrawals." : "No withdrawals match your filters."}</div>
-                : withdrawals.map(w=><MobileWithdrawalCard key={w.id} w={w} onClick={()=>void openDrawer(w)} onReject={openReject} onRejectAndRefund={openRejectAndRefund} onApprove={openApprove} onMoveToManualReview={openManualReview} canMutate={!isStaffOperations}/>)
+                : withdrawals.map(w=><MobileWithdrawalCard key={w.id} w={w} onClick={()=>void openDrawer(w)} onReject={openReject} onRejectAndRefund={openRejectAndRefund} onCorrectFalsePositive={openFalsePositiveCorrection} onApprove={openApprove} onMoveToManualReview={openManualReview} canMutate={!isStaffOperations}/>)
             }
           </div>
         ) : (
@@ -892,7 +941,7 @@ export default function WithdrawalsPage() {
                     checked={selected.has(w.id)}
                     onToggle={()=>toggleRow(w.id)}
                     onRowClick={()=>void openDrawer(w)}
-                      onApprove={openApprove} onReject={openReject} onRejectAndRefund={openRejectAndRefund} onMoveToManualReview={openManualReview}
+                      onApprove={openApprove} onReject={openReject} onRejectAndRefund={openRejectAndRefund} onCorrectFalsePositive={openFalsePositiveCorrection} onMoveToManualReview={openManualReview}
                     canMutate={!isStaffOperations}
                     isHover={hovered===w.id}
                     onHoverSet={setHovered}
@@ -939,6 +988,7 @@ export default function WithdrawalsPage() {
         onClose={closeDrawer}
          onApprove={isStaffOperations ? undefined : openDrawerApprove}
          onReject={isStaffOperations ? undefined : openDrawerReject}
+         onCorrectFalsePositive={isStaffOperations ? undefined : openDrawerFalsePositiveCorrection}
         adminLogs={drawerDetail?.adminLogs as DrawerAuditLog[] | undefined}
         onSaveNote={drawerDetail ? handleSaveNote : undefined}
       />
@@ -963,6 +1013,14 @@ export default function WithdrawalsPage() {
           w={{id:modalW.id,amount:parseFloat(modalW.amount),fee:0,username:modalW.user.username,walletType:"WITHDRAWAL",network:modalW.network,status:getAdminWithdrawalDisplayStatus(modalW.status),destinationAddress:modalW.walletAddress}}
           onClose={closeModal}
           onConfirm={(reason)=>void confirmRejectAndRefund(reason)}
+        />
+      )}
+      {!isStaffOperations && modal==="false-positive-correction"&&modalW&&(
+        <FalsePositiveStageCorrectionModal
+          w={{id:modalW.id,amount:parseFloat(modalW.amount),fee:0,username:modalW.user.username,walletType:"WITHDRAWAL",network:modalW.network,status:getAdminWithdrawalDisplayStatus(modalW.status),destinationAddress:modalW.walletAddress}}
+          onClose={closeModal}
+          onConfirm={(reason)=>void confirmFalsePositiveCorrection(reason)}
+          submitting={actionLoading}
         />
       )}
       {!isStaffOperations && modal==="manual-review"&&modalW&&(

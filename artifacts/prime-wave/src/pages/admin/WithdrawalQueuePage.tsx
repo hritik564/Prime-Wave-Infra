@@ -6,12 +6,15 @@ import {
   CheckSquare, ArrowRight, Wifi, WifiOff, BarChart2, AlertOctagon,
 } from "lucide-react";
 import AdminLayout from "./AdminLayout";
+import { FalsePositiveStageCorrectionModal } from "./WithdrawalModals";
+import { canCorrectFalsePositiveStage } from "./withdrawal-action-policy";
 import { useAuth } from "@/providers/AuthProvider";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
 import {
   getWithdrawalQueue,
   triggerProcessQueue,
   getWithdrawalEvents,
+  adminCorrectFalsePositiveWithdrawalStage,
   type WithdrawalQueueItem,
   type WithdrawalEvent,
 } from "@/lib/api";
@@ -367,6 +370,8 @@ export default function WithdrawalQueuePage() {
   const [page, setPage]                 = useState(1);
   const [filterStatus, setFilterStatus] = useState<FilterKey>("ALL");
   const [timelineItem, setTimelineItem] = useState<WithdrawalQueueItem | null>(null);
+  const [correctionItem, setCorrectionItem] = useState<WithdrawalQueueItem | null>(null);
+  const [correctionLoading, setCorrectionLoading] = useState(false);
 
   const required = BSC_CONFIRMATIONS_REQUIRED;
 
@@ -401,6 +406,26 @@ export default function WithdrawalQueuePage() {
     }
   };
 
+  const handleFalsePositiveCorrection = async (reason: string) => {
+    if (isStaffOperations || !correctionItem || !canCorrectFalsePositiveStage(correctionItem)) return;
+    setCorrectionLoading(true);
+    try {
+      const result = await adminCorrectFalsePositiveWithdrawalStage(correctionItem.id, reason);
+      showToast(
+        result.alreadyReconciled
+          ? "False-positive stage correction was already applied"
+          : "False-positive stage corrected; withdrawal moved to manual review",
+        "success",
+      );
+      setCorrectionItem(null);
+      await load();
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "False-positive stage correction failed", "error");
+    } finally {
+      setCorrectionLoading(false);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     void navigator.clipboard.writeText(text);
     showToast("Copied to clipboard", "success");
@@ -430,6 +455,23 @@ export default function WithdrawalQueuePage() {
       {/* Timeline drawer */}
       {timelineItem && (
         <TimelineDrawer item={timelineItem} onClose={() => setTimelineItem(null)} />
+      )}
+      {!isStaffOperations && correctionItem && (
+        <FalsePositiveStageCorrectionModal
+          w={{
+            id: correctionItem.id,
+            amount: Number(correctionItem.amount),
+            fee: Number(correctionItem.fee),
+            username: correctionItem.user.username,
+            walletType: "WITHDRAWAL",
+            network: correctionItem.network,
+            status: correctionItem.status,
+            destinationAddress: correctionItem.walletAddressSnapshot,
+          }}
+          onClose={() => { if (!correctionLoading) setCorrectionItem(null); }}
+          onConfirm={(reason) => void handleFalsePositiveCorrection(reason)}
+          submitting={correctionLoading}
+        />
       )}
 
       <div className="space-y-6 p-4 lg:p-6">
@@ -728,6 +770,17 @@ export default function WithdrawalQueuePage() {
                           <ExternalLink className="h-3 w-3" />
                           View
                         </a>
+                        {!isStaffOperations && canCorrectFalsePositiveStage(item) && (
+                          <button
+                            onClick={() => setCorrectionItem(item)}
+                            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors"
+                            style={{ background: "rgba(250,204,21,0.1)", color: "#facc15", border: "1px solid rgba(250,204,21,0.3)" }}
+                            title="Correct the PW-WD-000130 false-positive stage"
+                          >
+                            <AlertTriangle className="h-3 w-3" />
+                            Correct Stage
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

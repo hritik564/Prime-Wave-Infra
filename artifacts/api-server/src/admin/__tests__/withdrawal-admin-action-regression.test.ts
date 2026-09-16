@@ -59,4 +59,23 @@ describe("withdrawal admin action regression contract", () => {
     expect(page).toContain('label:"Reject & Refund"');
     expect(page).toContain('label:"Move to Manual Review"');
   });
+
+  it("exposes the false-positive correction only for the exact incident evidence", () => {
+    const policy = readProjectFile("prime-wave/src/pages/admin/withdrawal-action-policy.ts");
+    const page = readProjectFile("prime-wave/src/pages/admin/WithdrawalsPage.tsx");
+    const queue = readProjectFile("prime-wave/src/pages/admin/WithdrawalQueuePage.tsx");
+    const drawer = readProjectFile("prime-wave/src/pages/admin/WithdrawalDrawer.tsx");
+    const modals = readProjectFile("prime-wave/src/pages/admin/WithdrawalModals.tsx");
+
+    expect(policy).toContain('candidate.withdrawalId === "PW-WD-000130"');
+    expect(policy).toContain('candidate.status === "BROADCAST_UNKNOWN"');
+    expect(policy).toContain("!candidate.txHash");
+    expect(policy).toContain("!candidate.broadcastAt");
+    expect(policy).toContain("Boolean(candidate.signedAt)");
+    expect(page).toContain("Correct False-Positive Stage");
+    expect(queue).toContain("canCorrectFalsePositiveStage(item)");
+    expect(drawer).toContain("canCorrectFalsePositiveStage({");
+    expect(modals).toContain("PW-WD-000130 false-positive SIGNED correction");
+    expect(modals).toContain("No refund, balance change, ledger entry, transaction signing, or broadcast");
+  });
 });

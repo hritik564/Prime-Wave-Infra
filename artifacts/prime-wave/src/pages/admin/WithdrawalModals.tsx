@@ -185,6 +185,69 @@ export function RejectAndRefundModal({
   );
 }
 
+// ─── Incident-specific false-positive stage correction ────────────────────────
+export const FALSE_POSITIVE_STAGE_CORRECTION_REASON =
+  "PW-WD-000130 false-positive SIGNED correction; no refund, balance, ledger, signing, or broadcast action performed.";
+
+export function FalsePositiveStageCorrectionModal({
+  w,
+  onClose,
+  onConfirm,
+  submitting = false,
+}: {
+  w: WithdrawalStub;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+  submitting?: boolean;
+}) {
+  const [checked, setChecked] = useState(false);
+
+  return (
+    <Shell width={530} onClose={onClose}>
+      <Header
+        icon={AlertTriangle}
+        title="Correct False-Positive Stage"
+        sub="PW-WD-000130"
+        color="#facc15"
+        bg="rgba(250,204,21,0.1)"
+        onClose={onClose}
+      />
+      <div style={{ padding: "16px 20px 20px" }}>
+        <AmountRow label="Withdrawal ID" value="PW-WD-000130" />
+        <AmountRow label="Current Status" value="BROADCAST_UNKNOWN" color="#fb923c" />
+        <AmountRow label="Amount" value={`$${w.amount.toLocaleString()}`} color={GOLD_L} />
+        <AmountRow label="Member" value={`@${w.username}`} />
+        <AmountRow label="Destination" value={w.destinationAddress} />
+        <AmountRow label="Network" value={w.network} />
+        <div style={{ marginTop: 16, padding: "12px 13px", borderRadius: 9, background: "rgba(250,204,21,0.08)", border: "1px solid rgba(250,204,21,0.28)" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#facc15", marginBottom: 5 }}>Guarded incident correction</div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.74)", lineHeight: 1.55 }}>
+            This is the PW-WD-000130 false-positive SIGNED correction. The withdrawal currently has BROADCAST_UNKNOWN, no transaction hash, and no broadcast timestamp. It will be moved to MANUAL_REVIEW.
+          </div>
+        </div>
+        <div style={{ marginTop: 12, marginBottom: 12, fontSize: 11, color: MUTED, lineHeight: 1.55 }}>
+          This action performs no refund, balance change, ledger entry, signing, or broadcast. It only clears the false-positive signed stage for reconciliation.
+        </div>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: submitting ? "not-allowed" : "pointer", fontSize: 12, color: "rgba(255,255,255,0.68)", marginBottom: 16, lineHeight: 1.5 }}>
+          <input type="checkbox" checked={checked} disabled={submitting} onChange={e => setChecked(e.target.checked)} style={{ accentColor: "#facc15", width: 14, height: 14, marginTop: 2, flexShrink: 0 }} />
+          I confirm PW-WD-000130 is a false-positive SIGNED stage and authorize only the correction to MANUAL_REVIEW.
+        </label>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Btn label="Cancel" onClick={onClose} disabled={submitting} />
+          <Btn
+            label={submitting ? "Applying…" : "Correct Stage"}
+            onClick={() => { if (checked && !submitting) onConfirm(FALSE_POSITIVE_STAGE_CORRECTION_REASON); }}
+            disabled={!checked || submitting}
+            color="#facc15"
+            bg="rgba(250,204,21,0.1)"
+            border="rgba(250,204,21,0.35)"
+          />
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
 // ─── Reconciliation / Manual Review ────────────────────────────────────────────
 export const MANUAL_REVIEW_RECONCILIATION_REASON =
   "Withdrawal requires reconciliation before automatic processing; no financial settlement performed.";

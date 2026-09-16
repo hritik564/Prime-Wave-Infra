@@ -22,6 +22,7 @@ import { logWithdrawalEvent } from "../withdrawals/withdrawal-events.service";
 
 const listSelect = {
   id:                    true,
+  withdrawalId:          true,
   amount:                true,
   walletAddress:         true,
   walletAddressSnapshot: true,
@@ -29,6 +30,8 @@ const listSelect = {
   status:                true,
   adminNotes:            true,
   txHash:                true,
+  signedAt:              true,
+  broadcastAt:           true,
   rejectedReason:        true,
   approvedAt:            true,
   completedAt:           true,

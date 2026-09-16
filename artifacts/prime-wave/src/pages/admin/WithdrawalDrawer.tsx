@@ -6,6 +6,7 @@ import {
   ChevronRight, Activity, BarChart2, AlertTriangle,
 } from "lucide-react";
 import { getAdminWithdrawalDisplayStatus } from "@/lib/api";
+import { canCorrectFalsePositiveStage } from "./withdrawal-action-policy";
 
 const GOLD   = "#D4AF37";
 const GOLD_L = "#F3D37A";
@@ -19,6 +20,7 @@ export interface DrawerWithdrawal {
   memberId: string; amount: number; fee: number;
   walletType: string; paymentMethod: string; network: string;
   walletAddress: string; transactionHash: string | null;
+  incidentId: string | null; signedAt: string | null; broadcastAt: string | null;
   status: string; priority: string; requestedAt: Date;
   processedAt: Date | null; assignedAdmin: string | null;
   country: string; rank: string | null; memberStatus: string;
@@ -436,12 +438,13 @@ function AuditTab({w, adminLogs}: {w:DrawerWithdrawal; adminLogs?: DrawerAuditLo
 // WithdrawalDrawer
 // ─────────────────────────────────────────────────────────────────────────────
 export default function WithdrawalDrawer({
-  withdrawal, onClose, onApprove, onReject, adminLogs, onSaveNote,
+  withdrawal, onClose, onApprove, onReject, onCorrectFalsePositive, adminLogs, onSaveNote,
 }: {
   withdrawal:  DrawerWithdrawal | null;
   onClose:     () => void;
   onApprove?:  (w: DrawerWithdrawal) => void;
   onReject?:   (w: DrawerWithdrawal) => void;
+  onCorrectFalsePositive?: (w: DrawerWithdrawal) => void;
   adminLogs?:  DrawerAuditLog[];
   onSaveNote?: (text: string) => Promise<void>;
 }) {
@@ -470,12 +473,26 @@ export default function WithdrawalDrawer({
                   <div style={{fontSize:12,color:MUTED}}>@{withdrawal.username} · {withdrawal.country}</div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  {(displayStatus === "PENDING" || ["APPROVED", "UNDER_REVIEW", "MANUAL_REVIEW"].includes(displayStatus)) && (onApprove || onReject) && (
+                   {(displayStatus === "PENDING" || ["APPROVED", "UNDER_REVIEW", "MANUAL_REVIEW"].includes(displayStatus)) && (onApprove || onReject) && (
                     <>
                       {onApprove && displayStatus === "PENDING" && <button onClick={()=>onApprove(withdrawal)} style={{padding:"5px 12px",background:"rgba(52,211,153,0.1)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:700,color:"#34d399"}}>Approve</button>}
                       {onReject && ["PENDING", "APPROVED", "UNDER_REVIEW", "MANUAL_REVIEW"].includes(displayStatus) && <button onClick={()=>onReject(withdrawal)}  style={{padding:"5px 12px",background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:700,color:"#f87171"}}>Reject</button>}
                     </>
                   )}
+                   {onCorrectFalsePositive && canCorrectFalsePositiveStage({
+                     withdrawalId: withdrawal.incidentId,
+                     status: withdrawal.status,
+                     txHash: withdrawal.transactionHash,
+                     signedAt: withdrawal.signedAt,
+                     broadcastAt: withdrawal.broadcastAt,
+                   }) && (
+                     <button
+                       onClick={() => onCorrectFalsePositive(withdrawal)}
+                       style={{padding:"5px 12px",background:"rgba(250,204,21,0.1)",border:"1px solid rgba(250,204,21,0.3)",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:700,color:"#facc15"}}
+                     >
+                       Correct Stage
+                     </button>
+                   )}
                   <button onClick={onClose} style={{background:"rgba(255,255,255,0.05)",border:`1px solid ${BORDER}`,borderRadius:7,cursor:"pointer",color:MUTED,padding:"5px 8px",display:"flex"}}><X size={14}/></button>
                 </div>
               </div>

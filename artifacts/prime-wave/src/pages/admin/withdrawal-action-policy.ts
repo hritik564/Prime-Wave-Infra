@@ -4,6 +4,22 @@ export type WithdrawalAdminAction =
   | "REJECT_AND_REFUND"
   | "MOVE_TO_MANUAL_REVIEW";
 
+export interface FalsePositiveStageCandidate {
+  withdrawalId?: string | null;
+  status: string;
+  txHash?: string | null;
+  signedAt?: string | null;
+  broadcastAt?: string | null;
+}
+
+export function canCorrectFalsePositiveStage(candidate: FalsePositiveStageCandidate): boolean {
+  return candidate.withdrawalId === "PW-WD-000130"
+    && candidate.status === "BROADCAST_UNKNOWN"
+    && !candidate.txHash
+    && !candidate.broadcastAt
+    && Boolean(candidate.signedAt);
+}
+
 const ACTIONS_BY_STATUS: Record<string, readonly WithdrawalAdminAction[]> = {
   PENDING: ["APPROVE", "REJECT"],
   APPROVED: ["REJECT", "MOVE_TO_MANUAL_REVIEW"],
