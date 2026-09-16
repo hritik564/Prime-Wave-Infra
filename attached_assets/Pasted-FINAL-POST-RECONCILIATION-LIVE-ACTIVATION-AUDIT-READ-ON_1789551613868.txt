@@ -1,0 +1,358 @@
+FINAL POST-RECONCILIATION LIVE ACTIVATION AUDIT — READ-ONLY / NO FINANCIAL ACTION
+
+We have now:
+1. Published the latest tested PrimeWave build.
+2. Set BLOCKCHAIN_DRY_RUN=false.
+3. Set MIN_HOT_WALLET_BNB=0.0015.
+4. Reconciled PW-WD-000130 using the guarded production correction workflow.
+
+DO NOT:
+- approve any withdrawal
+- create a test withdrawal
+- reject or refund any withdrawal
+- retry any withdrawal
+- reconcile any additional withdrawal
+- sign any blockchain transaction
+- broadcast any blockchain transaction
+- modify balances, wallets, ledgers, claims, or production secrets
+- change BLOCKCHAIN_DRY_RUN
+- change environment variables
+- publish or deploy anything
+- bypass or weaken any activation gate
+
+OBJECTIVE:
+
+Perform the final READ-ONLY production audit to determine whether the automatic withdrawal processor is now genuinely ready for ONE controlled real withdrawal test.
+
+The previous blocker was PW-WD-000130. Verify that it is now safely reconciled and that the activation gate responds accordingly.
+
+==================================================
+1. DEPLOYMENT HEALTH
+==================================================
+
+Verify:
+
+- https://primewave.live is serving the current published build
+- /api/healthz returns HTTP 200
+- frontend returns HTTP 200
+- API is running
+- withdrawal worker is running
+- no restart loop
+- no database/startup errors
+- production migrations exactly match local migrations
+
+Report any transient startup warnings separately from persistent failures.
+
+==================================================
+2. EFFECTIVE PRODUCTION CONFIGURATION
+==================================================
+
+Verify configuration presence/value without exposing secrets:
+
+- BLOCKCHAIN_DRY_RUN
+- MIN_HOT_WALLET_BNB
+- MIN_HOT_WALLET_USDT
+- BSC_RPC_PRIMARY
+- HOT_WALLET_ADDRESS
+- HOT_WALLET_PRIVATE_KEY
+
+Confirm:
+
+BLOCKCHAIN_DRY_RUN=false
+MIN_HOT_WALLET_BNB=0.0015
+MIN_HOT_WALLET_USDT effective value >= 1
+
+DO NOT print, hash, log, or expose:
+- private keys
+- RPC credentials
+- authorization headers
+- secret values
+
+==================================================
+3. READ-ONLY BSC READINESS
+==================================================
+
+Using read-only RPC operations only, verify:
+
+- chain ID = 56
+- latest block retrieval succeeds
+- latest nonce retrieval succeeds
+- pending nonce retrieval succeeds
+- configured USDT contract has bytecode
+- USDT symbol = USDT
+- USDT name = Tether USD
+- USDT decimals = 18
+- USDT transfer gas estimation succeeds
+- current BNB balance
+- current USDT balance
+- BNB >= 0.0015
+- USDT >= 1
+
+Verify hot-wallet private-key/address correspondence opaquely if the existing diagnostic mechanism permits it.
+
+If authentication prevents verification, report NOT VERIFIED rather than assuming PASS.
+
+DO NOT sign or broadcast anything.
+
+==================================================
+4. ACTIVATION GATE
+==================================================
+
+Report every gate individually:
+
+- schema readiness
+- withdrawal ledger index
+- RPC reachability
+- chain ID
+- USDT contract
+- USDT metadata
+- gas estimation
+- hot-wallet configuration
+- private-key/address correspondence
+- BNB threshold
+- USDT threshold
+- BLOCKCHAIN_DRY_RUN=false
+- unresolved BROADCAST_UNKNOWN count
+- claimable APPROVED count
+- worker readiness
+
+Most importantly:
+
+Determine whether the overall live activation gate is now OPEN or CLOSED.
+
+If CLOSED, provide the exact blocking reason.
+
+DO NOT bypass the gate.
+
+==================================================
+5. WITHDRAWAL STATE AUDIT
+==================================================
+
+Report counts for:
+
+PENDING
+APPROVED
+PROCESSING / VALIDATING / QUEUED / SIGNED / BROADCASTING / CONFIRMING
+BROADCAST_UNKNOWN
+MANUAL_REVIEW
+COMPLETED
+REJECTED
+FAILED
+UNDER_REVIEW
+CANCELLED
+
+Confirm specifically:
+
+- APPROVED count
+- BROADCAST_UNKNOWN count
+- active claim count
+
+For every APPROVED withdrawal, report:
+
+- withdrawal ID
+- amount
+- network
+- claim state
+
+Do not modify anything.
+
+==================================================
+6. PW-WD-000130 RECONCILIATION VERIFICATION
+==================================================
+
+READ ONLY.
+
+Inspect PW-WD-000130 and confirm:
+
+- current status
+- txHash
+- signedAt
+- broadcastAt
+- processedAt
+- claimOwner
+- claimToken
+- claimExpiresAt
+- preparedTxData presence
+- wallet transaction linkage
+- locked withdrawal balance
+- withdrawal wallet balance
+
+Verify that the intended incident correction occurred:
+
+BROADCAST_UNKNOWN → MANUAL_REVIEW
+
+Verify that:
+
+- no refund occurred
+- no wallet balance mutation occurred
+- no withdrawal ledger settlement occurred
+- no blockchain transaction exists
+- no active claim exists
+
+Do not call the correction endpoint.
+
+==================================================
+7. HISTORICAL BROADCAST_UNKNOWN AUDIT
+==================================================
+
+Determine the CURRENT count of BROADCAST_UNKNOWN withdrawals.
+
+For each current BROADCAST_UNKNOWN record report:
+
+- withdrawal ID
+- amount
+- txHash presence
+- signedAt presence
+- broadcastAt presence
+- claim state
+
+Do not modify them.
+
+If the count is zero, explicitly state:
+
+BROADCAST_UNKNOWN = 0
+
+==================================================
+8. PROCESSOR LIFECYCLE VERIFICATION
+==================================================
+
+Inspect the currently published processor implementation and verify:
+
+VALIDATED
+→ PROCESSING
+→ distributed nonce lock
+→ prepare transfer
+→ cryptographic signing
+→ SIGNED
+→ BROADCASTING
+→ eth_sendRawTransaction
+→ valid tx hash
+→ txHash/broadcastAt persistence
+→ confirmation
+→ settlement
+
+Confirm:
+
+- PostgreSQL advisory lock is transaction-scoped
+- Prisma safely handles the advisory-lock result
+- nonce allocation occurs safely under the distributed lock
+- SIGNED is persisted only after successful cryptographic signing
+- signedAt is not populated prematurely
+- BROADCASTING is immediately before raw RPC submission
+- txHash is persisted only after a valid hash is returned
+- broadcastAt is persisted only after a valid hash is returned
+- raw broadcast is not blindly retried after ambiguous network failure
+- ambiguous blockchain outcome becomes BROADCAST_UNKNOWN
+- pre-signing failure returns to PENDING
+- processor failures never automatically refund
+- successful settlement is idempotent
+- duplicate settlement is prevented
+- concurrent workers cannot use the same nonce
+
+==================================================
+9. WORKER CLAIM SAFETY
+==================================================
+
+Verify:
+
+- only APPROVED withdrawals are automatically claimable
+- PENDING cannot be automatically claimed
+- MANUAL_REVIEW cannot be automatically claimed
+- BROADCAST_UNKNOWN cannot be automatically claimed
+- COMPLETED cannot be claimed
+- REJECTED cannot be claimed
+- claim leases expire/recover safely
+- concurrent polling cannot create duplicate claims
+
+Also verify that an administrator's explicit MANUAL_REVIEW workflow does not accidentally make the record automatically claimable.
+
+==================================================
+10. RUNTIME LOG AUDIT
+==================================================
+
+Inspect recent production logs after the latest publish.
+
+Look specifically for:
+
+- Prisma void/deserialization errors
+- advisory-lock errors
+- nonce allocation errors
+- database errors
+- worker crashes
+- duplicate claims
+- unexpected retries
+- unexpected state transitions
+- signing errors
+- broadcast errors
+- RPC errors
+
+Separate ordinary read-only RPC timeout/retry warnings from actual transaction-processing failures.
+
+Confirm whether any withdrawal has been automatically processed since the latest publish.
+
+==================================================
+11. DO NOT PERFORM A REAL WITHDRAWAL
+==================================================
+
+Absolutely do not:
+
+- create a withdrawal
+- approve a withdrawal
+- use an existing withdrawal as a test
+- sign a transaction
+- broadcast a transaction
+- call Reject & Refund
+- call Move to Manual Review
+- call the incident correction endpoint
+- modify production data
+
+This is an AUDIT ONLY.
+
+==================================================
+12. FINAL DECISION REPORT
+==================================================
+
+Return:
+
+CHECK | RESULT | EVIDENCE | BLOCKING?
+
+Then provide:
+
+A. CURRENT ACTIVATION GATE
+State clearly:
+OPEN or CLOSED
+
+B. REMAINING BLOCKERS
+List every blocker, even if minor.
+
+C. SAFETY STATUS
+Confirm whether:
+- there are zero APPROVED withdrawals
+- there are zero BROADCAST_UNKNOWN withdrawals
+- there are zero active claims
+- PW-WD-000130 is safely in MANUAL_REVIEW
+- no unintended production transaction occurred
+
+D. BLOCKCHAIN READINESS
+Report:
+- BNB balance
+- USDT balance
+- nonce
+- gas estimation
+- RPC health
+- key/address match
+
+E. PROCESSOR READINESS
+State whether the published processor lifecycle is verified.
+
+F. NEXT ACTION
+If and ONLY IF every required activation gate is green, state:
+
+"READY FOR ONE CONTROLLED REAL WITHDRAWAL TEST"
+
+Otherwise state:
+
+"NOT READY — DO NOT TEST"
+
+Do not infer PASS where evidence is unavailable.
+Do not modify anything to make a failed check pass.
