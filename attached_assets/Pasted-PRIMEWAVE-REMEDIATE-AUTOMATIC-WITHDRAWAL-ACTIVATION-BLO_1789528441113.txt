@@ -1,0 +1,290 @@
+PRIMEWAVE — REMEDIATE AUTOMATIC WITHDRAWAL ACTIVATION BLOCKERS
+
+The production activation preflight returned NOT READY FOR ACTIVATION.
+
+Do NOT enable automatic withdrawals.
+Do NOT set BLOCKCHAIN_DRY_RUN=false.
+Do NOT sign or broadcast any transaction.
+Do NOT move production funds.
+Do NOT reject, refund, approve, retry, or modify any production withdrawal unless explicitly authorized below.
+Do NOT publish or deploy.
+
+We need to resolve the identified blockers systematically.
+
+==================================================
+1. PROTECT PW-WD-000103
+==================================================
+
+PW-WD-000103 is currently APPROVED and therefore potentially claimable by the automatic worker.
+
+This withdrawal must NOT be automatically processed while its accounting history is unresolved.
+
+Implement the safest existing mechanism to prevent automatic processing of PW-WD-000103 without deleting it, refunding it, completing it, or otherwise altering its financial state.
+
+Prefer an existing supported state/hold/reconciliation mechanism if one exists.
+
+If no safe existing mechanism exists, STOP and report the exact minimal schema/state-machine change required.
+
+Do not invent an accounting workaround.
+
+After protection, verify that:
+
+PW-WD-000103 → automatically claimable = NO
+
+Do not modify its balance or ledger entries.
+
+==================================================
+2. HOT WALLET CONFIGURATION PREFLIGHT
+==================================================
+
+Inspect the production secret/configuration mechanism.
+
+Determine exactly which variables are required for real automatic withdrawals.
+
+Expected categories include:
+
+- HOT_WALLET_ADDRESS
+- HOT_WALLET_PRIVATE_KEY
+- BSC_RPC_PRIMARY
+- BLOCKCHAIN_DRY_RUN
+
+Do not expose any secret values.
+
+Report only whether each required value is:
+
+PRESENT
+MISSING
+or
+INVALID
+
+Do not create or modify the private key.
+
+==================================================
+3. PRIVATE KEY / ADDRESS CORRESPONDENCE
+==================================================
+
+If both hot-wallet address and private key are configured, verify cryptographically that they correspond.
+
+Return only:
+
+MATCH
+
+or
+
+MISMATCH
+
+Never print the private key.
+
+If they do not match:
+
+STOP automatic activation.
+
+==================================================
+4. BLOCKCHAIN NETWORK VERIFICATION
+==================================================
+
+Perform read-only production RPC verification.
+
+Confirm:
+
+- chain ID = 56
+- latest block can be retrieved
+- gas estimation succeeds
+- configured USDT contract exists
+- contract bytecode is present
+- symbol
+- name
+- decimals = 18
+
+Do not submit a transaction.
+
+If the configured production contract differs from the intended PrimeWave configuration, STOP and report the discrepancy.
+
+==================================================
+5. RPC STABILITY
+==================================================
+
+Investigate the reported production RPC timeout/retry behavior.
+
+Determine:
+
+- frequency
+- affected RPC calls
+- whether requests eventually succeed
+- timeout configuration
+- retry behavior
+- whether multiple RPC endpoints are available
+- whether withdrawal processing could incorrectly interpret an RPC timeout as a transaction failure or broadcast ambiguity
+
+Do not weaken transaction verification to compensate for RPC instability.
+
+Do not automatically change the RPC provider.
+
+Return a technical diagnosis and recommended remediation.
+
+==================================================
+6. RPC CREDENTIAL ROTATION
+==================================================
+
+A historical deployment log reportedly contained a credential-bearing RPC endpoint.
+
+Do not print or retrieve the historical credential for display.
+
+Determine whether the credential has already been rotated.
+
+If rotation has NOT occurred:
+
+Return:
+
+RPC CREDENTIAL ROTATION REQUIRED
+
+Do not activate automatic withdrawals.
+
+If rotation can be safely performed through the existing secure production secret mechanism without exposing the credential, explain the exact required action but do not perform it without explicit approval.
+
+==================================================
+7. HOT WALLET BALANCES
+==================================================
+
+Read production balances only.
+
+Report:
+
+- BNB balance
+- USDT balance
+
+Do not transfer funds.
+
+Verify against the application's currently configured minimum thresholds.
+
+Current reported thresholds:
+
+BNB minimum: 0.05
+USDT minimum: 1
+
+If these thresholds are hard-coded rather than configurable, report that.
+
+Do not change the thresholds.
+
+==================================================
+8. WITHDRAWAL ACTIVATION SAFETY GATE
+==================================================
+
+Review the automatic processor and implement/verify a fail-closed activation gate.
+
+The processor must refuse real processing if any required condition is false:
+
+- production schema ready
+- RPC reachable
+- chain ID verified
+- USDT contract verified
+- hot wallet configured
+- private key/address correspondence verified
+- BNB minimum satisfied
+- USDT minimum satisfied
+- no unresolved activation blocker
+- BLOCKCHAIN_DRY_RUN permits the requested operating mode
+
+The processor must fail closed.
+
+Do not create a bypass.
+
+Do not add an admin UI toggle unless explicitly required by the existing architecture.
+
+==================================================
+9. WITHDRAWAL STATE SAFETY
+==================================================
+
+Verify that only:
+
+APPROVED
+
+withdrawals can be claimed.
+
+Confirm that:
+
+PENDING
+QUEUED
+VALIDATING
+PROCESSING
+SIGNED
+BROADCASTING
+BROADCAST_UNKNOWN
+MANUAL_REVIEW
+COMPLETED
+REJECTED
+
+cannot be newly claimed by the automatic worker.
+
+Do not process any withdrawal during this verification.
+
+==================================================
+10. STALE / HISTORICAL RECORDS
+==================================================
+
+Verify the current state of:
+
+PW-WD-000118
+PW-WD-000121
+PW-WD-000123
+PW-WD-000103
+
+Do not modify them.
+
+Report whether each is automatically claimable.
+
+==================================================
+11. TESTING
+
+After any code changes:
+
+Run:
+
+- withdrawal unit tests
+- withdrawal integration tests
+- full API test suite
+- API typecheck
+- API production build
+- Prisma validation
+- frontend typecheck
+- frontend production build
+- git diff --check
+
+Add regression tests for any new safety gate.
+
+Do not skip tests merely to speed up activation.
+
+==================================================
+12. PRODUCTION SAFETY
+
+Before stopping, explicitly confirm:
+
+Production financial records modified: NO
+Production balances modified: NO
+Production withdrawal states modified: NO
+Transaction signed: NO
+Transaction broadcast: NO
+Funds moved: NO
+Private key exposed: NO
+RPC credential exposed: NO
+BLOCKCHAIN_DRY_RUN changed: NO
+Automatic withdrawals enabled: NO
+Publish: NO
+Deployment: NO
+
+==================================================
+FINAL RESPONSE
+
+Return:
+
+1. BLOCKERS RESOLVED
+2. BLOCKERS REMAINING
+3. PRODUCTION CONFIGURATION STATUS
+4. RPC DIAGNOSIS
+5. PW-WD-000103 SAFETY STATUS
+6. TEST RESULTS
+7. EXACT NEXT APPROVAL REQUIRED
+
+Do not activate automatic withdrawals.
+
+STOP after the remediation report.
