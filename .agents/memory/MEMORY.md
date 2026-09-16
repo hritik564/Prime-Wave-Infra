@@ -38,3 +38,4 @@
 - [BSC RPC log filters](rpc-eth-getlogs-topic-filter.md) — configured provider rejects topic-filtered eth_getLogs; use bounded address-only discovery and receipt verification
 - [Withdrawal business-state boundary](withdrawal-business-state-boundary.md) — worker claims APPROVED only; pre-sign failures return to PENDING without refund, broadcast ambiguity stays protected
 - [Safe environment metadata](safe-environment-metadata.md) — viewEnvVars groups non-secrets by environment and reports secret existence as booleans; requested names alone are not presence evidence
+- [Prisma advisory lock return type](prisma-advisory-lock-return.md) — pg_advisory_xact_lock returns void; Prisma raw-query deserialization can fail before signing unless the result is safely consumed
