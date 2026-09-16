@@ -37,3 +37,4 @@
 - [Locked-balance forensics](locked-balance-forensics.md) — aggregate locked balance has no per-withdrawal audit; historical gaps cannot be assigned by arithmetic alone
 - [BSC RPC log filters](rpc-eth-getlogs-topic-filter.md) — configured provider rejects topic-filtered eth_getLogs; use bounded address-only discovery and receipt verification
 - [Withdrawal business-state boundary](withdrawal-business-state-boundary.md) — worker claims APPROVED only; pre-sign failures return to PENDING without refund, broadcast ambiguity stays protected
+- [Safe environment metadata](safe-environment-metadata.md) — viewEnvVars groups non-secrets by environment and reports secret existence as booleans; requested names alone are not presence evidence
