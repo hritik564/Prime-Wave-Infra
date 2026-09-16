@@ -2013,6 +2013,24 @@ export function adminMoveWithdrawalToManualReview(id: string, reason: string) {
   );
 }
 
+export function adminCorrectFalsePositiveWithdrawalStage(id: string, reason: string) {
+  return request<{
+    withdrawalId: string;
+    status: "MANUAL_REVIEW";
+    alreadyReconciled: boolean;
+  }>(
+    `/api/admin/withdrawals/${id}/correct-false-positive-stage`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        incidentId: "PW-WD-000130",
+        evidenceConfirmed: true,
+        reason,
+      }),
+    },
+  );
+}
+
 export function adminUpdateWithdrawalNotes(id: string, adminNotes: string) {
   return request<{ withdrawalId: string; adminNotes: string }>(
     `/api/admin/withdrawals/${id}/notes`,

@@ -215,6 +215,7 @@ function WalletTab({w}:{w:DrawerWithdrawal}) {
 function PaymentTab({w}:{w:DrawerWithdrawal}) {
   const [copied,setCopied] = useState(false);
   const copyAddr = () => { navigator.clipboard?.writeText(w.walletAddress).catch(()=>{}); setCopied(true); setTimeout(()=>setCopied(false),1500); };
+  const noBroadcastEvidence = !w.transactionHash && w.status === "BROADCAST_UNKNOWN";
   return (
     <div>
       <SecTitle title="PAYMENT DETAILS"/>
@@ -237,7 +238,14 @@ function PaymentTab({w}:{w:DrawerWithdrawal}) {
           </div>
         </div>
       ) : (
-        <Row label="Transaction Hash" value={<span style={{color:MUTED,fontSize:11}}>Pending confirmation</span>}/>
+        <Row
+          label="Transaction Hash"
+          value={
+            <span style={{color:noBroadcastEvidence ? "#f97316" : MUTED,fontSize:11}}>
+              {noBroadcastEvidence ? "No transaction hash — reconciliation required." : "Pending confirmation"}
+            </span>
+          }
+        />
       )}
       <Row label="Destination"   value={w.paymentMethod==="BANK"?"Bank Account":"Crypto Wallet"}/>
       <Row label="Amount"        value={`$${w.amount.toLocaleString()}`} accent/>

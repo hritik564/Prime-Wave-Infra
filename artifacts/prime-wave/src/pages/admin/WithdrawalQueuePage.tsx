@@ -64,6 +64,8 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   BROADCASTING: { bg: "rgba(251,113,133,0.12)",  color: "#fb7185" },
   CONFIRMING:   { bg: "rgba(52,211,153,0.12)",   color: "#34d399" },
   MANUAL_REVIEW:{ bg: "rgba(239,68,68,0.14)",    color: "#f87171" },
+  BROADCAST_UNKNOWN: { bg: "rgba(249,115,22,0.16)", color: "#fb923c" },
+  PROCESSOR_FAILURE: { bg: "rgba(251,113,133,0.16)", color: "#fb7185" },
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
@@ -74,6 +76,8 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   BROADCASTING: <Radio        className="h-3 w-3" />,
   CONFIRMING:   <GitMerge     className="h-3 w-3" />,
   MANUAL_REVIEW:<ShieldAlert  className="h-3 w-3" />,
+  BROADCAST_UNKNOWN: <ShieldAlert className="h-3 w-3" />,
+  PROCESSOR_FAILURE: <AlertOctagon className="h-3 w-3" />,
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -140,6 +144,8 @@ const EVENT_COLORS: Record<string, string> = {
   CANCELLED:        MUTED,
   APPROVED:         "#34d399",
   REJECTED:         "#f87171",
+  BROADCAST_UNKNOWN:"#fb923c",
+  PROCESSOR_FAILURE:"#fb7185",
 };
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
@@ -158,6 +164,8 @@ const EVENT_ICONS: Record<string, React.ReactNode> = {
   MANUAL_REVIEW:    <ShieldAlert  className="h-3.5 w-3.5" />,
   RECOVERY_SCAN:    <Wifi         className="h-3.5 w-3.5" />,
   CANCELLED:        <X            className="h-3.5 w-3.5" />,
+  BROADCAST_UNKNOWN:<ShieldAlert  className="h-3.5 w-3.5" />,
+  PROCESSOR_FAILURE:<AlertOctagon className="h-3.5 w-3.5" />,
 };
 
 function EventRow({ event, isLast }: { event: WithdrawalEvent; isLast: boolean }) {
@@ -343,8 +351,8 @@ function TimelineDrawer({
 }
 
 // ─── All filter tabs ──────────────────────────────────────────────────────────
-type FilterKey = "ALL" | "VALIDATING" | "QUEUED" | "PROCESSING" | "SIGNED" | "BROADCASTING" | "CONFIRMING" | "MANUAL_REVIEW";
-const FILTER_TABS: FilterKey[] = ["ALL", "VALIDATING", "QUEUED", "PROCESSING", "SIGNED", "BROADCASTING", "CONFIRMING", "MANUAL_REVIEW"];
+type FilterKey = "ALL" | "VALIDATING" | "QUEUED" | "PROCESSING" | "SIGNED" | "BROADCASTING" | "BROADCAST_UNKNOWN" | "CONFIRMING" | "MANUAL_REVIEW";
+const FILTER_TABS: FilterKey[] = ["ALL", "VALIDATING", "QUEUED", "PROCESSING", "SIGNED", "BROADCASTING", "BROADCAST_UNKNOWN", "CONFIRMING", "MANUAL_REVIEW"];
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 25;
@@ -411,6 +419,9 @@ export default function WithdrawalQueuePage() {
 
   const activeTabs = FILTER_TABS.filter((s) => s === "ALL" || countOf(s) > 0);
   const manualReviewCount = items.filter((i) => i.status === "MANUAL_REVIEW").length;
+  const broadcastUnknownCount = items.filter(
+    (i) => i.status === "BROADCAST_UNKNOWN" && !i.txHash && !i.broadcastAt,
+  ).length;
 
   return (
     <AdminLayout>
@@ -456,6 +467,31 @@ export default function WithdrawalQueuePage() {
             </button>}
           </div>
         </div>
+
+        {/* ── Reconciliation alert ── */}
+        {broadcastUnknownCount > 0 && (
+          <div
+            className="flex items-center gap-3 rounded-2xl px-4 py-3"
+            style={{ background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.28)" }}
+          >
+            <ShieldAlert className="h-5 w-5 flex-shrink-0" style={{ color: "#fb923c" }} />
+            <div className="flex-1">
+              <p className="text-sm font-semibold" style={{ color: "#fb923c" }}>
+                {broadcastUnknownCount} withdrawal{broadcastUnknownCount > 1 ? "s" : ""} require reconciliation
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(251,146,60,0.78)" }}>
+                No transaction hash — reconciliation required. Do not label these payments as pending confirmation.
+              </p>
+            </div>
+            <button
+              onClick={() => { setFilterStatus("BROADCAST_UNKNOWN"); setPage(1); }}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+              style={{ background: "rgba(249,115,22,0.15)", color: "#fb923c" }}
+            >
+              View
+            </button>
+          </div>
+        )}
 
         {/* ── Manual Review alert ── */}
         {manualReviewCount > 0 && (

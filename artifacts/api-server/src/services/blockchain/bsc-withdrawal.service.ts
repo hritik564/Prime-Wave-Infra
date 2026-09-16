@@ -17,6 +17,7 @@ import { DEFAULT_USDT_CONTRACT, type BscConfig } from "../../deposit-verificatio
 import { logger } from "../../lib/logger";
 import {
   GatewayDryRunError,
+  GatewayLifecycleError,
   GatewaySigningError,
   GatewayBroadcastError,
 } from "./blockchain.interface";
@@ -30,6 +31,7 @@ import type {
   ChainTransaction,
   FeeEstimate,
   PreparedTransfer,
+  SignAndBroadcastHooks,
   TokenTransfer,
   TransferExpectation,
   TransferVerification,
@@ -313,7 +315,10 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
   //
   // Never logs the private key or raw signed transaction.
 
-  async signAndBroadcast(prepared: PreparedTransfer): Promise<BroadcastResult> {
+  async signAndBroadcast(
+    prepared: PreparedTransfer,
+    hooks?: SignAndBroadcastHooks,
+  ): Promise<BroadcastResult> {
     if (this.isDryRun) {
       throw new GatewayDryRunError();
     }
@@ -356,7 +361,7 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
 
       // ── 2. Sign the transaction ───────────────────────────────────────────────
       let signedTx: `0x${string}`;
-      const signedAt = new Date();
+      let signedAt: Date;
 
       try {
         const account = privateKeyToAccount(this.privateKey!);
@@ -372,24 +377,45 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
           type:     "legacy",
         });
 
+        signedAt = new Date();
+
         logger.info(
           { nonce, gasLimit: gasLimit.toString(), gasPriceGwei },
           "blockchain.bsc: signing completed",
         );
+
+        try {
+          await hooks?.onSigned?.(signedAt);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          throw new GatewayLifecycleError(
+            "SIGNED",
+            `Signed transaction lifecycle persistence failed: ${msg}`,
+          );
+        }
+
       } catch (err) {
+        if (err instanceof GatewayLifecycleError) throw err;
         const msg = err instanceof Error ? err.message : String(err);
         logger.error({ err: msg, nonce }, "blockchain.bsc: signing failed");
         throw new GatewaySigningError(`Transaction signing failed: ${msg}`);
       }
 
-      // ── 3. Broadcast via eth_sendRawTransaction ───────────────────────────────
+      // ── 3. Broadcast via eth_sendRawTransaction ─────────────────────────────
       logger.info(
         { to: prepared.to, amount: prepared.amount, nonce },
         "blockchain.bsc: broadcast started",
       );
 
-      let txHash: string;
-      const broadcastAt = new Date();
+      try {
+        await hooks?.onBroadcasting?.();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new GatewayLifecycleError(
+          "BROADCASTING",
+          `Broadcasting lifecycle persistence failed: ${msg}`,
+        );
+      }
 
       try {
         const result = await this.rpc.call<string>("eth_sendRawTransaction", [signedTx]);
@@ -398,26 +424,27 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
           throw new Error(`Unexpected response from eth_sendRawTransaction: ${String(result)}`);
         }
 
-        txHash = result;
+        const broadcastAt = new Date();
+
+        logger.info(
+          { txHash: result, nonce, to: prepared.to, amount: prepared.amount, gasPriceGwei },
+          "blockchain.bsc: broadcast completed",
+        );
+
+        return {
+          txHash: result,
+          signedAt,
+          broadcastAt,
+          nonce,
+          gasPriceGwei,
+          estimatedGas: prepared.estimatedGas,
+        };
       } catch (err) {
+        if (err instanceof GatewayLifecycleError) throw err;
         const msg = err instanceof Error ? err.message : String(err);
         logger.error({ err: msg, nonce, to: prepared.to, amount: prepared.amount }, "blockchain.bsc: broadcast failed");
         throw new GatewayBroadcastError(`Transaction broadcast failed: ${msg}`);
       }
-
-      logger.info(
-        { txHash, nonce, to: prepared.to, amount: prepared.amount, gasPriceGwei },
-        "blockchain.bsc: broadcast completed",
-      );
-
-      return {
-        txHash,
-        signedAt,
-        broadcastAt,
-        nonce,
-        gasPriceGwei,
-        estimatedGas: prepared.estimatedGas,
-      };
     });
   }
 

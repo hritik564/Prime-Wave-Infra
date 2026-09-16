@@ -68,6 +68,14 @@ export interface BroadcastResult {
   estimatedGas: string;
 }
 
+/** Lifecycle hooks used to persist completed signing/broadcast milestones. */
+export interface SignAndBroadcastHooks {
+  /** Called only after cryptographic signing succeeds and before broadcast begins. */
+  onSigned?: (signedAt: Date) => Promise<void>;
+  /** Called immediately before eth_sendRawTransaction is attempted. */
+  onBroadcasting?: () => Promise<void>;
+}
+
 /** On-chain transaction receipt data. */
 export interface ChainTransaction {
   txHash:       string;

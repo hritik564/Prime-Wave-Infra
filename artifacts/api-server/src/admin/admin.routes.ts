@@ -44,6 +44,7 @@ import {
   rejectWithdrawalHandler,
   rejectAndRefundBroadcastUnknownHandler,
   reconcileApprovedWithdrawalHandler,
+  reconcileFalsePositiveProcessorStageHandler,
   getAdminWithdrawalSettingsHandler,
   updateAdminWithdrawalSettingsHandler,
   getWithdrawalQueueHandler,
@@ -222,6 +223,7 @@ import {
   rejectWithdrawalSchema,
   rejectBroadcastUnknownSchema,
   reconcileWithdrawalSchema,
+  falsePositiveStageCorrectionSchema,
   updateWithdrawalNotesSchema,
   updateWithdrawalSettingsSchema,
 } from "../withdrawals/withdrawals.schema";
@@ -764,6 +766,14 @@ router.post(
   withdrawalAdminGuard,
   validate(reconcileWithdrawalSchema),
   reconcileApprovedWithdrawalHandler,
+);
+
+router.post(
+  "/withdrawals/:id/correct-false-positive-stage",
+  adminLimiter,
+  superAdminGuard,
+  validate(falsePositiveStageCorrectionSchema),
+  reconcileFalsePositiveProcessorStageHandler,
 );
 
 router.patch(

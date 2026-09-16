@@ -471,21 +471,36 @@ async function signAndBroadcastWithdrawal(
   let signedAt:    Date;
   let broadcastAt: Date;
   let nonce:       number;
-
-  if (!await transitionClaimedWithdrawal(id, claimToken, ["PROCESSING"], "SIGNED", { signedAt: new Date() })) {
-    throw new Error("Withdrawal claim lost before SIGNED transition");
-  }
-  await logWithdrawalEvent(id, "SIGNED");
-  logger.info({ ...logCtx, status: "SIGNED" }, "withdrawal.processor: signing started");
+  let lifecycleStatus: "PROCESSING" | "SIGNED" | "BROADCASTING" = "PROCESSING";
+  let signingCompleted = false;
+  let broadcastAttempted = false;
 
   try {
-    if (!await transitionClaimedWithdrawal(id, claimToken, ["SIGNED"], "BROADCASTING")) {
-      throw new Error("Withdrawal claim lost before BROADCASTING transition");
-    }
-    await logWithdrawalEvent(id, "BROADCAST");
-    logger.info({ ...logCtx, status: "BROADCASTING" }, "withdrawal.processor: broadcasting");
-
-    const result = await gw.signAndBroadcast(preparedTx);
+    const result = await gw.signAndBroadcast(preparedTx, {
+      onSigned: async (completedAt) => {
+        // This callback is reached only after viem has returned a signed raw
+        // transaction. A persistence failure therefore remains protected.
+        signingCompleted = true;
+        if (!await transitionClaimedWithdrawal(id, claimToken, ["PROCESSING"], "SIGNED", {
+          signedAt: completedAt,
+        })) {
+          throw new Error("Withdrawal claim lost before SIGNED transition");
+        }
+        lifecycleStatus = "SIGNED";
+        await logWithdrawalEvent(id, "SIGNED", { signedAt: completedAt.toISOString() });
+        logger.info({ ...logCtx, status: "SIGNED" }, "withdrawal.processor: signing completed");
+      },
+      onBroadcasting: async () => {
+        // The raw transaction is about to be submitted. Treat any subsequent
+        // error as ambiguous; never return funds automatically.
+        broadcastAttempted = true;
+        if (!await transitionClaimedWithdrawal(id, claimToken, ["SIGNED"], "BROADCASTING")) {
+          throw new Error("Withdrawal claim lost before BROADCASTING transition");
+        }
+        lifecycleStatus = "BROADCASTING";
+        logger.info({ ...logCtx, status: "BROADCASTING" }, "withdrawal.processor: broadcasting");
+      },
+    });
     txHash      = result.txHash;
     signedAt    = result.signedAt;
     broadcastAt = result.broadcastAt;
@@ -498,14 +513,18 @@ async function signAndBroadcastWithdrawal(
     logger.error({ ...logCtx, err: msg, isSignErr, isBroadcastErr },
       "withdrawal.processor: sign/broadcast failed");
 
+    const outcomeAmbiguous = signingCompleted || broadcastAttempted;
     await handleProcessorFailure({
       id,
       claimToken,
-      previousStatus: "BROADCASTING",
-      reason: "Signing or broadcasting failed after the protected processing boundary.",
+      previousStatus: lifecycleStatus,
+      reason: outcomeAmbiguous
+        ? "Signing or broadcast was reached; blockchain outcome requires reconciliation."
+        : `Automatic processing failed before signing or broadcasting: ${msg}`,
       evidence: {
-        status: "BROADCASTING",
-        transactionOutcomeAmbiguous: true,
+        status: lifecycleStatus,
+        transactionOutcomeAmbiguous: outcomeAmbiguous,
+        signingOrBroadcastingDidNotOccur: !outcomeAmbiguous,
       },
     });
     return;
@@ -538,6 +557,12 @@ async function signAndBroadcastWithdrawal(
     throw new Error("Withdrawal claim lost before CONFIRMING commit");
   }
 
+  await logWithdrawalEvent(id, "BROADCAST", {
+    txHash,
+    broadcastAt: broadcastAt.toISOString(),
+    nonce,
+    explorerUrl,
+  });
   await logWithdrawalEvent(id, "CONFIRMING", { txHash, nonce, explorerUrl });
 
   logger.info(

@@ -73,7 +73,10 @@ export async function withDistributedNonceLock<T>(
 ): Promise<T> {
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`
-      SELECT pg_advisory_xact_lock(hashtextextended(${walletAddress.toLowerCase()}, 0))
+      SELECT 1 AS "locked"
+      FROM (
+        SELECT pg_advisory_xact_lock(hashtextextended(${walletAddress.toLowerCase()}, 0))
+      ) AS advisory_lock
     `;
     return fn();
   }, { maxWait: 10_000, timeout: 120_000 });

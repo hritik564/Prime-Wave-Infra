@@ -9,6 +9,7 @@ import type {
   RejectWithdrawalInput,
   RejectBroadcastUnknownInput,
   ReconcileWithdrawalInput,
+  FalsePositiveStageCorrectionInput,
   UpdateWithdrawalNotesInput,
 } from "../withdrawals/withdrawals.schema";
 import { notificationService } from "../notifications/notifications.service";
@@ -385,6 +386,156 @@ export async function reconcileApprovedWithdrawal(
   });
 
   return result;
+}
+
+/**
+ * Incident-specific correction for the forensic false-positive SIGNED marker.
+ *
+ * This is deliberately restricted to the known incident identifier and a
+ * SUPER_ADMIN route. It never releases funds, creates a ledger row, retries
+ * processing, or calls a blockchain gateway.
+ */
+export async function reconcileFalsePositiveProcessorStage(
+  adminId: string,
+  withdrawalId: string,
+  input: FalsePositiveStageCorrectionInput,
+) {
+  const correctedAt = new Date();
+  return prisma.$transaction(async (tx) => {
+    const withdrawal = await tx.withdrawalRequest.findUnique({
+      where: { id: withdrawalId },
+      select: {
+        id: true,
+        withdrawalId: true,
+        userId: true,
+        status: true,
+        txHash: true,
+        signedAt: true,
+        broadcastAt: true,
+        claimOwner: true,
+        claimToken: true,
+        claimExpiresAt: true,
+      },
+    });
+
+    if (!withdrawal) {
+      throw new AppError("Withdrawal not found", HTTP_STATUS.NOT_FOUND, "WITHDRAWAL_NOT_FOUND");
+    }
+
+    if (withdrawal.status === "MANUAL_REVIEW") {
+      return {
+        withdrawalId,
+        status: "MANUAL_REVIEW" as const,
+        alreadyReconciled: true,
+      };
+    }
+
+    if (input.incidentId !== "PW-WD-000130" || withdrawal.withdrawalId !== input.incidentId) {
+      throw new AppError(
+        "This correction is restricted to the documented PW-WD-000130 incident",
+        HTTP_STATUS.CONFLICT,
+        "WITHDRAWAL_INCIDENT_NOT_MATCHED",
+      );
+    }
+
+    if (withdrawal.status !== "BROADCAST_UNKNOWN") {
+      throw new AppError(
+        `Only BROADCAST_UNKNOWN withdrawals can receive this incident correction; current status is ${withdrawal.status}`,
+        HTTP_STATUS.CONFLICT,
+        "WITHDRAWAL_NOT_BROADCAST_UNKNOWN",
+      );
+    }
+
+    if (withdrawal.txHash || withdrawal.broadcastAt || !withdrawal.signedAt) {
+      throw new AppError(
+        "Persisted transaction evidence does not match the known false-positive stage marker",
+        HTTP_STATUS.CONFLICT,
+        "WITHDRAWAL_TRANSACTION_EVIDENCE_MISMATCH",
+      );
+    }
+
+    if (withdrawal.claimOwner || withdrawal.claimToken || withdrawal.claimExpiresAt) {
+      throw new AppError(
+        "Withdrawal is currently claimed and cannot be reconciled safely",
+        HTTP_STATUS.CONFLICT,
+        "WITHDRAWAL_CLAIM_ACTIVE",
+      );
+    }
+
+    const changed = await tx.withdrawalRequest.updateMany({
+      where: {
+        id: withdrawalId,
+        withdrawalId: input.incidentId,
+        status: "BROADCAST_UNKNOWN",
+        txHash: null,
+        broadcastAt: null,
+        signedAt: { not: null },
+        claimOwner: null,
+        claimToken: null,
+      },
+      data: {
+        status: "MANUAL_REVIEW",
+        signedAt: null,
+        failureReason: "Incident correction: false-positive SIGNED marker cleared; no blockchain transaction evidence exists.",
+        broadcastUnknownReason: "Incident correction applied after forensic confirmation; no blockchain outcome exists.",
+      },
+    });
+
+    if (changed.count !== 1) {
+      throw new AppError(
+        "Withdrawal state or transaction evidence changed during incident correction",
+        HTTP_STATUS.CONFLICT,
+        "WITHDRAWAL_RECONCILIATION_RACE",
+      );
+    }
+
+    const auditDetails = {
+      withdrawalId,
+      incidentId: input.incidentId,
+      previousState: "BROADCAST_UNKNOWN",
+      newState: "MANUAL_REVIEW",
+      clearedFields: ["signedAt"],
+      evidenceConfirmed: input.evidenceConfirmed,
+      forensicEvidence: {
+        txHash: null,
+        broadcastAt: null,
+        signedRawTransaction: false,
+        ethSendRawTransactionCalled: false,
+        matchingBscTransaction: false,
+        nonceUsed: false,
+      },
+      correctionReason: input.reason,
+      financialOperation: "NONE",
+      administrativeActor: adminId,
+      correctedAt: correctedAt.toISOString(),
+    };
+
+    await tx.adminLog.create({
+      data: {
+        adminId,
+        action: "WITHDRAWAL_FALSE_POSITIVE_STAGE_CORRECTED",
+        targetUserId: withdrawal.userId,
+        details: auditDetails,
+      },
+    });
+
+    await tx.withdrawalEvent.create({
+      data: {
+        withdrawalId,
+        eventType: "MANUAL_REVIEW",
+        details: {
+          ...auditDetails,
+          source: "incident-forensic-correction",
+        },
+      },
+    });
+
+    return {
+      withdrawalId,
+      status: "MANUAL_REVIEW" as const,
+      alreadyReconciled: false,
+    };
+  });
 }
 
 // ── Update admin notes ────────────────────────────────────────────────────────

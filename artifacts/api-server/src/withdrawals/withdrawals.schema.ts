@@ -63,6 +63,12 @@ export const reconcileWithdrawalSchema = z.object({
   reason: z.string().trim().min(1, "Reconciliation reason is required").max(500),
 });
 
+export const falsePositiveStageCorrectionSchema = z.object({
+  incidentId: z.literal("PW-WD-000130"),
+  evidenceConfirmed: z.literal(true),
+  reason: z.string().trim().min(1, "Correction reason is required").max(500),
+});
+
 export const rejectBroadcastUnknownSchema = z.object({
   rejectedReason: z.string().trim().min(1, "Rejection reason is required").max(500),
 });
@@ -81,5 +87,6 @@ export type ApproveWithdrawalInput      = z.infer<typeof approveWithdrawalSchema
 export type CompleteWithdrawalInput     = z.infer<typeof completeWithdrawalSchema>;
 export type RejectWithdrawalInput       = z.infer<typeof rejectWithdrawalSchema>;
 export type ReconcileWithdrawalInput    = z.infer<typeof reconcileWithdrawalSchema>;
+export type FalsePositiveStageCorrectionInput = z.infer<typeof falsePositiveStageCorrectionSchema>;
 export type RejectBroadcastUnknownInput = z.infer<typeof rejectBroadcastUnknownSchema>;
 export type UpdateWithdrawalNotesInput  = z.infer<typeof updateWithdrawalNotesSchema>;

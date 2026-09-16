@@ -20,6 +20,7 @@ import type {
   FeeEstimate,
   PreparedTransfer,
   WithdrawalGatewayNetwork,
+  SignAndBroadcastHooks,
 } from "./blockchain.types";
 
 export class GatewayDryRunError extends Error {
@@ -47,6 +48,16 @@ export class GatewayBroadcastError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "GatewayBroadcastError";
+  }
+}
+
+export class GatewayLifecycleError extends Error {
+  constructor(
+    public readonly phase: "SIGNED" | "BROADCASTING",
+    message: string,
+  ) {
+    super(message);
+    this.name = "GatewayLifecycleError";
   }
 }
 
@@ -105,7 +116,10 @@ export interface IWithdrawalGateway {
    *
    * @param prepared  The PreparedTransfer from a prior prepareTransfer() call.
    */
-  signAndBroadcast(prepared: PreparedTransfer): Promise<BroadcastResult>;
+  signAndBroadcast(
+    prepared: PreparedTransfer,
+    hooks?: SignAndBroadcastHooks,
+  ): Promise<BroadcastResult>;
 
   /**
    * Fetch on-chain transaction status by hash.

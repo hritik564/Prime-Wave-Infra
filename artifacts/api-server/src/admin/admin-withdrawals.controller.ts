@@ -12,6 +12,7 @@ import {
   rejectWithdrawal,
   rejectAndRefundBroadcastUnknown,
   reconcileApprovedWithdrawal,
+  reconcileFalsePositiveProcessorStage,
 } from "./admin-withdrawals.service";
 import { getWithdrawalSettingsPublic, updateWithdrawalSettings } from "../withdrawals/withdrawals.service";
 import { getQueueItems } from "../withdrawals/withdrawal-queue.service";
@@ -30,6 +31,7 @@ import type {
   RejectWithdrawalInput,
   RejectBroadcastUnknownInput,
   ReconcileWithdrawalInput,
+  FalsePositiveStageCorrectionInput,
   UpdateWithdrawalNotesInput,
   UpdateWithdrawalSettingsInput,
 } from "../withdrawals/withdrawals.schema";
@@ -161,6 +163,24 @@ export async function reconcileApprovedWithdrawalHandler(
       result.alreadyReconciled
         ? "Withdrawal was already in manual review"
         : "Withdrawal moved to manual review",
+    );
+  } catch (err) { next(err); }
+}
+
+export async function reconcileFalsePositiveProcessorStageHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const withdrawalId = String(req.params["id"] ?? "");
+    const input = req.body as FalsePositiveStageCorrectionInput;
+    const result = await reconcileFalsePositiveProcessorStage(user.sub, withdrawalId, input);
+    sendSuccess(
+      res,
+      result,
+      result.alreadyReconciled
+        ? "Incident stage correction was already applied"
+        : "Incident stage correction applied; withdrawal moved to manual review",
     );
   } catch (err) { next(err); }
 }

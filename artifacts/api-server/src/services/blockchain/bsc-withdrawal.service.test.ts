@@ -114,6 +114,87 @@ describe("BscWithdrawalGateway safety checks", () => {
     })).rejects.toThrow(/dry-run/);
   });
 
+  it("persists lifecycle milestones only after signing and immediately before broadcast", async () => {
+    const rpcCall = vi.spyOn(BscRpcClient.prototype, "call");
+    rpcCall.mockImplementation((method) => {
+      if (method === "eth_gasPrice") return Promise.resolve("0x12a05f200") as Promise<never>;
+      if (method === "eth_getTransactionCount") return Promise.resolve("0x8") as Promise<never>;
+      if (method === "eth_sendRawTransaction") return Promise.resolve("0xhash130") as Promise<never>;
+      throw new Error(`unexpected RPC method ${method}`);
+    });
+
+    const events: string[] = [];
+    const gateway = new BscWithdrawalGateway(config, account.address, false, PRIVATE_KEY);
+    const result = await gateway.signAndBroadcast({
+      network: "BEP20",
+      from: account.address,
+      to: recipient,
+      tokenContract: CONTRACT,
+      amount: "1",
+      calldata: "0xa9059cbb",
+      estimatedGas: "60000",
+      gasPriceGwei: "5",
+      estimatedFeeBnb: "0.001",
+      chainId: 56,
+      nonce: 0,
+      dryRun: false,
+    }, {
+      onSigned: async (signedAt) => {
+        expect(signedAt).toBeInstanceOf(Date);
+        events.push("SIGNED");
+      },
+      onBroadcasting: async () => {
+        events.push("BROADCASTING");
+      },
+    });
+
+    expect(events).toEqual(["SIGNED", "BROADCASTING"]);
+    expect(result.txHash).toBe("0xhash130");
+    expect(result.signedAt.getTime()).toBeLessThanOrEqual(result.broadcastAt.getTime());
+    expect(rpcCall.mock.calls.map(([method]) => method)).toEqual([
+      "eth_gasPrice",
+      "eth_getTransactionCount",
+      "eth_sendRawTransaction",
+    ]);
+    rpcCall.mockRestore();
+  });
+
+  it("does not invoke lifecycle hooks or broadcast when signing setup fails", async () => {
+    const rpcCall = vi.spyOn(BscRpcClient.prototype, "call");
+    rpcCall.mockImplementation((method) => {
+      if (method === "eth_gasPrice") return Promise.resolve("0x12a05f200") as Promise<never>;
+      if (method === "eth_getTransactionCount") return Promise.resolve("0x8") as Promise<never>;
+      throw new Error(`unexpected RPC method ${method}`);
+    });
+
+    const events: string[] = [];
+    const gateway = new BscWithdrawalGateway(config, account.address, false, PRIVATE_KEY);
+    await expect(gateway.signAndBroadcast({
+      network: "BEP20",
+      from: account.address,
+      to: recipient,
+      tokenContract: CONTRACT,
+      amount: "1",
+      calldata: "0x",
+      estimatedGas: "not-a-number",
+      gasPriceGwei: "5",
+      estimatedFeeBnb: "0.001",
+      chainId: 56,
+      nonce: 0,
+      dryRun: false,
+    }, {
+      onSigned: async () => { events.push("SIGNED"); },
+      onBroadcasting: async () => { events.push("BROADCASTING"); },
+    })).rejects.toThrow();
+
+    expect(events).toEqual([]);
+    expect(rpcCall.mock.calls.map(([method]) => method)).toEqual([
+      "eth_gasPrice",
+      "eth_getTransactionCount",
+    ]);
+    rpcCall.mockRestore();
+  });
+
   it("extracts canonical ERC-20 Transfer events from receipts", async () => {
     const transferTopic =
       "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";

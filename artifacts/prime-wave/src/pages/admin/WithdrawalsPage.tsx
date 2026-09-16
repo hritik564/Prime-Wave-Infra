@@ -5,7 +5,7 @@ import {
   TrendingUp, DollarSign, Percent, ArrowDownLeft, Users,
   SlidersHorizontal, ChevronLeft, ChevronRight, MoreHorizontal,
   FileText, BarChart2, Eye, Loader2,
-  ShieldX,
+  ShieldX, ShieldAlert, AlertOctagon,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -127,6 +127,7 @@ const STATUS_CFG: Record<string,{color:string;bg:string;label:string}> = {
   PROCESSING:   {color:"#818cf8",bg:"rgba(129,140,248,0.10)", label:"Processing"},
   CONFIRMING:   {color:"#60a5fa",bg:"rgba(96,165,250,0.12)",  label:"Confirming"},
   BROADCAST_UNKNOWN:{color:"#f97316",bg:"rgba(249,115,22,0.12)", label:"Broadcast Unknown"},
+  PROCESSOR_FAILURE:{color:"#fb7185",bg:"rgba(251,113,133,0.12)", label:"Processor Failure"},
   FAILED:       {color:"#f87171",bg:"rgba(248,113,113,0.08)", label:"Failed"},
 };
 const PRI_CFG: Record<Priority,{color:string;bg:string}> = {
@@ -139,7 +140,17 @@ const PRI_CFG: Record<Priority,{color:string;bg:string}> = {
 function StatusBadge({s}:{s:string}) {
   const display = getAdminWithdrawalDisplayStatus(s);
   const c=STATUS_CFG[display] ?? STATUS_CFG.PENDING;
-  return <span style={{fontSize:10,fontWeight:700,color:c.color,background:c.bg,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{c.label}</span>;
+  const Icon = display === "BROADCAST_UNKNOWN"
+    ? ShieldAlert
+    : display === "PROCESSOR_FAILURE"
+      ? AlertOctagon
+      : null;
+  return (
+    <span style={{fontSize:10,fontWeight:700,color:c.color,background:c.bg,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:4}}>
+      {Icon && <Icon size={11}/>}
+      {c.label}
+    </span>
+  );
 }
 function PriorityBadge({p}:{p:Priority}) {
   const c=PRI_CFG[p];
