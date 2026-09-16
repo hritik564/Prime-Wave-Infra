@@ -6,10 +6,17 @@ import {
 
 describe("withdrawal state transition matrix", () => {
   it("allows the guarded automatic path and safe unknown-broadcast branch", () => {
-    expect(isWithdrawalTransitionAllowed("PENDING", "VALIDATING")).toBe(true);
+    expect(isWithdrawalTransitionAllowed("PENDING", "APPROVED")).toBe(true);
+    expect(isWithdrawalTransitionAllowed("APPROVED", "QUEUED")).toBe(true);
     expect(isWithdrawalTransitionAllowed("PROCESSING", "SIGNED")).toBe(true);
     expect(isWithdrawalTransitionAllowed("BROADCASTING", "CONFIRMING")).toBe(true);
     expect(isWithdrawalTransitionAllowed("BROADCASTING", "BROADCAST_UNKNOWN")).toBe(true);
+  });
+
+  it("does not allow the worker to bypass administrator approval", () => {
+    expect(isWithdrawalTransitionAllowed("PENDING", "QUEUED")).toBe(false);
+    expect(isWithdrawalTransitionAllowed("PENDING", "VALIDATING")).toBe(false);
+    expect(isWithdrawalTransitionAllowed("PENDING", "PROCESSING")).toBe(false);
   });
 
   it("does not allow terminal states to transition again", () => {

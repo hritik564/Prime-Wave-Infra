@@ -5,6 +5,7 @@ import { prisma } from "../config/prisma";
 import {
   claimPendingWithdrawals,
   recoverExpiredClaims,
+  releaseDryRunClaim,
   transitionClaimedWithdrawal,
 } from "./withdrawal-claims.service";
 import {
@@ -67,7 +68,7 @@ describe.skipIf(!integrationEnabled)("withdrawal development PostgreSQL integrat
       where: { id: fixture.withdrawalId },
       select: { status: true, claimOwner: true, claimToken: true, claimExpiresAt: true },
     });
-    expect(row.status).toBe("VALIDATING");
+    expect(row.status).toBe("QUEUED");
     expect(["phase15-worker-a", "phase15-worker-b"]).toContain(row.claimOwner);
     expect(row.claimToken).toBe(winners[0][0].claimToken);
     expect(row.claimExpiresAt?.getTime()).toBeGreaterThan(Date.now());
@@ -143,14 +144,6 @@ describe.skipIf(!integrationEnabled)("withdrawal development PostgreSQL integrat
     );
     const claimToken = claimed[0].claimToken;
 
-    expect(await transitionClaimedWithdrawal(
-      fixture.withdrawalId,
-      claimToken,
-      ["VALIDATING"],
-      "QUEUED",
-      {},
-      "phase15-broadcast-worker",
-    )).toBe(true);
     expect(await transitionClaimedWithdrawal(
       fixture.withdrawalId,
       claimToken,
@@ -277,7 +270,6 @@ describe.skipIf(!integrationEnabled)("withdrawal development PostgreSQL integrat
     );
     const token = claim[0].claimToken;
 
-    expect(await transitionClaimedWithdrawal(fixture.withdrawalId, token, ["VALIDATING"], "QUEUED", {}, worker)).toBe(true);
     expect(await transitionClaimedWithdrawal(fixture.withdrawalId, token, ["QUEUED"], "PROCESSING", {}, worker)).toBe(true);
     expect(await transitionClaimedWithdrawal(fixture.withdrawalId, token, ["PROCESSING"], "SIGNED", {}, worker)).toBe(true);
     expect(await transitionClaimedWithdrawal(fixture.withdrawalId, token, ["SIGNED"], "BROADCASTING", {}, worker)).toBe(true);
@@ -307,6 +299,65 @@ describe.skipIf(!integrationEnabled)("withdrawal development PostgreSQL integrat
         select: { status: true },
       })).status,
     ).toBe("COMPLETED");
+  });
+
+  it("returns a pre-signing processor failure to PENDING without accounting effects or duplicate events", async () => {
+    const fixture = await createFixture("processor-failure", "18");
+    const claim = await claimPendingWithdrawals(
+      new Date(Date.now() + 60_000),
+      1,
+      "phase15-failure-worker",
+      [fixture.withdrawalId],
+    );
+    const token = claim[0].claimToken;
+
+    expect(await transitionClaimedWithdrawal(
+      fixture.withdrawalId,
+      token,
+      ["QUEUED"],
+      "PROCESSING",
+      {},
+      "phase15-failure-worker",
+    )).toBe(true);
+
+    const beforeWallet = await prisma.wallet.findUniqueOrThrow({ where: { userId: fixture.userId } });
+    expect(await releaseDryRunClaim(
+      fixture.withdrawalId,
+      token,
+      "Blockchain gateway is not configured",
+      "phase15-failure-worker",
+    )).toBe(true);
+    expect(await releaseDryRunClaim(
+      fixture.withdrawalId,
+      token,
+      "duplicate failure",
+      "phase15-failure-worker",
+    )).toBe(false);
+
+    const [withdrawal, afterWallet, refundRows, failureEvents] = await Promise.all([
+      prisma.withdrawalRequest.findUniqueOrThrow({
+        where: { id: fixture.withdrawalId },
+        select: { status: true },
+      }),
+      prisma.wallet.findUniqueOrThrow({ where: { userId: fixture.userId } }),
+      prisma.walletTransaction.findMany({ where: { withdrawalRequestId: fixture.withdrawalId } }),
+      prisma.withdrawalEvent.findMany({
+        where: { withdrawalId: fixture.withdrawalId, eventType: "PROCESSOR_FAILURE" },
+      }),
+    ]);
+
+    expect(withdrawal.status).toBe("PENDING");
+    expect(afterWallet.withdrawalWallet.toString()).toBe(beforeWallet.withdrawalWallet.toString());
+    expect(afterWallet.lockedWithdrawalBalance.toString()).toBe(beforeWallet.lockedWithdrawalBalance.toString());
+    expect(refundRows).toHaveLength(0);
+    expect(failureEvents).toHaveLength(1);
+    expect(failureEvents[0].details).toMatchObject({
+      withdrawalId: fixture.withdrawalId,
+      previousState: "PROCESSING",
+      newState: "PENDING",
+      failureClassification: "PRE_SIGNING_FAILURE",
+      safeToRetry: true,
+    });
   });
 });
 
@@ -339,7 +390,7 @@ async function createFixture(label: string, amount: string): Promise<Fixture> {
       walletAddress: "0x1111111111111111111111111111111111111111",
       walletAddressSnapshot: "0x1111111111111111111111111111111111111111",
       network: "BEP20",
-      status: "PENDING",
+      status: "APPROVED",
       requestedAt: new Date(Date.now() - 1_000),
       idempotencyKey: `${marker}-idempotency`,
     },

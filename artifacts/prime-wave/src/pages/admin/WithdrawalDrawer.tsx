@@ -5,6 +5,7 @@ import {
   Zap, Copy, Globe, CalendarDays, BadgeCheck, KeyRound, LogIn,
   ChevronRight, Activity, BarChart2, AlertTriangle,
 } from "lucide-react";
+import { getAdminWithdrawalDisplayStatus } from "@/lib/api";
 
 const GOLD   = "#D4AF37";
 const GOLD_L = "#F3D37A";
@@ -23,6 +24,11 @@ export interface DrawerWithdrawal {
   country: string; rank: string | null; memberStatus: string;
   sponsor: string | null;
   depositWallet: number; incomeWallet: number; withdrawalWallet: number;
+  timelineEvents?: Array<{
+    eventType: string;
+    details: Record<string, unknown> | null;
+    createdAt: string;
+  }>;
 }
 
 export interface DrawerAuditLog {
@@ -52,6 +58,12 @@ const STATUS_CFG: Record<string,{color:string;bg:string}> = {
   CANCELLED: {color:MUTED,   bg:"rgba(170,179,197,0.08)"},
   RELEASED:  {color:"#60a5fa",bg:"rgba(96,165,250,0.12)"},
   COMPLETED: {color:"#60a5fa",bg:"rgba(96,165,250,0.12)"},
+  PROCESSING:{color:"#818cf8",bg:"rgba(129,140,248,0.10)"},
+  CONFIRMING:{color:"#60a5fa",bg:"rgba(96,165,250,0.12)"},
+  BROADCAST_UNKNOWN:{color:"#f97316",bg:"rgba(249,115,22,0.12)"},
+  UNDER_REVIEW:{color:"#f97316",bg:"rgba(249,115,22,0.12)"},
+  MANUAL_REVIEW:{color:"#c084fc",bg:"rgba(192,132,252,0.12)"},
+  FAILED:    {color:"#f87171",bg:"rgba(248,113,113,0.08)"},
 };
 const PRI_CFG: Record<string,{color:string;bg:string}> = {
   NORMAL: {color:MUTED,     bg:"rgba(170,179,197,0.06)"},
@@ -91,13 +103,14 @@ const TAB_ICONS:Record<Tab,React.ElementType> = {
 // ─────────────────────────────────────────────────────────────────────────────
 function SummaryTab({w}:{w:DrawerWithdrawal}) {
   const net = w.amount - w.fee;
-  const sc = STATUS_CFG[w.status] ?? STATUS_CFG.PENDING;
+  const displayStatus = getAdminWithdrawalDisplayStatus(w.status);
+  const sc = STATUS_CFG[displayStatus] ?? STATUS_CFG.PENDING;
   const pc = PRI_CFG[w.priority]  ?? PRI_CFG.NORMAL;
   return (
     <div>
       <Card>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
-          <Pill label={w.status}   color={sc.color} bg={sc.bg}/>
+          <Pill label={displayStatus} color={sc.color} bg={sc.bg}/>
           <Pill label={w.priority} color={pc.color} bg={pc.bg}/>
         </div>
         <Row label="Withdrawal ID"    value={<span style={{fontFamily:"monospace",fontSize:11}}>{w.id}</span>} />
@@ -237,8 +250,30 @@ function PaymentTab({w}:{w:DrawerWithdrawal}) {
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB: Timeline
 // ─────────────────────────────────────────────────────────────────────────────
-type TxEvent = {label:string;time:Date;admin:string;color:string;icon:React.ElementType;done:boolean};
+type TxEvent = {label:string;time:Date;admin:string;color:string;icon:React.ElementType;done:boolean;detail?:string};
 function buildTimeline(w:DrawerWithdrawal): TxEvent[] {
+  if (w.timelineEvents?.length) {
+    return w.timelineEvents.map((event) => {
+      const details = event.details ?? {};
+      const previous = typeof details.previousState === "string" ? details.previousState : null;
+      const next = typeof details.newState === "string" ? details.newState : null;
+      const classification = typeof details.failureClassification === "string"
+        ? details.failureClassification.replace(/_/g, " ")
+        : null;
+      const label = event.eventType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      return {
+        label,
+        time: new Date(event.createdAt),
+        admin: "system",
+        color: event.eventType === "PROCESSOR_FAILURE" ? "#f97316" : event.eventType === "REJECTED" ? "#f87171" : "#60a5fa",
+        icon: event.eventType === "PROCESSOR_FAILURE" ? AlertTriangle : event.eventType === "REJECTED" ? ShieldX : Activity,
+        done: true,
+        detail: previous && next
+          ? `${getAdminWithdrawalDisplayStatus(previous)} → ${getAdminWithdrawalDisplayStatus(next)}${classification ? ` · ${classification}` : ""}`
+          : classification ?? undefined,
+      };
+    });
+  }
   const b = w.requestedAt.getTime();
   const events: TxEvent[] = [
     {label:"Withdrawal Requested",time:w.requestedAt,                          admin:w.username,           color:"#60a5fa",icon:ArrowDownLeft, done:true},
@@ -269,6 +304,7 @@ function TimelineTab({w}:{w:DrawerWithdrawal}) {
             <div style={{paddingTop:4}}>
               <div style={{fontSize:12,fontWeight:600,color:e.done?"rgba(255,255,255,0.82)":MUTED}}>{e.label}</div>
               <div style={{fontSize:10,color:MUTED,marginTop:2}}>{e.done?dtt(e.time):"Pending"}</div>
+              {e.detail && <div style={{fontSize:10,color:MUTED,marginTop:2}}>{e.detail}</div>}
               {e.done&&<div style={{fontSize:10,color:"#60a5fa",marginTop:1}}>by {e.admin}</div>}
             </div>
           </div>
@@ -409,7 +445,8 @@ export default function WithdrawalDrawer({
     prevId.current = withdrawal.id;
     if (activeTab !== "Summary") setActiveTab("Summary");
   }
-  const sc = withdrawal ? STATUS_CFG[withdrawal.status] ?? STATUS_CFG.PENDING : STATUS_CFG.PENDING;
+  const displayStatus = withdrawal ? getAdminWithdrawalDisplayStatus(withdrawal.status) : "PENDING";
+  const sc = STATUS_CFG[displayStatus] ?? STATUS_CFG.PENDING;
   const pc = withdrawal ? PRI_CFG[withdrawal.priority]  ?? PRI_CFG.NORMAL     : PRI_CFG.NORMAL;
 
   return (
@@ -426,10 +463,10 @@ export default function WithdrawalDrawer({
                   <div style={{fontSize:12,color:MUTED}}>@{withdrawal.username} · {withdrawal.country}</div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  {withdrawal.status==="PENDING" && (onApprove || onReject) && (
+                  {(displayStatus === "PENDING" || ["APPROVED", "UNDER_REVIEW", "MANUAL_REVIEW"].includes(displayStatus)) && (onApprove || onReject) && (
                     <>
-                      {onApprove && <button onClick={()=>onApprove(withdrawal)} style={{padding:"5px 12px",background:"rgba(52,211,153,0.1)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:700,color:"#34d399"}}>Approve</button>}
-                      {onReject && <button onClick={()=>onReject(withdrawal)}  style={{padding:"5px 12px",background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:700,color:"#f87171"}}>Reject</button>}
+                      {onApprove && displayStatus === "PENDING" && <button onClick={()=>onApprove(withdrawal)} style={{padding:"5px 12px",background:"rgba(52,211,153,0.1)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:700,color:"#34d399"}}>Approve</button>}
+                      {onReject && ["PENDING", "APPROVED", "UNDER_REVIEW", "MANUAL_REVIEW"].includes(displayStatus) && <button onClick={()=>onReject(withdrawal)}  style={{padding:"5px 12px",background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.3)",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:700,color:"#f87171"}}>Reject</button>}
                     </>
                   )}
                   <button onClick={onClose} style={{background:"rgba(255,255,255,0.05)",border:`1px solid ${BORDER}`,borderRadius:7,cursor:"pointer",color:MUTED,padding:"5px 8px",display:"flex"}}><X size={14}/></button>
@@ -437,7 +474,7 @@ export default function WithdrawalDrawer({
               </div>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div style={{display:"flex",gap:5}}>
-                  <Pill label={withdrawal.status}   color={sc.color} bg={sc.bg}/>
+                  <Pill label={displayStatus} color={sc.color} bg={sc.bg}/>
                   <Pill label={withdrawal.priority} color={pc.color} bg={pc.bg}/>
                   <Pill label={withdrawal.network}  color="#60a5fa" bg="rgba(96,165,250,0.08)"/>
                 </div>

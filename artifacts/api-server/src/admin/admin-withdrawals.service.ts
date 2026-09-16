@@ -54,8 +54,11 @@ export async function getAdminWithdrawals(query: AdminWithdrawalListQuery) {
   const { page, limit, status, search, minAmount, maxAmount, dateFrom, dateTo, sortBy, sortOrder } = query;
   const skip = (page - 1) * limit;
 
+  const processingStatuses = ["VALIDATING", "QUEUED", "PROCESSING", "SIGNED", "BROADCASTING"] as const;
   const where: Prisma.WithdrawalRequestWhereInput = {
-    ...(status ? { status } : {}),
+    ...(status
+      ? { status: status === "PROCESSING" ? { in: [...processingStatuses] } : status }
+      : {}),
     ...(minAmount !== undefined ? { amount: { gte: new Prisma.Decimal(minAmount) } } : {}),
     ...(maxAmount !== undefined ? { amount: { lte: new Prisma.Decimal(maxAmount) } } : {}),
     ...(dateFrom ? { createdAt: { gte: new Date(dateFrom) } } : {}),
@@ -177,27 +180,34 @@ export async function getAdminWithdrawalById(withdrawalId: string) {
     throw new AppError("Withdrawal not found", HTTP_STATUS.NOT_FOUND, "WITHDRAWAL_NOT_FOUND");
   }
 
-  const adminLogs = await prisma.adminLog.findMany({
-    where: {
-      targetUserId: withdrawal.user.id,
-      action: { startsWith: "WITHDRAWAL_" },
-    },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id:        true,
-      action:    true,
-      details:   true,
-      createdAt: true,
-      admin: { select: { email: true, firstName: true, lastName: true } },
-    },
-  });
+  const [adminLogs, events] = await Promise.all([
+    prisma.adminLog.findMany({
+      where: {
+        targetUserId: withdrawal.user.id,
+        action: { startsWith: "WITHDRAWAL_" },
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id:        true,
+        action:    true,
+        details:   true,
+        createdAt: true,
+        admin: { select: { email: true, firstName: true, lastName: true } },
+      },
+    }),
+    prisma.withdrawalEvent.findMany({
+      where: { withdrawalId },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, eventType: true, details: true, createdAt: true },
+    }),
+  ]);
 
   const withdrawalLogs = adminLogs.filter((log) => {
     const det = log.details as Record<string, unknown> | null;
     return det && det["withdrawalId"] === withdrawalId;
   });
 
-  return { ...withdrawal, adminLogs: withdrawalLogs };
+  return { ...withdrawal, adminLogs: withdrawalLogs, events };
 }
 
 // ── Hold (admin notes annotation, status stays PENDING) ──────────────────────
@@ -303,7 +313,8 @@ export async function approveWithdrawal(
     await tx.withdrawalRequest.update({
       where: { id: withdrawalId },
       data:  {
-        status:            "APPROVED",
+        status:        "APPROVED",
+        failureReason: null,
         approvedByAdminId: adminId,
         approvedAt,
         ...(input.adminNotes !== undefined && { adminNotes: input.adminNotes }),
@@ -653,12 +664,10 @@ export async function rejectWithdrawal(
   return { withdrawalId, status: "REJECTED" };
 }
 
-// ── Reprocess (PENDING | APPROVED | UNDER_REVIEW | MANUAL_REVIEW → PENDING) ───
+// ── Reprocess (explicit admin retry → APPROVED) ───────────────────────────────
 //
-// Resets the withdrawal back to PENDING so the 30-second processor poller
-// picks it up and walks it through the full pipeline:
-// PENDING → VALIDATING → QUEUED → PROCESSING → SIGNING → BROADCASTING → CONFIRMING → COMPLETED
-// Setting it directly to QUEUED would skip the poller and leave it stuck.
+// An explicit retry grants the same queue entry point as approval. The worker
+// claims APPROVED requests and atomically moves them to QUEUED.
 
 export async function reprocessWithdrawal(adminId: string, withdrawalId: string) {
   const withdrawal = await prisma.withdrawalRequest.findUnique({
@@ -682,9 +691,14 @@ export async function reprocessWithdrawal(adminId: string, withdrawalId: string)
   await prisma.$transaction(async (tx) => {
     await tx.withdrawalRequest.update({
       where: { id: withdrawalId },
-      // Reset to PENDING so the processor poller picks it up automatically.
-      // Also clear requestedAt to bypass the hold-period filter immediately.
-      data:  { status: "PENDING", failureReason: null, requestedAt: new Date(Date.now() - 60 * 60 * 1_000) },
+      // Clear requestedAt to bypass the hold-period filter immediately.
+      data: {
+        status: "APPROVED",
+        failureReason: null,
+        approvedByAdminId: adminId,
+        approvedAt: new Date(),
+        requestedAt: new Date(Date.now() - 60 * 60 * 1_000),
+      },
     });
 
     await tx.adminLog.create({
@@ -702,7 +716,7 @@ export async function reprocessWithdrawal(adminId: string, withdrawalId: string)
     });
   });
 
-  return { withdrawalId, status: "PENDING" };
+  return { withdrawalId, status: "APPROVED" };
 }
 
 // ── Release Hold (UNDER_REVIEW → PENDING) ────────────────────────────────────

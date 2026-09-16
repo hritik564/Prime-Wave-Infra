@@ -30,6 +30,7 @@ import {
   type AdminWithdrawalStats,
   type AdminWithdrawalDetail,
   type AdminWithdrawalStatus,
+  getAdminWithdrawalDisplayStatus,
 } from "@/lib/api";
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ const CARD   = "hsl(222 62% 9%)";
 const BG     = "hsl(222 62% 7%)";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Status   = "PENDING" | "APPROVED" | "UNDER_REVIEW" | "MANUAL_REVIEW" | "VALIDATING" | "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED" | "REJECTED" | "CANCELLED";
+type Status   = "PENDING" | "APPROVED" | "UNDER_REVIEW" | "MANUAL_REVIEW" | "VALIDATING" | "QUEUED" | "PROCESSING" | "SIGNED" | "BROADCASTING" | "BROADCAST_UNKNOWN" | "CONFIRMING" | "COMPLETED" | "FAILED" | "REJECTED" | "CANCELLED";
 type Priority = "NORMAL"  | "HIGH"     | "VIP"       | "URGENT";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -52,6 +53,16 @@ const ago = (d: Date) => {
   if(s<60)return"just now";if(s<3600)return`${Math.floor(s/60)}m`;
   if(s<86400)return`${Math.floor(s/3600)}h`;return`${Math.floor(s/86400)}d`;
 };
+
+function canApproveStatus(status: string): boolean {
+  return getAdminWithdrawalDisplayStatus(status) === "PENDING";
+}
+
+function canRejectStatus(status: string): boolean {
+  return ["PENDING", "APPROVED", "UNDER_REVIEW", "MANUAL_REVIEW"].includes(
+    getAdminWithdrawalDisplayStatus(status),
+  );
+}
 
 function derivePriority(amount: number): Priority {
   if (amount >= 10000) return "URGENT";
@@ -77,7 +88,7 @@ function mapToDrawerWithdrawal(item: AdminWithdrawalItem | AdminWithdrawalDetail
     network:          item.network,
     walletAddress:    item.walletAddress,
     transactionHash:  item.txHash,
-    status:           item.status === "COMPLETED" ? "COMPLETED" : item.status,
+    status:           getAdminWithdrawalDisplayStatus(item.status),
     priority:         derivePriority(amountNum),
     requestedAt:      new Date(item.createdAt),
     processedAt:      item.approvedAt ? new Date(item.approvedAt) : item.completedAt ? new Date(item.completedAt) : null,
@@ -89,6 +100,11 @@ function mapToDrawerWithdrawal(item: AdminWithdrawalItem | AdminWithdrawalDetail
     depositWallet:    wallet ? parseFloat(wallet.depositWallet)    : 0,
     incomeWallet:     wallet ? parseFloat(wallet.incomeWallet)     : 0,
     withdrawalWallet: wallet ? parseFloat(wallet.withdrawalWallet) : 0,
+    timelineEvents: detail.events?.map((event) => ({
+      eventType: event.eventType,
+      details: event.details,
+      createdAt: event.createdAt,
+    })),
   };
 }
 
@@ -101,9 +117,9 @@ const STATUS_CFG: Record<string,{color:string;bg:string;label:string}> = {
   COMPLETED:    {color:"#60a5fa",bg:"rgba(96,165,250,0.12)",  label:"Completed"},
   UNDER_REVIEW: {color:"#f97316",bg:"rgba(249,115,22,0.12)",  label:"Under Review"},
   MANUAL_REVIEW:{color:"#c084fc",bg:"rgba(192,132,252,0.12)", label:"Manual Review"},
-  VALIDATING:   {color:"#94a3b8",bg:"rgba(148,163,184,0.10)", label:"Validating"},
-  QUEUED:       {color:"#38bdf8",bg:"rgba(56,189,248,0.10)",  label:"Queued"},
   PROCESSING:   {color:"#818cf8",bg:"rgba(129,140,248,0.10)", label:"Processing"},
+  CONFIRMING:   {color:"#60a5fa",bg:"rgba(96,165,250,0.12)",  label:"Confirming"},
+  BROADCAST_UNKNOWN:{color:"#f97316",bg:"rgba(249,115,22,0.12)", label:"Broadcast Unknown"},
   FAILED:       {color:"#f87171",bg:"rgba(248,113,113,0.08)", label:"Failed"},
 };
 const PRI_CFG: Record<Priority,{color:string;bg:string}> = {
@@ -114,7 +130,8 @@ const PRI_CFG: Record<Priority,{color:string;bg:string}> = {
 };
 
 function StatusBadge({s}:{s:string}) {
-  const c=STATUS_CFG[s] ?? STATUS_CFG.PENDING;
+  const display = getAdminWithdrawalDisplayStatus(s);
+  const c=STATUS_CFG[display] ?? STATUS_CFG.PENDING;
   return <span style={{fontSize:10,fontWeight:700,color:c.color,background:c.bg,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{c.label}</span>;
 }
 function PriorityBadge({p}:{p:Priority}) {
@@ -229,18 +246,14 @@ function ActionDropdown({ w, onApprove, onReject, onReprocess, onHold, onView, o
   canMutate?: boolean;
 }) {
   const [open,setOpen]=useState(false);
-  const isActionable = ["PENDING","APPROVED","UNDER_REVIEW","MANUAL_REVIEW"].includes(w.status);
+  const isActionable = canApproveStatus(w.status) || canRejectStatus(w.status);
   const items=[
     {icon:Eye,         label:"View Details",    color:"rgba(255,255,255,0.7)", fn:()=>onView(w)},
-    ...(canMutate && w.status==="PENDING"?[
+    ...(canMutate && canApproveStatus(w.status)?[
       {icon:CheckCircle, label:"Approve",         color:"#34d399", fn:()=>onApprove(w)},
     ]:[]),
-    ...(canMutate && isActionable?[
-      {icon:RotateCcw,   label:"Re-process",      color:"#60a5fa", fn:()=>onReprocess(w)},
+    ...(canMutate && canRejectStatus(w.status)?[
       {icon:X,           label:"Reject",          color:"#f87171", fn:()=>onReject(w)},
-    ]:[]),
-    ...(canMutate && w.status==="PENDING"?[
-      {icon:Clock,       label:"Hold",            color:"#fbbf24", fn:()=>onHold(w)},
     ]:[]),
     ...(canMutate ? [{icon:UserCheck,   label:"Assign Reviewer", color:"rgba(255,255,255,0.7)", fn:()=>onAssign(w)}] : []),
     {icon:Users,       label:"View Member",     color:"rgba(255,255,255,0.7)", fn:()=>{}},
@@ -432,11 +445,12 @@ function MobileWithdrawalCard({ w, onClick, onReprocess, onReject, onApprove, ca
   onApprove: (w: AdminWithdrawalItem) => void;
   canMutate?: boolean;
 }) {
-  const cfg = STATUS_CFG[w.status] ?? STATUS_CFG.PENDING;
+  const displayStatus = getAdminWithdrawalDisplayStatus(w.status);
+  const cfg = STATUS_CFG[displayStatus] ?? STATUS_CFG.PENDING;
   const sc = cfg.color;
   const priority = derivePriority(parseFloat(w.amount));
   const pc = priority === "URGENT" ? "#f87171" : priority === "VIP" ? "#a78bfa" : priority === "HIGH" ? "#fbbf24" : MUTED;
-  const isActionable = ["PENDING","APPROVED","UNDER_REVIEW","MANUAL_REVIEW"].includes(w.status);
+  const isActionable = canApproveStatus(w.status) || canRejectStatus(w.status);
   return (
     <div style={{ borderBottom: `1px solid ${BORDER}` }}>
       <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", cursor: "pointer" }}>
@@ -458,20 +472,16 @@ function MobileWithdrawalCard({ w, onClick, onReprocess, onReject, onApprove, ca
       </div>
       {canMutate && isActionable && (
         <div style={{ display: "flex", gap: 8, padding: "0 14px 12px" }}>
-          {w.status === "PENDING" && (
+          {canApproveStatus(w.status) && (
             <button
               onClick={e => { e.stopPropagation(); onApprove(w); }}
               style={{ flex: 1, padding: "7px 0", background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.3)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#34d399" }}
             >✓ Approve</button>
           )}
-          <button
-            onClick={e => { e.stopPropagation(); onReprocess(w); }}
-            style={{ flex: 1, padding: "7px 0", background: "rgba(96,165,250,0.12)", border: "1px solid rgba(96,165,250,0.3)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#60a5fa" }}
-          >↺ Re-process</button>
-          <button
+          {canRejectStatus(w.status) && <button
             onClick={e => { e.stopPropagation(); onReject(w); }}
             style={{ flex: 1, padding: "7px 0", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#f87171" }}
-          >✕ Reject</button>
+          >✕ Reject</button>}
         </div>
       )}
     </div>
@@ -773,7 +783,7 @@ export default function WithdrawalsPage() {
           </div>
           <select value={status} onChange={e=>{setStatus(e.target.value as AdminWithdrawalStatus|"");setPage(1);}} style={sel}>
             <option value="">All Statuses</option>
-            {(["PENDING","APPROVED","UNDER_REVIEW","MANUAL_REVIEW","QUEUED","PROCESSING","COMPLETED","FAILED","REJECTED","CANCELLED"] as AdminWithdrawalStatus[]).map(s=><option key={s} value={s}>{STATUS_CFG[s]?.label ?? s}</option>)}
+            {(["PENDING","APPROVED","UNDER_REVIEW","MANUAL_REVIEW","PROCESSING","CONFIRMING","BROADCAST_UNKNOWN","COMPLETED","FAILED","REJECTED","CANCELLED"] as AdminWithdrawalStatus[]).map(s=><option key={s} value={s}>{STATUS_CFG[s]?.label ?? s}</option>)}
           </select>
           <select value={sortBy} onChange={e=>{setSortBy(e.target.value as "createdAt"|"amount");setPage(1);}} style={sel}>
             <option value="createdAt">Sort: Date</option>

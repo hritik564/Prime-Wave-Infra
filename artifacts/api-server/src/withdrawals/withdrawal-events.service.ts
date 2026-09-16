@@ -9,6 +9,7 @@ export type WithdrawalEventType =
   | "VALIDATED"
   | "QUEUED"
   | "PROCESSING"
+  | "PROCESSOR_FAILURE"
   | "SIGNED"
   | "BROADCAST"
   | "BROADCAST_UNKNOWN"

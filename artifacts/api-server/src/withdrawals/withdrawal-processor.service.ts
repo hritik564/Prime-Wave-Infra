@@ -18,6 +18,10 @@ import {
   transitionClaimedWithdrawal,
   WITHDRAWAL_WORKER_ID,
 } from "./withdrawal-claims.service";
+import {
+  decideProcessorFailure,
+  type ProcessorFailureEvidence,
+} from "./withdrawal-failure-decision";
 
 /**
  * Withdrawal Processor Service — Sprint 31E
@@ -25,10 +29,10 @@ import {
  * Added operational controls:
  *   1. Engine switch  — skip entire batch if engine is disabled
  *   2. Hot wallet guard — skip batch if BNB or USDT is below minimum thresholds
- *   3. Hold period    — ignore PENDING withdrawals younger than WITHDRAWAL_HOLD_MINUTES
+ *   3. Hold period    — ignore APPROVED withdrawals younger than WITHDRAWAL_HOLD_MINUTES
  *   4. Risk limits    — large / high-frequency withdrawals → MANUAL_REVIEW (no refund)
  *
- * Core state machine remains: PENDING → VALIDATING → QUEUED → PROCESSING →
+ * Core state machine remains: PENDING → APPROVED → QUEUED → PROCESSING →
  * SIGNED → BROADCASTING → CONFIRMING  (Sprint 31C/D unchanged)
  */
 
@@ -71,7 +75,7 @@ export async function processPendingWithdrawals(): Promise<ProcessResult> {
   const pending = await claimPendingWithdrawals(holdCutoff, 20);
 
   const waitingCount = await prisma.withdrawalRequest.count({
-    where: { status: "PENDING", requestedAt: { gt: holdCutoff } },
+    where: { status: "APPROVED", requestedAt: { gt: holdCutoff } },
   });
 
   logger.info(
@@ -111,30 +115,30 @@ async function runSingleWithdrawal(wr: {
   const logCtx = { withdrawalId: wId ?? id, idempotencyKey, workerId: WITHDRAWAL_WORKER_ID };
 
   await logWithdrawalEvent(id, "VALIDATED");
-  logger.info({ ...logCtx, status: "VALIDATING" }, "withdrawal.processor: validating");
+  logger.info({ ...logCtx, status: "QUEUED" }, "withdrawal.processor: validating");
 
   // ── Run validations ──────────────────────────────────────────────────────────
   const validation = await validateWithdrawal(wr);
 
   if (validation) {
     if (validation.action === "manual_review") {
-      await transitionClaimedWithdrawal(id, claimToken, ["VALIDATING"], "MANUAL_REVIEW", {
+      await transitionClaimedWithdrawal(id, claimToken, ["QUEUED"], "MANUAL_REVIEW", {
         failureReason: validation.reason,
       });
       await logWithdrawalEvent(id, "MANUAL_REVIEW", { reason: validation.reason });
       logger.warn({ ...logCtx, reason: validation.reason }, "withdrawal.processor: risk limit → MANUAL_REVIEW");
     } else {
-      await failWithdrawal(id, wr.userId, wr.amount as import("@prisma/client").Prisma.Decimal, validation.reason, claimToken);
+      await handleProcessorFailure({
+        id,
+        claimToken,
+        previousStatus: "QUEUED",
+        reason: validation.reason,
+        evidence: { status: "QUEUED", signingOrBroadcastingDidNotOccur: true },
+      });
       logger.warn({ ...logCtx, reason: validation.reason }, "withdrawal.processor: failed validation");
     }
     return;
   }
-
-  // ── VALIDATING → QUEUED ──────────────────────────────────────────────────────
-  if (!await transitionClaimedWithdrawal(id, claimToken, ["VALIDATING"], "QUEUED")) {
-    throw new Error("Withdrawal claim lost before QUEUED transition");
-  }
-  await logWithdrawalEvent(id, "QUEUED");
 
   // ── QUEUED → PROCESSING ──────────────────────────────────────────────────────
   if (!await transitionClaimedWithdrawal(id, claimToken, ["QUEUED"], "PROCESSING", {
@@ -281,60 +285,52 @@ async function validateWithdrawal(wr: {
   return null;
 }
 
-// ── failWithdrawal ────────────────────────────────────────────────────────────
+// ── Processor failure handling ────────────────────────────────────────────────
 
-async function failWithdrawal(
-  id:            string,
-  userId:        string,
-  amount:        import("@prisma/client").Prisma.Decimal,
-  failureReason: string,
-  claimToken:    string,
-): Promise<void> {
-  const { Prisma } = await import("@prisma/client");
-  await prisma.$transaction(async (tx) => {
-    const changed = await tx.withdrawalRequest.updateMany({
-      where: {
-        id,
-        claimOwner: WITHDRAWAL_WORKER_ID,
-        claimToken,
-        status: { in: ["VALIDATING", "QUEUED", "PROCESSING", "SIGNED"] },
-      },
-      data: {
-        status: "FAILED",
-        failureReason,
-        claimOwner: null,
-        claimToken: null,
-        claimExpiresAt: null,
-      },
-    });
-    if (changed.count !== 1) return;
+async function handleProcessorFailure(input: {
+  id: string;
+  claimToken: string;
+  previousStatus: "VALIDATING" | "QUEUED" | "PROCESSING" | "SIGNED" | "BROADCASTING";
+  reason: string;
+  evidence: ProcessorFailureEvidence;
+}): Promise<void> {
+  const decision = decideProcessorFailure(input.evidence);
+  if (decision.targetStatus === "COMPLETED") return;
 
-    // Guard: only release what is actually locked to prevent the locked balance
-    // from going further negative (can happen if a previous bug already drove it
-    // below zero). Always restore the full amount to withdrawalWallet since it
-    // was unconditionally decremented at request creation time.
-    const walletData = await tx.wallet.findUnique({
-      where:  { userId },
-      select: { lockedWithdrawalBalance: true },
-    });
-    const currentLocked = walletData?.lockedWithdrawalBalance ?? new Prisma.Decimal(0);
-    const releaseFromLocked = currentLocked.gte(amount)
-      ? amount
-      : currentLocked.gt(new Prisma.Decimal(0))
-        ? currentLocked
-        : new Prisma.Decimal(0);
+  const protectedFailure = decision.targetStatus === "BROADCAST_UNKNOWN";
+  const changed = await transitionClaimedWithdrawal(
+    input.id,
+    input.claimToken,
+    [input.previousStatus],
+    protectedFailure ? "BROADCAST_UNKNOWN" : "PENDING",
+    protectedFailure
+      ? {
+          broadcastUnknownAt: new Date(),
+          broadcastUnknownReason: "Processor failure after the signing/broadcast boundary; blockchain outcome requires reconciliation.",
+          failureReason: "No automatic refund was issued; blockchain outcome requires reconciliation.",
+        }
+      : {
+          failureReason: "Automatic processing failed before signing or broadcasting; administrator decision required.",
+        },
+  );
+  if (!changed) return;
 
-    await tx.wallet.update({
-      where: { userId },
-      data:  {
-        withdrawalWallet:        { increment: amount },
-        lockedWithdrawalBalance: { decrement: releaseFromLocked },
-      },
-    });
+  await logWithdrawalEvent(input.id, "PROCESSOR_FAILURE", {
+    withdrawalId: input.id,
+    previousState: input.previousStatus,
+    newState: decision.targetStatus,
+    failureClassification: decision.classification,
+    reason: protectedFailure
+      ? "Processor failure after the signing/broadcast boundary; blockchain outcome requires reconciliation."
+      : input.reason,
+    safeToRetry: decision.safeToRetry,
   });
-  await logWithdrawalEvent(id, "FAILED", { failureReason });
-  await logWithdrawalEvent(id, "REFUNDED", { amount: amount.toFixed(8) });
-  logger.info({ withdrawalId: id, failureReason }, "withdrawal.processor: withdrawal failed, funds refunded");
+
+  if (protectedFailure) {
+    await logWithdrawalEvent(input.id, "BROADCAST_UNKNOWN", {
+      reason: "Processor failure after the signing/broadcast boundary; blockchain outcome requires reconciliation.",
+    });
+  }
 }
 
 // ── prepareBlockchainTransfer ─────────────────────────────────────────────────
@@ -443,9 +439,14 @@ async function signAndBroadcastWithdrawal(
           wr.withdrawalId ?? wr.idempotencyKey,
         );
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
         logger.error({ ...logCtx, err }, "withdrawal.processor: fresh prepareTransfer failed");
-        await failWithdrawal(id, wr.userId, amount, `Transaction preparation failed: ${msg}`, claimToken);
+        await handleProcessorFailure({
+          id,
+          claimToken,
+          previousStatus: "PROCESSING",
+          reason: "Transaction preparation failed before signing or broadcasting.",
+          evidence: { status: "PROCESSING", signingOrBroadcastingDidNotOccur: true },
+        });
         return;
       }
     }
@@ -485,16 +486,16 @@ async function signAndBroadcastWithdrawal(
     logger.error({ ...logCtx, err: msg, isSignErr, isBroadcastErr },
       "withdrawal.processor: sign/broadcast failed");
 
-    if (isBroadcastErr) {
-      await transitionClaimedWithdrawal(id, claimToken, ["BROADCASTING"], "BROADCAST_UNKNOWN", {
-        broadcastUnknownAt: new Date(),
-        broadcastUnknownReason: msg,
-        failureReason: "Broadcast outcome is unknown; no automatic refund was issued.",
-      });
-      await logWithdrawalEvent(id, "BROADCAST_UNKNOWN", { reason: msg });
-    } else {
-      await failWithdrawal(id, wr.userId, amount, msg, claimToken);
-    }
+    await handleProcessorFailure({
+      id,
+      claimToken,
+      previousStatus: "BROADCASTING",
+      reason: "Signing or broadcasting failed after the protected processing boundary.",
+      evidence: {
+        status: "BROADCASTING",
+        transactionOutcomeAmbiguous: true,
+      },
+    });
     return;
   }
 

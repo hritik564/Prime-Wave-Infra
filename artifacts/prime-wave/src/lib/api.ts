@@ -574,7 +574,7 @@ export function getDepositWallets(): Promise<DepositWallet[]> {
 
 export type WithdrawalStatus =
   | "PENDING" | "VALIDATING" | "QUEUED" | "PROCESSING"
-  | "SIGNED" | "BROADCASTING" | "CONFIRMING"
+  | "SIGNED" | "BROADCASTING" | "BROADCAST_UNKNOWN" | "CONFIRMING"
   | "APPROVED" | "UNDER_REVIEW" | "MANUAL_REVIEW"
   | "COMPLETED" | "FAILED" | "REJECTED" | "CANCELLED";
 
@@ -1848,6 +1848,12 @@ export function getAdminInvestment(id: string) {
 
 export type AdminWithdrawalStatus = WithdrawalStatus;
 
+export function getAdminWithdrawalDisplayStatus(status: string): string {
+  return ["VALIDATING", "QUEUED", "PROCESSING", "SIGNED", "BROADCASTING"].includes(status)
+    ? "PROCESSING"
+    : status;
+}
+
 export interface AdminWithdrawalUser {
   id:        string;
   username:  string;
@@ -1900,6 +1906,12 @@ export interface AdminWithdrawalDetail extends AdminWithdrawalItem {
     details:   Record<string, unknown>;
     createdAt: string;
     admin:     { email: string; firstName: string; lastName: string };
+  }>;
+  events: Array<{
+    id: string;
+    eventType: string;
+    details: Record<string, unknown> | null;
+    createdAt: string;
   }>;
 }
 

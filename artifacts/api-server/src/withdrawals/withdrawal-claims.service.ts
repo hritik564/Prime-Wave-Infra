@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { logger } from "../lib/logger";
 import { logWithdrawalEvent } from "./withdrawal-events.service";
+import { decideProcessorFailure } from "./withdrawal-failure-decision";
 
 export const WITHDRAWAL_CLAIM_LEASE_MS = 5 * 60_000;
 
@@ -40,7 +41,7 @@ export async function claimPendingWithdrawals(
       WITH candidate AS (
         SELECT "id"
         FROM "withdrawal_requests"
-        WHERE "status" = 'PENDING'::"WithdrawalStatus"
+        WHERE "status" = 'APPROVED'::"WithdrawalStatus"
           AND "requestedAt" <= ${holdCutoff}
           ${candidateScope}
         ORDER BY "requestedAt" ASC
@@ -49,14 +50,14 @@ export async function claimPendingWithdrawals(
       )
       UPDATE "withdrawal_requests" AS wr
       SET
-        "status" = 'VALIDATING'::"WithdrawalStatus",
+        "status" = 'QUEUED'::"WithdrawalStatus",
         "claimOwner" = ${workerId},
         "claimToken" = ${claimToken},
         "claimExpiresAt" = NOW() + (${WITHDRAWAL_CLAIM_LEASE_MS} * INTERVAL '1 millisecond'),
         "updatedAt" = NOW()
       FROM candidate
       WHERE wr."id" = candidate."id"
-        AND wr."status" = 'PENDING'::"WithdrawalStatus"
+        AND wr."status" = 'APPROVED'::"WithdrawalStatus"
       RETURNING wr."id", wr."claimToken";
     `;
 
@@ -109,7 +110,7 @@ export async function transitionClaimedWithdrawal(
   id: string,
   claimToken: string,
   from: Array<"VALIDATING" | "QUEUED" | "PROCESSING" | "SIGNED" | "BROADCASTING">,
-  to: "QUEUED" | "PROCESSING" | "SIGNED" | "BROADCASTING" | "CONFIRMING" | "FAILED" | "MANUAL_REVIEW" | "BROADCAST_UNKNOWN",
+  to: "PENDING" | "QUEUED" | "PROCESSING" | "SIGNED" | "BROADCASTING" | "CONFIRMING" | "FAILED" | "MANUAL_REVIEW" | "BROADCAST_UNKNOWN",
   data: Record<string, unknown> = {},
   workerId: string = WITHDRAWAL_WORKER_ID,
 ): Promise<boolean> {
@@ -124,7 +125,7 @@ export async function transitionClaimedWithdrawal(
     data: {
       ...data,
       status: to,
-      ...(to === "FAILED" || to === "MANUAL_REVIEW" || to === "BROADCAST_UNKNOWN"
+      ...(to === "PENDING" || to === "FAILED" || to === "MANUAL_REVIEW" || to === "BROADCAST_UNKNOWN"
         ? { claimOwner: null, claimToken: null, claimExpiresAt: null }
         : {}),
     },
@@ -136,23 +137,39 @@ export async function releaseDryRunClaim(
   id: string,
   claimToken: string,
   reason: string,
+  workerId: string = WITHDRAWAL_WORKER_ID,
 ): Promise<boolean> {
-  const result = await prisma.withdrawalRequest.updateMany({
-    where: {
-      id,
-      claimOwner: WITHDRAWAL_WORKER_ID,
-      claimToken,
-      status: { in: ["VALIDATING", "QUEUED", "PROCESSING"] },
-    },
-    data: {
-      status: "MANUAL_REVIEW",
-      failureReason: reason,
-      claimOwner: null,
-      claimToken: null,
-      claimExpiresAt: null,
-    },
+  const row = await prisma.withdrawalRequest.findUnique({
+    where: { id },
+    select: { status: true },
   });
-  return result.count === 1;
+  if (!row || !["VALIDATING", "QUEUED", "PROCESSING"].includes(row.status)) return false;
+
+  const decision = decideProcessorFailure({
+    status: row.status,
+    signingOrBroadcastingDidNotOccur: true,
+  });
+  if (decision.targetStatus !== "PENDING") return false;
+
+  const changed = await transitionClaimedWithdrawal(
+    id,
+    claimToken,
+    [row.status as "VALIDATING" | "QUEUED" | "PROCESSING"],
+    "PENDING",
+    { failureReason: reason },
+    workerId,
+  );
+  if (changed) {
+    await logWithdrawalEvent(id, "PROCESSOR_FAILURE", {
+      withdrawalId: id,
+      previousState: row.status,
+      newState: decision.targetStatus,
+      failureClassification: decision.classification,
+      reason,
+      safeToRetry: decision.safeToRetry,
+    });
+  }
+  return changed;
 }
 
 export async function recoverExpiredClaims(onlyIds?: readonly string[]): Promise<void> {
@@ -223,28 +240,42 @@ export async function releaseClaimAfterUnexpectedError(
   });
   if (!row) return;
 
-  if (row.status === "PROCESSING" || row.status === "SIGNED" || row.status === "BROADCASTING") {
-    await transitionClaimedWithdrawal(
-      id,
-      claimToken,
-      ["PROCESSING", "SIGNED", "BROADCASTING"],
-      "BROADCAST_UNKNOWN",
-      {
-        broadcastUnknownAt: new Date(),
-        broadcastUnknownReason: "Unexpected worker error; blockchain outcome requires reconciliation.",
-        failureReason: "Unexpected worker error; no automatic refund was issued.",
-      },
-    );
-    return;
-  }
-
-  await prisma.withdrawalRequest.updateMany({
-    where: { id, claimOwner: WITHDRAWAL_WORKER_ID, claimToken },
-    data: {
-      status: "PENDING",
-      claimOwner: null,
-      claimToken: null,
-      claimExpiresAt: null,
-    },
+  const decision = decideProcessorFailure({
+    status: row.status,
+    transactionOutcomeAmbiguous: ["PROCESSING", "SIGNED", "BROADCASTING"].includes(row.status),
+    signingOrBroadcastingDidNotOccur: ["VALIDATING", "QUEUED"].includes(row.status),
   });
+  const sourceStates = ["VALIDATING", "QUEUED", "PROCESSING", "SIGNED", "BROADCASTING"] as const;
+  if (!sourceStates.includes(row.status as typeof sourceStates[number])) return;
+
+  const changed = await transitionClaimedWithdrawal(
+    id,
+    claimToken,
+    [row.status as typeof sourceStates[number]],
+    decision.targetStatus === "BROADCAST_UNKNOWN" ? "BROADCAST_UNKNOWN" : "PENDING",
+    decision.targetStatus === "BROADCAST_UNKNOWN"
+      ? {
+          broadcastUnknownAt: new Date(),
+          broadcastUnknownReason: "Unexpected worker error; blockchain outcome requires reconciliation.",
+          failureReason: "Unexpected worker error; no automatic refund was issued.",
+        }
+      : {
+          failureReason: "Automatic processing failed before signing or broadcasting; administrator decision required.",
+        },
+  );
+  if (!changed) return;
+
+  await logWithdrawalEvent(id, "PROCESSOR_FAILURE", {
+    withdrawalId: id,
+    previousState: row.status,
+    newState: decision.targetStatus,
+    failureClassification: decision.classification,
+    reason: "Unexpected worker error",
+    safeToRetry: decision.safeToRetry,
+  });
+  if (decision.targetStatus === "BROADCAST_UNKNOWN") {
+    await logWithdrawalEvent(id, "BROADCAST_UNKNOWN", {
+      reason: "Unexpected worker error; blockchain outcome requires reconciliation.",
+    });
+  }
 }
