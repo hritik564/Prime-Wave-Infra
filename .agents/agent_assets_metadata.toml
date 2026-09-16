@@ -108,3 +108,17 @@ title = "@rd0018 Binary Tree — Production"
 description = "Full binary tree from production DB · 23 nodes · 12 levels deep"
 logical_id = "dd4f5ce3-c62c-453b-9b6c-194d216a3c20"
 content_type = "text/html"
+
+[[outputs]]
+id = "VKaZeOOM9zV2r7Vjf2bXk"
+uri = "file://artifacts/prime-wave/ui-admin-verification.jpg"
+type = "image"
+title = "Authenticated Admin Withdrawal UI verification"
+description = "Development-only authenticated screenshot showing the rendered Admin Withdrawal Control Center with representative withdrawal states and status filters."
+logical_id = "1d3a351a-d0a9-4ed1-9556-5f3b45945558"
+content_hash = "sha256:5baa088bc5f98bb73ce11b0f9e4f280558e18557ad2c4be771153bd34d297761"
+size = 45423
+mtime_ms = 1789527717278
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:f25b56ff-9e94-46c8-b6ab-2d8774ed95f6/1d3a351a-d0a9-4ed1-9556-5f3b45945558/1a2b0e75-a5cf-4334-9209-1a12b8683f86"
+storage_version_token = "1789527804780545"
+content_type = "image/jpeg"

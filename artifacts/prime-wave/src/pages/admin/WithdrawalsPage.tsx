@@ -255,7 +255,6 @@ function ActionDropdown({ w, onApprove, onReject, onReprocess, onHold, onView, o
     ...(canMutate && canRejectStatus(w.status)?[
       {icon:X,           label:"Reject",          color:"#f87171", fn:()=>onReject(w)},
     ]:[]),
-    ...(canMutate ? [{icon:UserCheck,   label:"Assign Reviewer", color:"rgba(255,255,255,0.7)", fn:()=>onAssign(w)}] : []),
     {icon:Users,       label:"View Member",     color:"rgba(255,255,255,0.7)", fn:()=>{}},
     {icon:Shield,      label:"Audit Trail",     color:"rgba(255,255,255,0.7)", fn:()=>onView(w)},
   ];
@@ -928,21 +927,21 @@ export default function WithdrawalsPage() {
       {/* Modals */}
       {!isStaffOperations && modal==="approve"&&modalW&&(
         <ApprovalModal
-          w={{id:modalW.id,amount:parseFloat(modalW.amount),fee:0,username:modalW.user.username,walletType:"WITHDRAWAL",network:modalW.network}}
+          w={{id:modalW.id,amount:parseFloat(modalW.amount),fee:0,username:modalW.user.username,walletType:"WITHDRAWAL",network:modalW.network,status:getAdminWithdrawalDisplayStatus(modalW.status),destinationAddress:modalW.walletAddress}}
           onClose={closeModal}
           onConfirm={(comment)=>void confirmApprove(comment)}
         />
       )}
       {!isStaffOperations && modal==="reject"&&modalW&&(
         <RejectModal
-          w={{id:modalW.id,amount:parseFloat(modalW.amount),fee:0,username:modalW.user.username,walletType:"WITHDRAWAL",network:modalW.network}}
+          w={{id:modalW.id,amount:parseFloat(modalW.amount),fee:0,username:modalW.user.username,walletType:"WITHDRAWAL",network:modalW.network,status:getAdminWithdrawalDisplayStatus(modalW.status),destinationAddress:modalW.walletAddress}}
           onClose={closeModal}
           onConfirm={(reason,comment)=>void confirmReject(reason,comment)}
         />
       )}
       {!isStaffOperations && modal==="hold"&&modalW&&(
         <HoldModal
-          w={{id:modalW.id,amount:parseFloat(modalW.amount),fee:0,username:modalW.user.username,walletType:"WITHDRAWAL",network:modalW.network}}
+          w={{id:modalW.id,amount:parseFloat(modalW.amount),fee:0,username:modalW.user.username,walletType:"WITHDRAWAL",network:modalW.network,status:getAdminWithdrawalDisplayStatus(modalW.status),destinationAddress:modalW.walletAddress}}
           onClose={closeModal}
           onConfirm={(reason,date)=>void confirmHold(reason,date)}
         />

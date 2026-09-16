@@ -8,7 +8,7 @@ const BORDER = "rgba(255,255,255,0.07)";
 
 export interface WithdrawalStub {
   id: string; amount: number; fee: number; username: string;
-  walletType: string; network: string;
+  walletType: string; network: string; status: string; destinationAddress: string;
 }
 
 function Shell({ children, width = 440, onClose }: { children: React.ReactNode; width?: number; onClose: () => void }) {
@@ -69,6 +69,8 @@ export function ApprovalModal({ w, onClose, onConfirm }: { w: WithdrawalStub; on
         <AmountRow label="Net Amount"       value={`$${net.toLocaleString()}`} color={GOLD_L} />
         <AmountRow label="Wallet Type"      value={w.walletType} />
         <AmountRow label="Network"          value={w.network} />
+        <AmountRow label="Current Status"   value={w.status} />
+        <AmountRow label="Destination"      value={w.destinationAddress} />
         <AmountRow label="Member"           value={`@${w.username}`} />
         <div style={{ marginTop: 14, marginBottom: 14 }}>
           <label style={{ fontSize: 11, fontWeight: 600, color: MUTED, display: "block", marginBottom: 6 }}>Admin Comment (optional)</label>
@@ -102,6 +104,8 @@ export function RejectModal({ w, onClose, onConfirm }: { w: WithdrawalStub; onCl
         <AmountRow label="Amount"  value={`$${w.amount.toLocaleString()}`} color="#f87171" />
         <AmountRow label="Member"  value={`@${w.username}`} />
         <AmountRow label="Network" value={w.network} />
+        <AmountRow label="Current Status" value={w.status} />
+        <AmountRow label="Destination" value={w.destinationAddress} />
         <div style={{ marginTop: 14 }}>
           <label style={{ fontSize: 11, fontWeight: 600, color: MUTED, display: "block", marginBottom: 6 }}>Rejection Reason <span style={{ color: "#f87171" }}>*</span></label>
           <select value={reason} onChange={e => setReason(e.target.value)} style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "9px 12px", fontSize: 12, color: "rgba(255,255,255,0.78)", outline: "none", appearance: "none" as never, marginBottom: 12 }}>
