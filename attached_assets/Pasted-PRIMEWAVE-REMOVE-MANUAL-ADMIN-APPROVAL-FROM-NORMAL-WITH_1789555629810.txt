@@ -1,0 +1,653 @@
+PRIMEWAVE — REMOVE MANUAL ADMIN APPROVAL FROM NORMAL WITHDRAWAL PROCESSING
+
+We need to change the production withdrawal workflow so that eligible withdrawals automatically enter the withdrawal processor without requiring an administrator to click “Approve”.
+
+IMPORTANT:
+This is a code/workflow change only.
+
+DO NOT:
+- publish or deploy anything
+- modify production database records
+- approve/reject/refund/reconcile any existing production withdrawal
+- execute any real withdrawal
+- sign or broadcast a blockchain transaction
+- change BLOCKCHAIN_DRY_RUN
+- change production environment variables or secrets
+- bypass the existing activation gate
+- weaken nonce locking, claim locking, settlement protection, or broadcast safety
+- remove existing forensic/audit protections
+
+I will publish the build myself after your implementation and validation.
+
+==================================================
+1. CURRENT PROBLEM
+==================================================
+
+We performed a controlled $1 withdrawal from the master account.
+
+The withdrawal was eligible for processing, but it did not automatically move into processing.
+
+It only proceeded after I manually clicked:
+
+APPROVE
+
+After that manual approval, the processor processed the withdrawal successfully.
+
+This proves that the current normal workflow still requires the withdrawal record to reach APPROVED before the automatic worker claims it.
+
+That is NOT the desired product behavior.
+
+Desired behavior:
+
+USER CREATES WITHDRAWAL
+        ↓
+VALIDATION / ELIGIBILITY CHECKS
+        ↓
+WITHDRAWAL BECOMES AUTOMATICALLY PROCESSABLE
+        ↓
+AUTOMATIC WORKER CLAIMS IT
+        ↓
+NONCE LOCK
+        ↓
+PREPARE TRANSACTION
+        ↓
+SIGN
+        ↓
+BROADCAST
+        ↓
+CONFIRM
+        ↓
+SETTLE
+        ↓
+COMPLETED
+
+There must be NO manual administrator approval step in the normal withdrawal path.
+
+==================================================
+2. CRITICAL DISTINCTION
+==================================================
+
+Do NOT simply change the worker query from:
+
+status = APPROVED
+
+to:
+
+status = PENDING
+
+without first understanding the entire state machine.
+
+That could be dangerous.
+
+We need to redesign the normal workflow so that only withdrawals that have successfully passed all required eligibility/validation checks become automatically claimable.
+
+The system must NOT automatically process:
+- malformed withdrawals
+- invalid wallet addresses
+- unsupported networks
+- insufficient user balance
+- insufficient hot-wallet balance
+- blocked accounts
+- withdrawals under required compliance/manual review
+- BROADCAST_UNKNOWN
+- MANUAL_REVIEW
+- COMPLETED
+- REJECTED
+- FAILED records that are not explicitly eligible for retry
+- any other unsafe state
+
+Automatic processing must only happen after the existing validation and eligibility controls have passed.
+
+==================================================
+3. INSPECT THE CURRENT IMPLEMENTATION FIRST
+==================================================
+
+Before modifying code, inspect:
+
+- withdrawal state enum/state machine
+- withdrawal creation service
+- withdrawal validation service
+- withdrawal eligibility logic
+- withdrawal processor
+- worker claim query
+- admin withdrawal service
+- approval endpoint
+- admin UI action predicates
+- withdrawal queue
+- withdrawal Control Center
+- withdrawal events/timeline
+- wallet locking/accounting
+- claimOwner / claimToken / claimExpiresAt logic
+- activation gate
+- retry/recovery logic
+- existing withdrawal tests
+
+Determine exactly why a newly created eligible withdrawal remains PENDING until an admin clicks APPROVE.
+
+Do not guess.
+
+Document the current flow internally and then implement the smallest safe architecture change.
+
+==================================================
+4. REQUIRED NORMAL FLOW
+==================================================
+
+The intended normal flow must become:
+
+WITHDRAWAL CREATED
+        ↓
+VALIDATE
+        ↓
+ELIGIBILITY CHECK
+        ↓
+AUTOMATICALLY QUEUE / MARK PROCESSABLE
+        ↓
+WORKER CLAIMS
+        ↓
+PROCESS
+
+The user should NOT need an administrator to click Approve.
+
+If the existing PENDING state is already the correct semantic representation of “eligible and waiting for automatic processing”, it may remain PENDING while the worker claims it.
+
+If the architecture requires a separate QUEUED/ELIGIBLE state, use the existing state-machine architecture rather than inventing unnecessary complexity.
+
+Choose the safest minimal design based on the existing code.
+
+==================================================
+5. ADMIN APPROVE ACTION
+==================================================
+
+Remove the normal financial dependency on:
+
+PENDING → APPROVED
+
+The administrator should not have to approve ordinary withdrawals.
+
+Do NOT necessarily delete the APPROVED state from the database/state machine if it is useful for backwards compatibility, historical records, migration safety, or controlled administrative workflows.
+
+Instead, determine whether APPROVED should remain as a legacy/explicit administrative state while no longer being required for normal user withdrawals.
+
+If APPROVED remains:
+- it must not be required for normal processing
+- existing APPROVED records must remain safely processable if they are legitimately eligible
+- it must not create duplicate processing
+- it must not bypass validation or activation gates
+
+If the admin UI currently exposes:
+
+PENDING → Approve
+
+remove or disable that as a normal financial action.
+
+Do not create another manual action that replaces it.
+
+==================================================
+6. AUTOMATIC PROCESSOR CLAIM SAFETY
+==================================================
+
+Modify the worker claim logic carefully.
+
+The worker must claim only withdrawals that satisfy ALL required conditions.
+
+At minimum verify:
+
+- correct processable status
+- withdrawal is validated
+- withdrawal is eligible
+- user balance is sufficient
+- withdrawal amount is valid
+- destination address is valid
+- supported network
+- account restrictions allow processing
+- activation gate is OPEN
+- no unresolved BROADCAST_UNKNOWN blockers
+- no MANUAL_REVIEW blocker
+- no active claim
+- claim is not owned by another worker
+- withdrawal has not already been settled
+- no duplicate wallet transaction exists
+- required wallet/accounting locks are valid
+
+Use the existing eligibility and safety functions wherever possible.
+
+Do not duplicate business logic unnecessarily.
+
+The claim query must remain concurrency-safe with:
+
+FOR UPDATE SKIP LOCKED
+
+and claim ownership:
+
+claimOwner
+claimToken
+claimExpiresAt
+
+Do not weaken these protections.
+
+==================================================
+7. ACTIVATION GATE MUST REMAIN AUTHORITATIVE
+==================================================
+
+The automatic processing change MUST NOT bypass the activation gate.
+
+If the gate is CLOSED because:
+
+- BROADCAST_UNKNOWN exists
+- MANUAL_REVIEW exists
+- schema readiness fails
+- RPC readiness fails
+- chain mismatch
+- wallet configuration problem
+- insufficient BNB
+- insufficient USDT
+- gas estimation failure
+- dry-run configuration
+- any other existing blocker
+
+then eligible withdrawals must NOT be automatically processed.
+
+They should remain safely queued/waiting.
+
+The worker must fail closed.
+
+==================================================
+8. WITHDRAWAL QUEUE UI
+==================================================
+
+Fix the queue semantics so that an automatically processable withdrawal is visible in the withdrawal queue.
+
+The previous $1 withdrawal did not appear in the Withdrawal Queue before approval.
+
+Investigate why.
+
+The queue should display all relevant active automatic-processing states.
+
+At minimum inspect:
+
+PENDING
+APPROVED
+PROCESSING
+SIGNED
+BROADCASTING
+CONFIRMING
+BROADCAST_UNKNOWN
+MANUAL_REVIEW
+
+Use the actual application state architecture rather than blindly adding statuses.
+
+If PENDING is now automatically processable, it MUST appear in the queue.
+
+Do not hide eligible withdrawals merely because no administrator action is required.
+
+==================================================
+9. ADMIN UI
+==================================================
+
+The admin interface should clearly distinguish:
+
+A. Automatic processing
+B. Manual intervention
+
+Normal eligible withdrawal:
+
+AUTOMATIC PROCESSING
+
+should not show an Approve button.
+
+Manual intervention should remain available only where genuinely required.
+
+Maintain the existing intended actions:
+
+- PENDING → no manual financial approval for normal processing
+- APPROVED → legacy/controlled handling only if still necessary
+- PROCESSING → no financial action
+- BROADCAST_UNKNOWN → Reject & Refund only where backend evidence rules permit
+- MANUAL_REVIEW → Reject
+- COMPLETED → immutable
+- REJECTED → immutable
+
+Do not reintroduce:
+- Place on Hold
+- Bulk Hold
+- Assign Reviewer
+- Re-process Withdrawal
+- obsolete refund actions
+
+The previous cleanup must remain intact.
+
+==================================================
+10. ACCOUNTING SAFETY
+==================================================
+
+The automatic workflow must preserve existing accounting behavior.
+
+At withdrawal creation/eligibility:
+
+- lockedWithdrawalBalance must remain correctly reserved
+- withdrawalWallet balance must remain correct
+
+During processing:
+- do not unlock funds prematurely
+- do not create duplicate wallet transactions
+- do not duplicate settlement
+- do not release funds before the transaction outcome is known
+
+On successful completion:
+- settlement must occur exactly once
+
+On processor failure:
+- do NOT automatically refund unless the existing explicit safe failure path permits it
+
+For ambiguous blockchain outcomes:
+- BROADCAST_UNKNOWN remains protected
+- no automatic retry
+- no automatic refund
+- no automatic rejection
+
+==================================================
+11. BLOCKCHAIN SAFETY
+==================================================
+
+Do not modify the safety fixes already implemented.
+
+Preserve:
+
+- transaction-scoped PostgreSQL advisory nonce lock
+- Prisma-safe advisory lock result handling
+- nonce allocation inside the distributed lock
+- cryptographic signing before SIGNED persistence
+- signedAt only after successful cryptographic signing
+- BROADCASTING immediately before eth_sendRawTransaction
+- txHash only after valid RPC hash
+- broadcastAt only after valid RPC hash
+- no blind retry after ambiguous broadcast/network failure
+- ambiguous outcome → BROADCAST_UNKNOWN
+- pre-signing failure → safe pending state
+- no automatic refund after processor failure
+- conditional settlement protection
+- withdrawalRequestId uniqueness
+- duplicate settlement protection
+
+Do not weaken any of these.
+
+==================================================
+12. IDEMPOTENCY
+==================================================
+
+The new automatic path must be idempotent.
+
+If:
+- worker polls twice
+- API request is retried
+- worker restarts
+- multiple workers poll simultaneously
+- user refreshes the page
+
+the withdrawal must still be processed only once.
+
+Use the existing:
+- database transactions
+- conditional updates
+- claim tokens
+- row locks
+- unique withdrawal ledger link
+- settlement guards
+
+Do not rely on frontend behavior for financial correctness.
+
+==================================================
+13. EXISTING APPROVED RECORDS
+==================================================
+
+Handle existing APPROVED records safely.
+
+Do not modify production data.
+
+Determine how the worker should handle any existing APPROVED records after this change.
+
+They must not become stranded.
+
+They should either:
+- continue through the same safe processor path, or
+- be migrated by a future explicit migration if actually necessary
+
+Do not execute a migration against production during this task.
+
+==================================================
+14. STATE MACHINE
+==================================================
+
+Update the state machine to reflect the new normal workflow.
+
+The normal path should no longer conceptually require:
+
+PENDING → APPROVED → PROCESSING
+
+Instead it should represent something equivalent to:
+
+PENDING/ELIGIBLE → PROCESSING
+
+while preserving any legacy/administrative states required for compatibility.
+
+Do not introduce invalid transitions.
+
+Do not allow:
+
+BROADCAST_UNKNOWN → PROCESSING
+
+MANUAL_REVIEW → automatic PROCESSING
+
+REJECTED → PROCESSING
+
+COMPLETED → PROCESSING
+
+unless an existing explicitly controlled administrator workflow already permits that and it remains intentionally manual.
+
+==================================================
+15. AUDIT LOGGING
+==================================================
+
+Because the automatic processor is now responsible for moving eligible withdrawals forward, ensure audit/timeline events remain accurate.
+
+The system should make it clear that:
+- withdrawal was automatically validated
+- withdrawal became eligible
+- automatic processor claimed it
+- processing started
+- signing occurred
+- broadcasting occurred
+- confirmation occurred
+- settlement occurred
+
+Do NOT create fake admin approval events.
+
+Do NOT record an administrator as approving something that was automatically processed.
+
+==================================================
+16. TESTING — REQUIRED
+==================================================
+
+Add/update regression tests covering at least:
+
+A. Normal automatic flow
+
+Create an eligible withdrawal.
+
+Verify:
+- no admin approval is required
+- it becomes claimable
+- worker claims it
+- processing starts
+
+B. Pending withdrawal safety
+
+Verify an eligible PENDING withdrawal can enter automatic processing safely.
+
+C. Ineligible withdrawal
+
+Verify an ineligible withdrawal cannot be claimed.
+
+D. Manual review
+
+Verify MANUAL_REVIEW cannot be automatically claimed.
+
+E. Broadcast unknown
+
+Verify BROADCAST_UNKNOWN cannot be automatically claimed.
+
+F. Rejected
+
+Verify REJECTED cannot be automatically claimed.
+
+G. Completed
+
+Verify COMPLETED cannot be claimed.
+
+H. Activation gate closed
+
+Verify eligible withdrawals remain waiting when the gate is closed.
+
+I. Concurrent workers
+
+Verify two workers cannot claim the same withdrawal.
+
+J. Duplicate settlement
+
+Verify processing cannot create duplicate wallet settlement records.
+
+K. Existing APPROVED
+
+Verify existing legitimate APPROVED records remain safely handled.
+
+L. Admin UI
+
+Verify PENDING no longer requires an Approve action for normal processing.
+
+M. Queue visibility
+
+Verify automatically processable withdrawals appear in the Withdrawal Queue.
+
+N. Audit trail
+
+Verify no fake manual approval event is generated.
+
+O. Blockchain lifecycle
+
+Verify all previously implemented SIGNED/BROADCAST safety behavior remains intact.
+
+==================================================
+17. VALIDATION COMMANDS
+==================================================
+
+Run the complete relevant validation suite.
+
+At minimum:
+
+- full API tests
+- focused withdrawal/processor tests
+- admin withdrawal tests
+- queue tests
+- state-machine tests
+- frontend tests if available
+- API typecheck
+- frontend typecheck
+- API build
+- frontend build
+- Prisma validation
+- git diff --check
+
+If a test runner does not exist for the frontend, perform source-level regression checks and report that honestly.
+
+==================================================
+18. PRODUCTION SAFETY
+==================================================
+
+Absolutely no production mutation during this task.
+
+Do NOT:
+- create a withdrawal
+- approve a withdrawal
+- reject a withdrawal
+- refund a withdrawal
+- reconcile anything
+- call correction endpoints
+- sign a transaction
+- broadcast a transaction
+- modify production balances
+- modify production ledgers
+- modify production claims
+- change production environment variables
+- change secrets
+- change BLOCKCHAIN_DRY_RUN
+- publish
+- deploy
+
+I will publish after reviewing your implementation.
+
+==================================================
+19. FINAL REPORT
+==================================================
+
+When finished, report:
+
+1. ROOT CAUSE
+Why the $1 withdrawal required manual approval.
+
+2. ARCHITECTURAL CHANGE
+Exactly how automatic eligibility now leads to processing.
+
+3. STATE MACHINE
+Show the new normal withdrawal path.
+
+4. WORKER CLAIM QUERY
+Explain which statuses/conditions are now automatically claimable.
+
+5. ADMIN UI
+Explain what happened to Approve and which manual actions remain.
+
+6. QUEUE
+Explain why the withdrawal previously did not appear and how queue visibility was fixed.
+
+7. SAFETY
+Confirm the activation gate, nonce lock, claim locking, signing/broadcast boundaries, and settlement protections remain intact.
+
+8. ACCOUNTING
+Confirm no duplicate settlement/refund/unlock path was introduced.
+
+9. TEST RESULTS
+Provide exact numbers.
+
+10. PRODUCTION SAFETY
+Explicitly confirm:
+- production records modified: NO
+- production balances modified: NO
+- production ledger modified: NO
+- transaction signed: NO
+- transaction broadcast: NO
+- deployment published: NO
+- environment variables changed: NO
+
+11. FILES CHANGED
+List every relevant file changed and explain why.
+
+12. FINAL STATUS
+State whether the build is ready for me to publish.
+
+IMPORTANT:
+Do not stop after identifying the issue.
+Implement the complete safe solution in one pass, run all relevant tests and builds, and return the final implementation/validation report.
+
+The objective is:
+
+USER WITHDRAWAL
+→ VALIDATE
+→ ELIGIBLE
+→ AUTOMATIC PROCESSOR
+→ SIGN
+→ BROADCAST
+→ CONFIRM
+→ SETTLE
+→ COMPLETED
+
+with NO MANUAL ADMIN APPROVAL required for normal eligible withdrawals, while preserving every existing financial and blockchain safety mechanism.
