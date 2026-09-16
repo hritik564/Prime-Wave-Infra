@@ -1,0 +1,183 @@
+Fix the live withdrawal processor based on the PW-WD-000130 forensic investigation.
+
+IMPORTANT:
+Do NOT execute any production withdrawal, refund, rejection, approval, retry, signing, broadcast, or balance/ledger mutation while implementing or testing this work.
+
+The production incident was caused by the PostgreSQL advisory-lock implementation:
+
+SELECT pg_advisory_xact_lock(...)
+
+PostgreSQL returns void from pg_advisory_xact_lock(), and Prisma attempted to deserialize that void result, causing:
+
+Failed to deserialize column of type 'void'
+
+This happened before the blockchain gateway performed live signing or eth_sendRawTransaction.
+
+IMPLEMENTATION TASKS
+
+1. FIX DISTRIBUTED NONCE LOCK
+
+Locate withDistributedNonceLock and replace the Prisma query pattern that attempts to deserialize the void return value.
+
+The advisory transaction lock must still be acquired atomically, but the SQL result must be a normal Prisma-compatible scalar.
+
+Use a safe SQL formulation that executes pg_advisory_xact_lock() while returning a scalar result, for example a boolean/integer expression or equivalent PostgreSQL-safe wrapper.
+
+Do not remove the advisory lock.
+Do not weaken nonce serialization.
+Do not replace it with an in-memory-only lock.
+The lock must remain transaction-scoped.
+
+Add regression tests proving:
+- the lock can be acquired successfully through Prisma;
+- concurrent workers serialize on the same nonce lock;
+- different wallet/nonce lock keys do not unnecessarily block one another;
+- the transaction-scoped lock is released when the transaction finishes;
+- the processor no longer fails with Prisma void deserialization.
+
+2. FIX PROCESSOR STAGE SEMANTICS
+
+The current implementation incorrectly persisted signedAt before actual cryptographic signing completed.
+
+Correct the lifecycle:
+
+PREPARED
+→ actual cryptographic signing
+→ only after signing succeeds: persist signedAt
+→ BROADCASTING
+→ eth_sendRawTransaction
+→ only after the RPC returns a transaction hash: persist txHash and broadcastAt
+
+Do NOT set signedAt merely because the processor entered the sign/broadcast phase.
+
+Do NOT set broadcastAt before eth_sendRawTransaction returns a txHash.
+
+Do NOT create a SIGNED event before actual signing succeeds.
+
+Do NOT create a BROADCAST event that implies BSC accepted a transaction before eth_sendRawTransaction successfully returns a hash.
+
+3. FIX FAILURE CLASSIFICATION
+
+Failures before actual signing must be classified as PRE_SIGNING_FAILURE.
+
+Examples:
+- nonce lock acquisition failure
+- nonce retrieval failure
+- gas price failure
+- gas estimation failure
+- transaction preparation failure
+- signing setup failure before cryptographic signing
+
+These must safely return the withdrawal to PENDING:
+- no refund
+- no wallet balance modification
+- no locked-balance modification
+- no ledger entry
+- no transaction hash
+- no signedAt
+- no broadcastAt
+
+Actual signing/broadcast ambiguity must remain BROADCAST_UNKNOWN and must never automatically refund.
+
+Do not weaken the conservative safety boundary for genuinely ambiguous broadcast failures.
+
+4. FIX EVENT ORDERING
+
+The event timeline must reflect actual completed milestones.
+
+Required semantics:
+
+VALIDATED
+PROCESSING
+[actual signing succeeds]
+SIGNED
+BROADCASTING
+[eth_sendRawTransaction returns txHash]
+BROADCAST
+
+If signing never occurs, do not create SIGNED.
+
+If broadcast never occurs, do not create BROADCAST.
+
+If eth_sendRawTransaction returns an ambiguous network failure after the raw transaction may have been submitted, transition to BROADCAST_UNKNOWN.
+
+5. PW-WD-000130
+
+Do not modify PW-WD-000130 automatically.
+
+Create a safe incident-specific reconciliation capability for a BROADCAST_UNKNOWN record whose persisted signedAt is known to be a false-positive stage marker and where forensic evidence proves:
+- txHash is null
+- broadcastAt is null
+- no signed raw transaction exists
+- eth_sendRawTransaction was never called
+- no matching BSC transaction exists
+- nonce remains unused
+
+The reconciliation must:
+- require explicit admin authorization;
+- be conditional on the expected current state;
+- clear the incorrect signedAt stage marker if appropriate;
+- transition the withdrawal into a safe non-processing state;
+- perform no automatic financial mutation unless explicitly using the existing controlled rejection/refund operation;
+- create a detailed audit/timeline event identifying that this is an incident correction, not a blockchain refund;
+- be idempotent;
+- prevent the worker from claiming the record during reconciliation.
+
+Do not use a direct production database edit.
+
+6. UI FIXES
+
+Update Withdrawal Queue / Withdrawal Control Center so BROADCAST_UNKNOWN has:
+- dedicated status color
+- dedicated status icon
+- status filter
+- clear reconciliation-required presentation
+
+PROCESSOR_FAILURE should also have dedicated styling.
+
+For a record with no txHash and no actual broadcast evidence, do not label the payment as "Pending confirmation".
+
+Use wording such as:
+"No transaction hash — reconciliation required."
+
+7. REJECT & REFUND SAFETY
+
+Review the existing BROADCAST_UNKNOWN → REJECTED / Reject & Refund guard.
+
+Do not rely only on signedAt.
+
+The backend must evaluate actual transaction evidence:
+- txHash
+- broadcastAt
+- actual signing/broadcast evidence where persisted
+
+A stale or incorrect signedAt field must not permanently prevent reconciliation when forensic evidence establishes that no signing or broadcast occurred.
+
+However, do not weaken protection for genuinely broadcast-ambiguous withdrawals.
+
+8. LIVE WITHDRAWAL TEST SAFETY
+
+After implementation:
+- run all unit/integration tests;
+- run typechecks;
+- build API/frontend;
+- run Prisma validation;
+- run git diff --check;
+- perform read-only production diagnostics;
+- confirm BLOCKCHAIN_DRY_RUN remains false only if already configured;
+- DO NOT create another production withdrawal;
+- DO NOT retry PW-WD-000130 automatically;
+- DO NOT reject/refund PW-WD-000130 automatically;
+- DO NOT sign or broadcast anything.
+
+Return a report containing:
+- exact advisory-lock fix;
+- exact stage-bookkeeping fix;
+- exact failure-classification behavior;
+- tests added/passed;
+- production records inspected;
+- whether PW-WD-000130 remains untouched;
+- whether any transaction was signed/broadcast;
+- whether any production balance/ledger changed.
+
+Do not publish or deploy automatically.
