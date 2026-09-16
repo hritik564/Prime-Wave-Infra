@@ -24,6 +24,7 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.production]
+MIN_HOT_WALLET_BNB = "0.0015"
 
 [userenv.development]
 
