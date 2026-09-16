@@ -43,7 +43,10 @@ async function isProductionSchemaReady(): Promise<boolean> {
         FROM pg_indexes
         WHERE schemaname = 'public'
           AND tablename = 'wallet_transactions'
-          AND indexdef ILIKE '%withdrawalRequestId%'
+          AND (
+            indexdef ILIKE '%withdrawal_request_id%'
+            OR indexdef ILIKE '%withdrawalRequestId%'
+          )
       `,
     ]);
     return Number(columns[0]?.count ?? 0) === requiredColumns.length &&
