@@ -16,6 +16,7 @@ import type {
   TransferExpectation,
   TransferVerification,
   AddressValidation,
+  BlockchainActivationReadiness,
   FeeEstimate,
   PreparedTransfer,
   WithdrawalGatewayNetwork,
@@ -134,4 +135,9 @@ export interface IWithdrawalGateway {
    * Full health snapshot: RPC connectivity, block number, hot wallet balances.
    */
   getHealth(): Promise<BlockchainHealthSnapshot>;
+
+  /**
+   * Read-only activation evidence. Never signs, broadcasts, or changes state.
+   */
+  getActivationReadiness(): Promise<BlockchainActivationReadiness>;
 }

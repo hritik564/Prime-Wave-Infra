@@ -24,7 +24,7 @@ export interface BscConfig {
 // ── BSC mainnet constants ─────────────────────────────────────────────────────
 
 /** Official Binance-pegged USDT on BSC mainnet (18 decimals). */
-const DEFAULT_USDT_CONTRACT = "0x55d398326f99059fF775485246999027B3197955";
+export const DEFAULT_USDT_CONTRACT = "0x55d398326f99059fF775485246999027B3197955";
 
 /** BSC mainnet chain ID. */
 const DEFAULT_CHAIN_ID = 56;

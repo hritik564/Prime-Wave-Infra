@@ -117,6 +117,28 @@ export interface BlockchainHealthSnapshot {
   error?:          string;
 }
 
+/** Read-only readiness evidence required before live automatic withdrawals. */
+export interface BlockchainActivationReadiness {
+  ready:                boolean;
+  network:              string;
+  configuredChainId:    number;
+  actualChainId:        number | null;
+  latestBlock:          number | null;
+  gasEstimationWorks:   boolean;
+  usdtContractAddress:  string;
+  usdtBytecodePresent:  boolean;
+  usdtSymbol:           string | null;
+  usdtName:             string | null;
+  usdtDecimals:         number | null;
+  hotWalletConfigured:  boolean;
+  privateKeyConfigured: boolean;
+  keyAddressMatch:      boolean;
+  rpcProviderCount:     number;
+  rpcTimeoutMs:         number;
+  rpcMaxRetries:        number;
+  errors:               string[];
+}
+
 /** Address validation result. */
 export interface AddressValidation {
   address:   string;

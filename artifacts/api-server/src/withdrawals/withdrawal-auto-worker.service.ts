@@ -99,7 +99,9 @@ async function tick(): Promise<void> {
     const gateways = getAllGateways();
     if (gateways.length > 0) {
       const healthChecks = await Promise.allSettled(gateways.map((gw) => gw.getHealth()));
-      const anyUnhealthy = healthChecks.some((r) => r.status === "rejected");
+      const anyUnhealthy = healthChecks.some(
+        (r) => r.status === "rejected" || (r.status === "fulfilled" && !r.value.connected),
+      );
       if (anyUnhealthy) {
         logger.info("Withdrawal queue skipped: blockchain unavailable");
         return;

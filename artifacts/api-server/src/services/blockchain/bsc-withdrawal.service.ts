@@ -13,7 +13,7 @@
 
 import { privateKeyToAccount } from "viem/accounts";
 import { BscRpcClient } from "../../deposit-verification/adapter/bsc/bsc-rpc-client";
-import type { BscConfig } from "../../deposit-verification/adapter/bsc/bsc-config";
+import { DEFAULT_USDT_CONTRACT, type BscConfig } from "../../deposit-verification/adapter/bsc/bsc-config";
 import { logger } from "../../lib/logger";
 import {
   GatewayDryRunError,
@@ -24,6 +24,7 @@ import type { IWithdrawalGateway } from "./blockchain.interface";
 import type {
   AddressValidation,
   BalanceResult,
+  BlockchainActivationReadiness,
   BlockchainHealthSnapshot,
   BroadcastResult,
   ChainTransaction,
@@ -45,6 +46,9 @@ const TRANSFER_TOPIC =
 
 /** ERC-20 balanceOf(address) selector */
 const BALANCE_OF_SELECTOR = "0x70a08231";
+const SYMBOL_SELECTOR = "0x95d89b41";
+const NAME_SELECTOR = "0x06fdde03";
+const DECIMALS_SELECTOR = "0x313ce567";
 
 /** Pad a hex string (without 0x) to 32 bytes */
 function pad32(hex: string): string {
@@ -79,6 +83,29 @@ function hexToBigInt(hex: string | null | undefined): bigint {
   return BigInt(hex);
 }
 
+function decodeAbiString(hex: string | null | undefined): string | null {
+  if (!hex || hex === "0x") return null;
+  const clean = hex.replace(/^0x/, "");
+  if (!/^[0-9a-fA-F]+$/.test(clean) || clean.length < 64) return null;
+
+  try {
+    const firstWord = Number(BigInt(`0x${clean.slice(0, 64)}`));
+    const dynamicOffset = firstWord * 2;
+    if (dynamicOffset + 64 <= clean.length) {
+      const byteLength = Number(BigInt(`0x${clean.slice(dynamicOffset, dynamicOffset + 64)}`));
+      const start = dynamicOffset + 64;
+      const end = start + byteLength * 2;
+      if (end <= clean.length) {
+        return Buffer.from(clean.slice(start, end), "hex").toString("utf8").replace(/\0/g, "").trim() || null;
+      }
+    }
+
+    return Buffer.from(clean.slice(0, 64), "hex").toString("utf8").replace(/\0/g, "").trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 /** BNB has 18 decimals */
 const BNB_DECIMALS  = 18;
 /** Gwei = 1e9 wei */
@@ -105,6 +132,9 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
   private readonly chainId:      number;
   private readonly hotWallet:    string | null;
   private readonly privateKey:   `0x${string}` | null;
+  private readonly rpcProviderCount: number;
+  private readonly rpcTimeoutMs: number;
+  private readonly rpcMaxRetries: number;
 
   constructor(config: BscConfig, hotWalletAddress: string | null, dryRun: boolean, privateKey: string | null) {
     this.rpc          = new BscRpcClient(config);
@@ -113,6 +143,9 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
     this.chainId      = config.chainId;
     this.hotWallet    = hotWalletAddress?.trim() || null;
     this.isDryRun     = dryRun;
+    this.rpcProviderCount = config.rpcProviders.length;
+    this.rpcTimeoutMs = config.rpcTimeoutMs;
+    this.rpcMaxRetries = config.rpcMaxRetries;
 
     if (this.hotWallet && !isValidEthAddress(this.hotWallet)) {
       throw new Error("HOT_WALLET_ADDRESS must be a valid non-zero 20-byte address");
@@ -506,8 +539,15 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
     const checkedAt = new Date().toISOString();
 
     try {
-      const blockHex    = await this.rpc.call<string>("eth_blockNumber", []);
+      const [blockHex, chainHex] = await Promise.all([
+        this.rpc.call<string>("eth_blockNumber", []),
+        this.rpc.call<string>("eth_chainId", []),
+      ]);
       const latestBlock = Number(hexToBigInt(blockHex));
+      const actualChainId = Number(hexToBigInt(chainHex));
+      if (actualChainId !== this.chainId) {
+        throw new Error(`BSC RPC chain ID mismatch: expected ${this.chainId}, got ${actualChainId}`);
+      }
       const rpcLatencyMs = Date.now() - start;
 
       const [gasPriceHex, bnbBalance, usdtBalance] = await Promise.all([
@@ -555,5 +595,132 @@ export class BscWithdrawalGateway implements IWithdrawalGateway {
         error:            err instanceof Error ? err.message : String(err),
       };
     }
+  }
+
+  async getActivationReadiness(): Promise<BlockchainActivationReadiness> {
+    const errors: string[] = [];
+    const privateKeyConfigured = Boolean(this.privateKey);
+    const hotWalletConfigured = Boolean(this.hotWallet);
+    let keyAddressMatch = false;
+
+    if (privateKeyConfigured && hotWalletConfigured) {
+      try {
+        keyAddressMatch = privateKeyToAccount(this.privateKey!).address.toLowerCase() === this.hotWallet!.toLowerCase();
+      } catch {
+        keyAddressMatch = false;
+      }
+    }
+
+    let actualChainId: number | null = null;
+    let latestBlock: number | null = null;
+    let usdtBytecodePresent = false;
+    let usdtSymbol: string | null = null;
+    let usdtName: string | null = null;
+    let usdtDecimals: number | null = null;
+    let gasEstimationWorks = false;
+
+    if (!this.hotWallet) errors.push("HOT_WALLET_ADDRESS is not configured");
+    if (!this.privateKey) errors.push("HOT_WALLET_PRIVATE_KEY is not configured");
+    if (this.hotWallet && this.privateKey && !keyAddressMatch) {
+      errors.push("HOT_WALLET_PRIVATE_KEY does not correspond to HOT_WALLET_ADDRESS");
+    }
+    if (this.rpcProviderCount === 0) errors.push("No BSC RPC provider is configured");
+    if (this.chainId !== 56) errors.push(`Configured chain ID is ${this.chainId}, expected 56`);
+    if (this.usdtContract.toLowerCase() !== DEFAULT_USDT_CONTRACT.toLowerCase()) {
+      errors.push("Configured USDT contract differs from the intended BSC USDT contract");
+    }
+
+    try {
+      const [chainHex, blockHex] = await Promise.all([
+        this.rpc.call<string>("eth_chainId", []),
+        this.rpc.call<string>("eth_blockNumber", []),
+      ]);
+      actualChainId = Number(hexToBigInt(chainHex));
+      latestBlock = Number(hexToBigInt(blockHex));
+      if (actualChainId !== this.chainId) {
+        errors.push(`RPC chain ID mismatch: expected ${this.chainId}, got ${actualChainId}`);
+      }
+    } catch {
+      errors.push("Unable to retrieve BSC chain ID or latest block");
+    }
+
+    const [codeResult, symbolResult, nameResult, decimalsResult] = await Promise.allSettled([
+      this.rpc.call<string>("eth_getCode", [this.usdtContract, "latest"]),
+      this.rpc.call<string>("eth_call", [{ to: this.usdtContract, data: SYMBOL_SELECTOR }, "latest"]),
+      this.rpc.call<string>("eth_call", [{ to: this.usdtContract, data: NAME_SELECTOR }, "latest"]),
+      this.rpc.call<string>("eth_call", [{ to: this.usdtContract, data: DECIMALS_SELECTOR }, "latest"]),
+    ]);
+
+    if (codeResult.status === "fulfilled") {
+      usdtBytecodePresent = Boolean(codeResult.value && codeResult.value !== "0x");
+    } else {
+      errors.push("Unable to read configured USDT contract bytecode");
+    }
+    if (!usdtBytecodePresent) errors.push("Configured USDT contract has no bytecode");
+
+    if (symbolResult.status === "fulfilled") usdtSymbol = decodeAbiString(symbolResult.value);
+    else errors.push("Unable to read configured USDT symbol");
+    if (nameResult.status === "fulfilled") usdtName = decodeAbiString(nameResult.value);
+    else errors.push("Unable to read configured USDT name");
+    if (decimalsResult.status === "fulfilled") {
+      try {
+        usdtDecimals = Number(hexToBigInt(decimalsResult.value));
+      } catch {
+        usdtDecimals = null;
+      }
+    } else {
+      errors.push("Unable to read configured USDT decimals");
+    }
+
+    if (usdtSymbol !== "USDT") errors.push(`Configured token symbol is ${usdtSymbol ?? "unknown"}, expected USDT`);
+    if (!usdtName) errors.push("Configured USDT contract returned no name");
+    if (usdtDecimals !== 18) errors.push(`Configured token decimals are ${usdtDecimals ?? "unknown"}, expected 18`);
+
+    if (this.hotWallet) {
+      try {
+        await this.rpc.call<string>("eth_estimateGas", [{
+          from: this.hotWallet,
+          to: this.usdtContract,
+          data: `${TRANSFER_SELECTOR}${pad32("0x0000000000000000000000000000000000000001")}${pad32("1")}`,
+        }]);
+        gasEstimationWorks = true;
+      } catch {
+        errors.push("USDT transfer gas estimation failed");
+      }
+    } else {
+      errors.push("Gas estimation cannot run without HOT_WALLET_ADDRESS");
+    }
+
+    return {
+      ready:
+        errors.length === 0 &&
+        actualChainId === this.chainId &&
+        latestBlock !== null &&
+        usdtBytecodePresent &&
+        usdtSymbol === "USDT" &&
+        Boolean(usdtName) &&
+        usdtDecimals === 18 &&
+        gasEstimationWorks &&
+        hotWalletConfigured &&
+        privateKeyConfigured &&
+        keyAddressMatch,
+      network: "BEP20 (BSC)",
+      configuredChainId: this.chainId,
+      actualChainId,
+      latestBlock,
+      gasEstimationWorks,
+      usdtContractAddress: this.usdtContract,
+      usdtBytecodePresent,
+      usdtSymbol,
+      usdtName,
+      usdtDecimals,
+      hotWalletConfigured,
+      privateKeyConfigured,
+      keyAddressMatch,
+      rpcProviderCount: this.rpcProviderCount,
+      rpcTimeoutMs: this.rpcTimeoutMs,
+      rpcMaxRetries: this.rpcMaxRetries,
+      errors,
+    };
   }
 }

@@ -8,6 +8,7 @@ import { logWithdrawalEvent } from "./withdrawal-events.service";
 import { moveToManualReview } from "./withdrawal-confirmation.service";
 import { isWithdrawalEngineEnabled } from "./withdrawal-engine.service";
 import { checkHotWalletStatus } from "./withdrawal-hot-wallet.service";
+import { evaluateWithdrawalActivationGate } from "./withdrawal-activation-gate.service";
 import { buildExplorerUrl } from "./withdrawal-hot-wallet.service";
 import {
   claimPendingWithdrawals,
@@ -46,6 +47,17 @@ interface ProcessResult {
 
 export async function processPendingWithdrawals(): Promise<ProcessResult> {
   const result: ProcessResult = { processed: 0, failed: 0, skipped: 0, errors: [] };
+
+  // Live mode must prove the complete operational safety envelope before any
+  // APPROVED request is claimed. Dry-run remains intentionally non-financial.
+  const activationGate = await evaluateWithdrawalActivationGate();
+  if (!activationGate.allowed) {
+    logger.error(
+      { reasons: activationGate.reasons },
+      "withdrawal.processor: activation gate closed — batch skipped",
+    );
+    return { ...result, skipped: -1, reason: activationGate.reasons.join("; ") };
+  }
 
   // ── 1. Engine switch ─────────────────────────────────────────────────────────
   const engineOn = await isWithdrawalEngineEnabled();

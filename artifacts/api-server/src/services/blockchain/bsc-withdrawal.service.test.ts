@@ -152,4 +152,19 @@ describe("BscWithdrawalGateway safety checks", () => {
     }]);
     rpcCall.mockRestore();
   });
+
+  it("fails activation readiness closed when the RPC cannot prove the required contract", async () => {
+    const rpcCall = vi.spyOn(BscRpcClient.prototype, "call");
+    rpcCall.mockRejectedValue(new Error("timeout"));
+
+    const gateway = new BscWithdrawalGateway(config, account.address, false, PRIVATE_KEY);
+    const readiness = await gateway.getActivationReadiness();
+
+    expect(readiness.ready).toBe(false);
+    expect(readiness.actualChainId).toBeNull();
+    expect(readiness.privateKeyConfigured).toBe(true);
+    expect(readiness.keyAddressMatch).toBe(true);
+    expect(readiness.errors.length).toBeGreaterThan(0);
+    rpcCall.mockRestore();
+  });
 });
