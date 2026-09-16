@@ -1991,6 +1991,18 @@ export function adminRejectWithdrawal(id: string, rejectedReason: string, adminN
   );
 }
 
+export function adminRejectAndRefundBroadcastUnknown(id: string, rejectedReason: string) {
+  return request<{
+    withdrawalId: string;
+    status: "REJECTED";
+    alreadyReconciled: boolean;
+    refundedAmount: string;
+  }>(
+    `/api/admin/withdrawals/${id}/reject-and-refund`,
+    { method: "POST", body: JSON.stringify({ rejectedReason }) },
+  );
+}
+
 export function adminHoldWithdrawal(id: string, reason: string, reviewDate?: string) {
   return request<{ withdrawalId: string; status: string; holdNote: string }>(
     `/api/admin/withdrawals/${id}/hold`,

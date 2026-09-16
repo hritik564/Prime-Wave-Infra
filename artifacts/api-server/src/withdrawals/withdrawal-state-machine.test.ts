@@ -12,6 +12,7 @@ describe("withdrawal state transition matrix", () => {
     expect(isWithdrawalTransitionAllowed("PROCESSING", "SIGNED")).toBe(true);
     expect(isWithdrawalTransitionAllowed("BROADCASTING", "CONFIRMING")).toBe(true);
     expect(isWithdrawalTransitionAllowed("BROADCASTING", "BROADCAST_UNKNOWN")).toBe(true);
+    expect(isWithdrawalTransitionAllowed("BROADCAST_UNKNOWN", "REJECTED")).toBe(true);
   });
 
   it("does not allow the worker to bypass administrator approval", () => {

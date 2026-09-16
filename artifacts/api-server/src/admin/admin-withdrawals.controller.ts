@@ -11,6 +11,7 @@ import {
   approveWithdrawal,
   completeWithdrawal,
   rejectWithdrawal,
+  rejectAndRefundBroadcastUnknown,
   reprocessWithdrawal,
   reconcileApprovedWithdrawal,
   releaseHoldWithdrawal,
@@ -30,6 +31,7 @@ import type {
   ApproveWithdrawalInput,
   CompleteWithdrawalInput,
   RejectWithdrawalInput,
+  RejectBroadcastUnknownInput,
   HoldWithdrawalInput,
   ReconcileWithdrawalInput,
   UpdateWithdrawalNotesInput,
@@ -141,6 +143,24 @@ export async function rejectWithdrawalHandler(
     const input        = req.body as RejectWithdrawalInput;
     const result       = await rejectWithdrawal(user.sub, withdrawalId, input);
     sendSuccess(res, result, "Withdrawal rejected");
+  } catch (err) { next(err); }
+}
+
+export async function rejectAndRefundBroadcastUnknownHandler(
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const withdrawalId = String(req.params["id"] ?? "");
+    const input = req.body as RejectBroadcastUnknownInput;
+    const result = await rejectAndRefundBroadcastUnknown(user.sub, withdrawalId, input);
+    sendSuccess(
+      res,
+      result,
+      result.alreadyReconciled
+        ? "Withdrawal was already rejected and refunded"
+        : "Withdrawal rejected and refunded",
+    );
   } catch (err) { next(err); }
 }
 

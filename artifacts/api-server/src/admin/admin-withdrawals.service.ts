@@ -7,6 +7,7 @@ import type {
   ApproveWithdrawalInput,
   CompleteWithdrawalInput,
   RejectWithdrawalInput,
+  RejectBroadcastUnknownInput,
   HoldWithdrawalInput,
   ReconcileWithdrawalInput,
   UpdateWithdrawalNotesInput,
@@ -48,6 +49,81 @@ const listSelect = {
   approver:  { select: { id: true, email: true, firstName: true, lastName: true } },
   completer: { select: { id: true, email: true, firstName: true, lastName: true } },
 } as const;
+
+type RejectionAccountingWithdrawal = {
+  id: string;
+  userId: string;
+  amount: Prisma.Decimal;
+  network: string;
+  walletAddress: string;
+};
+
+async function applyWithdrawalRejectionAccounting(
+  tx: Prisma.TransactionClient,
+  adminId: string,
+  withdrawal: RejectionAccountingWithdrawal,
+  input: Pick<RejectWithdrawalInput, "rejectedReason">,
+  auditAction: string,
+) {
+  const walletChanged = await tx.wallet.updateMany({
+    where: {
+      userId: withdrawal.userId,
+      lockedWithdrawalBalance: { gte: withdrawal.amount },
+    },
+    data: {
+      // Release only this withdrawal's amount. Never replace the aggregate
+      // locked balance, which may include other active withdrawals.
+      lockedWithdrawalBalance: { decrement: withdrawal.amount },
+      withdrawalWallet: { increment: withdrawal.amount },
+    },
+  });
+  if (walletChanged.count !== 1) {
+    throw new AppError(
+      "Withdrawal rejection could not release the locked balance safely",
+      HTTP_STATUS.CONFLICT,
+      "LOCKED_BALANCE_MISMATCH",
+    );
+  }
+
+  const wallet = await tx.wallet.findUniqueOrThrow({
+    where: { userId: withdrawal.userId },
+    select: { id: true },
+  });
+
+  await tx.walletTransaction.create({
+    data: {
+      walletId: wallet.id,
+      userId: withdrawal.userId,
+      type: "WITHDRAWAL",
+      status: "FAILED",
+      amount: withdrawal.amount,
+      description: "Withdrawal rejected — refunded to withdrawal wallet",
+      metadata: {
+        withdrawalId: withdrawal.id,
+        network: withdrawal.network,
+        walletAddress: withdrawal.walletAddress,
+        rejectedReason: input.rejectedReason,
+        rejectedBy: adminId,
+      },
+      withdrawalRequestId: withdrawal.id,
+    },
+  });
+
+  await tx.adminLog.create({
+    data: {
+      adminId,
+      action: auditAction,
+      targetUserId: withdrawal.userId,
+      details: {
+        withdrawalId: withdrawal.id,
+        amount: withdrawal.amount.toString(),
+        network: withdrawal.network,
+        walletAddress: withdrawal.walletAddress,
+        rejectedReason: input.rejectedReason,
+      },
+    },
+  });
+}
 
 // ── List (enhanced) ───────────────────────────────────────────────────────────
 
@@ -693,61 +769,7 @@ export async function rejectWithdrawal(
       );
     }
 
-    const walletChanged = await tx.wallet.updateMany({
-      where: {
-        userId: withdrawal.userId,
-        lockedWithdrawalBalance: { gte: withdrawal.amount },
-      },
-      data:  {
-        lockedWithdrawalBalance: { decrement: withdrawal.amount },
-        withdrawalWallet:        { increment: withdrawal.amount },
-      },
-    });
-    if (walletChanged.count !== 1) {
-      throw new AppError(
-        "Withdrawal rejection could not release the locked balance safely",
-        HTTP_STATUS.CONFLICT,
-        "LOCKED_BALANCE_MISMATCH",
-      );
-    }
-    const wallet = await tx.wallet.findUniqueOrThrow({
-      where: { userId: withdrawal.userId },
-      select: { id: true },
-    });
-
-    await tx.walletTransaction.create({
-      data: {
-        walletId:    wallet.id,
-        userId:      withdrawal.userId,
-        type:        "WITHDRAWAL",
-        status:      "FAILED",
-        amount:      withdrawal.amount,
-        description: `Withdrawal rejected — refunded to withdrawal wallet`,
-        metadata:    {
-          withdrawalId,
-          network:        withdrawal.network,
-          walletAddress:  withdrawal.walletAddress,
-          rejectedReason: input.rejectedReason,
-          rejectedBy:     adminId,
-        },
-        withdrawalRequestId: withdrawalId,
-      },
-    });
-
-    await tx.adminLog.create({
-      data: {
-        adminId,
-        action:       "WITHDRAWAL_REJECTED",
-        targetUserId: withdrawal.userId,
-        details: {
-          withdrawalId,
-          amount:         withdrawal.amount.toString(),
-          network:        withdrawal.network,
-          walletAddress:  withdrawal.walletAddress,
-          rejectedReason: input.rejectedReason,
-        },
-      },
-    });
+    await applyWithdrawalRejectionAccounting(tx, adminId, withdrawal, input, "WITHDRAWAL_REJECTED");
   });
 
   await logWithdrawalEvent(withdrawalId, "REJECTED", {
@@ -765,6 +787,146 @@ export async function rejectWithdrawal(
   });
 
   return { withdrawalId, status: "REJECTED" };
+}
+
+/**
+ * Guarded reconciliation for a withdrawal whose broadcast outcome is unknown.
+ *
+ * This operation is deliberately separate from generic admin rejection:
+ * it can only settle BROADCAST_UNKNOWN records that have no transaction
+ * evidence at all. The conditional update is the concurrency boundary.
+ */
+export async function rejectAndRefundBroadcastUnknown(
+  adminId: string,
+  withdrawalId: string,
+  input: RejectBroadcastUnknownInput,
+) {
+  const result = await prisma.$transaction(async (tx) => {
+    const withdrawal = await tx.withdrawalRequest.findUnique({
+      where: { id: withdrawalId },
+      select: {
+        id: true,
+        userId: true,
+        amount: true,
+        status: true,
+        network: true,
+        walletAddress: true,
+        txHash: true,
+        signedAt: true,
+        broadcastAt: true,
+      },
+    });
+
+    if (!withdrawal) {
+      throw new AppError("Withdrawal not found", HTTP_STATUS.NOT_FOUND, "WITHDRAWAL_NOT_FOUND");
+    }
+
+    if (withdrawal.status === "REJECTED") {
+      const existingRefund = await tx.walletTransaction.findUnique({
+        where: { withdrawalRequestId: withdrawalId },
+        select: { id: true, type: true, status: true, amount: true },
+      });
+      if (
+        existingRefund?.type === "WITHDRAWAL" &&
+        existingRefund.status === "FAILED"
+      ) {
+        return {
+          withdrawalId,
+          status: "REJECTED" as const,
+          alreadyReconciled: true,
+          refundedAmount: existingRefund.amount.toString(),
+          userId: withdrawal.userId,
+        };
+      }
+    }
+
+    if (withdrawal.status !== "BROADCAST_UNKNOWN") {
+      throw new AppError(
+        "Only BROADCAST_UNKNOWN withdrawals can be rejected and refunded by this reconciliation action",
+        HTTP_STATUS.CONFLICT,
+        "WITHDRAWAL_NOT_BROADCAST_UNKNOWN",
+      );
+    }
+
+    if (withdrawal.txHash || withdrawal.signedAt || withdrawal.broadcastAt) {
+      throw new AppError(
+        "Withdrawal has transaction evidence and cannot be rejected and refunded",
+        HTTP_STATUS.CONFLICT,
+        "WITHDRAWAL_TRANSACTION_EVIDENCE_EXISTS",
+      );
+    }
+
+    const changed = await tx.withdrawalRequest.updateMany({
+      where: {
+        id: withdrawalId,
+        status: "BROADCAST_UNKNOWN",
+        txHash: null,
+        signedAt: null,
+        broadcastAt: null,
+      },
+      data: {
+        status: "REJECTED",
+        rejectedReason: input.rejectedReason,
+      },
+    });
+    if (changed.count !== 1) {
+      throw new AppError(
+        "Withdrawal state or transaction evidence changed during reconciliation",
+        HTTP_STATUS.CONFLICT,
+        "WITHDRAWAL_RECONCILIATION_RACE",
+      );
+    }
+
+    await applyWithdrawalRejectionAccounting(
+      tx,
+      adminId,
+      withdrawal,
+      input,
+      "WITHDRAWAL_BROADCAST_UNKNOWN_REJECTED",
+    );
+
+    await tx.withdrawalEvent.create({
+      data: {
+        withdrawalId,
+        eventType: "REJECTED",
+        details: {
+          reason: input.rejectedReason,
+          previousState: "BROADCAST_UNKNOWN",
+          newState: "REJECTED",
+          administrativeActor: adminId,
+          source: "broadcast-unknown-reconciliation",
+          financialOperation: "REFUND",
+          refundedAmount: withdrawal.amount.toString(),
+          releasedLockedAmount: withdrawal.amount.toString(),
+        },
+      },
+    });
+
+    return {
+      withdrawalId,
+      status: "REJECTED" as const,
+      alreadyReconciled: false,
+      refundedAmount: withdrawal.amount.toString(),
+      userId: withdrawal.userId,
+    };
+  });
+
+  if (!result.alreadyReconciled) {
+    void notificationService.create({
+      userId: result.userId,
+      type: "WITHDRAWAL_REJECTED",
+      title: "Withdrawal Rejected",
+      message: "Your withdrawal was rejected and refunded after broadcast reconciliation.",
+      metadata: { withdrawalId: result.withdrawalId, reason: input.rejectedReason },
+    });
+  }
+
+  return {
+    withdrawalId: result.withdrawalId,
+    status: result.status,
+    alreadyReconciled: result.alreadyReconciled,
+    refundedAmount: result.refundedAmount,
+  };
 }
 
 // ── Reprocess (explicit admin retry → APPROVED) ───────────────────────────────

@@ -43,6 +43,7 @@ import {
   approveWithdrawalHandler,
   completeWithdrawalHandler,
   rejectWithdrawalHandler,
+  rejectAndRefundBroadcastUnknownHandler,
   reprocessWithdrawalHandler,
   reconcileApprovedWithdrawalHandler,
   releaseHoldWithdrawalHandler,
@@ -222,6 +223,7 @@ import {
   approveWithdrawalSchema,
   completeWithdrawalSchema,
   rejectWithdrawalSchema,
+  rejectBroadcastUnknownSchema,
   holdWithdrawalSchema,
   reconcileWithdrawalSchema,
   updateWithdrawalNotesSchema,
@@ -757,6 +759,14 @@ router.post(
   withdrawalAdminGuard,
   validate(rejectWithdrawalSchema),
   rejectWithdrawalHandler,
+);
+
+router.post(
+  "/withdrawals/:id/reject-and-refund",
+  adminLimiter,
+  withdrawalAdminGuard,
+  validate(rejectBroadcastUnknownSchema),
+  rejectAndRefundBroadcastUnknownHandler,
 );
 
 router.post(

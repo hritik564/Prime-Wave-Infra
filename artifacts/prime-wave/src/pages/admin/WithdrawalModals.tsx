@@ -124,6 +124,67 @@ export function RejectModal({ w, onClose, onConfirm }: { w: WithdrawalStub; onCl
   );
 }
 
+// ─── Guarded BROADCAST_UNKNOWN rejection/refund ───────────────────────────────
+export const BROADCAST_UNKNOWN_REJECTION_REASON =
+  "Broadcast outcome could not be verified and no transaction evidence exists; withdrawal rejected and refunded.";
+
+export function RejectAndRefundModal({
+  w,
+  onClose,
+  onConfirm,
+}: {
+  w: WithdrawalStub;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const [checked, setChecked] = useState(false);
+
+  return (
+    <Shell width={500} onClose={onClose}>
+      <Header
+        icon={ShieldX}
+        title="Reject & Refund"
+        sub={w.id}
+        color="#f87171"
+        bg="rgba(248,113,113,0.1)"
+        onClose={onClose}
+      />
+      <div style={{ padding: "16px 20px 20px" }}>
+        <AmountRow label="Withdrawal ID" value={w.id} />
+        <AmountRow label="Amount" value={`$${w.amount.toLocaleString()}`} color="#f87171" />
+        <AmountRow label="Exact Refund Amount" value={`$${w.amount.toLocaleString()}`} color="#34d399" />
+        <AmountRow label="Destination" value={w.destinationAddress} />
+        <AmountRow label="Network" value={w.network} />
+        <AmountRow label="Current Status" value={w.status} />
+        <div style={{ marginTop: 16, padding: "12px 13px", borderRadius: 9, background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.24)" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#f97316", marginBottom: 5 }}>No transaction evidence required</div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", lineHeight: 1.55 }}>
+            This guarded action is available only for BROADCAST_UNKNOWN withdrawals with no tx hash, signing timestamp, or broadcast timestamp. It releases only this withdrawal amount from locked funds and credits it back to the withdrawal wallet.
+          </div>
+        </div>
+        <div style={{ marginTop: 12, marginBottom: 12, fontSize: 11, color: MUTED, lineHeight: 1.5 }}>
+          Reason recorded in the audit trail: {BROADCAST_UNKNOWN_REJECTION_REASON}
+        </div>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer", fontSize: 12, color: "rgba(255,255,255,0.65)", marginBottom: 16, lineHeight: 1.5 }}>
+          <input type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} style={{ accentColor: "#f87171", width: 14, height: 14, marginTop: 2, flexShrink: 0 }} />
+          I confirm there is no transaction evidence and authorize an exact refund of the amount shown above.
+        </label>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Btn label="Cancel" onClick={onClose} />
+          <Btn
+            label="Reject & Refund"
+            onClick={() => { if (checked) { onConfirm(BROADCAST_UNKNOWN_REJECTION_REASON); onClose(); } }}
+            disabled={!checked}
+            color="#f87171"
+            bg="rgba(248,113,113,0.1)"
+            border="rgba(248,113,113,0.3)"
+          />
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
 // ─── Hold ─────────────────────────────────────────────────────────────────────
 export function HoldModal({ w, onClose, onConfirm }: { w: WithdrawalStub; onClose: () => void; onConfirm: (reason: string, date: string) => void }) {
   const [reason, setReason] = useState("");
