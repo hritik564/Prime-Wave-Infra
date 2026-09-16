@@ -1,0 +1,399 @@
+POST-PUBLISH PRODUCTION VERIFICATION — READ-ONLY ONLY
+
+The latest withdrawal processor safety build has now been published to production.
+
+Perform a comprehensive READ-ONLY production verification of the published deployment.
+
+IMPORTANT SAFETY RULES:
+- Do NOT approve any withdrawal.
+- Do NOT reject any withdrawal.
+- Do NOT refund anything.
+- Do NOT retry any withdrawal.
+- Do NOT move any withdrawal between states.
+- Do NOT modify balances.
+- Do NOT modify ledger records.
+- Do NOT sign a transaction.
+- Do NOT broadcast a transaction.
+- Do NOT change secrets.
+- Do NOT change BLOCKCHAIN_DRY_RUN.
+- Do NOT change MIN_HOT_WALLET_BNB.
+- Do NOT create a test withdrawal.
+- Do NOT directly modify the production database.
+- Do NOT use any authentication bypass.
+- Do NOT automatically reconcile PW-WD-000130 or the three historical BROADCAST_UNKNOWN withdrawals.
+
+The purpose is ONLY to confirm that the published runtime is healthy and that the new processor code is actually running.
+
+==================================================
+1. DEPLOYMENT VERIFICATION
+==================================================
+
+Confirm:
+
+- Production deployment is active.
+- Latest intended build is deployed.
+- API is healthy.
+- /api/healthz returns HTTP 200.
+- Frontend loads successfully.
+- API and worker processes are running.
+- No startup crash or restart loop exists.
+- No new migration is unexpectedly pending.
+
+Report deployment/build identifier if safely available.
+
+==================================================
+2. EFFECTIVE PRODUCTION CONFIGURATION
+==================================================
+
+Read configuration metadata without displaying secret values.
+
+Confirm:
+
+BSC_RPC_PRIMARY:
+- PRESENT
+- Do not print the credential or full credential-bearing URL.
+
+HOT_WALLET_ADDRESS:
+- PRESENT
+- Mask the address.
+
+HOT_WALLET_PRIVATE_KEY:
+- PRESENT
+- NEVER print, hash, log, or expose the private key.
+
+BLOCKCHAIN_DRY_RUN:
+- Report the effective value.
+
+MIN_HOT_WALLET_BNB:
+- Report the effective value.
+
+MIN_HOT_WALLET_USDT:
+- Report the effective value.
+
+Confirm that the currently intended values are:
+
+BLOCKCHAIN_DRY_RUN=false
+MIN_HOT_WALLET_BNB=0.0015
+
+Do not change either value.
+
+==================================================
+3. HOT WALLET READ-ONLY VERIFICATION
+==================================================
+
+Using the existing safe diagnostic path:
+
+- Derive/check the address corresponding to the configured private key opaquely.
+- Confirm PRIVATE KEY ↔ HOT WALLET ADDRESS = MATCH.
+- Never display the private key.
+- Report only MATCH/MISMATCH.
+
+Read current balances:
+
+- BNB
+- USDT
+
+Compare against:
+
+Minimum BNB = 0.0015
+Minimum USDT = 1
+
+Also report:
+
+- latest nonce
+- pending nonce
+
+Do not send anything.
+
+==================================================
+4. BSC / RPC READ-ONLY VERIFICATION
+==================================================
+
+Verify:
+
+- RPC reachable
+- Chain ID = 56
+- latest block obtainable
+- configured USDT contract is correct for BSC
+- USDT bytecode exists
+- symbol
+- name
+- decimals
+- read-only gas estimation works
+
+Do NOT sign or submit any transaction.
+
+Report:
+
+RPC = PASS/FAIL
+Chain ID = PASS/FAIL
+USDT contract = PASS/FAIL
+USDT metadata = PASS/FAIL
+Gas estimation = PASS/FAIL
+
+==================================================
+5. ACTIVATION GATE
+==================================================
+
+Run the existing live-processing readiness/activation diagnostic.
+
+Do NOT change the gate.
+
+Report every gate individually:
+
+- schema readiness
+- withdrawal ledger index
+- RPC reachability
+- chain ID
+- USDT contract
+- USDT metadata
+- hot-wallet configuration
+- private-key/address correspondence
+- BNB threshold
+- USDT threshold
+- dry-run state
+- unresolved reconciliation records
+- claimable APPROVED withdrawals
+- worker readiness
+
+Then report:
+
+OVERALL LIVE ACTIVATION GATE = OPEN or CLOSED
+
+If CLOSED, give the exact reasons.
+
+Do not attempt to open the gate.
+
+==================================================
+6. PRODUCTION WITHDRAWAL STATES
+==================================================
+
+Read-only query withdrawal counts by status.
+
+Pay particular attention to:
+
+- PENDING
+- APPROVED
+- PROCESSING / internal QUEUED
+- BROADCAST_UNKNOWN
+- MANUAL_REVIEW
+- COMPLETED
+- REJECTED
+
+Confirm whether any withdrawal is currently:
+
+APPROVED
+
+If any APPROVED withdrawal exists, report:
+
+- withdrawal ID
+- amount
+- current status
+- claimOwner
+- claimToken presence/absence
+- claim expiry
+
+Do NOT claim or process it.
+
+==================================================
+7. PW-WD-000130
+==================================================
+
+Inspect PW-WD-000130 READ-ONLY.
+
+Expected current state from the previous report:
+
+BROADCAST_UNKNOWN
+txHash = NULL
+broadcastAt = NULL
+stale signedAt = present
+no active claim
+no wallet settlement transaction
+
+Confirm its actual current values.
+
+Do NOT call the incident-correction endpoint.
+
+Do NOT move it to MANUAL_REVIEW.
+
+Do NOT reject or refund it.
+
+Do NOT retry it.
+
+Confirm whether the newly published incident-correction endpoint exists.
+
+A protected unauthenticated probe may be used only if it is completely non-mutating and returns the expected authentication response, but do not authenticate or execute the mutation.
+
+==================================================
+8. HISTORICAL BROADCAST_UNKNOWN WITHDRAWALS
+==================================================
+
+Inspect only:
+
+PW-WD-000118
+PW-WD-000121
+PW-WD-000123
+
+Confirm:
+
+- status
+- txHash
+- signedAt
+- broadcastAt
+- claimOwner
+- claimToken
+- claimExpiresAt
+
+Do not modify any of them.
+
+Confirm they remain non-claimable by the automatic processor.
+
+Do not execute Reject & Refund.
+
+==================================================
+9. PROCESSOR CODE VERIFICATION
+==================================================
+
+Verify that the PUBLISHED runtime contains the latest processor fixes.
+
+Specifically confirm:
+
+A. Distributed nonce lock:
+- PostgreSQL advisory lock is still used.
+- Prisma no longer attempts to deserialize the PostgreSQL void result.
+- The lock is transaction-scoped.
+
+B. Signing lifecycle:
+- SIGNED is recorded only after actual cryptographic signing succeeds.
+- signedAt is not set merely because the processor entered the sign/broadcast phase.
+
+C. Broadcast lifecycle:
+- BROADCASTING occurs immediately before RPC submission.
+- txHash is persisted only after eth_sendRawTransaction successfully returns a valid hash.
+- broadcastAt is persisted only after a valid transaction hash is received.
+
+D. Failure classification:
+- pre-signing failure → PENDING
+- genuine signing/broadcast ambiguity → BROADCAST_UNKNOWN
+- no automatic refund on processor failure
+
+E. Retry safety:
+- no automatic retry of ambiguous broadcasts
+- raw transaction submission is not blindly retried after an ambiguous network error
+
+Report PASS/FAIL for each.
+
+==================================================
+10. RUNTIME LOG VERIFICATION
+==================================================
+
+Inspect recent production logs.
+
+Look specifically for:
+
+- advisory-lock Prisma void deserialization errors
+- "Failed to deserialize column of type 'void'"
+- nonce lock failures
+- signing failures
+- broadcast failures
+- RPC timeout/retry errors
+- database errors
+- worker crashes
+- duplicate worker claims
+- unexpected automatic retries
+- unexpected withdrawal state transitions
+
+Do not expose secrets or credential-bearing URLs.
+
+For any relevant error, provide:
+- timestamp
+- sanitized error classification
+- affected component
+- whether it appears new after the latest publish
+
+Do not reproduce sensitive values.
+
+==================================================
+11. IMPORTANT: DO NOT CREATE ANOTHER LIVE WITHDRAWAL
+==================================================
+
+Do NOT create or process another withdrawal as part of this verification.
+
+We will only perform a controlled live withdrawal test after:
+
+1. The published processor is verified.
+2. PW-WD-000130 is safely corrected.
+3. The three historical BROADCAST_UNKNOWN records are reconciled.
+4. A fresh activation audit confirms the gate is open.
+
+==================================================
+12. FINAL REPORT
+==================================================
+
+Return a concise but complete report with:
+
+DEPLOYMENT:
+PASS/FAIL
+
+CONFIGURATION:
+- dry-run
+- BNB minimum
+- secret presence only
+- wallet key/address match
+
+BLOCKCHAIN:
+- RPC
+- chain
+- USDT
+- gas estimation
+
+HOT WALLET:
+- BNB
+- USDT
+- nonce
+- pending nonce
+
+WITHDRAWAL STATES:
+- counts by status
+- any APPROVED withdrawals
+
+PW-WD-000130:
+- current status
+- transaction evidence
+- untouched confirmation
+
+HISTORICAL BROADCAST_UNKNOWN:
+- 000118
+- 000121
+- 000123
+- untouched confirmation
+
+PUBLISHED PROCESSOR FIXES:
+- advisory lock
+- signing lifecycle
+- broadcast lifecycle
+- failure classification
+- retry safety
+
+RUNTIME HEALTH:
+- errors/warnings
+- whether anything new appeared after publish
+
+ACTIVATION GATE:
+OPEN/CLOSED
+
+If CLOSED:
+- list every exact blocker.
+
+If OPEN:
+- explicitly state that the read-only gate is open, but DO NOT process a withdrawal.
+
+FINAL SAFETY CONFIRMATION:
+- production records modified: YES/NO
+- production balances modified: YES/NO
+- production ledger modified: YES/NO
+- transaction signed: YES/NO
+- transaction broadcast: YES/NO
+- funds moved: YES/NO
+- production secrets exposed: YES/NO
+- automatic withdrawal test executed: YES/NO
