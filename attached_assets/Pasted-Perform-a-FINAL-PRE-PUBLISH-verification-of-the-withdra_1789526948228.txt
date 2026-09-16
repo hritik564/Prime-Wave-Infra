@@ -1,0 +1,292 @@
+Perform a FINAL PRE-PUBLISH verification of the withdrawal-management changes.
+
+Do NOT publish, deploy, modify production data, approve/reject/refund any production withdrawal, sign transactions, broadcast transactions, modify wallet balances, or change production secrets.
+
+I specifically want to close the remaining verification gap from the previous report: the authenticated Admin Withdrawal UI was not visually opened because the preview required authentication.
+
+==================================================
+1. AUTHENTICATED ADMIN UI VERIFICATION
+==================================================
+
+Use the existing development/test authentication mechanism only.
+
+Open the actual Admin Withdrawal Management page in the development/preview environment.
+
+Verify the three-dot action menu on representative withdrawals in each relevant state.
+
+Do not use production credentials.
+
+Do not create or modify production accounts.
+
+==================================================
+2. VERIFY PENDING
+==================================================
+
+For a PENDING withdrawal, visually and functionally verify that the three-dot menu contains:
+
+- Approve
+- Reject
+
+Verify that:
+
+- Hold is absent.
+- Assign Reviewer is absent.
+- No other obsolete withdrawal-management action remains.
+
+DO NOT actually execute Approve or Reject during this verification.
+
+==================================================
+3. VERIFY APPROVED
+==================================================
+
+For an APPROVED withdrawal, verify that the menu contains:
+
+- Reject
+
+Verify:
+
+- Approve is absent.
+- Hold is absent.
+- Assign Reviewer is absent.
+
+Do not execute the action.
+
+==================================================
+4. VERIFY PROCESSING
+==================================================
+
+For a QUEUED/internal-processing withdrawal, verify that the UI displays:
+
+PROCESSING
+
+Verify:
+
+- QUEUED is not exposed as a separate business status/filter.
+- Approve is absent.
+- Reject is absent.
+- Refund is absent.
+
+Verify that the UI does not incorrectly imply that the withdrawal is safely cancellable while actively processing.
+
+==================================================
+5. VERIFY BROADCAST_UNKNOWN
+==================================================
+
+Verify that BROADCAST_UNKNOWN is displayed distinctly.
+
+Verify:
+
+- No normal Reject/Refund action is available.
+- The UI does not imply that the funds are safely refundable without reconciliation.
+
+==================================================
+6. VERIFY MANUAL_REVIEW
+==================================================
+
+Verify that MANUAL_REVIEW provides:
+
+- Reject
+
+Verify obsolete actions remain absent.
+
+==================================================
+7. VERIFY COMPLETED
+==================================================
+
+For COMPLETED:
+
+There must be NO:
+
+- Approve
+- Reject
+- Refund
+- destructive withdrawal action
+
+The completed withdrawal must remain immutable from this admin control.
+
+==================================================
+8. VERIFY REJECTED
+==================================================
+
+For REJECTED:
+
+There must be no:
+
+- Approve
+- Reject
+- Refund
+
+The record should be treated as terminal.
+
+==================================================
+9. STATUS FILTERS
+==================================================
+
+Verify the Admin Withdrawal section filters/status labels.
+
+Specifically confirm:
+
+- PENDING exists.
+- APPROVED exists.
+- PROCESSING exists.
+- BROADCAST_UNKNOWN exists.
+- MANUAL_REVIEW exists if supported by the existing UI.
+- COMPLETED exists.
+- REJECTED exists.
+- QUEUED is NOT presented as an independent business status.
+
+==================================================
+10. DETAIL/TIMELINE
+==================================================
+
+Open a representative withdrawal detail view.
+
+Verify that backend withdrawal events are actually rendered.
+
+Check that events such as:
+
+- PROCESSOR_FAILURE
+- state transitions
+- retry events
+
+are displayed correctly when present.
+
+Do not fabricate test events in production.
+
+==================================================
+11. BACKEND VS FRONTEND AUTHORIZATION
+==================================================
+
+Confirm that hiding an action in the UI is NOT the only protection.
+
+For each protected endpoint verify that the backend independently checks:
+
+- authentication
+- authorization
+- current withdrawal state
+- valid state transition
+- accounting safety requirements
+
+A manually constructed API request must not bypass the UI restrictions.
+
+Do this against development/test data only.
+
+==================================================
+12. ACCOUNTING SAFETY REVIEW
+==================================================
+
+Verify that:
+
+PENDING → REJECTED
+
+and:
+
+APPROVED → REJECTED
+
+use the existing hardened atomic rejection service.
+
+Confirm:
+
+- exact withdrawal amount is released
+- exact withdrawal amount is credited
+- no aggregate locked balance is accidentally released
+- one withdrawal-linked ledger transaction is created
+- withdrawalRequestId uniqueness prevents duplicate refunds
+- state transition and accounting mutation occur atomically
+
+Do not execute these transactions against production.
+
+==================================================
+13. PROCESSOR FAILURE REVIEW
+==================================================
+
+Confirm the implemented classification:
+
+Pre-signing failure:
+PROCESSING → PENDING
+
+No balance modification.
+
+No refund ledger entry.
+
+No automatic credit.
+
+Ambiguous/signing/broadcast failure:
+→ BROADCAST_UNKNOWN
+
+No automatic refund.
+
+Confirmed transaction:
+→ COMPLETED
+
+No refund/rejection.
+
+==================================================
+14. CONCURRENCY REVIEW
+==================================================
+
+Confirm existing tests cover concurrent:
+
+- approval
+- rejection
+- processor failure
+- retry
+
+and that only one valid financial effect can occur.
+
+==================================================
+15. FINAL VERIFICATION
+==================================================
+
+Run:
+
+- Full API test suite
+- Withdrawal integration tests
+- Focused withdrawal tests
+- API typecheck
+- Frontend typecheck
+- API build
+- Frontend production build
+- Prisma validation
+- git diff --check
+
+Report exact numbers.
+
+==================================================
+16. PRODUCTION SAFETY
+==================================================
+
+Explicitly verify:
+
+- No production withdrawal changed.
+- No production balance changed.
+- No production ledger row created.
+- No blockchain transaction signed.
+- No blockchain transaction broadcast.
+- No hot-wallet configuration changed.
+- BLOCKCHAIN_DRY_RUN remains unchanged.
+- No production secret changed.
+- No production RPC credential changed.
+- No production database migration is required beyond already-applied migrations.
+- No publish/deployment occurred during this verification.
+
+==================================================
+17. FINAL REPORT
+
+Return a concise final report with:
+
+1. UI verification result
+2. Action availability by withdrawal state
+3. Status/filter verification
+4. Backend authorization verification
+5. Accounting safety verification
+6. Processor failure behavior
+7. Concurrency verification
+8. Test results
+9. Build/typecheck results
+10. Production safety verification
+11. Any remaining blockers
+
+If authenticated UI verification cannot be completed, STOP and explicitly identify it as a remaining blocker.
+
+Do not publish automatically.
