@@ -1,0 +1,337 @@
+PRIMEWAVE — ADD GUARDED RECONCILIATION ACTION FOR PW-WD-000103
+
+Implement ONLY the minimal production-safe reconciliation capability required by the latest activation preflight.
+
+DO NOT activate automatic withdrawals.
+DO NOT change BLOCKCHAIN_DRY_RUN.
+DO NOT configure the hot wallet.
+DO NOT fund the hot wallet.
+DO NOT sign or broadcast transactions.
+DO NOT refund, reject, approve, retry, or otherwise financially settle any withdrawal.
+DO NOT publish or deploy.
+
+==================================================
+OBJECTIVE
+==================================================
+
+The production withdrawal:
+
+PW-WD-000103
+
+is currently:
+
+APPROVED
+
+and therefore potentially claimable by the automatic withdrawal worker.
+
+Its accounting/history requires investigation before automatic withdrawals can be enabled.
+
+We need a guarded administrative reconciliation action that can move:
+
+APPROVED → MANUAL_REVIEW
+
+without changing any financial/accounting state.
+
+This is a protection/reconciliation operation, NOT a refund or settlement operation.
+
+==================================================
+1. STATE TRANSITION
+==================================================
+
+Add the minimal safe state-machine transition:
+
+APPROVED → MANUAL_REVIEW
+
+Do not modify any other existing state transitions.
+
+The transition must be conditional and atomic.
+
+Require the withdrawal to still be:
+
+APPROVED
+
+at the moment of the update.
+
+If another process has already changed the state, return a conflict and perform no other operation.
+
+==================================================
+2. ACCOUNTING INVARIANT
+==================================================
+
+The transition MUST NOT modify:
+
+- available withdrawal balance
+- locked withdrawal balance
+- wallet balances
+- wallet transaction ledger
+- withdrawal debit ledger
+- transaction hash
+- signedAt
+- broadcastAt
+- processedAt
+- completion metadata
+- refund metadata
+
+The only intended financial effect is:
+
+NONE
+
+The only intended withdrawal state change is:
+
+APPROVED → MANUAL_REVIEW
+
+==================================================
+3. ADMIN AUTHORIZATION
+==================================================
+
+The reconciliation action must require the existing appropriate administrative authorization.
+
+Do not create a new authentication mechanism.
+
+Do not weaken authorization.
+
+Do not allow ordinary users to invoke it.
+
+Do not expose it through a public endpoint.
+
+Use the existing admin audit infrastructure.
+
+==================================================
+4. STRICT SCOPE
+==================================================
+
+The implementation must support reconciliation safely for approved withdrawals, but the initial production execution must be restricted to:
+
+PW-WD-000103
+
+Do not automatically reconcile all APPROVED withdrawals.
+
+Do not run a bulk UPDATE.
+
+Do not create a startup job that modifies APPROVED withdrawals.
+
+Do not modify PW-WD-000103 during this development task unless explicitly requested in a later approval.
+
+==================================================
+5. IDEMPOTENCY
+==================================================
+
+The action must be idempotent and state-aware.
+
+If the withdrawal is already:
+
+MANUAL_REVIEW
+
+the operation must become a safe no-op or return an explicit already-reconciled response.
+
+It must NOT:
+
+- create duplicate financial entries
+- change balances
+- create duplicate reconciliation events
+- repeatedly alter the withdrawal
+
+If the withdrawal is not APPROVED or MANUAL_REVIEW, reject the operation safely.
+
+==================================================
+6. AUTOMATIC WORKER PROTECTION
+==================================================
+
+After the transition:
+
+MANUAL_REVIEW
+
+must remain non-claimable by the automatic withdrawal worker.
+
+Verify that the worker's claim query cannot claim the withdrawal.
+
+The worker must continue to claim only:
+
+APPROVED
+
+withdrawals.
+
+==================================================
+7. AUDIT / TIMELINE
+==================================================
+
+Record a clear administrative audit/timeline event when the reconciliation action is actually executed.
+
+The event should identify:
+
+- withdrawal ID
+- previous state
+- new state
+- administrative actor
+- timestamp
+- reconciliation reason
+- that no financial/accounting operation was performed
+
+Do not put secrets or credentials into the event.
+
+Suggested reason:
+
+"Withdrawal requires reconciliation before automatic processing; no financial settlement performed."
+
+==================================================
+8. ADMIN UI
+==================================================
+
+Add a clearly named action for this operation only where appropriate.
+
+Suggested label:
+
+"Move to Manual Review"
+
+Do NOT reuse the old "Hold" action.
+
+Do NOT restore:
+
+- Hold
+- Assign Reviewer
+- Refund
+- Re-process
+
+The action must clearly communicate that this is reconciliation/protection and does NOT refund the withdrawal.
+
+Require a confirmation modal.
+
+The modal should display:
+
+- Withdrawal ID
+- amount
+- member
+- current status
+- destination address
+- network
+- warning that no refund or balance change will occur
+- required confirmation
+
+The action should only be available for APPROVED withdrawals.
+
+==================================================
+9. API ENFORCEMENT
+==================================================
+
+Do not rely on frontend hiding.
+
+The backend must independently enforce:
+
+- authenticated admin
+- authorized role
+- current status = APPROVED
+- conditional state transition
+- no financial mutation
+
+Attempting the action on:
+
+PENDING
+PROCESSING
+BROADCAST_UNKNOWN
+MANUAL_REVIEW
+COMPLETED
+REJECTED
+
+must not produce an unintended state or financial change.
+
+==================================================
+10. TESTS
+
+Add focused tests covering:
+
+1. APPROVED → MANUAL_REVIEW succeeds.
+2. Wallet balances remain unchanged.
+3. Locked balance remains unchanged.
+4. Wallet ledger remains unchanged.
+5. Withdrawal financial ledger remains unchanged.
+6. Transaction fields remain unchanged.
+7. Non-admin cannot perform the action.
+8. PENDING cannot be moved using this action.
+9. PROCESSING cannot be moved using this action.
+10. BROADCAST_UNKNOWN cannot be moved using this action.
+11. COMPLETED cannot be moved using this action.
+12. REJECTED cannot be moved using this action.
+13. Repeated execution is idempotent.
+14. Concurrent execution produces only one state transition.
+15. Worker cannot claim the withdrawal after it reaches MANUAL_REVIEW.
+
+Use development fixtures only.
+
+Do not touch production data during testing.
+
+==================================================
+11. PRODUCTION VERIFICATION
+==================================================
+
+After implementation, perform READ-ONLY production verification.
+
+Confirm:
+
+PW-WD-000103
+
+Current status:
+APPROVED
+
+Automatically claimable:
+YES before reconciliation
+
+Do NOT execute the reconciliation yet.
+
+Return the exact API/UI action that will be used for the later explicit production approval.
+
+==================================================
+12. BUILD AND QUALITY CHECKS
+==================================================
+
+Run:
+
+- withdrawal unit tests
+- withdrawal integration tests
+- full API test suite
+- API typecheck
+- API build
+- Prisma validation
+- frontend typecheck
+- frontend production build
+- git diff --check
+
+Do not publish.
+
+Do not deploy.
+
+==================================================
+13. PRODUCTION SAFETY CONFIRMATION
+
+At the end confirm:
+
+Production withdrawal modified: NO
+Production balance modified: NO
+Production ledger modified: NO
+Production state changed: NO
+Transaction signed: NO
+Transaction broadcast: NO
+Funds moved: NO
+Private key accessed: NO
+RPC credential exposed: NO
+BLOCKCHAIN_DRY_RUN changed: NO
+Automatic withdrawals enabled: NO
+Publish: NO
+Deployment: NO
+
+==================================================
+FINAL RESPONSE
+
+Return:
+
+1. IMPLEMENTATION SUMMARY
+2. STATE-MACHINE CHANGE
+3. ACCOUNTING SAFETY VERIFICATION
+4. ADMIN UI VERIFICATION
+5. BACKEND AUTHORIZATION VERIFICATION
+6. TEST RESULTS
+7. PRODUCTION READ-ONLY STATUS
+8. EXACT PRODUCTION ACTION AVAILABLE FOR LATER APPROVAL
+
+STOP.
+
+Do not execute the production reconciliation.
