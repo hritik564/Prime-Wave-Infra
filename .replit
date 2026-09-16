@@ -29,7 +29,7 @@ MIN_HOT_WALLET_BNB = "0.0015"
 [userenv.development]
 
 [userenv.shared]
-BLOCKCHAIN_DRY_RUN = "true"
+BLOCKCHAIN_DRY_RUN = "false"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-c49ce2b1-feb8-40b5-abd6-6db368d836fa"
