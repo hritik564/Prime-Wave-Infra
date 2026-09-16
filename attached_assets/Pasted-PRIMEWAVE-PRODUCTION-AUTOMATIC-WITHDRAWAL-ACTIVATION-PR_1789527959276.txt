@@ -1,0 +1,392 @@
+PRIMEWAVE — PRODUCTION AUTOMATIC WITHDRAWAL ACTIVATION PREFLIGHT
+
+We have completed and verified the withdrawal hardening and Admin Withdrawal Management implementation.
+
+Before enabling automatic withdrawals, perform a FINAL PRODUCTION READINESS PREFLIGHT.
+
+IMPORTANT:
+
+Do not publish.
+Do not deploy.
+Do not approve/reject/refund any withdrawal.
+Do not sign a blockchain transaction.
+Do not broadcast a blockchain transaction.
+Do not move production funds.
+
+The purpose of this task is to inspect production configuration and runtime readiness and report whether automatic withdrawals can safely be activated.
+
+==================================================
+1. PRODUCTION DATABASE SCHEMA
+==================================================
+
+Verify read-only that the production database contains the reviewed Phase 1 withdrawal-hardening schema:
+
+- BROADCAST_UNKNOWN enum value
+- claimOwner
+- claimToken
+- claimExpiresAt
+- broadcastUnknownAt
+- broadcastUnknownReason
+- wallet_transactions.withdrawal_request_id
+- unique withdrawal ledger linkage constraint
+- withdrawal claim indexes
+- foreign-key relationship
+
+Do not modify the database.
+
+==================================================
+2. PRODUCTION WITHDRAWAL WORKER
+==================================================
+
+Verify the production worker implementation.
+
+Confirm:
+
+- Worker claims ONLY APPROVED withdrawals.
+- PENDING withdrawals cannot automatically enter processing.
+- QUEUED is an internal processing state.
+- QUEUED is represented as PROCESSING in the admin UI.
+- Duplicate workers cannot claim the same withdrawal.
+- Claim expiration/recovery is active.
+- Concurrent claim protection is functioning.
+
+Do not process any production withdrawal during this verification.
+
+==================================================
+3. FAILURE CLASSIFICATION
+==================================================
+
+Verify the production code currently implements:
+
+Reliable pre-signing failure:
+
+PROCESSING
+→ PENDING
+
+with:
+
+- no refund
+- no wallet balance modification
+- no refund ledger entry
+
+Signing/broadcast ambiguity:
+
+→ BROADCAST_UNKNOWN
+
+with:
+
+- no automatic refund
+- locked funds preserved
+- reconciliation required
+
+Confirmed blockchain settlement:
+
+→ COMPLETED
+
+with:
+
+- exactly one accounting settlement
+- duplicate completion prevented
+
+==================================================
+4. HISTORICALLY STALE WITHDRAWALS
+==================================================
+
+Explicitly inspect these production withdrawals READ-ONLY:
+
+PW-WD-000118
+PW-WD-000121
+PW-WD-000123
+
+Confirm their current status and confirm that automatic processing cannot accidentally pick them up.
+
+They must NOT be approved, rejected, refunded, retried, rebroadcast, or otherwise modified during this task.
+
+Also inspect PW-WD-000103 and confirm it remains independently protected.
+
+==================================================
+5. HOT WALLET CONFIGURATION
+==================================================
+
+Read only the existence/configuration metadata required to determine readiness.
+
+Verify:
+
+HOT_WALLET_ADDRESS
+
+is configured.
+
+Verify the configured address is a valid BSC address.
+
+Verify the private signing key exists in the secure production secret mechanism if automatic signing is intended.
+
+DO NOT print, expose, log, copy, hash for display, or otherwise reveal the private key.
+
+==================================================
+6. ADDRESS / PRIVATE KEY CORRESPONDENCE
+==================================================
+
+Verify that the configured private key corresponds to:
+
+HOT_WALLET_ADDRESS
+
+using a safe cryptographic comparison.
+
+Do not display the private key.
+
+Report only:
+
+MATCH
+or
+MISMATCH
+
+If mismatch:
+
+STOP.
+
+Do not enable automatic withdrawals.
+
+==================================================
+7. BLOCKCHAIN NETWORK
+==================================================
+
+Verify the production RPC is connected to BSC mainnet.
+
+Expected chain ID:
+
+56
+
+Verify:
+
+- latest block can be retrieved
+- gas estimation works
+- transaction submission capability is available if required by the implementation
+- USDT contract can be read
+
+Do not submit a transaction.
+
+==================================================
+8. USDT CONTRACT
+==================================================
+
+Verify the configured USDT contract corresponds to the intended BSC USDT contract.
+
+Verify:
+
+- contract address
+- symbol
+- name
+- decimals
+
+Expected decimals:
+
+18
+
+Do not modify configuration.
+
+==================================================
+9. HOT WALLET BALANCES
+==================================================
+
+Perform READ-ONLY balance checks.
+
+Verify:
+
+- BNB balance is sufficient for gas
+- USDT balance is sufficient for the intended operational withdrawal reserve
+
+Do not transfer or move any funds.
+
+Report the balances and whether they meet the application's configured minimum operational thresholds.
+
+If thresholds are not explicitly configured, report that fact rather than inventing a threshold.
+
+==================================================
+10. RPC LOGGING / CREDENTIAL SECURITY
+==================================================
+
+Verify that production runtime logs do not expose:
+
+- RPC credentials
+- private keys
+- authorization headers
+- sensitive environment variables
+
+Recall that a historical deployment log previously appeared to contain a credential-bearing RPC endpoint.
+
+Do NOT print that credential.
+
+Verify whether the production credential has already been rotated.
+
+If it has NOT been rotated:
+
+STOP automatic activation and report:
+
+RPC CREDENTIAL ROTATION REQUIRED
+
+Do not expose the credential in the report.
+
+==================================================
+11. BLOCKCHAIN DRY RUN
+==================================================
+
+Read the current production value of:
+
+BLOCKCHAIN_DRY_RUN
+
+Do NOT change it during this task.
+
+Report the exact current value.
+
+If it is TRUE:
+
+Automatic real withdrawals MUST remain disabled.
+
+If activation requires changing it to FALSE, explicitly identify this as a separate production activation step requiring approval.
+
+Do not change it automatically.
+
+==================================================
+12. WITHDRAWAL QUEUE SAFETY
+==================================================
+
+Verify that enabling the worker would not automatically process:
+
+- PENDING withdrawals
+- BROADCAST_UNKNOWN withdrawals
+- MANUAL_REVIEW withdrawals
+- PROCESSING withdrawals
+- COMPLETED withdrawals
+- REJECTED withdrawals
+
+Only APPROVED withdrawals may enter the automatic processing queue.
+
+==================================================
+13. ACCOUNTING SAFETY
+==================================================
+
+Verify production code uses the hardened completion/rejection services.
+
+Confirm:
+
+- withdrawalRequestId ledger linkage
+- unique settlement protection
+- conditional state transitions
+- exact locked-balance release
+- duplicate completion prevention
+- duplicate refund prevention
+
+Do not perform any financial operation.
+
+==================================================
+14. TRANSACTION VERIFICATION
+==================================================
+
+Verify that successful withdrawal settlement requires the hardened blockchain evidence checks:
+
+- transaction receipt exists
+- transaction succeeded
+- required confirmations exist
+- correct chain
+- correct token
+- correct sender
+- correct recipient
+- exact expected amount
+- canonical ERC-20 Transfer event
+
+Do not broadcast a test transaction.
+
+==================================================
+15. WORKER RUNTIME
+==================================================
+
+Verify production worker health.
+
+Report:
+
+- worker process status
+- queue status
+- withdrawal processor status
+- relevant error count
+- recent processor failures
+- recent BROADCAST_UNKNOWN events
+- whether stale recovery is running
+
+Do not manually trigger a withdrawal.
+
+==================================================
+16. FINAL ACTIVATION DECISION
+==================================================
+
+Return exactly one of:
+
+READY FOR ACTIVATION
+
+or
+
+NOT READY FOR ACTIVATION
+
+If NOT READY:
+
+List every blocker.
+
+If READY:
+
+Provide a separate list titled:
+
+EXPLICIT ACTIVATION STEPS
+
+The activation steps must identify exactly what must be changed to enable real automatic withdrawals.
+
+Do not perform those changes automatically.
+
+==================================================
+17. PRODUCTION SAFETY
+==================================================
+
+Confirm:
+
+Production data modified:
+NO
+
+Production balances modified:
+NO
+
+Production withdrawals modified:
+NO
+
+Transaction signed:
+NO
+
+Transaction broadcast:
+NO
+
+Funds moved:
+NO
+
+Private key exposed:
+NO
+
+Secrets exposed:
+NO
+
+Publish:
+NO
+
+Deployment:
+NO
+
+==================================================
+IMPORTANT
+==================================================
+
+This is a PREFLIGHT ONLY.
+
+Do not enable automatic withdrawals.
+Do not disable BLOCKCHAIN_DRY_RUN.
+Do not configure or change the hot wallet.
+Do not rotate credentials automatically.
+Do not publish.
+Do not deploy.
+
+Return the complete readiness report and STOP.
