@@ -1,0 +1,496 @@
+FINAL PRE-PUBLISH VERIFICATION — AUTOMATIC WITHDRAWAL PROCESSING
+
+The latest implementation changes normal eligible withdrawals from requiring manual admin approval to automatic processing.
+
+DO NOT publish or deploy.
+DO NOT modify production data.
+DO NOT create, approve, reject, refund, reconcile, retry, sign, or broadcast any withdrawal.
+DO NOT change production configuration, secrets, BLOCKCHAIN_DRY_RUN, or environment variables.
+
+I will publish manually after this verification.
+
+Verify the implementation thoroughly before I publish.
+
+==================================================
+1. CONFIRM THE NEW NORMAL FLOW
+==================================================
+
+Confirm the actual implemented state flow for a normal eligible withdrawal.
+
+It must effectively be:
+
+USER CREATES WITHDRAWAL
+→ VALIDATION
+→ ELIGIBILITY
+→ AUTOMATICALLY CLAIMABLE
+→ QUEUED
+→ PROCESSING
+→ NONCE LOCK
+→ PREPARE TRANSFER
+→ CRYPTOGRAPHIC SIGNING
+→ SIGNED
+→ BROADCASTING
+→ eth_sendRawTransaction
+→ txHash
+→ CONFIRMING
+→ SETTLEMENT
+→ COMPLETED
+
+Confirm that no administrator approval is required.
+
+Specifically identify:
+- where eligibility is established
+- where the withdrawal becomes automatically claimable
+- where the worker claims it
+- where QUEUED is assigned
+- where processing begins
+
+==================================================
+2. CRITICAL — VERIFY PENDING CLAIM SAFETY
+==================================================
+
+The new worker can automatically claim aged PENDING withdrawals.
+
+This is the most important area to audit.
+
+Determine EXACTLY why an aged PENDING withdrawal is considered safe to process.
+
+Verify that the worker does NOT simply do:
+
+status = PENDING
+AND age > X
+
+and then process it blindly.
+
+Confirm that all existing validation and eligibility protections still apply.
+
+Inspect the exact code path and identify whether the following are enforced before claim/processing:
+
+- withdrawal amount validity
+- sufficient user available balance
+- locked withdrawal balance correctness
+- destination address validation
+- supported network
+- account eligibility/restrictions
+- withdrawal limits
+- required account checks
+- any compliance/manual-review conditions
+- duplicate withdrawal protection where applicable
+- activation gate
+- wallet readiness
+- BNB threshold
+- USDT threshold
+- RPC readiness
+- chain ID
+- contract configuration
+- gas estimation
+- any existing withdrawal validation functions
+
+If any of these are already enforced elsewhere, identify the exact function and call path.
+
+DO NOT duplicate validation logic unnecessarily.
+
+==================================================
+3. VERIFY EXACT WORKER CLAIM QUERY
+==================================================
+
+Show the exact logical conditions used by the automatic worker to select claimable withdrawals.
+
+Confirm:
+
+- PENDING automatic eligibility
+- APPROVED legacy compatibility
+- active claim protection
+- claim expiration handling
+- FOR UPDATE SKIP LOCKED
+- claimOwner
+- claimToken
+- claimExpiresAt
+- conditional state update
+
+Explain exactly which statuses can now be automatically claimed.
+
+Expected normal claimable status:
+
+PENDING — ONLY IF SAFE/ELIGIBLE
+
+Legacy compatibility:
+
+APPROVED — if legitimately processable
+
+Must NOT automatically claim:
+
+BROADCAST_UNKNOWN
+MANUAL_REVIEW
+REJECTED
+COMPLETED
+FAILED unless an explicitly safe existing retry state permits it
+UNDER_REVIEW
+CANCELLED
+
+If QUEUED is an internal claimed state, confirm whether QUEUED itself can ever be claimed again.
+
+==================================================
+4. AGE REQUIREMENT
+==================================================
+
+The implementation says:
+
+“Normal aged PENDING withdrawals are now automatically claimed.”
+
+Verify:
+
+- what age threshold is used
+- why the threshold exists
+- whether the age is configurable
+- whether a newly created PENDING withdrawal waits before automatic processing
+- whether the queue displays it while waiting
+- whether the worker can claim it immediately after eligibility if that is intended
+
+Make sure there is no accidental infinite waiting period.
+
+Also verify that age is NOT being used as a replacement for validation.
+
+==================================================
+5. ACTIVATION GATE
+==================================================
+
+Confirm that automatic PENDING processing still obeys the existing activation gate.
+
+If the gate is CLOSED because of:
+
+- BROADCAST_UNKNOWN
+- MANUAL_REVIEW
+- schema failure
+- RPC failure
+- chain mismatch
+- contract mismatch
+- gas estimation failure
+- insufficient BNB
+- insufficient USDT
+- wallet/key configuration failure
+- dry-run mode
+- any existing gate blocker
+
+then the worker MUST NOT claim/process the withdrawal.
+
+Verify this from source and tests.
+
+==================================================
+6. ACCOUNTING SAFETY
+==================================================
+
+Confirm the new automatic path does NOT change the existing accounting model incorrectly.
+
+Verify:
+
+- user funds are reserved/locked exactly once
+- lockedWithdrawalBalance is correct
+- withdrawalWallet remains correct
+- automatic claiming does not create a second lock
+- automatic claiming does not unlock funds prematurely
+- processing does not duplicate wallet transactions
+- settlement occurs exactly once
+- rejection/refund remains guarded
+- processor failure does not automatically refund
+- BROADCAST_UNKNOWN remains financially protected
+
+==================================================
+7. BLOCKCHAIN SAFETY
+==================================================
+
+Confirm that NONE of the previously implemented blockchain protections were weakened.
+
+Verify:
+
+- PostgreSQL transaction-scoped advisory nonce lock
+- Prisma-safe advisory-lock result
+- nonce allocation inside distributed lock
+- no concurrent nonce collision
+- cryptographic signing before SIGNED
+- signedAt only after signing succeeds
+- BROADCASTING immediately before raw submission
+- txHash only after valid RPC hash
+- broadcastAt only after valid RPC hash
+- ambiguous broadcast → BROADCAST_UNKNOWN
+- no blind raw-broadcast retry
+- pre-signing failure → safe pending state
+- no automatic refund after processor failure
+- conditional settlement
+- withdrawalRequestId uniqueness
+- duplicate settlement prevention
+
+==================================================
+8. QUEUE VISIBILITY
+==================================================
+
+Verify why the previous eligible $1 withdrawal did not appear in the Withdrawal Queue.
+
+Confirm the new implementation makes automatically processable withdrawals visible.
+
+Verify:
+
+- PENDING appears where appropriate
+- APPROVED legacy records appear where appropriate
+- QUEUED appears
+- PROCESSING appears
+- SIGNED appears
+- BROADCASTING appears
+- CONFIRMING appears
+- BROADCAST_UNKNOWN appears
+- MANUAL_REVIEW appears
+
+Confirm queue counts/filters are consistent with the actual backend statuses.
+
+==================================================
+9. ADMIN APPROVAL REMOVAL
+==================================================
+
+Confirm there is no remaining normal financial dependency on:
+
+PENDING → APPROVED
+
+Search the frontend and backend for:
+
+- Approve Withdrawal
+- Approve
+- approval modal
+- approval handler
+- approval API call
+- PENDING → APPROVED transition
+
+Determine whether any remaining APPROVE functionality is:
+A. required for legacy compatibility, or
+B. still part of the normal withdrawal flow.
+
+If it is still part of the normal flow, fix it.
+
+Do NOT remove the APPROVED state blindly if it is required for legacy records.
+
+==================================================
+10. OLD OBSOLETE ACTIONS
+==================================================
+
+Confirm the previous cleanup remains intact.
+
+There must be no reintroduction of:
+
+- Place on Hold
+- Bulk Hold
+- Assign Reviewer
+- Re-process Withdrawal
+- obsolete Refund Withdrawal
+
+The intended financial actions must remain guarded.
+
+==================================================
+11. STATE MACHINE AUDIT
+==================================================
+
+Inspect the actual state machine.
+
+Confirm:
+
+Normal:
+PENDING/ELIGIBLE → QUEUED → PROCESSING
+
+Legacy:
+APPROVED → safe processing
+
+Protected:
+BROADCAST_UNKNOWN → no automatic processing
+
+MANUAL_REVIEW → no automatic processing
+
+REJECTED → immutable
+
+COMPLETED → immutable
+
+Do not allow unsafe automatic transitions.
+
+If QUEUED is an internal state, explain its lifecycle and recovery behavior.
+
+==================================================
+12. WORKER RESTART / CRASH SAFETY
+==================================================
+
+Verify what happens if the worker:
+
+- crashes after claiming
+- crashes after QUEUED
+- crashes before signing
+- crashes after signing
+- crashes before broadcast
+- crashes during RPC broadcast
+- crashes after broadcast but before persistence
+
+Confirm claim expiry/recovery and broadcast ambiguity behavior remain safe.
+
+Especially verify that a worker restart cannot create a duplicate blockchain transaction.
+
+==================================================
+13. CONCURRENCY
+==================================================
+
+Verify with tests/source:
+
+- two workers cannot claim the same withdrawal
+- two workers cannot allocate the same nonce
+- duplicate polling is safe
+- claim tokens prevent stale-worker mutation
+- settlement uniqueness prevents duplicate wallet records
+
+==================================================
+14. TESTS REQUIRED
+==================================================
+
+Add or update tests for:
+
+1. Eligible PENDING automatically becomes claimable.
+2. Manual approval is not required.
+3. Newly created/ineligible PENDING is not blindly processed.
+4. Age threshold behaves correctly.
+5. Activation gate CLOSED prevents claiming.
+6. BROADCAST_UNKNOWN cannot be claimed.
+7. MANUAL_REVIEW cannot be claimed.
+8. REJECTED cannot be claimed.
+9. COMPLETED cannot be claimed.
+10. Legacy APPROVED remains safely processable.
+11. Two workers cannot claim the same withdrawal.
+12. Expired claim recovery works.
+13. Queue displays automatic states.
+14. No Approve action is exposed for normal PENDING withdrawals.
+15. No fake admin approval event is generated.
+16. Accounting remains exactly-once.
+17. Blockchain lifecycle protections remain intact.
+18. No blind broadcast retry exists.
+
+Run all relevant existing tests as well.
+
+==================================================
+15. VALIDATION
+==================================================
+
+Run:
+
+- full API tests
+- focused withdrawal tests
+- processor tests
+- worker tests
+- state-machine tests
+- admin withdrawal tests
+- queue tests
+- frontend tests if available
+- API typecheck
+- frontend typecheck
+- API build
+- frontend build
+- Prisma validation
+- git diff --check
+
+Do not merely report that tests exist.
+Actually run them.
+
+==================================================
+16. SOURCE SEARCH
+==================================================
+
+Search the complete relevant source tree for:
+
+- PENDING
+- APPROVED
+- QUEUED
+- processable
+- claimable
+- approval
+- approve
+- auto-process
+- automatic processing
+- withdrawal queue
+
+Look for contradictory logic where one component assumes APPROVED is required while another assumes PENDING is processable.
+
+Pay special attention to:
+- worker
+- withdrawal service
+- state machine
+- queue service
+- admin UI
+- API routes
+- processor
+- tests
+
+==================================================
+17. PRODUCTION SAFETY
+==================================================
+
+Confirm explicitly:
+
+Production records modified: NO
+Production balances modified: NO
+Production ledger modified: NO
+Production claims modified: NO
+Transaction signed: NO
+Transaction broadcast: NO
+Production secrets changed: NO
+Environment variables changed: NO
+BLOCKCHAIN_DRY_RUN changed: NO
+Deployment published: NO
+
+If any production mutation occurred, stop and report it immediately.
+
+==================================================
+18. FINAL REPORT
+==================================================
+
+Return:
+
+A. ROOT CAUSE
+Why the $1 withdrawal previously required clicking Approve.
+
+B. NEW FLOW
+Exact automatic withdrawal lifecycle.
+
+C. CLAIM CONDITIONS
+Exact conditions under which PENDING is automatically claimable.
+
+D. AGE LOGIC
+Exact age threshold and behavior.
+
+E. QUEUE
+Why the previous withdrawal was invisible and how it is now visible.
+
+F. APPROVAL
+Confirm whether normal PENDING withdrawals still require admin approval.
+
+G. SAFETY
+Confirm activation gate, accounting, claim locking, nonce locking, signing, broadcast, and settlement protections.
+
+H. LEGACY APPROVED
+Explain how existing APPROVED records are handled.
+
+I. TEST RESULTS
+Give exact test counts and build/typecheck results.
+
+J. FILES CHANGED
+List relevant files and purpose.
+
+K. PRODUCTION SAFETY
+Give explicit NO/YES answers for all production mutation categories.
+
+L. FINAL STATUS
+Choose exactly one:
+
+READY TO PUBLISH
+
+or
+
+NOT READY — FIX REQUIRED
+
+Be conservative.
+
+If you find ANY path where an invalid PENDING withdrawal can automatically reach blockchain signing/broadcast merely because it is old enough, mark:
+
+NOT READY — FIX REQUIRED
+
+Do not publish anything.
