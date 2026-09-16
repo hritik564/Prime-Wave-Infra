@@ -1,0 +1,80 @@
+Do not execute any production financial operation yet.
+
+The latest reconciliation has identified a separate 1.00000000 USDT accounting discrepancy involving PW-WD-000103.
+
+Before any rejection/refund is executed for PW-WD-000121, perform a complete READ-ONLY forensic reconciliation of PW-WD-000103.
+
+Current facts:
+
+PW-WD-000103
+- Amount: 1.40000000 USDT
+- Status: APPROVED
+- Request ID: cmt40tt0f0036su09k6ohzxox
+- Financial ledger row: cmt40tt1a0037su091qkgytql
+- Ledger operation: WITHDRAWAL_REQUEST / DEBIT / WITHDRAWAL_WALLET
+- Ledger opening balance: 1.43981317
+- Ledger closing balance: 0.03981317
+- No linked wallet transaction
+- No withdrawal timeline events
+- Four WITHDRAWAL_REPROCESSED admin logs exist
+
+Current user's aggregate wallet state:
+- Available withdrawal balance: 13.45493131
+- Locked withdrawal balance: 1.42000000
+
+Active withdrawals:
+- PW-WD-000103: 1.40000000
+- PW-WD-000121: 1.02000000
+
+Expected active withdrawal total:
+2.42000000 USDT
+
+Current aggregate locked balance:
+1.42000000 USDT
+
+Unresolved discrepancy:
+1.00000000 USDT
+
+Perform a strictly read-only investigation.
+
+Trace every production accounting record that could explain the missing 1.00000000 USDT, including:
+
+1. All wallet ledger entries for this user before and after PW-WD-000103.
+2. All wallet transactions for this user.
+3. All balance mutations affecting availableWithdrawalBalance.
+4. All balance mutations affecting lockedWithdrawalBalance.
+5. All withdrawal-related debit/refund/rejection/completion/reprocessing operations.
+6. All admin actions affecting PW-WD-000103.
+7. All relevant timestamps and transaction ordering.
+8. Any code path that could have changed lockedWithdrawalBalance without creating a per-withdrawal audit record.
+9. Whether the 1.00000000 discrepancy originated from PW-WD-000103, PW-WD-000120, PW-WD-000121, or another unrelated operation.
+10. Determine whether PW-WD-000103's current APPROVED state is financially backed by 1.40000000 USDT, 0.40000000 USDT, or another amount.
+
+Construct a complete chronological accounting table:
+
+timestamp | operation | withdrawal ID | amount | available before | available after | locked before | locked after | ledger/wallet reference
+
+Do not infer ownership of the missing 1.00000000 merely from arithmetic unless the underlying records support it.
+
+Do not modify:
+- user balances
+- withdrawal statuses
+- ledger rows
+- wallet transactions
+- admin logs
+- timeline events
+
+Do not reject or refund PW-WD-000103 or PW-WD-000121.
+
+At the end, provide:
+
+A. Exact source of the 1.00000000 discrepancy, if recoverable.
+B. If not recoverable, explicitly state that it cannot be reconstructed from the available immutable records.
+C. Current financially backed amount for PW-WD-000103.
+D. Safe treatment of PW-WD-000103.
+E. Safe treatment of PW-WD-000121.
+F. A mathematically balanced proposed remediation, but DO NOT execute it.
+
+The accounting invariant must be demonstrated numerically before proposing any production write.
+
+This is a forensic read-only investigation only.
