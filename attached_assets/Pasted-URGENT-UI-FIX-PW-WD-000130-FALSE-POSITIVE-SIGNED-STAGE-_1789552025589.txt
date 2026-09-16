@@ -1,0 +1,136 @@
+URGENT UI FIX — PW-WD-000130 FALSE-POSITIVE SIGNED STAGE
+
+Do NOT execute any production mutation during this task.
+
+We have a known production incident:
+
+Withdrawal:
+PW-WD-000130
+
+Current state:
+BROADCAST_UNKNOWN
+
+Known forensic evidence:
+- txHash = NULL
+- broadcastAt = NULL
+- no wallet transaction
+- no blockchain transaction was submitted
+- no active claim
+- signedAt is populated only because of the previously identified false-positive lifecycle transition
+- the incident-specific correction endpoint already exists:
+  POST /api/admin/withdrawals/PW-WD-000130/correct-false-positive-stage
+
+Current problem:
+
+In the production Withdrawal Queue / withdrawal detail UI, clicking "Reject & Refund" results in:
+
+"Withdrawal has transaction evidence and cannot be rejected and refunded"
+
+This is expected because the normal Reject & Refund backend guard sees signedAt as transaction evidence.
+
+DO NOT weaken or bypass that backend guard.
+
+DO NOT modify the Reject & Refund endpoint.
+
+DO NOT clear signedAt directly in the database.
+
+DO NOT create another generic reconciliation endpoint.
+
+Instead, update the admin UI so the known incident PW-WD-000130 exposes the existing guarded incident-correction workflow.
+
+Requirements:
+
+1. Locate the existing frontend implementation for:
+   POST /api/admin/withdrawals/PW-WD-000130/correct-false-positive-stage
+
+2. Determine whether a UI action already exists for this endpoint.
+
+3. If it exists but is not visible in the Withdrawal Queue/detail drawer, expose it appropriately.
+
+4. For PW-WD-000130 specifically, when:
+   status = BROADCAST_UNKNOWN
+   txHash = null
+   broadcastAt = null
+   and this is the known false-positive signed-stage incident,
+
+   show an action such as:
+
+   "Correct False-Positive Stage"
+
+   or
+
+   "Move to Manual Review"
+
+   with clear incident-specific wording.
+
+5. The normal "Reject & Refund" action must remain protected and must NOT be changed to bypass the signedAt safety check.
+
+6. The incident-correction action must NOT be shown generically to every BROADCAST_UNKNOWN withdrawal unless the existing backend authorization/evidence rules explicitly support that behavior.
+
+7. The confirmation modal must clearly state:
+
+   - Withdrawal ID: PW-WD-000130
+   - Current status: BROADCAST_UNKNOWN
+   - No transaction hash exists
+   - No broadcast timestamp exists
+   - This is correction of a known false-positive SIGNED stage
+   - This does NOT refund the withdrawal
+   - This does NOT change wallet balances
+   - This does NOT create a settlement ledger entry
+   - This does NOT sign or broadcast a transaction
+   - The resulting state will be MANUAL_REVIEW
+
+8. Require explicit confirmation before calling the correction endpoint.
+
+9. Use the existing backend endpoint and its existing authorization/evidence/idempotency protections.
+
+10. Do not add a direct database mutation from the frontend.
+
+11. After successful correction:
+    - refresh withdrawal detail
+    - refresh queue statistics
+    - show MANUAL_REVIEW
+    - remove the BROADCAST_UNKNOWN reconciliation warning for this record
+
+12. If the correction endpoint is intentionally not supposed to be exposed through the UI, explain exactly why and provide the safest existing admin route for executing the already-implemented correction.
+
+13. Add regression tests confirming:
+    - PW-WD-000130 exposes the incident correction action
+    - Reject & Refund remains blocked when signedAt is present
+    - no generic BROADCAST_UNKNOWN withdrawal receives this incident-specific action without satisfying its guards
+    - no obsolete Hold/Reprocess actions return
+
+14. Run:
+    - focused tests
+    - full API tests
+    - frontend typecheck
+    - API typecheck
+    - frontend build
+    - API build
+    - Prisma validation
+    - git diff --check
+
+IMPORTANT:
+This task is a CODE/UI correction only.
+
+DO NOT:
+- call the production correction endpoint
+- modify PW-WD-000130
+- reject/refund anything
+- approve anything
+- sign anything
+- broadcast anything
+- modify production balances
+- modify production ledger
+- modify production secrets
+- change BLOCKCHAIN_DRY_RUN
+- publish or deploy
+
+At the end, report exactly:
+1. Where the correction action is currently implemented.
+2. Why the current UI shows Reject & Refund instead.
+3. What UI change was made.
+4. Tests passed.
+5. Whether any production mutation occurred.
+
+The goal is to make the existing guarded incident-correction workflow accessible to the authorized administrator without weakening any financial safety guard.
