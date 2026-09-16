@@ -55,40 +55,6 @@ const Btn = ({ label, onClick, color = MUTED, bg = "rgba(255,255,255,0.04)", bor
 
 const TA: React.CSSProperties = { width: "100%", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "9px 12px", fontSize: 12, color: "rgba(255,255,255,0.78)", outline: "none", resize: "vertical", boxSizing: "border-box" };
 
-// ─── Approve ──────────────────────────────────────────────────────────────────
-export function ApprovalModal({ w, onClose, onConfirm }: { w: WithdrawalStub; onClose: () => void; onConfirm: (comment: string) => void }) {
-  const [checked, setChecked] = useState(false);
-  const [comment, setComment] = useState("");
-  const net = w.amount - w.fee;
-  return (
-    <Shell onClose={onClose}>
-      <Header icon={CheckCircle} title="Approve Withdrawal" sub={w.id} color="#34d399" bg="rgba(52,211,153,0.1)" onClose={onClose} />
-      <div style={{ padding: "16px 20px 20px" }}>
-        <AmountRow label="Requested Amount" value={`$${w.amount.toLocaleString()}`} color="#34d399" />
-        <AmountRow label="Processing Fee"   value={`$${w.fee.toLocaleString()}`} color="#f87171" />
-        <AmountRow label="Net Amount"       value={`$${net.toLocaleString()}`} color={GOLD_L} />
-        <AmountRow label="Wallet Type"      value={w.walletType} />
-        <AmountRow label="Network"          value={w.network} />
-        <AmountRow label="Current Status"   value={w.status} />
-        <AmountRow label="Destination"      value={w.destinationAddress} />
-        <AmountRow label="Member"           value={`@${w.username}`} />
-        <div style={{ marginTop: 14, marginBottom: 14 }}>
-          <label style={{ fontSize: 11, fontWeight: 600, color: MUTED, display: "block", marginBottom: 6 }}>Admin Comment (optional)</label>
-          <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Add a comment for the audit log…" style={{ ...TA, minHeight: 60 }} />
-        </div>
-        <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer", fontSize: 12, color: "rgba(255,255,255,0.65)", marginBottom: 16, lineHeight: 1.5 }}>
-          <input type="checkbox" checked={checked} onChange={e => setChecked(e.target.checked)} style={{ accentColor: "#34d399", width: 14, height: 14, marginTop: 2, flexShrink: 0 }} />
-          I confirm this withdrawal has been verified and the member's identity and wallet address are valid.
-        </label>
-        <div style={{ display: "flex", gap: 10 }}>
-          <Btn label="Cancel" onClick={onClose} />
-          <Btn label="Approve Withdrawal" onClick={() => { if(checked) { onConfirm(comment); onClose(); }}} disabled={!checked} color="#34d399" bg="rgba(52,211,153,0.1)" border="rgba(52,211,153,0.3)" />
-        </div>
-      </div>
-    </Shell>
-  );
-}
-
 // ─── Reject ───────────────────────────────────────────────────────────────────
 const REJECT_REASONS = [
   "Invalid wallet address","Insufficient verification","Suspicious activity","Daily limit exceeded",

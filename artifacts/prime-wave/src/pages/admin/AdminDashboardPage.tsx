@@ -397,7 +397,7 @@ function StatusBadge({ status }: { status: string }) {
 // ── Quick actions (navigation only, no backend) ───────────────────────────────
 const quickActions = [
   { icon: UserPlus,  label: "Create Member",      color: "#60a5fa", bg: "rgba(96,165,250,0.09)"  },
-  { icon: UserCheck, label: "Approve Withdrawal", color: "#34d399", bg: "rgba(52,211,153,0.09)"  },
+  { icon: UserCheck, label: "Review Withdrawals", color: "#34d399", bg: "rgba(52,211,153,0.09)"  },
   { icon: Plus,      label: "Create Plan",        color: GOLD,      bg: "rgba(212,175,55,0.09)"  },
   { icon: Bell,      label: "Broadcast",          color: "#a78bfa", bg: "rgba(167,139,250,0.09)" },
   { icon: Settings,  label: "System Settings",    color: MUTED,     bg: "rgba(170,179,197,0.06)" },

@@ -1972,13 +1972,6 @@ export function getAdminWithdrawalById(id: string) {
   return request<AdminWithdrawalDetail>(`/api/admin/withdrawals/${id}`);
 }
 
-export function adminApproveWithdrawal(id: string, adminNotes?: string) {
-  return request<{ withdrawalId: string; status: string; approvedAt: string }>(
-    `/api/admin/withdrawals/${id}/approve`,
-    { method: "POST", body: JSON.stringify({ adminNotes }) },
-  );
-}
-
 export function adminCompleteWithdrawal(id: string, txHash: string, adminNotes?: string) {
   return request<{ withdrawalId: string; status: string; completedAt: string; txHash: string }>(
     `/api/admin/withdrawals/${id}/complete`,
