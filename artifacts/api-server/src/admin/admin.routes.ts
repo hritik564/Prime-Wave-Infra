@@ -38,15 +38,12 @@ import {
   getAdminWithdrawalsHandler,
   getAdminWithdrawalStatsHandler,
   getAdminWithdrawalByIdHandler,
-  holdWithdrawalHandler,
   updateWithdrawalNotesHandler,
   approveWithdrawalHandler,
   completeWithdrawalHandler,
   rejectWithdrawalHandler,
   rejectAndRefundBroadcastUnknownHandler,
-  reprocessWithdrawalHandler,
   reconcileApprovedWithdrawalHandler,
-  releaseHoldWithdrawalHandler,
   getAdminWithdrawalSettingsHandler,
   updateAdminWithdrawalSettingsHandler,
   getWithdrawalQueueHandler,
@@ -224,7 +221,6 @@ import {
   completeWithdrawalSchema,
   rejectWithdrawalSchema,
   rejectBroadcastUnknownSchema,
-  holdWithdrawalSchema,
   reconcileWithdrawalSchema,
   updateWithdrawalNotesSchema,
   updateWithdrawalSettingsSchema,
@@ -525,13 +521,6 @@ router.get(
   getWithdrawalHoldHandler,
 );
 
-router.post(
-  "/withdrawals/:id/release-hold",
-  adminLimiter,
-  superAdminGuard,
-  releaseHoldWithdrawalHandler,
-);
-
 // ── Withdrawal wallet management — SUPER_ADMIN + STAFF_OPERATIONS ─────────────
 router.patch(
   "/users/:id/wallet",
@@ -770,26 +759,11 @@ router.post(
 );
 
 router.post(
-  "/withdrawals/:id/reprocess",
-  adminLimiter,
-  withdrawalAdminGuard,
-  reprocessWithdrawalHandler,
-);
-
-router.post(
   "/withdrawals/:id/move-to-manual-review",
   adminLimiter,
   withdrawalAdminGuard,
   validate(reconcileWithdrawalSchema),
   reconcileApprovedWithdrawalHandler,
-);
-
-router.post(
-  "/withdrawals/:id/hold",
-  adminLimiter,
-  withdrawalAdminGuard,
-  validate(holdWithdrawalSchema),
-  holdWithdrawalHandler,
 );
 
 router.patch(

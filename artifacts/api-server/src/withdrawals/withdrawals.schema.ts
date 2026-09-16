@@ -59,11 +59,6 @@ export const rejectWithdrawalSchema = z.object({
   adminNotes:     z.string().trim().max(1000).optional(),
 });
 
-export const holdWithdrawalSchema = z.object({
-  reason:     z.string().trim().min(1, "Hold reason is required").max(500),
-  reviewDate: z.string().optional(),
-});
-
 export const reconcileWithdrawalSchema = z.object({
   reason: z.string().trim().min(1, "Reconciliation reason is required").max(500),
 });
@@ -85,7 +80,6 @@ export type AdminWithdrawalListQuery    = z.infer<typeof adminWithdrawalListQuer
 export type ApproveWithdrawalInput      = z.infer<typeof approveWithdrawalSchema>;
 export type CompleteWithdrawalInput     = z.infer<typeof completeWithdrawalSchema>;
 export type RejectWithdrawalInput       = z.infer<typeof rejectWithdrawalSchema>;
-export type HoldWithdrawalInput         = z.infer<typeof holdWithdrawalSchema>;
 export type ReconcileWithdrawalInput    = z.infer<typeof reconcileWithdrawalSchema>;
 export type RejectBroadcastUnknownInput = z.infer<typeof rejectBroadcastUnknownSchema>;
 export type UpdateWithdrawalNotesInput  = z.infer<typeof updateWithdrawalNotesSchema>;

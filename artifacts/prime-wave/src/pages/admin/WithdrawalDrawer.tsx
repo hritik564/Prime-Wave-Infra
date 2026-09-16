@@ -428,13 +428,12 @@ function AuditTab({w, adminLogs}: {w:DrawerWithdrawal; adminLogs?: DrawerAuditLo
 // WithdrawalDrawer
 // ─────────────────────────────────────────────────────────────────────────────
 export default function WithdrawalDrawer({
-  withdrawal, onClose, onApprove, onReject, onHold, adminLogs, onSaveNote,
+  withdrawal, onClose, onApprove, onReject, adminLogs, onSaveNote,
 }: {
   withdrawal:  DrawerWithdrawal | null;
   onClose:     () => void;
   onApprove?:  (w: DrawerWithdrawal) => void;
   onReject?:   (w: DrawerWithdrawal) => void;
-  onHold?:     (w: DrawerWithdrawal) => void;
   adminLogs?:  DrawerAuditLog[];
   onSaveNote?: (text: string) => Promise<void>;
 }) {

@@ -8,7 +8,6 @@ import type {
   CompleteWithdrawalInput,
   RejectWithdrawalInput,
   RejectBroadcastUnknownInput,
-  HoldWithdrawalInput,
   ReconcileWithdrawalInput,
   UpdateWithdrawalNotesInput,
 } from "../withdrawals/withdrawals.schema";
@@ -124,7 +123,6 @@ async function applyWithdrawalRejectionAccounting(
     },
   });
 }
-
 // ── List (enhanced) ───────────────────────────────────────────────────────────
 
 export async function getAdminWithdrawals(query: AdminWithdrawalListQuery) {
@@ -285,56 +283,6 @@ export async function getAdminWithdrawalById(withdrawalId: string) {
   });
 
   return { ...withdrawal, adminLogs: withdrawalLogs, events };
-}
-
-// ── Hold (admin notes annotation, status stays PENDING) ──────────────────────
-
-export async function holdWithdrawal(
-  adminId:      string,
-  withdrawalId: string,
-  input:        HoldWithdrawalInput,
-) {
-  const withdrawal = await prisma.withdrawalRequest.findUnique({
-    where:  { id: withdrawalId },
-    select: { id: true, userId: true, amount: true, status: true, network: true },
-  });
-
-  if (!withdrawal) {
-    throw new AppError("Withdrawal not found", HTTP_STATUS.NOT_FOUND, "WITHDRAWAL_NOT_FOUND");
-  }
-  if (withdrawal.status !== "PENDING") {
-    throw new AppError(
-      "Only PENDING withdrawals can be placed on hold",
-      HTTP_STATUS.CONFLICT,
-      "WITHDRAWAL_NOT_PENDING",
-    );
-  }
-
-  const holdNote = `[HOLD] ${input.reason}${input.reviewDate ? ` · Review by: ${input.reviewDate}` : ""}`;
-
-  await prisma.$transaction(async (tx) => {
-    await tx.withdrawalRequest.update({
-      where: { id: withdrawalId },
-      data:  { adminNotes: holdNote },
-    });
-
-    await tx.adminLog.create({
-      data: {
-        adminId,
-        action:       "WITHDRAWAL_ON_HOLD",
-        targetUserId: withdrawal.userId,
-        details: {
-          withdrawalId,
-          amount:     withdrawal.amount.toString(),
-          network:    withdrawal.network,
-          holdReason: input.reason,
-          ...(input.reviewDate && { reviewDate: input.reviewDate }),
-        },
-      },
-    });
-  });
-
-  return { withdrawalId, status: "PENDING", holdNote };
 }
 
 // ── Reconcile (APPROVED → MANUAL_REVIEW, no financial operation) ─────────────
@@ -927,101 +875,4 @@ export async function rejectAndRefundBroadcastUnknown(
     alreadyReconciled: result.alreadyReconciled,
     refundedAmount: result.refundedAmount,
   };
-}
-
-// ── Reprocess (explicit admin retry → APPROVED) ───────────────────────────────
-//
-// An explicit retry grants the same queue entry point as approval. The worker
-// claims APPROVED requests and atomically moves them to QUEUED.
-
-export async function reprocessWithdrawal(adminId: string, withdrawalId: string) {
-  const withdrawal = await prisma.withdrawalRequest.findUnique({
-    where:  { id: withdrawalId },
-    select: { id: true, userId: true, amount: true, status: true, network: true },
-  });
-
-  if (!withdrawal) {
-    throw new AppError("Withdrawal not found", HTTP_STATUS.NOT_FOUND, "WITHDRAWAL_NOT_FOUND");
-  }
-
-  const REPROCESSABLE = ["PENDING", "APPROVED", "UNDER_REVIEW", "MANUAL_REVIEW"] as const;
-  if (!REPROCESSABLE.includes(withdrawal.status as typeof REPROCESSABLE[number])) {
-    throw new AppError(
-      "Only PENDING, APPROVED, UNDER_REVIEW, or MANUAL_REVIEW withdrawals can be reprocessed",
-      HTTP_STATUS.CONFLICT,
-      "WITHDRAWAL_NOT_REPROCESSABLE",
-    );
-  }
-
-  await prisma.$transaction(async (tx) => {
-    await tx.withdrawalRequest.update({
-      where: { id: withdrawalId },
-      // Clear requestedAt to bypass the hold-period filter immediately.
-      data: {
-        status: "APPROVED",
-        failureReason: null,
-        approvedByAdminId: adminId,
-        approvedAt: new Date(),
-        requestedAt: new Date(Date.now() - 60 * 60 * 1_000),
-      },
-    });
-
-    await tx.adminLog.create({
-      data: {
-        adminId,
-        action:       "WITHDRAWAL_REPROCESSED",
-        targetUserId: withdrawal.userId,
-        details: {
-          withdrawalId,
-          previousStatus: withdrawal.status,
-          amount:         withdrawal.amount.toString(),
-          network:        withdrawal.network,
-        },
-      },
-    });
-  });
-
-  return { withdrawalId, status: "APPROVED" };
-}
-
-// ── Release Hold (UNDER_REVIEW → PENDING) ────────────────────────────────────
-
-export async function releaseHoldWithdrawal(adminId: string, withdrawalId: string) {
-  const withdrawal = await prisma.withdrawalRequest.findUnique({
-    where:  { id: withdrawalId },
-    select: { id: true, userId: true, amount: true, status: true, network: true, walletAddress: true, withdrawalId: true },
-  });
-
-  if (!withdrawal) {
-    throw new AppError("Withdrawal not found", HTTP_STATUS.NOT_FOUND, "WITHDRAWAL_NOT_FOUND");
-  }
-  if (withdrawal.status !== "UNDER_REVIEW") {
-    throw new AppError(
-      "Only UNDER_REVIEW withdrawals can be released to the queue",
-      HTTP_STATUS.CONFLICT,
-      "WITHDRAWAL_NOT_UNDER_REVIEW",
-    );
-  }
-
-  await prisma.$transaction(async (tx) => {
-    await tx.withdrawalRequest.update({
-      where: { id: withdrawalId },
-      data:  { status: "PENDING" },
-    });
-
-    await tx.adminLog.create({
-      data: {
-        adminId,
-        action:       "WITHDRAWAL_HOLD_RELEASED",
-        targetUserId: withdrawal.userId,
-        details: {
-          withdrawalId,
-          amount:  withdrawal.amount.toString(),
-          network: withdrawal.network,
-        },
-      },
-    });
-  });
-
-  return { withdrawalId, status: "PENDING" };
 }

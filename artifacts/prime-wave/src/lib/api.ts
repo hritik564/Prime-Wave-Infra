@@ -30,7 +30,6 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   return (body as { data: T }).data;
 }
-
 /* ── Auth ─────────────────────────────────────────────────────────── */
 
 export interface AuthResponse {
@@ -2003,20 +2002,6 @@ export function adminRejectAndRefundBroadcastUnknown(id: string, rejectedReason:
   );
 }
 
-export function adminHoldWithdrawal(id: string, reason: string, reviewDate?: string) {
-  return request<{ withdrawalId: string; status: string; holdNote: string }>(
-    `/api/admin/withdrawals/${id}/hold`,
-    { method: "POST", body: JSON.stringify({ reason, reviewDate }) },
-  );
-}
-
-export function adminReprocessWithdrawal(id: string) {
-  return request<{ withdrawalId: string; status: string }>(
-    `/api/admin/withdrawals/${id}/reprocess`,
-    { method: "POST" },
-  );
-}
-
 export function adminMoveWithdrawalToManualReview(id: string, reason: string) {
   return request<{
     withdrawalId: string;
@@ -3537,11 +3522,5 @@ export function setWithdrawalHoldFlag(
   return request<Omit<WithdrawalHoldStatus, "auditHistory">>(`/api/admin/users/${userId}/withdrawal-hold`, {
     method: "POST",
     body:   JSON.stringify(body),
-  });
-}
-
-export function releaseHoldWithdrawal(withdrawalId: string): Promise<{ withdrawalId: string; status: string }> {
-  return request<{ withdrawalId: string; status: string }>(`/api/admin/withdrawals/${withdrawalId}/release-hold`, {
-    method: "POST",
   });
 }

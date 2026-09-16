@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, AlertTriangle, CheckCircle, ShieldX, Clock, Banknote } from "lucide-react";
+import { X, AlertTriangle, CheckCircle, ShieldX } from "lucide-react";
 
 const GOLD   = "#D4AF37";
 const GOLD_L = "#F3D37A";
@@ -179,31 +179,6 @@ export function RejectAndRefundModal({
             bg="rgba(248,113,113,0.1)"
             border="rgba(248,113,113,0.3)"
           />
-        </div>
-      </div>
-    </Shell>
-  );
-}
-
-// ─── Hold ─────────────────────────────────────────────────────────────────────
-export function HoldModal({ w, onClose, onConfirm }: { w: WithdrawalStub; onClose: () => void; onConfirm: (reason: string, date: string) => void }) {
-  const [reason, setReason] = useState("");
-  const [date, setDate] = useState("");
-  return (
-    <Shell onClose={onClose}>
-      <Header icon={Clock} title="Place on Hold" sub={w.id} color="#fbbf24" bg="rgba(251,191,36,0.1)" onClose={onClose} />
-      <div style={{ padding: "16px 20px 20px" }}>
-        <AmountRow label="Amount"  value={`$${w.amount.toLocaleString()}`} color="#fbbf24" />
-        <AmountRow label="Member"  value={`@${w.username}`} />
-        <div style={{ marginTop: 14 }}>
-          <label style={{ fontSize: 11, fontWeight: 600, color: MUTED, display: "block", marginBottom: 6 }}>Hold Reason <span style={{ color: "#f87171" }}>*</span></label>
-          <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason for placing on hold…" style={{ ...TA, minHeight: 68, marginBottom: 12 }} />
-          <label style={{ fontSize: 11, fontWeight: 600, color: MUTED, display: "block", marginBottom: 6 }}>Expected Review Date</label>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...TA, cursor: "pointer", marginBottom: 16 }} />
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <Btn label="Cancel" onClick={onClose} />
-          <Btn label="Place on Hold" onClick={() => { if(reason.trim()) { onConfirm(reason.trim(), date); onClose(); }}} disabled={!reason.trim()} color="#fbbf24" bg="rgba(251,191,36,0.1)" border="rgba(251,191,36,0.3)" />
         </div>
       </div>
     </Shell>

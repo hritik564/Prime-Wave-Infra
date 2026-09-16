@@ -6,15 +6,12 @@ import {
   getAdminWithdrawals,
   getAdminWithdrawalStats,
   getAdminWithdrawalById,
-  holdWithdrawal,
   updateWithdrawalNotes,
   approveWithdrawal,
   completeWithdrawal,
   rejectWithdrawal,
   rejectAndRefundBroadcastUnknown,
-  reprocessWithdrawal,
   reconcileApprovedWithdrawal,
-  releaseHoldWithdrawal,
 } from "./admin-withdrawals.service";
 import { getWithdrawalSettingsPublic, updateWithdrawalSettings } from "../withdrawals/withdrawals.service";
 import { getQueueItems } from "../withdrawals/withdrawal-queue.service";
@@ -32,7 +29,6 @@ import type {
   CompleteWithdrawalInput,
   RejectWithdrawalInput,
   RejectBroadcastUnknownInput,
-  HoldWithdrawalInput,
   ReconcileWithdrawalInput,
   UpdateWithdrawalNotesInput,
   UpdateWithdrawalSettingsInput,
@@ -46,7 +42,6 @@ export async function getAdminWithdrawalSettingsHandler(
     sendSuccess(res, result, "Withdrawal settings retrieved");
   } catch (err) { next(err); }
 }
-
 export async function updateAdminWithdrawalSettingsHandler(
   req: Request, res: Response, next: NextFunction,
 ): Promise<void> {
@@ -83,18 +78,6 @@ export async function getAdminWithdrawalByIdHandler(
     const withdrawalId = String(req.params["id"] ?? "");
     const result       = await getAdminWithdrawalById(withdrawalId);
     sendSuccess(res, result, "Withdrawal retrieved");
-  } catch (err) { next(err); }
-}
-
-export async function holdWithdrawalHandler(
-  req: Request, res: Response, next: NextFunction,
-): Promise<void> {
-  try {
-    const { user }     = req as AuthenticatedRequest;
-    const withdrawalId = String(req.params["id"] ?? "");
-    const input        = req.body as HoldWithdrawalInput;
-    const result       = await holdWithdrawal(user.sub, withdrawalId, input);
-    sendSuccess(res, result, "Withdrawal placed on hold");
   } catch (err) { next(err); }
 }
 
@@ -161,17 +144,6 @@ export async function rejectAndRefundBroadcastUnknownHandler(
         ? "Withdrawal was already rejected and refunded"
         : "Withdrawal rejected and refunded",
     );
-  } catch (err) { next(err); }
-}
-
-export async function reprocessWithdrawalHandler(
-  req: Request, res: Response, next: NextFunction,
-): Promise<void> {
-  try {
-    const { user }     = req as AuthenticatedRequest;
-    const withdrawalId = String(req.params["id"] ?? "");
-    const result       = await reprocessWithdrawal(user.sub, withdrawalId);
-    sendSuccess(res, result, "Withdrawal queued for reprocessing");
   } catch (err) { next(err); }
 }
 
@@ -259,16 +231,5 @@ export async function getWithdrawalOperationalHealthHandler(
   try {
     const result = await getOperationalHealth();
     sendSuccess(res, result, "Operational health retrieved");
-  } catch (err) { next(err); }
-}
-
-export async function releaseHoldWithdrawalHandler(
-  req: Request, res: Response, next: NextFunction,
-): Promise<void> {
-  try {
-    const { user }     = req as AuthenticatedRequest;
-    const withdrawalId = String(req.params["id"] ?? "");
-    const result       = await releaseHoldWithdrawal(user.sub, withdrawalId);
-    sendSuccess(res, result, "Withdrawal released to queue");
   } catch (err) { next(err); }
 }
