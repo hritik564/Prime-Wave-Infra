@@ -1,0 +1,113 @@
+POST-PUBLISH PW-WD-000130 CORRECTION VERIFICATION — READ-ONLY FIRST
+
+The latest build containing the incident-specific PW-WD-000130 false-positive correction UI has now been published to production.
+
+Before executing ANY mutation, perform a read-only verification.
+
+DO NOT:
+- approve, reject, refund, reconcile, or retry any withdrawal
+- call the correction endpoint
+- call Reject & Refund
+- sign or broadcast any blockchain transaction
+- modify balances, wallets, ledgers, claims, or secrets
+- change environment variables
+- change BLOCKCHAIN_DRY_RUN
+- publish or deploy another build
+
+Verify:
+
+1. DEPLOYMENT
+- primewave.live is serving the latest published build
+- /api/healthz returns 200
+- frontend loads
+- API and worker are running
+- no restart loop
+- no database errors
+
+2. PW-WD-000130
+Read the production record and report:
+- status
+- amount
+- txHash
+- signedAt
+- broadcastAt
+- processedAt
+- claimOwner
+- claimToken
+- claimExpiresAt
+- preparedTxData presence
+- wallet transaction linkage
+- lockedWithdrawalBalance
+- withdrawalWallet balance
+
+3. CORRECTION ENDPOINT
+Confirm that:
+POST /api/admin/withdrawals/PW-WD-000130/correct-false-positive-stage
+
+exists in the published runtime and is protected by the intended authorization.
+
+Perform only an unauthenticated protection probe if appropriate.
+
+DO NOT authenticate or execute the endpoint.
+
+4. ADMIN UI
+Verify from the published source/runtime that the incident-specific correction action is exposed only when ALL of these conditions are true:
+
+- withdrawal ID exactly equals PW-WD-000130
+- status is BROADCAST_UNKNOWN
+- txHash is NULL
+- broadcastAt is NULL
+- signedAt is present
+
+Verify the confirmation modal clearly states:
+
+- this is correction of a false-positive SIGNED stage
+- resulting state is MANUAL_REVIEW
+- no refund
+- no balance change
+- no ledger mutation
+- no signing
+- no broadcast
+
+5. NORMAL REJECT & REFUND
+Verify that the normal Reject & Refund path remains intact for legitimate BROADCAST_UNKNOWN records where the backend safety conditions permit it.
+
+Do not execute it.
+
+6. ACTIVATION GATE
+Report:
+- BROADCAST_UNKNOWN count
+- APPROVED count
+- active claims
+- RPC readiness
+- gas estimation
+- wallet readiness
+- BNB threshold
+- USDT threshold
+- activation gate state
+
+Do not bypass or modify the gate.
+
+7. FINAL REPORT
+
+Return:
+
+CHECK | RESULT | EVIDENCE | BLOCKING?
+
+Then state:
+
+A. Whether the published correction UI is present
+B. Whether PW-WD-000130 remains unchanged
+C. Whether the correction endpoint is protected
+D. Whether the activation gate remains correctly closed
+E. Whether the system is ready for the separately authorized correction
+
+IMPORTANT:
+
+This verification is READ-ONLY.
+
+Do NOT execute the correction merely because the endpoint exists.
+
+Do NOT perform a real withdrawal.
+
+Do NOT sign or broadcast anything.
