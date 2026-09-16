@@ -1,0 +1,312 @@
+Update the withdrawal-management design with the following exact business-status behavior.
+
+IMPORTANT:
+
+The Admin Withdrawal section should present withdrawals according to their operational/business state rather than exposing unnecessary internal processor states.
+
+==================================================
+1. QUEUED WITHDRAWALS
+==================================================
+
+When a withdrawal enters the automatic processing queue:
+
+Internal state:
+QUEUED
+
+Admin Withdrawal section:
+PROCESSING
+
+The admin UI should NOT show a separate "QUEUED" status.
+
+A queued withdrawal is considered to be actively processing.
+
+Therefore:
+
+QUEUED → displayed as PROCESSING
+
+The three-dot action menu should NOT provide Approve or Reject while the withdrawal is actively being processed unless the backend has explicitly determined that rejection is financially safe.
+
+==================================================
+2. AUTOMATIC PROCESSOR FAILURE
+==================================================
+
+If the automatic withdrawal processor fails BEFORE any transaction has been signed or broadcast:
+
+The withdrawal must return to:
+
+PENDING
+
+The Admin Withdrawal section must display:
+
+PENDING
+
+This allows the administrator to independently decide:
+
+- Approve
+- Reject
+
+The processor failure must NOT automatically refund the withdrawal.
+
+It must only return the withdrawal to an administratively actionable state.
+
+Example:
+
+PENDING
+→ APPROVED
+→ QUEUED
+→ PROCESSING
+→ PROCESSOR FAILURE
+→ PENDING
+
+The retry/failure event must be recorded in the withdrawal timeline and logs.
+
+==================================================
+3. IMPORTANT BLOCKCHAIN SAFETY DISTINCTION
+==================================================
+
+Do NOT convert every processor failure into PENDING.
+
+If the processor has reached a stage where a transaction MAY have been signed or broadcast, the outcome is ambiguous.
+
+For example:
+
+SIGNED
+BROADCASTING
+BROADCAST_UNKNOWN
+CONFIRMING
+
+must NOT automatically become PENDING merely because the processor encountered an error.
+
+These states require the existing blockchain reconciliation/hardening logic.
+
+Specifically:
+
+If txHash is absent AND there is cryptographically reliable evidence that signing/broadcast never occurred:
+    PENDING may be appropriate.
+
+If signing or broadcasting may have occurred:
+    preserve the protected reconciliation state.
+
+If the transaction is successfully confirmed:
+    COMPLETED and immutable.
+
+Never issue an automatic refund merely because the processor reports an error.
+
+==================================================
+4. ADMIN WITHDRAWAL DISPLAY MAPPING
+==================================================
+
+Implement the following presentation mapping:
+
+Internal QUEUED
+→ UI PROCESSING
+
+Internal PROCESSING
+→ UI PROCESSING
+
+Internal PENDING
+→ UI PENDING
+
+Internal APPROVED
+→ UI APPROVED
+
+Internal UNDER_REVIEW
+→ UI UNDER_REVIEW
+
+Internal MANUAL_REVIEW
+→ UI MANUAL_REVIEW
+
+Internal BROADCAST_UNKNOWN
+→ UI BROADCAST_UNKNOWN
+
+Internal CONFIRMING
+→ UI PROCESSING / CONFIRMING according to the existing UI terminology, but do not incorrectly represent it as safely pending.
+
+Internal COMPLETED
+→ UI COMPLETED
+
+Internal REJECTED
+→ UI REJECTED
+
+Do not expose QUEUED as a separate business action/status if the current product requirement is that queued withdrawals are shown as PROCESSING.
+
+==================================================
+5. ACTIONS
+==================================================
+
+PENDING:
+
+Show:
+- Approve
+- Reject
+
+APPROVED:
+
+Show:
+- Reject
+
+PROCESSING:
+
+Do not show:
+- Approve
+- automatic refund
+
+Do not allow an administrator to blindly reject an actively processing withdrawal.
+
+BROADCAST_UNKNOWN:
+
+Do not show a normal refund/reject action unless the existing reconciliation service has established that a financial refund is safe.
+
+MANUAL_REVIEW:
+
+Show:
+- Reject
+
+COMPLETED:
+
+Show:
+- No Approve
+- No Reject
+- No Refund
+
+REJECTED:
+
+Show:
+- No Approve
+- No Reject
+- No Refund
+
+==================================================
+6. PROCESSOR FAILURE RULE
+==================================================
+
+Create a single explicit processor-failure decision function.
+
+Conceptually:
+
+processorFailure(withdrawal):
+
+    if transactionConfirmed:
+        COMPLETED
+
+    else if transactionOutcomeAmbiguous:
+        BROADCAST_UNKNOWN
+
+    else if signingOrBroadcastingDidNotOccur:
+        PENDING
+
+    else:
+        BROADCAST_UNKNOWN
+
+Do not determine this from a generic exception alone.
+
+The system must inspect the withdrawal processing state and available transaction evidence.
+
+==================================================
+7. ACCOUNTING RULE
+==================================================
+
+When processor failure safely returns a withdrawal to PENDING:
+
+DO NOT change wallet balances.
+
+DO NOT release locked funds.
+
+DO NOT create a refund ledger transaction.
+
+The original withdrawal lock remains intact.
+
+Only when an administrator subsequently selects Reject should the hardened rejection service perform the atomic:
+
+locked balance:
+    - exact withdrawal amount
+
+available balance:
+    + exact withdrawal amount
+
+ledger:
+    one linked withdrawal failure/refund transaction
+
+==================================================
+8. RETRY BEHAVIOR
+==================================================
+
+If a withdrawal returns to PENDING because automatic processing failed before signing/broadcast:
+
+The administrator may approve it again.
+
+Approval should return it to:
+
+APPROVED
+
+and the normal processor lifecycle can subsequently retry:
+
+APPROVED
+→ QUEUED
+→ PROCESSING
+
+Do not create duplicate wallet debits when retrying.
+
+==================================================
+9. TIMELINE
+==================================================
+
+Record processor failure explicitly.
+
+Example:
+
+PROCESSING
+↓
+PROCESSOR_FAILURE
+↓
+PENDING
+
+The timeline event should include:
+
+- Withdrawal ID
+- Previous state
+- New state
+- Processor failure classification
+- Timestamp
+- Safe-to-retry classification
+
+Do not expose internal stack traces, secrets, private keys, RPC credentials, or sensitive infrastructure details.
+
+==================================================
+10. TESTS
+==================================================
+
+Add tests for:
+
+1. QUEUED is displayed as PROCESSING.
+2. QUEUED does not expose Approve/Reject.
+3. PROCESSING does not expose Approve/Reject.
+4. Processor failure before signing returns withdrawal to PENDING.
+5. Processor failure before signing does not modify balances.
+6. Processor failure before signing does not create a refund ledger entry.
+7. PENDING after processor failure can be approved.
+8. PENDING after processor failure can be rejected.
+9. SIGNED failure does NOT return to PENDING.
+10. BROADCASTING failure does NOT return to PENDING.
+11. Ambiguous broadcast becomes BROADCAST_UNKNOWN.
+12. Confirmed transaction remains COMPLETED.
+13. COMPLETED cannot be rejected.
+14. Duplicate processor failure cannot create duplicate timeline events.
+15. Retrying a returned-to-PENDING withdrawal cannot create duplicate accounting effects.
+
+Run the complete existing withdrawal test suite plus all new tests.
+
+Do not perform any production financial operation.
+
+Do not publish or deploy automatically.
+
+Provide a final report showing:
+
+- state-machine changes
+- UI status mapping
+- action availability by state
+- processor failure classification
+- accounting behavior
+- tests
+- build/typecheck results
+- confirmation that no production balances or withdrawals were modified.
