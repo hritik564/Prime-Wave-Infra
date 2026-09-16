@@ -1,0 +1,257 @@
+FINAL LIVE WITHDRAWAL READINESS AUDIT — AUTHENTICATED READ-ONLY / ZERO FINANCIAL ACTION
+
+The PW-WD-000130 incident has now been reconciled and subsequently rejected.
+
+Current expected state:
+- BROADCAST_UNKNOWN = 0
+- APPROVED = 0
+- Active claims = 0
+- PW-WD-000130 = REJECTED
+- locked withdrawal balance for PW-WD-000130 = 0
+- no transaction hash
+- no broadcast timestamp
+
+DO NOT:
+- create a withdrawal
+- approve any withdrawal
+- reject any other withdrawal
+- refund anything
+- call Reject & Refund
+- call the PW-WD-000130 correction endpoint
+- retry any withdrawal
+- sign a transaction
+- broadcast a transaction
+- modify balances, wallets, ledgers, claims, or production data
+- change any environment variable
+- change BLOCKCHAIN_DRY_RUN
+- publish or deploy anything
+
+This is an AUTHENTICATED READ-ONLY operational readiness check only.
+
+1. DEPLOYMENT
+
+Verify:
+- primewave.live is serving the current published build
+- /api/healthz = 200
+- API running
+- worker running
+- no restart loop
+- no persistent database errors
+- migration parity
+
+2. EFFECTIVE CONFIGURATION
+
+Report values without exposing secrets:
+
+- BLOCKCHAIN_DRY_RUN
+- MIN_HOT_WALLET_BNB
+- MIN_HOT_WALLET_USDT
+- presence of BSC_RPC_PRIMARY
+- presence of HOT_WALLET_ADDRESS
+- presence of HOT_WALLET_PRIVATE_KEY
+
+Expected:
+- BLOCKCHAIN_DRY_RUN=false
+- MIN_HOT_WALLET_BNB=0.0015
+- MIN_HOT_WALLET_USDT=1, either explicit or effective default
+
+Never print private-key material.
+
+3. AUTHENTICATED BLOCKCHAIN READINESS
+
+Using the existing protected operational-health/admin diagnostic, perform READ-ONLY checks for:
+
+- BSC chain ID
+- latest block
+- latest nonce
+- pending nonce
+- hot-wallet BNB balance
+- hot-wallet USDT balance
+- BNB threshold comparison
+- USDT threshold comparison
+- hot-wallet address/private-key correspondence
+- USDT contract bytecode
+- USDT symbol
+- USDT name
+- USDT decimals
+- transfer gas estimation
+
+Do NOT sign anything.
+
+Do NOT construct or submit a live transaction.
+
+Report the actual numeric balances and nonce values because this is an authorized read-only operational diagnostic.
+
+4. RPC STABILITY
+
+Inspect recent production logs and perform several read-only RPC checks.
+
+Determine whether:
+- eth_blockNumber succeeds consistently
+- eth_chainId succeeds consistently
+- eth_gasPrice succeeds consistently
+- eth_estimateGas succeeds consistently
+
+Distinguish:
+- transient RPC timeout/retry
+from
+- persistent RPC failure
+
+Do not perform any transaction submission.
+
+5. ACTIVATION GATE
+
+Report every gate individually:
+
+- schema readiness
+- withdrawal ledger index
+- RPC reachability
+- chain ID
+- USDT contract
+- USDT metadata
+- gas estimation
+- wallet configuration
+- private-key/address correspondence
+- BNB threshold
+- USDT threshold
+- BLOCKCHAIN_DRY_RUN
+- BROADCAST_UNKNOWN count
+- APPROVED count
+- active claims
+- worker readiness
+
+Then report the FINAL activation gate:
+
+OPEN or CLOSED
+
+Do not bypass, override, or weaken it.
+
+6. WITHDRAWAL STATE AUDIT
+
+Report current counts for:
+
+PENDING
+APPROVED
+PROCESSING
+BROADCAST_UNKNOWN
+MANUAL_REVIEW
+COMPLETED
+REJECTED
+FAILED
+UNDER_REVIEW
+CANCELLED
+
+Confirm:
+- APPROVED = 0
+- BROADCAST_UNKNOWN = 0
+- active claims = 0
+
+Do not modify anything.
+
+7. PW-WD-000130 POST-REJECTION AUDIT
+
+Read only.
+
+Confirm:
+- status
+- amount
+- txHash
+- signedAt
+- broadcastAt
+- processedAt
+- lockedWithdrawalBalance
+- withdrawalWallet
+- wallet transaction linkage
+- linked wallet transaction status
+- audit entries
+- timeline entries
+
+Confirm the financial accounting is internally consistent.
+
+Also investigate the rejection reason:
+
+"Invalid wallet address"
+
+Determine from the audit trail and source whether this was:
+- actual address validation failure,
+- an administrator-selected rejection reason,
+- a generic/manual reason,
+- or an inaccurate reason.
+
+Do not change the record.
+
+8. PROCESSOR SAFETY
+
+Confirm the published processor still has:
+
+- transaction-scoped advisory nonce lock
+- correct Prisma scalar handling
+- signing before SIGNED
+- signedAt only after successful cryptographic signing
+- BROADCASTING immediately before raw submission
+- txHash/broadcastAt only after valid RPC hash
+- no blind retry after ambiguous broadcast failure
+- ambiguous outcome → BROADCAST_UNKNOWN
+- pre-signing failure → PENDING
+- no automatic refund after processor failure
+- atomic/conditional settlement
+- duplicate-settlement protection
+
+9. WORKER SAFETY
+
+Confirm automatic processing selects ONLY:
+
+status = APPROVED
+
+Confirm:
+- PENDING cannot be automatically claimed
+- BROADCAST_UNKNOWN cannot be automatically claimed
+- MANUAL_REVIEW cannot be automatically claimed
+- COMPLETED cannot be claimed
+- REJECTED cannot be claimed
+
+Confirm concurrent workers cannot claim the same withdrawal.
+
+10. REAL-WITHDRAWAL TEST
+
+DO NOT perform a real withdrawal.
+
+Do not create or approve a test request.
+
+The purpose of this audit is only to determine whether the system is ready for a separately authorized controlled transaction.
+
+11. FINAL REPORT
+
+Return:
+
+CHECK | RESULT | EVIDENCE | BLOCKING?
+
+Then provide:
+
+A. Current activation gate: OPEN/CLOSED
+
+B. Exact remaining blockers, if any
+
+C. Actual BNB balance
+
+D. Actual USDT balance
+
+E. Latest nonce
+
+F. Pending nonce
+
+G. Gas-estimation result
+
+H. Key/address correspondence result
+
+I. RPC stability result
+
+J. PW-WD-000130 final accounting/rejection audit
+
+K. Whether the system is operationally ready for a controlled real withdrawal
+
+Be conservative.
+
+If a check fails or cannot be verified, mark it accordingly.
+
+DO NOT perform any financial action under any circumstances.
