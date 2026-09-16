@@ -1,0 +1,250 @@
+Perform the final authenticated Admin Withdrawal UI verification.
+
+The previous verification is blocked only because the available development admin credentials return:
+
+401 Invalid credentials
+
+DO NOT bypass authentication by forging JWTs, disabling authentication middleware, weakening authorization, modifying production authentication, or creating any production account.
+
+Use ONLY the development/preview environment.
+
+==================================================
+DEVELOPMENT AUTH VERIFICATION
+==================================================
+
+If a valid seeded development administrator already exists, identify the correct development authentication mechanism and use it.
+
+If the development environment currently has no usable admin credentials, create a temporary development-only test administrator using the application's existing supported admin provisioning/authentication mechanism.
+
+Requirements:
+
+- Development database only.
+- No production database.
+- No production credentials.
+- No production secrets.
+- Do not alter authentication code merely for testing.
+- Do not disable authentication.
+- Do not create a permanent production account.
+- Do not modify production users or roles.
+
+If the project has an existing seed/test-admin mechanism, prefer that rather than creating new authentication logic.
+
+==================================================
+AUTHENTICATED UI VERIFICATION
+==================================================
+
+Once authenticated, open:
+
+/admin/withdrawals
+
+Verify the actual rendered interface, not just source-code guards.
+
+Inspect representative withdrawals for every supported business state.
+
+==================================================
+PENDING
+==================================================
+
+Verify the three-dot menu contains:
+
+Approve
+Reject
+
+Verify it does NOT contain:
+
+Hold
+Assign Reviewer
+Refund
+obsolete re-processing actions
+
+Do not execute the actions.
+
+==================================================
+APPROVED
+==================================================
+
+Verify:
+
+Reject
+
+is available.
+
+Verify:
+
+Approve
+Hold
+Assign Reviewer
+Refund
+
+are unavailable.
+
+Do not execute the action.
+
+==================================================
+PROCESSING
+==================================================
+
+Use a QUEUED/internal-processing fixture.
+
+Verify the UI displays:
+
+PROCESSING
+
+Verify:
+
+Approve = unavailable
+Reject = unavailable
+Refund = unavailable
+
+Verify QUEUED is not exposed as a separate business status/filter.
+
+==================================================
+BROADCAST_UNKNOWN
+==================================================
+
+Verify:
+
+- status is visibly BROADCAST_UNKNOWN
+- normal Reject is unavailable
+- Refund is unavailable
+
+The UI must not imply that this state is automatically safe to refund.
+
+==================================================
+MANUAL_REVIEW
+==================================================
+
+Verify:
+
+Reject = available
+
+Verify obsolete actions are absent.
+
+==================================================
+COMPLETED
+==================================================
+
+Verify:
+
+Approve = unavailable
+Reject = unavailable
+Refund = unavailable
+
+Completed withdrawals must appear immutable.
+
+==================================================
+REJECTED
+==================================================
+
+Verify:
+
+Approve = unavailable
+Reject = unavailable
+Refund = unavailable
+
+==================================================
+STATUS FILTERS
+==================================================
+
+Verify the rendered filter UI.
+
+Expected business statuses include:
+
+PENDING
+APPROVED
+PROCESSING
+BROADCAST_UNKNOWN
+MANUAL_REVIEW
+COMPLETED
+REJECTED
+
+QUEUED must NOT appear as a separate business status.
+
+==================================================
+DETAIL VIEW
+==================================================
+
+Open a withdrawal detail page.
+
+Verify that backend withdrawal events are rendered.
+
+Where applicable, verify timeline entries such as:
+
+PROCESSOR_FAILURE
+state transitions
+retry events
+
+are displayed correctly.
+
+==================================================
+APPROVAL/REJECTION MODALS
+==================================================
+
+Open the Approve modal for a PENDING fixture.
+
+Verify it displays enough identifying information to prevent accidental approval, including:
+
+- Withdrawal ID
+- User
+- Amount
+- Current status
+- Destination address
+
+Do not submit.
+
+Open the Reject modal.
+
+Verify it requires an explicit rejection reason and confirmation.
+
+Do not submit.
+
+==================================================
+BACKEND ENFORCEMENT
+==================================================
+
+Against development/test data only, verify that directly calling the API cannot bypass the UI state restrictions.
+
+Examples:
+
+- Attempt Reject against PROCESSING.
+- Attempt Reject against BROADCAST_UNKNOWN.
+- Attempt Reject against COMPLETED.
+- Attempt Approve against APPROVED.
+- Attempt Approve against COMPLETED.
+
+Each must be rejected server-side.
+
+Do NOT execute any such operation against production.
+
+==================================================
+CLEANUP
+==================================================
+
+Remove temporary development-only test fixtures/accounts if they were created.
+
+Do not modify production.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Report:
+
+1. Development authentication method used
+2. Whether authenticated UI was successfully opened
+3. Screenshot/visual verification result
+4. Action menu for every state
+5. Status/filter verification
+6. Modal verification
+7. Backend enforcement verification
+8. Cleanup result
+9. Test results
+10. Build/typecheck results
+11. Production safety confirmation
+
+If development authentication cannot be established safely, STOP and report exactly why.
+
+Do not publish.
+Do not deploy.
+Do not modify production financial data.
+Do not approve/reject/refund any production withdrawal.
