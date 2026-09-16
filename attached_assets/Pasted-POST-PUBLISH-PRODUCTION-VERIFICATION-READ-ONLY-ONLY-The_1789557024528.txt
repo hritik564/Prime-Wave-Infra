@@ -1,0 +1,190 @@
+POST-PUBLISH PRODUCTION VERIFICATION — READ-ONLY ONLY
+
+The latest PrimeWave withdrawal workflow build has now been published to production.
+
+Perform a STRICT READ-ONLY verification of the published production system.
+
+DO NOT:
+- create a withdrawal
+- approve a withdrawal
+- reject a withdrawal
+- refund anything
+- reconcile anything
+- modify any production record
+- modify balances, wallets, ledgers, claims, or statuses
+- sign a blockchain transaction
+- broadcast a blockchain transaction
+- change BLOCKCHAIN_DRY_RUN
+- change environment variables
+- deploy or publish again
+
+Verify the following:
+
+1. DEPLOYMENT
+- primewave.live returns HTTP 200
+- /api/healthz returns HTTP 200
+- API is running
+- worker is running
+- no restart loop
+- no persistent database errors
+- migrations are applied
+
+2. WITHDRAWAL WORKFLOW
+Confirm from the PUBLISHED production source that the normal lifecycle is:
+
+PENDING
+→ QUEUED
+→ PROCESSING
+→ SIGNED
+→ BROADCASTING
+→ CONFIRMING
+→ COMPLETED
+
+Confirm that normal PENDING withdrawals no longer require APPROVED status.
+
+3. AUTOMATIC CLAIMING
+Verify that the worker automatically claims aged PENDING withdrawals.
+
+Confirm:
+- PENDING is claimable after WITHDRAWAL_HOLD_MINUTES
+- APPROVED remains supported only for legacy compatibility
+- QUEUED cannot be automatically claimed again
+- BROADCAST_UNKNOWN cannot be automatically claimed
+- MANUAL_REVIEW cannot be automatically claimed
+- REJECTED cannot be claimed
+- COMPLETED cannot be claimed
+- FOR UPDATE SKIP LOCKED remains in place
+- claim leases remain protected
+
+4. ADMIN APPROVAL REMOVAL
+Verify from the published frontend that normal administrator approval is no longer required.
+
+Confirm there is no normal:
+- Approve button
+- Approval modal
+- Bulk Approve
+- approval action in withdrawal drawer
+- approval action on mobile withdrawal cards
+
+Legacy backend APPROVED compatibility may remain, but it must not be required for the normal user withdrawal flow.
+
+5. QUEUE VISIBILITY
+Verify that the withdrawal queue includes:
+- PENDING
+- QUEUED
+- PROCESSING
+- SIGNED
+- BROADCASTING
+- CONFIRMING
+- COMPLETED where appropriate
+- BROADCAST_UNKNOWN
+- MANUAL_REVIEW
+
+Confirm newly created PENDING withdrawals are visible in the queue immediately, even during the hold period.
+
+6. PROCESSOR SAFETY
+Verify the published processor still has all of these protections:
+
+- transaction-scoped PostgreSQL advisory nonce lock
+- Prisma-safe advisory-lock result handling
+- nonce allocation inside the distributed lock
+- cryptographic signing before SIGNED
+- signedAt only after signing succeeds
+- BROADCASTING immediately before eth_sendRawTransaction
+- txHash only after a valid RPC hash
+- broadcastAt only after a valid RPC hash
+- no blind retry after ambiguous raw transaction submission
+- ambiguous outcomes become BROADCAST_UNKNOWN
+- pre-signing failures return to PENDING
+- no automatic refund after processor failure
+- conditional settlement preventing duplicate completion
+- withdrawalRequestId uniqueness protection
+
+7. PRODUCTION BLOCKCHAIN READINESS
+Using read-only operations only, verify:
+
+- BLOCKCHAIN_DRY_RUN=false
+- BSC chain ID = 56
+- BSC RPC reachable
+- latest nonce
+- pending nonce
+- hot-wallet BNB balance
+- hot-wallet USDT balance
+- BNB threshold
+- USDT threshold
+- USDT contract
+- USDT metadata
+- gas estimation
+- configured private key corresponds to configured wallet address without exposing the key
+
+Do not print secrets.
+
+8. PRODUCTION WITHDRAWAL STATE
+Report counts for:
+
+PENDING
+APPROVED
+QUEUED
+PROCESSING
+SIGNED
+BROADCASTING
+CONFIRMING
+BROADCAST_UNKNOWN
+MANUAL_REVIEW
+COMPLETED
+REJECTED
+FAILED
+UNDER_REVIEW
+CANCELLED
+
+Do not modify anything.
+
+9. IMPORTANT
+Do NOT create or process a test withdrawal during this verification.
+
+Do NOT use an existing withdrawal as a test.
+
+Do NOT approve anything manually.
+
+Do NOT call any correction, refund, rejection, or reconciliation endpoint.
+
+10. RUNTIME LOGS
+Inspect recent production worker logs for:
+
+- claim failures
+- PENDING claim activity
+- advisory-lock errors
+- Prisma void/deserialization errors
+- database errors
+- worker crashes
+- duplicate claims
+- unexpected retries
+- unexpected state transitions
+- RPC failures
+- activation-gate failures
+
+Separate transient RPC warnings from actual processor failures.
+
+11. FINAL REPORT
+
+Return:
+
+CHECK | RESULT | EVIDENCE | BLOCKING?
+
+Then provide:
+
+A. Is the published automatic withdrawal workflow correctly deployed?
+B. Is normal admin approval completely removed from the user withdrawal path?
+C. Is PENDING automatically claimable after the hold period?
+D. Is the withdrawal queue showing PENDING and QUEUED correctly?
+E. Is the blockchain activation gate OPEN?
+F. Are there any remaining blockers?
+G. Is the system ready for one controlled real $1 withdrawal test?
+
+Be conservative.
+
+If something cannot be verified, mark it NOT VERIFIED.
+
+Do not assume PASS.
+
+Most importantly: this is a READ-ONLY verification. No financial action is permitted.
