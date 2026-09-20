@@ -437,6 +437,7 @@ async function processCommonPasswordReset(
     processedCount = run.processedCount;
     checkpointedCount = run.processedCount;
     let cursor = run.lastUserId;
+    const startedAt = run.startedAt;
 
     while (true) {
       const [currentUserCount, currentAdminCount] = await Promise.all([
@@ -469,7 +470,7 @@ async function processCommonPasswordReset(
         async (user) => {
         const alreadyCommitted =
           user.passwordChangedAt !== null &&
-          user.passwordChangedAt >= run.startedAt &&
+          user.passwordChangedAt >= startedAt &&
           user.passwordResetRequired &&
           (await bcrypt.compare(context.password, user.passwordHash));
 
