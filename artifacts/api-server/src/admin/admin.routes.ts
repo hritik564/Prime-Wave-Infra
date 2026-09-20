@@ -258,6 +258,12 @@ import {
   updateCompanyWalletBodySchema,
 } from "./admin-company-wallets.schema";
 import powerBvRouter from "../binary/power-bv.routes";
+import {
+  previewBulkPasswordResetHandler,
+  executeBulkPasswordResetHandler,
+  downloadBulkPasswordResetArtifactHandler,
+} from "./bulk-reset.controller";
+import { bulkPasswordResetExecuteSchema } from "./bulk-reset.schema";
 
 const router = Router();
 
@@ -913,6 +919,27 @@ router.use("/deposit-verifications", adminLimiter, depositReadGuard, adminDeposi
 router.post("/scripts/rd-activation",      adminLimiter, superAdminGuard, rdActivationHandler);
 router.post("/scripts/mi-activation",      adminLimiter, superAdminGuard, miActivationHandler);
 router.post("/scripts/reconcile-counters", adminLimiter, superAdminGuard, reconcileCountersHandler);
+
+// ── Bulk user credential reset — SUPER_ADMIN only, explicit confirmation ─────
+router.post(
+  "/security/bulk-password-reset/preview",
+  adminLimiter,
+  superAdminGuard,
+  previewBulkPasswordResetHandler,
+);
+router.post(
+  "/security/bulk-password-reset/execute",
+  adminLimiter,
+  superAdminGuard,
+  validate(bulkPasswordResetExecuteSchema, "body"),
+  executeBulkPasswordResetHandler,
+);
+router.get(
+  "/security/bulk-password-reset/:runId/artifact",
+  adminLimiter,
+  superAdminGuard,
+  downloadBulkPasswordResetArtifactHandler,
+);
 
 // ── Blockchain Gateway — SUPER_ADMIN only ─────────────────────────────────────
 router.get( "/blockchain/health",            adminLimiter, superAdminGuard, getBlockchainHealthHandler);

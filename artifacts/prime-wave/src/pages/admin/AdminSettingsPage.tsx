@@ -1,8 +1,17 @@
 import { useState } from "react";
-import { CheckCircle2, Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Eye, EyeOff, Lock, RefreshCw, ShieldCheck } from "lucide-react";
 import AdminLayout from "./AdminLayout";
 import DepositWalletManagement from "./DepositWalletManagement";
-import { changeAdminPassword, createStaffAdmin } from "@/lib/api";
+import {
+  changeAdminPassword,
+  createStaffAdmin,
+  downloadBulkPasswordResetArtifact,
+  executeBulkPasswordReset,
+  previewBulkPasswordReset,
+  ApiRequestError,
+  type BulkPasswordResetPreview,
+  type BulkPasswordResetRunResult,
+} from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 
 const GOLD = "#D4AF37";
@@ -83,6 +92,12 @@ export default function AdminSettingsPage() {
   const [staffError, setStaffError] = useState<string | null>(null);
   const [staffCreatedEmail, setStaffCreatedEmail] = useState<string | null>(null);
   const [staffSaving, setStaffSaving] = useState(false);
+  const [bulkPreview, setBulkPreview] = useState<BulkPasswordResetPreview | null>(null);
+  const [bulkRun, setBulkRun] = useState<BulkPasswordResetRunResult | null>(null);
+  const [bulkConfirmation, setBulkConfirmation] = useState("");
+  const [bulkAcknowledged, setBulkAcknowledged] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const submit = async () => {
     setError(null);
@@ -146,6 +161,84 @@ export default function AdminSettingsPage() {
       setStaffError(requestError instanceof Error ? requestError.message : "Unable to create staff account.");
     } finally {
       setStaffSaving(false);
+    }
+  };
+
+  const loadBulkPreview = async () => {
+    setBulkError(null);
+    setBulkLoading(true);
+    try {
+      setBulkPreview(await previewBulkPasswordReset());
+      setBulkRun(null);
+    } catch (requestError) {
+      setBulkError(requestError instanceof Error ? requestError.message : "Unable to load the reset preview.");
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const runBulkReset = async () => {
+    if (!bulkPreview || !bulkAcknowledged || bulkConfirmation !== "RESET ALL NORMAL USER PASSWORDS") return;
+    setBulkError(null);
+    setBulkLoading(true);
+    try {
+      const result = await executeBulkPasswordReset(bulkConfirmation, bulkPreview.expectedResetCount);
+      setBulkRun(result);
+      setBulkConfirmation("");
+      setBulkAcknowledged(false);
+    } catch (requestError) {
+      if (requestError instanceof ApiRequestError && requestError.code === "BULK_RESET_STOPPED") {
+        const data = requestError.data as { runId?: string; processedCount?: number } | undefined;
+        if (data?.runId) {
+          setBulkRun({
+            runId: data.runId,
+            status: "FAILED",
+            totalEligible: bulkPreview.expectedResetCount,
+            processedCount: data.processedCount ?? 0,
+            failedCount: 1,
+            artifactAvailable: false,
+          });
+        }
+      }
+      setBulkError(requestError instanceof Error ? requestError.message : "Bulk reset stopped safely.");
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const resumeBulkReset = async () => {
+    if (!bulkRun || !bulkAcknowledged || bulkConfirmation !== "RESET ALL NORMAL USER PASSWORDS") return;
+    setBulkError(null);
+    setBulkLoading(true);
+    try {
+      const result = await executeBulkPasswordReset(
+        bulkConfirmation,
+        bulkRun.totalEligible,
+        bulkRun.runId,
+      );
+      setBulkRun(result);
+      setBulkConfirmation("");
+      setBulkAcknowledged(false);
+    } catch (requestError) {
+      setBulkError(requestError instanceof Error ? requestError.message : "Unable to resume the failed run.");
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const downloadBulkArtifact = async () => {
+    if (!bulkRun?.artifactAvailable) return;
+    setBulkError(null);
+    try {
+      const blob = await downloadBulkPasswordResetArtifact(bulkRun.runId);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `bulk-password-reset-${bulkRun.runId}.jsonl`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (requestError) {
+      setBulkError(requestError instanceof Error ? requestError.message : "Unable to download the credential artifact.");
     }
   };
 
@@ -313,6 +406,173 @@ export default function AdminSettingsPage() {
                   {staffSaving ? "Creating account…" : "Create Staff account"}
                 </button>
               </>
+            )}
+          </section>
+        )}
+
+        {isSuperAdmin && (
+          <section style={{ background: CARD, border: `1px solid rgba(248,113,113,0.24)`, borderRadius: 14, padding: 20, marginTop: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <AlertTriangle size={17} style={{ color: "#fca5a5" }} />
+              <h2 style={{ margin: 0, color: "rgba(255,255,255,0.9)", fontSize: 15, fontWeight: 700 }}>
+                Bulk user password reset
+              </h2>
+            </div>
+            <p style={{ margin: "0 0 16px", color: MUTED, fontSize: 12, lineHeight: 1.55 }}>
+              Super Admin only. This operation replaces every normal-user password, invalidates their existing JWTs,
+              sets forced-reset enforcement, and creates a one-time private credential artifact. Admin accounts and
+              financial/business data are excluded.
+            </p>
+
+            {!bulkPreview && !bulkRun && (
+              <button
+                type="button"
+                onClick={() => void loadBulkPreview()}
+                disabled={bulkLoading}
+                style={{
+                  border: `1px solid ${GOLD}66`,
+                  background: "rgba(212,175,55,0.13)",
+                  color: GOLD_L,
+                  borderRadius: 8,
+                  padding: "10px 16px",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: bulkLoading ? "wait" : "pointer",
+                }}
+              >
+                <RefreshCw size={13} style={{ verticalAlign: "middle", marginRight: 7 }} />
+                {bulkLoading ? "Loading preview…" : "Load read-only preview"}
+              </button>
+            )}
+
+            {bulkPreview && !bulkRun && (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+                  {[
+                    ["Normal users", bulkPreview.totalNormalUsers],
+                    ["ACTIVE", bulkPreview.activeUsers],
+                    ["INACTIVE", bulkPreview.inactiveUsers],
+                    ["BLOCKED", bulkPreview.blockedUsers],
+                    ["SUSPENDED", bulkPreview.suspendedUsers],
+                    ["Admins excluded", bulkPreview.adminCount],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 11px" }}>
+                      <div style={{ color: MUTED, fontSize: 10 }}>{label}</div>
+                      <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 17, fontWeight: 700, marginTop: 3 }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+                {(bulkPreview.unexpectedAuthVersionCount > 0 || bulkPreview.passwordResetRequiredCount > 0) && (
+                  <p role="alert" style={{ color: "#fca5a5", fontSize: 12, lineHeight: 1.5 }}>
+                    Preflight is blocked: existing users already have credential-reset state. No execution is allowed.
+                  </p>
+                )}
+                <label style={{ display: "block", marginBottom: 12 }}>
+                  <span style={{ display: "block", color: "rgba(255,255,255,0.72)", fontSize: 12, fontWeight: 600, marginBottom: 7 }}>
+                    Type the exact confirmation phrase
+                  </span>
+                  <input
+                    value={bulkConfirmation}
+                    onChange={(event) => setBulkConfirmation(event.target.value)}
+                    placeholder="RESET ALL NORMAL USER PASSWORDS"
+                    autoComplete="off"
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      background: "rgba(255,255,255,0.04)",
+                      border: `1px solid ${BORDER}`,
+                      borderRadius: 9,
+                      padding: "11px 12px",
+                      color: "rgba(255,255,255,0.9)",
+                      outline: "none",
+                      fontSize: 13,
+                    }}
+                  />
+                </label>
+                <label style={{ display: "flex", gap: 9, alignItems: "flex-start", color: "rgba(255,255,255,0.7)", fontSize: 12, lineHeight: 1.45, marginBottom: 14 }}>
+                  <input type="checkbox" checked={bulkAcknowledged} onChange={(event) => setBulkAcknowledged(event.target.checked)} />
+                  <span>I understand this is an irreversible credential transition for all normal users and must be followed by secure manual distribution.</span>
+                </label>
+                {bulkError && <p role="alert" style={{ color: "#fca5a5", fontSize: 12 }}>{bulkError}</p>}
+                <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => void runBulkReset()}
+                    disabled={
+                      bulkLoading ||
+                      bulkPreview.unexpectedAuthVersionCount > 0 ||
+                      bulkPreview.passwordResetRequiredCount > 0 ||
+                      !bulkAcknowledged ||
+                      bulkConfirmation !== "RESET ALL NORMAL USER PASSWORDS"
+                    }
+                    style={{
+                      border: "1px solid rgba(248,113,113,0.5)",
+                      background: "rgba(248,113,113,0.12)",
+                      color: "#fca5a5",
+                      borderRadius: 8,
+                      padding: "10px 16px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: bulkLoading ? "wait" : "pointer",
+                      opacity: bulkLoading ? 0.6 : 1,
+                    }}
+                  >
+                    {bulkLoading ? "Processing…" : "Start bulk reset"}
+                  </button>
+                  <button type="button" onClick={() => void loadBulkPreview()} disabled={bulkLoading} style={{ border: `1px solid ${BORDER}`, background: "transparent", color: MUTED, borderRadius: 8, padding: "10px 16px", fontSize: 12, cursor: "pointer" }}>
+                    Refresh preview
+                  </button>
+                </div>
+              </>
+            )}
+
+            {bulkRun && (
+              <div style={{ border: "1px solid rgba(52,211,153,0.3)", background: "rgba(52,211,153,0.08)", borderRadius: 10, padding: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#6ee7b7", fontSize: 13, fontWeight: 700 }}>
+                  <CheckCircle2 size={16} />
+                  Bulk reset status: {bulkRun.status}
+                </div>
+                <p style={{ margin: "8px 0 12px", color: "rgba(255,255,255,0.68)", fontSize: 12 }}>
+                  Processed {bulkRun.processedCount} of {bulkRun.totalEligible} normal users. Run ID: {bulkRun.runId}
+                </p>
+                {bulkRun.status === "FAILED" && (
+                  <>
+                    <p style={{ margin: "0 0 12px", color: "#fca5a5", fontSize: 12, lineHeight: 1.5 }}>
+                      The run stopped safely. Re-enter the exact phrase and acknowledge the warning to resume this same run without generating replacement passwords for completed users.
+                    </p>
+                    <label style={{ display: "block", marginBottom: 12 }}>
+                      <span style={{ display: "block", color: "rgba(255,255,255,0.72)", fontSize: 12, fontWeight: 600, marginBottom: 7 }}>
+                        Re-enter the exact confirmation phrase
+                      </span>
+                      <input
+                        value={bulkConfirmation}
+                        onChange={(event) => setBulkConfirmation(event.target.value)}
+                        placeholder="RESET ALL NORMAL USER PASSWORDS"
+                        autoComplete="off"
+                        style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 9, padding: "11px 12px", color: "rgba(255,255,255,0.9)", outline: "none", fontSize: 13 }}
+                      />
+                    </label>
+                    <label style={{ display: "flex", gap: 9, alignItems: "flex-start", color: "rgba(255,255,255,0.7)", fontSize: 12, lineHeight: 1.45, marginBottom: 14 }}>
+                      <input type="checkbox" checked={bulkAcknowledged} onChange={(event) => setBulkAcknowledged(event.target.checked)} />
+                      <span>I understand this resumes the existing run and does not restart completed users.</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => void resumeBulkReset()}
+                      disabled={bulkLoading || !bulkAcknowledged || bulkConfirmation !== "RESET ALL NORMAL USER PASSWORDS"}
+                      style={{ border: `1px solid ${GOLD}66`, background: "rgba(212,175,55,0.13)", color: GOLD_L, borderRadius: 8, padding: "10px 16px", fontSize: 12, fontWeight: 700, cursor: bulkLoading ? "wait" : "pointer", opacity: bulkLoading ? 0.6 : 1 }}
+                    >
+                      {bulkLoading ? "Resuming…" : "Resume this run safely"}
+                    </button>
+                  </>
+                )}
+                {bulkRun.artifactAvailable && (
+                  <button type="button" onClick={() => void downloadBulkArtifact()} style={{ border: `1px solid ${GOLD}66`, background: "rgba(212,175,55,0.13)", color: GOLD_L, borderRadius: 8, padding: "10px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    <Download size={13} style={{ verticalAlign: "middle", marginRight: 7 }} />
+                    Download one-time credential artifact
+                  </button>
+                )}
+              </div>
             )}
           </section>
         )}

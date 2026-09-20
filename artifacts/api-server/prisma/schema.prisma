@@ -116,6 +116,14 @@ enum PowerBvOperation {
   REMOVE
 }
 
+enum BulkPasswordResetRunStatus {
+  PREPARING
+  RUNNING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -261,6 +269,7 @@ model Admin {
   updatedAt    DateTime  @updatedAt
 
   logs                  AdminLog[]
+  bulkPasswordResetRuns BulkPasswordResetRun[]
   impersonationSessions ImpersonationSession[]
   approvedDeposits      DepositRequest[]
 
@@ -301,6 +310,33 @@ model AdminLog {
   @@index([adminId])
   @@index([targetUserId])
   @@map("admin_logs")
+}
+
+/// Tracks bulk credential-reset progress without ever storing plaintext
+/// temporary passwords. The credential artifact lives in private object storage.
+model BulkPasswordResetRun {
+  id                   String                     @id @default(cuid())
+  adminId              String
+  status               BulkPasswordResetRunStatus @default(PREPARING)
+  totalEligible        Int
+  adminCount           Int
+  processedCount       Int                      @default(0)
+  failedCount          Int                      @default(0)
+  lastUserId           String?
+  artifactObjectPath   String
+  artifactExpiresAt    DateTime
+  artifactDownloadedAt DateTime?
+  failureReason        String?
+  startedAt            DateTime                 @default(now())
+  completedAt          DateTime?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([status])
+  @@index([adminId, createdAt])
+  @@map("bulk_password_reset_runs")
 }
 
 model ImpersonationSession {

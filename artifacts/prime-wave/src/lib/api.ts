@@ -2,6 +2,18 @@ import { getToken, getAdminToken, fireUnauthorized } from "./auth";
 
 const BASE = "";
 
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string,
+    public readonly data?: unknown,
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const isAdminPath = path.startsWith("/api/admin/") && path !== "/api/admin/login";
   const token = isAdminPath ? (getAdminToken() ?? getToken()) : getToken();
@@ -23,12 +35,22 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (data?.code !== "PASSWORD_RESET_REQUIRED") {
       fireUnauthorized();
     }
-    throw new Error(data?.message ?? data?.error ?? "Session expired. Please sign in again.");
+    throw new ApiRequestError(
+      data?.message ?? data?.error ?? "Session expired. Please sign in again.",
+      res.status,
+      data?.code,
+      (body as { data?: unknown } | null)?.data,
+    );
   }
 
   if (!res.ok) {
-    const data = body as { message?: string; error?: string } | null;
-    throw new Error(data?.message ?? data?.error ?? `Request failed (${res.status})`);
+    const data = body as { message?: string; error?: string; code?: string; data?: unknown } | null;
+    throw new ApiRequestError(
+      data?.message ?? data?.error ?? `Request failed (${res.status})`,
+      res.status,
+      data?.code,
+      data?.data,
+    );
   }
 
   return (body as { data: T }).data;
@@ -117,6 +139,63 @@ export function createStaffAdmin(email: string, password: string, confirmPasswor
     method: "POST",
     body: JSON.stringify({ email, password, confirmPassword }),
   });
+}
+
+export interface BulkPasswordResetPreview {
+  totalNormalUsers: number;
+  activeUsers: number;
+  inactiveUsers: number;
+  blockedUsers: number;
+  suspendedUsers: number;
+  expectedResetCount: number;
+  adminCount: number;
+  usersExcluded: number;
+  unexpectedAuthVersionCount: number;
+  passwordResetRequiredCount: number;
+}
+
+export interface BulkPasswordResetRunResult {
+  runId: string;
+  status: "PREPARING" | "RUNNING" | "COMPLETED" | "FAILED" | "EXPIRED";
+  totalEligible: number;
+  processedCount: number;
+  failedCount: number;
+  artifactAvailable: boolean;
+}
+
+export function previewBulkPasswordReset() {
+  return request<BulkPasswordResetPreview>("/api/admin/security/bulk-password-reset/preview", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export function executeBulkPasswordReset(confirmation: string, expectedUserCount: number, runId?: string) {
+  return request<BulkPasswordResetRunResult>("/api/admin/security/bulk-password-reset/execute", {
+    method: "POST",
+    body: JSON.stringify({ confirmation, expectedUserCount, ...(runId ? { runId } : {}) }),
+  });
+}
+
+export async function downloadBulkPasswordResetArtifact(runId: string): Promise<Blob> {
+  const token = getAdminToken() ?? getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`/api/admin/security/bulk-password-reset/${encodeURIComponent(runId)}/artifact`, {
+    headers,
+  });
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`;
+    try {
+      const body = await res.json() as { message?: string };
+      message = body.message ?? message;
+    } catch {
+      // Keep the status-derived message when the response is not JSON.
+    }
+    if (res.status === 401 || res.status === 403) fireUnauthorized();
+    throw new ApiRequestError(message, res.status);
+  }
+  return res.blob();
 }
 
 export function register(data: {
