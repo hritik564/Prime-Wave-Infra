@@ -13,8 +13,10 @@ vi.mock("../../lib/logger", () => ({
 
 import {
   COMMON_PASSWORD_RESET_EMERGENCY_STOP_REASON,
+  COMMON_PASSWORD_RESET_WORKER_PROCESS_LOST_REASON,
   executeCommonPasswordReset,
   getCommonPasswordResetPreview,
+  recoverStrandedCommonPasswordResetRun,
   requestCommonPasswordResetEmergencyStop,
 } from "../common-password-reset.service";
 import {
@@ -141,6 +143,13 @@ function createFakeDependencies(
         for (const [key, value] of Object.entries(args.where)) {
           if (key === "activeLockKey" && value === null && run.activeLockKey !== null) return { count: 0 };
           if (key === "status" && run.status !== value) return { count: 0 };
+          if (
+            key === "workerLeaseUntil"
+            && typeof value === "object"
+            && value !== null
+            && "lte" in value
+            && run.workerLeaseUntil > (value as { lte: Date }).lte
+          ) return { count: 0 };
         }
         Object.assign(run, args.data, { updatedAt: new Date() });
         return { count: 1 };
@@ -438,5 +447,50 @@ describe("common temporary password reset", () => {
       "common-run-1",
       fake.dependencies,
     )).rejects.toMatchObject({ code: "COMMON_RESET_EMERGENCY_RUN_NOT_FOUND" });
+  });
+
+  it("recovers only the stranded target run without changing users or the durable checkpoint", async () => {
+    const fake = createFakeDependencies([createUser("1")]);
+    const strandedRun = {
+      id: COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID,
+      adminId: "admin-1",
+      status: "RUNNING",
+      totalEligible: 6640,
+      adminCount: 2,
+      processedCount: 250,
+      failedCount: 0,
+      lastUserId: "checkpoint-user-250",
+      failureReason: null,
+      workerLeaseUntil: new Date(Date.now() - 1_000),
+      lastHeartbeatAt: new Date(Date.now() - 61_000),
+      activeLockKey: "COMMON_TEMPORARY_PASSWORD_RESET",
+      startedAt: new Date("2026-09-20T17:34:43.333Z"),
+      completedAt: null,
+      createdAt: new Date("2026-09-20T17:34:43.333Z"),
+      updatedAt: new Date("2026-09-20T18:20:14.165Z"),
+    };
+    fake.runs.set(strandedRun.id, strandedRun);
+
+    const recovered = await recoverStrandedCommonPasswordResetRun(
+      "super-admin-1",
+      strandedRun.id,
+      fake.dependencies,
+    );
+
+    expect(recovered).toMatchObject({
+      runId: COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID,
+      status: "FAILED",
+      processedCount: 250,
+      totalEligible: 6640,
+      failedCount: 1,
+      lastUserId: "checkpoint-user-250",
+      failureReason: COMMON_PASSWORD_RESET_WORKER_PROCESS_LOST_REASON,
+    });
+    expect(strandedRun.activeLockKey).toBeNull();
+    expect(strandedRun.workerLeaseUntil).toBeNull();
+    expect(fake.db.user.update).not.toHaveBeenCalled();
+    expect(fake.logs.at(-1)).toMatchObject({
+      action: "COMMON_TEMPORARY_PASSWORD_RESET_WORKER_LOST_RECOVERED",
+    });
   });
 });

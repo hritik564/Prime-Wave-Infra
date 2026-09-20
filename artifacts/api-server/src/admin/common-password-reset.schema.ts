@@ -6,6 +6,8 @@ export const COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID =
   "cmua3jcec001wa99zi17pz3hl";
 export const COMMON_PASSWORD_RESET_EMERGENCY_STOP_CONFIRMATION =
   "STOP COMMON TEMPORARY PASSWORD RESET FOR PERFORMANCE RECOVERY";
+export const COMMON_PASSWORD_RESET_STRANDED_RECOVERY_CONFIRMATION =
+  "RECOVER STRANDED COMMON PASSWORD RESET WORKER";
 
 export const commonPasswordResetExecuteSchema = z.object({
   password: z.string().min(12).max(128),
@@ -25,4 +27,12 @@ export const commonPasswordResetEmergencyStopSchema = z.object({
 
 export type CommonPasswordResetEmergencyStopInput = z.infer<
   typeof commonPasswordResetEmergencyStopSchema
+>;
+
+export const commonPasswordResetStrandedRecoverySchema = z.object({
+  confirmation: z.literal(COMMON_PASSWORD_RESET_STRANDED_RECOVERY_CONFIRMATION),
+});
+
+export type CommonPasswordResetStrandedRecoveryInput = z.infer<
+  typeof commonPasswordResetStrandedRecoverySchema
 >;

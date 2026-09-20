@@ -13,6 +13,7 @@ import {
   markDeadBulkPasswordResetRunFailed,
   previewBulkPasswordReset,
   previewCommonPasswordReset,
+  recoverStrandedCommonPasswordReset,
   ApiRequestError,
   COMMON_PASSWORD_RESET_CONFIRMATION,
   COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID,
@@ -393,6 +394,36 @@ export default function AdminSettingsPage() {
       setCommonError(requestError instanceof Error ? requestError.message : "Unable to stop the common-password worker safely.");
     } finally {
       setCommonEmergencyStopping(false);
+    }
+  };
+
+  const recoverStrandedCommonReset = async () => {
+    if (
+      !isSuperAdmin ||
+      !commonRun ||
+      commonRun.runId !== COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID ||
+      commonRun.status !== "RUNNING" ||
+      commonRecoveryLoading
+    ) return;
+
+    const confirmed = window.confirm(
+      `Recover stranded common-password reset ${commonRun.runId}?\n\n`
+      + "This is only for a worker process that is no longer running and whose lease has expired. "
+      + "It will preserve the last durable checkpoint, release the reset lock, and require the temporary password to be entered again before resuming. "
+      + "No user credentials will be changed by recovery.",
+    );
+    if (!confirmed) return;
+
+    setCommonError(null);
+    setCommonRecoveryLoading(true);
+    try {
+      const result = await recoverStrandedCommonPasswordReset(commonRun.runId);
+      setCommonRun(result);
+      await loadCommonPreview();
+    } catch (requestError) {
+      setCommonError(requestError instanceof Error ? requestError.message : "Unable to recover the stranded common-password worker.");
+    } finally {
+      setCommonRecoveryLoading(false);
     }
   };
 
@@ -887,14 +918,24 @@ export default function AdminSettingsPage() {
                       {commonRecoveryLoading ? "Recovering stale run…" : "Recover Stale Reset Run"}
                     </button>
                     {commonRun?.runId === COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID && commonRun.status === "RUNNING" && (
-                      <button
-                        type="button"
-                        onClick={() => void emergencyStopCommonReset()}
-                        disabled={commonLoading || commonRecoveryLoading || commonEmergencyStopping}
-                        style={{ marginLeft: 8, border: "1px solid rgba(248,113,113,0.55)", background: "rgba(248,113,113,0.1)", color: "#fca5a5", borderRadius: 8, padding: "9px 13px", fontSize: 12, fontWeight: 700, cursor: commonEmergencyStopping ? "wait" : "pointer", opacity: commonLoading || commonRecoveryLoading || commonEmergencyStopping ? 0.6 : 1 }}
-                      >
-                        {commonEmergencyStopping ? "Stopping safely…" : "Emergency stop for performance recovery"}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void emergencyStopCommonReset()}
+                          disabled={commonLoading || commonRecoveryLoading || commonEmergencyStopping}
+                          style={{ marginLeft: 8, border: "1px solid rgba(248,113,113,0.55)", background: "rgba(248,113,113,0.1)", color: "#fca5a5", borderRadius: 8, padding: "9px 13px", fontSize: 12, fontWeight: 700, cursor: commonEmergencyStopping ? "wait" : "pointer", opacity: commonLoading || commonRecoveryLoading || commonEmergencyStopping ? 0.6 : 1 }}
+                        >
+                          {commonEmergencyStopping ? "Stopping safely…" : "Emergency stop for performance recovery"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void recoverStrandedCommonReset()}
+                          disabled={commonLoading || commonRecoveryLoading || commonEmergencyStopping}
+                          style={{ marginLeft: 8, border: `1px solid ${GOLD}88`, background: "rgba(212,175,55,0.13)", color: GOLD_L, borderRadius: 8, padding: "9px 13px", fontSize: 12, fontWeight: 700, cursor: commonRecoveryLoading ? "wait" : "pointer", opacity: commonLoading || commonRecoveryLoading || commonEmergencyStopping ? 0.6 : 1 }}
+                        >
+                          {commonRecoveryLoading ? "Recovering stranded worker…" : "Recover stranded worker"}
+                        </button>
+                      </>
                     )}
                   </div>
                 )}

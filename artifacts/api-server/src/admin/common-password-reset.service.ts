@@ -22,6 +22,8 @@ export const COMMON_PASSWORD_RESET_HEARTBEAT_INTERVAL_MS = 60_000;
 export const COMMON_PASSWORD_RESET_LOCK_KEY = "COMMON_TEMPORARY_PASSWORD_RESET";
 export const COMMON_PASSWORD_RESET_EMERGENCY_STOP_REASON =
   "WORKER_ADMIN_STOPPED_FOR_PERFORMANCE_RECOVERY";
+export const COMMON_PASSWORD_RESET_WORKER_PROCESS_LOST_REASON =
+  "COMMON_RESET_WORKER_PROCESS_LOST";
 
 type CommonResetDb = Pick<
   PrismaClient,
@@ -419,6 +421,91 @@ export async function requestCommonPasswordResetEmergencyStop(
       "COMMON_RESET_STOP_NOT_CONFIRMED",
     );
   }
+  return serializeRun(recovered);
+}
+
+export async function recoverStrandedCommonPasswordResetRun(
+  adminId: string,
+  runId: string,
+  dependencies: CommonPasswordResetDependencies = defaultDependencies,
+) {
+  if (runId !== COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID) {
+    throw new AppError(
+      "Stranded common-password reset recovery is not enabled for this run",
+      HTTP_STATUS.NOT_FOUND,
+      "COMMON_RESET_STRANDED_RUN_NOT_FOUND",
+    );
+  }
+
+  const run = await dependencies.db.commonTemporaryPasswordResetRun.findUnique({
+    where: { id: runId },
+  });
+  if (!run || run.status !== "RUNNING") {
+    throw new AppError(
+      "The common-password reset run is not currently running",
+      HTTP_STATUS.CONFLICT,
+      "COMMON_RESET_NOT_RUNNING",
+    );
+  }
+
+  if (activeJobs.has(runId)) {
+    throw new AppError(
+      "The common-password reset worker is still active; use the cooperative emergency stop path",
+      HTTP_STATUS.CONFLICT,
+      "COMMON_RESET_WORKER_STILL_ACTIVE",
+    );
+  }
+
+  const now = new Date();
+  if (!run.workerLeaseUntil || run.workerLeaseUntil > now) {
+    throw new AppError(
+      "The common-password reset worker lease has not expired",
+      HTTP_STATUS.CONFLICT,
+      "COMMON_RESET_WORKER_LEASE_ACTIVE",
+    );
+  }
+
+  const transition = await dependencies.db.commonTemporaryPasswordResetRun.updateMany({
+    where: {
+      id: runId,
+      status: "RUNNING",
+      activeLockKey: COMMON_PASSWORD_RESET_LOCK_KEY,
+      workerLeaseUntil: { lte: now },
+    },
+    data: {
+      status: "FAILED",
+      failedCount: 1,
+      failureReason: COMMON_PASSWORD_RESET_WORKER_PROCESS_LOST_REASON,
+      activeLockKey: null,
+      workerLeaseUntil: null,
+    },
+  });
+  if (transition.count !== 1) {
+    throw new AppError(
+      "The stranded common-password reset run changed before recovery could claim it",
+      HTTP_STATUS.CONFLICT,
+      "COMMON_RESET_STRANDED_RECOVERY_NOT_CLAIMED",
+    );
+  }
+
+  const recovered = await dependencies.db.commonTemporaryPasswordResetRun.findUniqueOrThrow({
+    where: { id: runId },
+  });
+  await dependencies.db.adminLog.create({
+    data: {
+      adminId,
+      action: "COMMON_TEMPORARY_PASSWORD_RESET_WORKER_LOST_RECOVERED",
+      details: {
+        runId,
+        operationType: "COMMON_TEMPORARY_PASSWORD",
+        processedCount: recovered.processedCount,
+        lastUserId: recovered.lastUserId,
+        totalEligible: recovered.totalEligible,
+        failureReason: COMMON_PASSWORD_RESET_WORKER_PROCESS_LOST_REASON,
+      },
+    },
+  }).catch(() => undefined);
+
   return serializeRun(recovered);
 }
 

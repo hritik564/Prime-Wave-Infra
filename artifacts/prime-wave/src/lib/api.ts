@@ -207,6 +207,8 @@ export interface CommonPasswordResetPreview {
 export const COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID = "cmua3jcec001wa99zi17pz3hl";
 export const COMMON_PASSWORD_RESET_EMERGENCY_STOP_CONFIRMATION =
   "STOP COMMON TEMPORARY PASSWORD RESET FOR PERFORMANCE RECOVERY";
+export const COMMON_PASSWORD_RESET_STRANDED_RECOVERY_CONFIRMATION =
+  "RECOVER STRANDED COMMON PASSWORD RESET WORKER";
 
 export interface CommonPasswordResetRunStatus {
   runId: string;
@@ -264,6 +266,18 @@ export function emergencyStopCommonPasswordReset(runId: string) {
       method: "POST",
       body: JSON.stringify({
         confirmation: COMMON_PASSWORD_RESET_EMERGENCY_STOP_CONFIRMATION,
+      }),
+    },
+  );
+}
+
+export function recoverStrandedCommonPasswordReset(runId: string) {
+  return request<CommonPasswordResetRunStatus>(
+    `/api/admin/security/common-password-reset/${encodeURIComponent(runId)}/recover-stranded`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        confirmation: COMMON_PASSWORD_RESET_STRANDED_RECOVERY_CONFIRMATION,
       }),
     },
   );
