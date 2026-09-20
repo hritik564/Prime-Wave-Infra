@@ -1,0 +1,269 @@
+SECURITY IMPLEMENTATION — STAGE 1 ONLY
+FULL USER CREDENTIAL RESET INFRASTRUCTURE
+
+We are preparing a company ownership/partner transition.
+
+The read-only authentication audit is complete.
+
+IMPORTANT:
+DO NOT perform the mass password reset yet.
+DO NOT change any existing user password hashes yet.
+DO NOT set passwordResetRequired=true for existing users yet.
+DO NOT invalidate existing user sessions yet.
+DO NOT modify financial/user business data.
+DO NOT deploy production.
+DO NOT expose or print password hashes, secrets, tokens, private keys, or credentials.
+
+We are implementing ONLY the infrastructure required for a later controlled credential cutover.
+
+OBJECTIVE
+
+Build a secure forced-password-reset system for normal User accounts.
+
+The later mass cutover will affect approximately 6,640 normal users, including approximately 6,393 seeded users.
+
+Admin accounts use a separate Admin model and MUST remain completely unaffected by this implementation.
+
+==================================================
+1. USER SCHEMA
+==================================================
+
+Add to the normal User model:
+
+passwordResetRequired Boolean @default(false)
+authVersion Int @default(0)
+
+Optionally add:
+
+passwordChangedAt DateTime?
+
+Do NOT modify existing passwordHash values.
+
+Do NOT modify user status values.
+
+Do NOT modify wallet, investment, ROI, deposit, withdrawal, income, referral, BV, or other business fields.
+
+Create a proper Prisma migration.
+
+==================================================
+2. RESET TOKEN MODEL
+==================================================
+
+Create a secure reset-token model/table.
+
+Requirements:
+
+- unique token record ID
+- userId foreign key
+- tokenHash
+- createdAt
+- expiresAt
+- usedAt nullable
+- optional request metadata if already supported by the architecture
+
+NEVER store the raw reset token.
+
+NEVER log the raw reset token.
+
+NEVER log passwords.
+
+The raw reset token may exist only transiently in the request/response flow and should be delivered through the intended trusted channel.
+
+Add appropriate indexes and foreign keys.
+
+Reset tokens must support atomic single-use consumption.
+
+==================================================
+3. JWT AUTH VERSION
+==================================================
+
+Modify normal USER JWT generation to include:
+
+authVersion
+
+Use the current user's authVersion at token issuance.
+
+Modify normal user requireAuth middleware:
+
+1. Verify JWT signature.
+2. Verify expiration.
+3. Load current user authentication state.
+4. Compare JWT authVersion against database authVersion.
+5. Reject stale tokens.
+6. If passwordResetRequired=true, prevent access to normal authenticated routes.
+7. Allow only the password-reset completion flow and any explicitly required unauthenticated/reset endpoints.
+
+Do NOT alter Admin authentication behavior.
+
+Admin JWT/session logic must remain exactly as currently implemented.
+
+==================================================
+4. AUTH VERSION INVALIDATION
+==================================================
+
+Create a safe mechanism so that incrementing:
+
+users.authVersion
+
+invalidates every previously issued JWT for that user.
+
+Do not create a token blacklist.
+
+Do not create a session table unless technically necessary.
+
+The database authVersion is the source of truth.
+
+==================================================
+5. PASSWORD RESET ENDPOINTS
+==================================================
+
+Implement a real server-side password reset flow.
+
+Required conceptual endpoints:
+
+POST /api/auth/forgot-password
+POST /api/auth/reset-password
+
+Follow the project's existing API conventions.
+
+FORGOT PASSWORD:
+
+- accept email/username according to existing account model
+- response must not reveal whether an account exists
+- generate a cryptographically secure random reset token
+- store only its hash
+- set a short expiration
+- invalidate/expire previous outstanding reset tokens for that user as appropriate
+- rate-limit requests
+- never log the raw token
+- never log the password
+
+RESET PASSWORD:
+
+- accept reset token + new password
+- validate token hash
+- validate expiration
+- validate unused status
+- atomically consume the token
+- hash the new password with existing bcrypt configuration
+- set passwordResetRequired=false
+- increment authVersion
+- update passwordChangedAt if implemented
+- issue a new normal user JWT only after successful completion
+
+Concurrent requests must not allow the same reset token to succeed twice.
+
+==================================================
+6. FORCED RESET BEHAVIOR
+==================================================
+
+When passwordResetRequired=true:
+
+- old password must not provide normal authenticated access
+- old JWT must not provide normal authenticated access
+- only the reset completion flow should be available
+- after successful reset, normal access resumes
+
+Do NOT yet set this flag on existing production users.
+
+==================================================
+7. PASSWORD POLICY
+==================================================
+
+Reuse the application's existing password validation policy if one exists.
+
+If the existing policy is insufficient, implement a clear minimum policy appropriate for production.
+
+Do not generate temporary passwords.
+
+Do not use Math.random() for credential generation.
+
+Use cryptographically secure randomness wherever secrets/tokens are generated.
+
+==================================================
+8. SECURITY TESTS
+==================================================
+
+Add automated tests for:
+
+1. JWT contains authVersion.
+2. Current authVersion is accepted.
+3. Stale authVersion is rejected.
+4. passwordResetRequired blocks normal authenticated routes.
+5. reset endpoint remains accessible when appropriate.
+6. Forgot-password response does not reveal account existence.
+7. Reset token is stored hashed, never plaintext.
+8. Reset token expires.
+9. Reset token can only be consumed once.
+10. Concurrent token consumption allows only one success.
+11. Successful reset changes password hash.
+12. Successful reset clears passwordResetRequired.
+13. Successful reset increments authVersion.
+14. Existing JWT becomes invalid after reset.
+15. Newly issued JWT works.
+16. Reset token cannot be used for another user.
+17. Passwords/tokens do not appear in logs.
+18. Admin authentication remains unchanged.
+19. Admin JWT behavior remains unchanged.
+20. No financial/user business data changes.
+
+==================================================
+9. CRITICAL TEST WITH EXISTING DATA
+==================================================
+
+Before any mutation, create/read a controlled test fixture if the existing test architecture supports it.
+
+DO NOT modify a real production user's password.
+
+Verify the implementation against test data only.
+
+==================================================
+10. PRODUCTION SAFETY
+==================================================
+
+This stage must NOT:
+
+- reset passwords
+- increment authVersion for existing production users
+- set passwordResetRequired for existing production users
+- delete users
+- change statuses
+- change balances
+- change wallets
+- change investments
+- change ROI
+- change deposits
+- change withdrawals
+- change referrals
+- modify admin accounts
+
+==================================================
+11. BUILD AND VERIFY
+==================================================
+
+Run:
+
+- Prisma validation
+- Prisma migration validation
+- API typecheck
+- API tests
+- frontend typecheck
+- frontend build
+- relevant integration tests
+
+Check git diff carefully.
+
+Provide a final report containing:
+
+A. Exact schema changes
+B. Exact endpoint changes
+C. JWT/auth middleware changes
+D. Reset-token security design
+E. Test results
+F. Confirmation that NO existing production user passwords were changed
+G. Confirmation that NO production financial/business data was changed
+H. Any remaining work required before the mass reset
+
+DO NOT DEPLOY PRODUCTION.
+
+STOP after Stage 1.
