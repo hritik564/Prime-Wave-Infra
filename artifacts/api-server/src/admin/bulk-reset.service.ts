@@ -20,6 +20,9 @@ import {
 
 export const BULK_RESET_BATCH_SIZE = 250;
 export const BULK_RESET_ARTIFACT_TTL_MS = 24 * 60 * 60_000;
+export const DEAD_RANDOM_BULK_RESET_RUN_ID = "cmu9ppuf8005f7jayk27yz29w";
+export const BULK_RESET_WORKER_TERMINATED_REASON = "WORKER_PROCESS_TERMINATED_EXTERNALLY";
+export const BULK_RESET_MARKED_FAILED_ACTION = "BULK_PASSWORD_RESET_MARKED_FAILED";
 
 export class BulkPasswordResetStoppedError extends AppError {
   constructor(
@@ -36,7 +39,7 @@ export class BulkPasswordResetStoppedError extends AppError {
 
 type BulkResetDb = Pick<
   PrismaClient,
-  "user" | "admin" | "adminLog" | "bulkPasswordResetRun"
+  "user" | "admin" | "adminLog" | "bulkPasswordResetRun" | "$transaction"
 >;
 
 export interface BulkResetDependencies {
@@ -48,6 +51,12 @@ const defaultDependencies: BulkResetDependencies = {
   db: prisma,
   artifactStore: productionBulkResetArtifactStore,
 };
+
+const activeBulkResetRuns = new Set<string>();
+
+export function isBulkPasswordResetRunActive(runId: string): boolean {
+  return activeBulkResetRuns.has(runId);
+}
 
 type UserStatusKey = "ACTIVE" | "INACTIVE" | "BLOCKED" | "SUSPENDED";
 
@@ -154,6 +163,77 @@ function serializeRunResult(run: {
   };
 }
 
+export async function markDeadBulkPasswordResetRunFailed(
+  adminId: string,
+  runId: string,
+  dependencies: BulkResetDependencies = defaultDependencies,
+) {
+  if (runId !== DEAD_RANDOM_BULK_RESET_RUN_ID) {
+    throw new AppError("Bulk reset run not found", HTTP_STATUS.NOT_FOUND, "NOT_FOUND");
+  }
+
+  if (isBulkPasswordResetRunActive(runId)) {
+    throw new AppError(
+      "The bulk reset worker is still active in this process",
+      HTTP_STATUS.CONFLICT,
+      "BULK_RESET_WORKER_ACTIVE",
+    );
+  }
+
+  const run = await dependencies.db.$transaction(async (tx) => {
+    const current = await tx.bulkPasswordResetRun.findUnique({ where: { id: runId } });
+    if (!current) {
+      throw new AppError("Bulk reset run not found", HTTP_STATUS.NOT_FOUND, "NOT_FOUND");
+    }
+    if (current.status !== "RUNNING") {
+      throw new AppError(
+        "Bulk reset run is no longer running",
+        HTTP_STATUS.CONFLICT,
+        "BULK_RESET_NOT_RUNNING",
+      );
+    }
+
+    const claimed = await tx.bulkPasswordResetRun.updateMany({
+      where: { id: runId, status: "RUNNING" },
+      data: {
+        status: "FAILED",
+        failureReason: BULK_RESET_WORKER_TERMINATED_REASON,
+        updatedAt: current.updatedAt,
+      },
+    });
+    if (claimed.count !== 1) {
+      throw new AppError(
+        "Bulk reset run is no longer running",
+        HTTP_STATUS.CONFLICT,
+        "BULK_RESET_NOT_RUNNING",
+      );
+    }
+
+    const updated = await tx.bulkPasswordResetRun.findUniqueOrThrow({
+      where: { id: runId },
+    });
+    await tx.adminLog.create({
+      data: {
+        adminId,
+        action: BULK_RESET_MARKED_FAILED_ACTION,
+        details: {
+          runId,
+          previousStatus: "RUNNING",
+          newStatus: "FAILED",
+          reason: BULK_RESET_WORKER_TERMINATED_REASON,
+          actingAdminId: adminId,
+        },
+      },
+    });
+    return updated;
+  });
+
+  return {
+    ...serializeRunResult(run),
+    failureReason: run.failureReason,
+  };
+}
+
 async function updateRunFailure(
   db: BulkResetDb,
   runId: string,
@@ -192,6 +272,7 @@ export async function executeBulkPasswordReset(
     ? await dependencies.db.bulkPasswordResetRun.findUnique({ where: { id: input.runId } })
     : null;
   let artifact: BulkResetArtifact;
+  let activeRunId: string | null = null;
 
   if (run) {
     if (run.adminId !== adminId) {
@@ -210,8 +291,23 @@ export async function executeBulkPasswordReset(
     if (run.totalEligible !== input.expectedUserCount) {
       throw new AppError("Expected user count does not match the original run", HTTP_STATUS.CONFLICT, "USER_COUNT_MISMATCH");
     }
-    artifact = await dependencies.artifactStore.read(run.artifactObjectPath);
-    if (artifact.runId !== run.id) throw new Error("Bulk reset artifact does not match its run");
+    if (isBulkPasswordResetRunActive(run.id)) {
+      throw new AppError(
+        "The bulk reset worker is already active in this process",
+        HTTP_STATUS.CONFLICT,
+        "BULK_RESET_WORKER_ACTIVE",
+      );
+    }
+    activeBulkResetRuns.add(run.id);
+    activeRunId = run.id;
+    try {
+      artifact = await dependencies.artifactStore.read(run.artifactObjectPath);
+      if (artifact.runId !== run.id) throw new Error("Bulk reset artifact does not match its run");
+    } catch (error) {
+      activeBulkResetRuns.delete(run.id);
+      activeRunId = null;
+      throw error;
+    }
   } else {
     const preview = await getBulkPasswordResetPreview(dependencies);
     if (preview.expectedResetCount !== input.expectedUserCount) {
@@ -270,6 +366,8 @@ export async function executeBulkPasswordReset(
         "BULK_RESET_ARTIFACT_UNAVAILABLE",
       );
     }
+    activeBulkResetRuns.add(run.id);
+    activeRunId = run.id;
   }
 
   const committed = new Set(
@@ -399,6 +497,8 @@ export async function executeBulkPasswordReset(
     }).catch(() => undefined);
     logger.error({ runId: run.id, batchNumber, processedCount }, "Bulk password reset stopped safely");
     throw new BulkPasswordResetStoppedError(run.id, processedCount);
+  } finally {
+    if (activeRunId) activeBulkResetRuns.delete(activeRunId);
   }
 }
 

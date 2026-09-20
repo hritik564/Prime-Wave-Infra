@@ -186,6 +186,28 @@ describe("Staff account creation authorization", () => {
   );
 });
 
+describe("Dead random bulk reset recovery authorization", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("allows SUPER_ADMIN through the recovery guard", async () => {
+    const next = await runGuard(requireAdminRoles("SUPER_ADMIN"), "SUPER_ADMIN");
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it.each(["STAFF_OPERATIONS", "FINANCE_ADMIN", "SUPPORT_ADMIN"])(
+    "rejects %s from the recovery guard",
+    async (role) => {
+      const next = await runGuard(requireAdminRoles("SUPER_ADMIN"), role);
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({
+        code: "FORBIDDEN",
+        statusCode: 403,
+      }));
+    },
+  );
+});
+
 function adminRequest(role: string) {
   const updatedAt = new Date("2026-09-10T00:00:00.000Z");
   const token = jwt.sign({

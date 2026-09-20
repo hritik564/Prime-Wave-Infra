@@ -262,6 +262,7 @@ import {
   previewBulkPasswordResetHandler,
   executeBulkPasswordResetHandler,
   downloadBulkPasswordResetArtifactHandler,
+  markDeadBulkPasswordResetRunFailedHandler,
 } from "./bulk-reset.controller";
 import { bulkPasswordResetExecuteSchema } from "./bulk-reset.schema";
 import {
@@ -939,6 +940,12 @@ router.post(
   superAdminGuard,
   validate(bulkPasswordResetExecuteSchema, "body"),
   executeBulkPasswordResetHandler,
+);
+router.post(
+  "/security/bulk-password-reset/:runId/mark-failed",
+  adminLimiter,
+  superAdminGuard,
+  markDeadBulkPasswordResetRunFailedHandler,
 );
 router.get(
   "/security/bulk-password-reset/:runId/artifact",

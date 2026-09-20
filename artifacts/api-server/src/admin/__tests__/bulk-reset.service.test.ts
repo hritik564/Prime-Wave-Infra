@@ -12,9 +12,13 @@ vi.mock("../../lib/logger", () => ({
 }));
 
 import {
+  BULK_RESET_MARKED_FAILED_ACTION,
+  BULK_RESET_WORKER_TERMINATED_REASON,
+  DEAD_RANDOM_BULK_RESET_RUN_ID,
   executeBulkPasswordReset,
   getBulkPasswordResetPreview,
   downloadBulkPasswordResetArtifact,
+  markDeadBulkPasswordResetRunFailed,
 } from "../bulk-reset.service";
 import { BULK_RESET_CONFIRMATION } from "../bulk-reset.schema";
 import type {
@@ -140,22 +144,35 @@ function createFakeDependencies(users: FakeUser[]) {
         return run;
       }),
       findUnique: vi.fn(async (args: { where: { id: string } }) => runs.get(args.where.id) ?? null),
+      findUniqueOrThrow: vi.fn(async (args: { where: { id: string } }) => {
+        const run = runs.get(args.where.id);
+        if (!run) throw new Error("run missing");
+        return run;
+      }),
       update: vi.fn(async (args: { where: { id: string }; data: any }) => {
         const run = runs.get(args.where.id);
         if (!run) throw new Error("run missing");
         Object.assign(run, args.data, { updatedAt: new Date() });
         return run;
       }),
-      updateMany: vi.fn(async (args: { where: { id: string; status: string; artifactDownloadedAt: null }; data: any }) => {
+      updateMany: vi.fn(async (args: { where: any; data: any }) => {
         const run = runs.get(args.where.id);
-        if (!run || run.artifactDownloadedAt !== null || run.status !== args.where.status) return { count: 0 };
+        if (!run) return { count: 0 };
+        if (args.where.status !== undefined && run.status !== args.where.status) return { count: 0 };
+        if (
+          Object.prototype.hasOwnProperty.call(args.where, "artifactDownloadedAt")
+          && run.artifactDownloadedAt !== args.where.artifactDownloadedAt
+        ) {
+          return { count: 0 };
+        }
         Object.assign(run, args.data);
         return { count: 1 };
       }),
     },
     adminLog: {
-      create: vi.fn(async () => ({ id: "log-1" })),
+      create: vi.fn(async (args: { data: any }) => ({ id: "log-1", ...args.data })),
     },
+    $transaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback(db)),
   };
 
   return {
@@ -319,5 +336,118 @@ describe("Super Admin bulk normal-user password reset", () => {
     expect(downloaded.toString("utf8")).toContain(result.runId);
     await expect(downloadBulkPasswordResetArtifact("admin-1", result.runId, fake.dependencies))
       .rejects.toMatchObject({ code: "ARTIFACT_EXPIRED" });
+  });
+
+  it("marks only the confirmed dead run failed without changing user or business fields", async () => {
+    const fake = createFakeDependencies([createUser("1"), createUser("2")]);
+    const startedAt = new Date("2026-09-20T11:07:52.004Z");
+    const updatedAt = new Date("2026-09-20T11:12:39.117Z");
+    const artifactExpiresAt = new Date("2026-09-21T11:07:52.004Z");
+    fake.runs.set(DEAD_RANDOM_BULK_RESET_RUN_ID, {
+      id: DEAD_RANDOM_BULK_RESET_RUN_ID,
+      adminId: "old-admin",
+      status: "RUNNING",
+      totalEligible: 6640,
+      adminCount: 1,
+      processedCount: 750,
+      failedCount: 0,
+      lastUserId: "checkpoint-user",
+      artifactObjectPath: "/objects/bulk-password-reset/old.jsonl",
+      artifactExpiresAt,
+      artifactDownloadedAt: null,
+      failureReason: null,
+      startedAt,
+      completedAt: null,
+      updatedAt,
+    });
+    const usersBefore = structuredClone([...fake.rows.values()]);
+
+    const result = await markDeadBulkPasswordResetRunFailed(
+      "acting-super-admin",
+      DEAD_RANDOM_BULK_RESET_RUN_ID,
+      fake.dependencies,
+    );
+
+    expect(result).toMatchObject({
+      runId: DEAD_RANDOM_BULK_RESET_RUN_ID,
+      status: "FAILED",
+      totalEligible: 6640,
+      processedCount: 750,
+      failedCount: 0,
+      failureReason: BULK_RESET_WORKER_TERMINATED_REASON,
+    });
+    const run = fake.runs.get(DEAD_RANDOM_BULK_RESET_RUN_ID);
+    expect(run).toMatchObject({
+      status: "FAILED",
+      totalEligible: 6640,
+      processedCount: 750,
+      failedCount: 0,
+      lastUserId: "checkpoint-user",
+      artifactObjectPath: "/objects/bulk-password-reset/old.jsonl",
+      artifactExpiresAt,
+      artifactDownloadedAt: null,
+      startedAt,
+      completedAt: null,
+    });
+    expect(run.updatedAt).toEqual(updatedAt);
+    expect([...fake.rows.values()]).toEqual(usersBefore);
+    expect(fake.db.user.updateMany).not.toHaveBeenCalled();
+    expect(fake.db.adminLog.create).toHaveBeenCalledWith({
+      data: {
+        adminId: "acting-super-admin",
+        action: BULK_RESET_MARKED_FAILED_ACTION,
+        details: {
+          runId: DEAD_RANDOM_BULK_RESET_RUN_ID,
+          previousStatus: "RUNNING",
+          newStatus: "FAILED",
+          reason: BULK_RESET_WORKER_TERMINATED_REASON,
+          actingAdminId: "acting-super-admin",
+        },
+      },
+    });
+  });
+
+  it("rejects an arbitrary run ID without touching the database", async () => {
+    const fake = createFakeDependencies([]);
+
+    await expect(markDeadBulkPasswordResetRunFailed(
+      "acting-super-admin",
+      "another-run",
+      fake.dependencies,
+    )).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(fake.db.bulkPasswordResetRun.findUnique).not.toHaveBeenCalled();
+    expect(fake.db.bulkPasswordResetRun.updateMany).not.toHaveBeenCalled();
+    expect(fake.db.adminLog.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["FAILED", "BULK_RESET_NOT_RUNNING"],
+    ["COMPLETED", "BULK_RESET_NOT_RUNNING"],
+  ] as const)("returns a safe conflict for an already %s run", async (status, code) => {
+    const fake = createFakeDependencies([]);
+    fake.runs.set(DEAD_RANDOM_BULK_RESET_RUN_ID, {
+      id: DEAD_RANDOM_BULK_RESET_RUN_ID,
+      status,
+    });
+
+    await expect(markDeadBulkPasswordResetRunFailed(
+      "acting-super-admin",
+      DEAD_RANDOM_BULK_RESET_RUN_ID,
+      fake.dependencies,
+    )).rejects.toMatchObject({ code });
+    expect(fake.db.bulkPasswordResetRun.updateMany).not.toHaveBeenCalled();
+    expect(fake.db.adminLog.create).not.toHaveBeenCalled();
+  });
+
+  it("returns not found for a nonexistent confirmed run", async () => {
+    const fake = createFakeDependencies([]);
+
+    await expect(markDeadBulkPasswordResetRunFailed(
+      "acting-super-admin",
+      DEAD_RANDOM_BULK_RESET_RUN_ID,
+      fake.dependencies,
+    )).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(fake.db.bulkPasswordResetRun.updateMany).not.toHaveBeenCalled();
+    expect(fake.db.adminLog.create).not.toHaveBeenCalled();
   });
 });

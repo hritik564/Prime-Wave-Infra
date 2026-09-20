@@ -5,6 +5,7 @@ import {
   downloadBulkPasswordResetArtifact,
   executeBulkPasswordReset,
   getBulkPasswordResetPreview,
+  markDeadBulkPasswordResetRunFailed,
   BulkPasswordResetStoppedError,
 } from "./bulk-reset.service";
 import type { BulkPasswordResetExecuteInput } from "./bulk-reset.schema";
@@ -46,6 +47,24 @@ export async function executeBulkPasswordResetHandler(
       req.body as BulkPasswordResetExecuteInput,
     );
     sendSuccess(res, result, "Bulk password reset completed");
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function markDeadBulkPasswordResetRunFailedHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const runId = String(req.params["runId"] ?? "");
+    sendSuccess(
+      res,
+      await markDeadBulkPasswordResetRunFailed(user.sub, runId),
+      "Dead bulk password reset run marked failed",
+    );
   } catch (error) {
     next(error);
   }
