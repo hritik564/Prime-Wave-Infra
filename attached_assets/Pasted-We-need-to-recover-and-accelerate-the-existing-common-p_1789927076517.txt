@@ -1,0 +1,53 @@
+We need to recover and accelerate the existing common-password reset run:
+
+cmua3jcec001wa99zi17pz3hl
+
+Current state:
+
+RUNNING
+250 / 6640
+failedCount = 0
+heartbeat stopped at 17:49:00 UTC
+worker lease has expired or is now stale
+worker is in-process and cannot be independently confirmed alive
+
+Do not create a new reset run. Do not reset any users from the beginning.
+
+Perform the following controlled recovery:
+
+Verify the run's lease is expired/stale.
+Restart/recycle the production API process using the normal Replit production mechanism so the existing startup recovery executes.
+Confirm startup recovery changes ONLY:
+RUNNING → FAILED
+for this stale common-reset run.
+Confirm the existing checkpoint remains:
+processedCount = 250
+and lastUserId is preserved.
+Do NOT modify or roll back the 250 users already processed.
+Do NOT execute a new reset from user 1.
+After recovery, use the existing failed-run resume mechanism for run cmua3jcec001wa99zi17pz3hl.
+Before resuming, inspect the worker implementation for performance bottlenecks. We need this completed quickly.
+
+Performance requirement:
+
+Preserve the existing durable checkpoint.
+Process remaining users in batches.
+Use controlled bcrypt concurrency rather than serial password hashing if the implementation currently hashes users sequentially.
+Do not exceed a safe CPU/database concurrency level.
+Keep heartbeat/lease updates independent enough that a batch cannot appear dead for minutes.
+Do not sacrifice bcrypt security or store the plaintext password anywhere.
+Do not weaken authentication or password hashing parameters.
+
+The worker must remain resumable and idempotent.
+
+Important: Do not execute the resume until you have confirmed the stale run was safely transitioned to FAILED and that the resume will continue after the durable checkpoint rather than starting over.
+
+Report:
+
+recovery result
+checkpoint before resume
+exact performance bottleneck found
+proposed/implemented concurrency/batch settings
+estimated remaining processing time based on observed throughput
+
+Do not expose passwords, hashes, tokens, or credential contents.
