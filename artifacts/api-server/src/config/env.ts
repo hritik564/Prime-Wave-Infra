@@ -7,6 +7,9 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(16),
   JWT_EXPIRES_IN: z.string().default("7d"),
   BCRYPT_ROUNDS: z.string().default("12"),
+  // Fixed application base URL used for password-reset links. Never derive
+  // this from the request Host header or an arbitrary redirect parameter.
+  PASSWORD_RESET_BASE_URL: z.string().url().optional(),
   MAINTENANCE_MODE: z.string().default("false"),
 
   // ── Blockchain Gateway (optional — server starts without them) ──────────────

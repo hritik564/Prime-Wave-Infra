@@ -5,7 +5,6 @@ import {
   createPasswordResetRequest,
   genericPasswordResetMessage,
 } from "./password-reset.service";
-import { deliverPasswordResetToken } from "./password-reset-delivery.service";
 import { logger } from "../lib/logger";
 import { sendCreated, sendSuccess } from "../shared/response";
 import { AppError } from "../middleware/error.middleware";
@@ -53,22 +52,14 @@ export async function forgotPassword(
   try {
     const request = await createPasswordResetRequest(req.body as ForgotPasswordInput);
 
-    if (request) {
-      try {
-        await deliverPasswordResetToken({
-          email: request.email,
-          username: request.username,
-          token: request.token,
-          expiresAt: request.expiresAt,
-        });
-      } catch (err) {
-        // Never include the token in logs or errors. The generic response
-        // prevents account enumeration while delivery is being configured.
-        logger.warn(
-          { userId: request.userId, reason: err instanceof Error ? err.message : "delivery failed" },
-          "password-reset delivery unavailable",
-        );
-      }
+    if (request?.deliveryFailed) {
+      // Never include the token, password, or adapter error in logs. The
+      // generic response prevents account enumeration while delivery is
+      // unavailable or being configured.
+      logger.warn(
+        { userId: request.userId, deliveryFailed: true },
+        "password-reset delivery unavailable",
+      );
     }
 
     sendSuccess(res, null, genericPasswordResetMessage());

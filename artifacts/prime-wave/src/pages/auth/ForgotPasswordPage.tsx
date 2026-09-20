@@ -14,14 +14,14 @@ import { Button } from "@/components/ui/button";
 import { forgotPassword } from "@/lib/api";
 
 const forgotSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
+  identifier: z.string().min(1, "Please enter your email or username"),
 });
 
 type ForgotData = z.infer<typeof forgotSchema>;
 
 export default function ForgotPasswordPage() {
   const [submitted, setSubmitted] = useState(false);
-  const [submittedEmail, setSubmittedEmail] = useState("");
+  const [submittedIdentifier, setSubmittedIdentifier] = useState("");
   const [formError, setFormError] = useState<string>();
 
   const {
@@ -35,12 +35,12 @@ export default function ForgotPasswordPage() {
   const onSubmit = async (data: ForgotData) => {
     setFormError(undefined);
     try {
-      await forgotPassword(data.email);
+      await forgotPassword(data.identifier);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Unable to request a reset link.");
       return;
     }
-    setSubmittedEmail(data.email);
+    setSubmittedIdentifier(data.identifier);
     setSubmitted(true);
   };
 
@@ -74,10 +74,11 @@ export default function ForgotPasswordPage() {
               className="mt-2 text-sm leading-relaxed"
               style={{ color: "hsl(var(--muted-foreground))" }}
             >
-              We&apos;ve sent a password reset link to{" "}
-              <span className="font-semibold text-foreground">{submittedEmail}</span>.
+              If an account matches{" "}
+              <span className="font-semibold text-foreground">{submittedIdentifier}</span>,
+              reset instructions will be sent.
               <br />
-              The link will expire in 15 minutes.
+              The link will expire in 30 minutes.
             </p>
 
             <div
@@ -126,18 +127,18 @@ export default function ForgotPasswordPage() {
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
               <div className="space-y-1.5">
-                <Label htmlFor="email">Email Address</Label>
+               <Label htmlFor="identifier">Email or Username</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  aria-invalid={!!errors.email}
-                  {...register("email")}
+                   id="identifier"
+                   type="text"
+                   placeholder="you@example.com or username"
+                   autoComplete="username"
+                   aria-invalid={!!errors.identifier}
+                   {...register("identifier")}
                 />
-                {errors.email && (
+                 {errors.identifier && (
                   <p className="text-xs" style={{ color: "#f87171" }}>
-                    {errors.email.message}
+                     {errors.identifier.message}
                   </p>
                 )}
               </div>

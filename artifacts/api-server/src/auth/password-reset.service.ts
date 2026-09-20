@@ -6,6 +6,11 @@ import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { ForgotPasswordInput, ResetPasswordInput } from "./auth.schema";
 import { signUserToken } from "./auth-token";
+import {
+  buildPasswordResetUrl,
+  deliverPasswordResetToken,
+  type PasswordResetDelivery,
+} from "./password-reset-delivery.service";
 
 export const PASSWORD_RESET_TOKEN_TTL_MS = 30 * 60_000;
 
@@ -20,12 +25,13 @@ export interface PasswordResetRequest {
   userId: string;
   email: string;
   username: string;
-  token: string;
   expiresAt: Date;
+  deliveryFailed: boolean;
 }
 
 export async function createPasswordResetRequest(
   input: ForgotPasswordInput,
+  delivery: (payload: PasswordResetDelivery) => Promise<void> = deliverPasswordResetToken,
 ): Promise<PasswordResetRequest | null> {
   const identifier = input.identifier.trim().toLowerCase();
   const user = await prisma.user.findFirst({
@@ -60,12 +66,26 @@ export async function createPasswordResetRequest(
     });
   });
 
+  let deliveryFailed = false;
+  try {
+    await delivery({
+      email: user.email,
+      username: user.username,
+      resetUrl: buildPasswordResetUrl(token),
+      expiresAt,
+    });
+  } catch {
+    // The caller receives only the generic response. The raw token is not
+    // returned and the failure flag contains no user-controlled error text.
+    deliveryFailed = true;
+  }
+
   return {
     userId: user.id,
     email: user.email,
     username: user.username,
-    token,
     expiresAt,
+    deliveryFailed,
   };
 }
 

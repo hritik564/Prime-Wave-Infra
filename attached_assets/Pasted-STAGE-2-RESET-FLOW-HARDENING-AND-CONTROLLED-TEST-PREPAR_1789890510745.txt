@@ -1,0 +1,233 @@
+STAGE 2 — RESET FLOW HARDENING AND CONTROLLED TEST PREPARATION
+
+Stage 1 is complete.
+
+DO NOT perform the mass user password reset.
+
+DO NOT modify existing production user passwords.
+
+DO NOT set passwordResetRequired=true for existing production users.
+
+DO NOT increment authVersion for existing production users.
+
+DO NOT deploy the mass-reset operation.
+
+DO NOT expose passwords, password hashes, reset tokens, private keys, API keys, or other secrets.
+
+We now need to prepare and verify the reset flow before production cutover.
+
+==================================================
+1. REVIEW STAGE 1 IMPLEMENTATION
+==================================================
+
+Review the implementation from Stage 1 for correctness.
+
+Pay particular attention to:
+
+- authVersion handling
+- passwordResetRequired middleware behavior
+- legacy JWT behavior while authVersion=0
+- password change behavior
+- admin-initiated user password reset behavior
+- reset-token hashing
+- reset-token expiration
+- atomic token consumption
+- rate limiting
+- generic forgot-password responses
+- logging
+
+Do not redesign working components unnecessarily.
+
+==================================================
+2. DELIVERY ADAPTER
+==================================================
+
+Review:
+
+password-reset-delivery.service.ts
+
+The production adapter must FAIL CLOSED if no approved delivery provider is configured.
+
+Do NOT add a fake production email provider.
+
+Do NOT hard-code SMTP credentials.
+
+Do NOT hard-code API keys.
+
+Do NOT put credentials in source code.
+
+Do NOT print reset tokens in production logs.
+
+If a development/test adapter exists or is needed, ensure it is clearly isolated from production and cannot accidentally become the production delivery mechanism.
+
+==================================================
+3. TRUSTED RESET DOMAIN
+==================================================
+
+Verify exactly how reset URLs are constructed.
+
+The reset URL must use the application's intended trusted production domain.
+
+Do not allow a user-controlled Host header or arbitrary request origin to determine the reset URL.
+
+Do not accept arbitrary redirect destinations.
+
+Document the exact production reset URL format without exposing any secret token.
+
+==================================================
+4. CONTROLLED TEST ACCOUNT
+==================================================
+
+Create an automated/integration test fixture for ONE non-admin test user.
+
+Do not modify a real production user.
+
+Test this complete lifecycle:
+
+A. User initially has:
+   passwordResetRequired=false
+   authVersion=N
+
+B. Issue a JWT.
+
+C. Increment authVersion.
+
+D. Confirm the old JWT is rejected.
+
+E. Set passwordResetRequired=true.
+
+F. Confirm normal authenticated routes are blocked.
+
+G. Request forgot-password.
+
+H. Generate a reset token through the test delivery adapter ONLY.
+
+I. Confirm only the token hash is persisted.
+
+J. Confirm raw token is not logged.
+
+K. Use the reset token.
+
+L. Confirm token is consumed exactly once.
+
+M. Confirm passwordResetRequired=false.
+
+N. Confirm authVersion increments again.
+
+O. Confirm the new password works.
+
+P. Confirm the old password fails.
+
+Q. Confirm the new JWT works.
+
+R. Confirm the previous JWT remains invalid.
+
+==================================================
+5. FINANCIAL DATA INVARIANT TEST
+==================================================
+
+For the controlled test fixture, capture before/after values for any associated:
+
+- wallet balance
+- locked withdrawal balance
+- investments
+- ROI
+- deposits
+- withdrawals
+- income
+- referral/network data
+
+Confirm password reset modifies NONE of those values.
+
+==================================================
+6. ADMIN ISOLATION
+==================================================
+
+Explicitly test:
+
+- Admin login still works.
+- Admin JWT behavior remains unchanged.
+- Admin authVersion mechanism remains unchanged.
+- User reset cannot target an Admin record.
+- Admin records are never included in User reset queries.
+
+==================================================
+7. STATUS BEHAVIOR
+==================================================
+
+The Stage 1 audit identified an existing issue:
+
+INACTIVE users are not explicitly rejected by the user login service.
+
+Do NOT silently change this behavior as part of the credential-reset implementation.
+
+Instead:
+
+- identify exactly how ACTIVE, INACTIVE, BLOCKED and SUSPENDED users behave after Stage 1
+- document it
+- add tests preserving current behavior
+- flag it separately for a later decision
+
+The mass reset must preserve all existing user statuses.
+
+==================================================
+8. SECURITY TESTS
+==================================================
+
+Add/verify tests for:
+
+- token expiration
+- token single-use
+- concurrent token consumption
+- wrong-user token usage
+- generic forgot-password response
+- rate limiting
+- raw token never persisted
+- raw token never logged
+- password never logged
+- stale JWT rejection
+- reset-required bypass prevention
+- admin isolation
+- financial-data invariants
+
+==================================================
+9. BUILD
+==================================================
+
+Run:
+
+- Prisma validation
+- Prisma migration validation
+- API typecheck
+- all API tests
+- frontend typecheck
+- frontend production build
+- API production build
+- git diff --check
+
+==================================================
+10. IMPORTANT STOP CONDITION
+==================================================
+
+Do NOT:
+
+- deploy production
+- reset any production passwords
+- invalidate production user sessions
+- modify production user records
+- modify production financial data
+
+At the end provide:
+
+A. Stage 1 security review findings
+B. Reset URL construction
+C. Delivery adapter status
+D. Controlled test results
+E. JWT invalidation test result
+F. Financial invariant test result
+G. Admin isolation result
+H. Any remaining blockers before production deployment
+I. Exact files changed
+J. Confirmation that production user data was not modified
+
+STOP.
