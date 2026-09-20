@@ -1,0 +1,154 @@
+We have now verified through the Replit Production Database UI that:
+
+- Production Database is Active.
+- Point-in-time recovery is ON.
+- Recovery window is 7 days.
+- Replit exposes exact-time restoration using Asia/Calcutta timezone.
+- We opened the Restore Database dialog only to inspect it and CANCELLED it.
+- NO production restore was performed.
+- Scheduled backups are OFF.
+- The production database currently contains the live PrimeWave financial/user data and must remain untouched except for the explicitly approved additive schema migrations below.
+
+Proceed with STAGE 5C — PRODUCTION READ-ONLY PREFLIGHT + ADDITIVE MIGRATION READINESS.
+
+CRITICAL SAFETY RULES:
+1. DO NOT execute the bulk password reset.
+2. DO NOT generate temporary user passwords.
+3. DO NOT call:
+   POST /api/admin/security/bulk-password-reset/execute
+4. DO NOT modify passwordHash, passwordResetRequired, authVersion, passwordChangedAt, or any user authentication data.
+5. DO NOT modify financial data, balances, investments, withdrawals, deposits, income, BV, referrals, wallets, or ledger records.
+6. DO NOT restore, delete, truncate, drop, recreate, or reset the production database.
+7. Do not change Admin records.
+8. Do not expose any secrets, DATABASE_URL, private keys, passwords, tokens, or credential artifacts in output.
+9. Before doing anything, verify DATABASE_URL points to the Replit PRODUCTION database, not development.
+10. If any safety condition is ambiguous, STOP and report it instead of guessing.
+
+STEP 1 — VERIFY LIVE PRODUCTION DATABASE IDENTITY
+
+Using the production database connection already configured for the published PrimeWave application, perform READ-ONLY checks confirming:
+
+- database/server identity
+- current schema/database name
+- users table exists
+- admins table exists
+- _prisma_migrations exists
+- current user count
+- current admin count
+- current migration count
+
+Do NOT print connection strings or credentials.
+
+STEP 2 — CAPTURE AUTH BASELINE
+
+Run read-only aggregate checks on the production users table:
+
+- total users
+- count by status
+- count where passwordResetRequired = false
+- count where authVersion = 0
+- count where passwordResetRequired = true
+- count where authVersion != 0
+- count of users with passwordChangedAt NULL/non-NULL
+
+Also verify the Admin table separately:
+
+- total admins
+- count by role/status if available
+
+Expected pre-reset baseline is that all existing users have:
+passwordResetRequired = false
+authVersion = 0
+
+If these fields do not yet exist because Stage 1 migration has not been applied, report that clearly and continue only with migration readiness checks.
+
+STEP 3 — INSPECT PRISMA MIGRATION STATE
+
+Compare the production _prisma_migrations state against the repository migrations.
+
+Specifically verify whether these migrations are pending:
+
+20260920000000_stage1_user_credential_reset
+
+20260921000000_bulk_password_reset_operation
+
+Confirm that both migration SQL files are additive-only.
+
+The Stage 1 migration should add:
+- User.passwordResetRequired
+- User.authVersion
+- User.passwordChangedAt
+- password_reset_tokens table
+
+The Stage 4 migration should add:
+- BulkPasswordResetRunStatus enum
+- bulk_password_reset_runs table
+
+Confirm there are no DROP TABLE, TRUNCATE, DELETE, or financial-data mutations in these migrations.
+
+STEP 4 — PRODUCTION SCHEMA COMPATIBILITY
+
+Verify the current production Prisma schema/table structure is compatible with applying the two migrations.
+
+Check:
+- users primary key and existing constraints
+- admins table remains separate
+- no naming collision with password_reset_tokens
+- no naming collision with bulk_password_reset_runs
+- enum creation is safe
+- indexes/foreign keys in the migrations are valid
+- existing financial/user relationships remain untouched
+
+STEP 5 — MIGRATION PLAN
+
+If and only if:
+
+A. production database identity is confirmed,
+B. PITR is confirmed as available,
+C. both migrations are additive,
+D. no destructive SQL is present,
+E. no unexpected existing authVersion/reset-state data exists,
+F. no schema conflict exists,
+
+then APPLY ONLY these two Prisma migrations to PRODUCTION:
+
+20260920000000_stage1_user_credential_reset
+20260921000000_bulk_password_reset_operation
+
+Do NOT execute any application endpoint that changes passwords.
+
+After migration, immediately perform READ-ONLY verification:
+
+- users count before vs after
+- admins count before vs after
+- confirm financial tables/counts were not changed
+- confirm new columns exist
+- confirm password_reset_tokens exists
+- confirm bulk_password_reset_runs exists
+- confirm all existing users still have:
+  passwordResetRequired = false
+  authVersion = 0
+- confirm no password hashes changed
+- confirm no admin records changed
+- confirm no bulk reset run exists
+
+STEP 6 — FINAL OUTPUT
+
+Report a concise production safety report containing:
+
+1. Production DB identity verified: YES/NO
+2. PITR/recovery evidence acknowledged: YES/NO
+3. Pre-migration user count
+4. Pre-migration admin count
+5. Migration status before
+6. Migrations applied
+7. Post-migration user count
+8. Post-migration admin count
+9. Auth baseline verification
+10. Financial-data mutation check
+11. Password-reset execution: MUST SAY "NOT EXECUTED"
+12. Any anomaly or reason for stopping
+
+If ANY unexpected condition occurs, STOP immediately before making further changes and report the exact condition.
+
+Do not proceed to bulk reset preview or execution in this task.
