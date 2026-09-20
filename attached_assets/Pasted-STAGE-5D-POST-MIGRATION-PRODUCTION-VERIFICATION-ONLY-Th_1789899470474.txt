@@ -1,0 +1,133 @@
+STAGE 5D — POST-MIGRATION PRODUCTION VERIFICATION ONLY
+
+The production Publish has just completed and applied the approved credential-reset schema migrations.
+
+Perform ONLY READ-ONLY verification against the LIVE PRODUCTION database.
+
+CRITICAL:
+- Do NOT execute any password reset.
+- Do NOT call bulk-password-reset/preview yet.
+- Do NOT call bulk-password-reset/execute.
+- Do NOT generate temporary passwords.
+- Do NOT create a credential artifact.
+- Do NOT modify any user, admin, financial, wallet, investment, deposit, withdrawal, income, BV, referral, or ledger data.
+- Do NOT run any migration.
+- Do NOT run prisma migrate deploy.
+- Do NOT restore the database.
+- Do NOT expose DATABASE_URL, private keys, passwords, JWTs, tokens, or other secrets.
+
+Verify the following:
+
+1. DATABASE IDENTITY
+Confirm the application is connected to the same Replit PRODUCTION PostgreSQL database:
+- database = neondb
+- schema = public
+- users exists
+- admins exists
+- _prisma_migrations exists
+
+2. MIGRATION STATE
+Confirm these migrations are now FINISHED:
+- 20260920000000_stage1_user_credential_reset
+- 20260921000000_bulk_password_reset_operation
+
+Confirm there are no unfinished Prisma migrations.
+
+3. NEW SCHEMA OBJECTS
+Confirm these now exist:
+- users.passwordResetRequired
+- users.authVersion
+- users.passwordChangedAt
+- password_reset_tokens
+- BulkPasswordResetRunStatus
+- bulk_password_reset_runs
+
+Confirm the expected indexes and foreign keys exist.
+
+4. USER AUTH BASELINE
+Run read-only aggregates:
+- total users
+- ACTIVE
+- INACTIVE
+- BLOCKED
+- SUSPENDED
+- passwordResetRequired = true
+- passwordResetRequired = false
+- authVersion = 0
+- authVersion != 0
+- passwordChangedAt NULL
+- passwordChangedAt NOT NULL
+
+Expected:
+- total users = 6,640 unless legitimate activity has changed the population
+- passwordResetRequired = true → 0
+- authVersion != 0 → 0
+- existing users should have authVersion = 0
+- existing users should have passwordResetRequired = false
+
+Do NOT output password hashes.
+
+5. ADMIN BASELINE
+Confirm:
+- total admins = 4
+- admin records were not modified by the migration
+- no bulk reset run exists yet
+
+6. FINANCIAL/BUSINESS INVARIANTS
+Compare against the Stage 5C baseline and report current counts for:
+
+wallets = 6,640
+wallet_transactions = 6,962
+investments = 198
+roi_ledger = 25,429
+deposit_requests = 209
+deposit_verifications = 26
+withdrawal_requests = 134
+income_transfers = 63
+level_income = 933
+binary_match_income = 157
+binary_orbit_income = 2
+match_bv_ledger = 3,683
+orbit_bv_ledger = 3,683
+salary_bv_ledger = 3,683
+bv_history = 3,683
+power_bv_ledger = 53
+referral_history = 6,639
+
+If any count has legitimately changed due to normal live application activity since Stage 5C, report the difference rather than modifying anything.
+
+7. PASSWORD DATA SAFETY
+Verify that the migration itself did NOT change passwordHash values.
+
+Use a read-only comparison if a safe method is available. Do not print password hashes.
+
+8. COMPANY WALLET DRIFT CHECK
+Confirm:
+- company_wallets.updatedAt still has DEFAULT CURRENT_TIMESTAMP
+- no company_wallets schema change was applied
+
+9. APPLICATION HEALTH
+Confirm the production application is healthy after publication.
+
+10. FINAL REPORT
+
+Return:
+
+Production identity: PASS/FAIL
+Migration state: PASS/FAIL
+New schema objects: PASS/FAIL
+User auth baseline: PASS/FAIL
+Admin baseline: PASS/FAIL
+Financial/business invariants: PASS/FAIL
+Password data unchanged: PASS/FAIL
+company_wallets drift check: PASS/FAIL
+Application health: PASS/FAIL
+
+Also explicitly state:
+
+BULK PASSWORD RESET: NOT EXECUTED
+BULK RESET PREVIEW: NOT EXECUTED
+TEMPORARY PASSWORDS GENERATED: NO
+CREDENTIAL ARTIFACT CREATED: NO
+
+If ANY unexpected condition is found, STOP and report it. Do not attempt to fix production automatically.
