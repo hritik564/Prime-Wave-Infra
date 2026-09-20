@@ -1,0 +1,67 @@
+STAGE 5F — DEBUG BULK RESET BUTTON ENABLEMENT ONLY
+
+The authenticated production Admin UI shows the correct bulk password reset preview:
+
+- Normal users: 6,640
+- ACTIVE: 241
+- INACTIVE: 6,399
+- BLOCKED: 0
+- SUSPENDED: 0
+- Admins excluded: 4
+
+The Super Admin has entered the exact confirmation phrase:
+
+RESET ALL NORMAL USER PASSWORDS
+
+and checked the acknowledgement checkbox.
+
+However, the "Start bulk reset" button remains disabled.
+
+Investigate ONLY why the button remains disabled.
+
+CRITICAL SAFETY RULES:
+- DO NOT execute the bulk reset.
+- DO NOT call POST /api/admin/security/bulk-password-reset/execute.
+- DO NOT generate passwords.
+- DO NOT create an artifact.
+- DO NOT modify production data.
+- DO NOT modify users, admins, financial records, wallets, or any other database records.
+- Do not bypass or remove any safety confirmation.
+- Do not weaken authorization or Super Admin requirements.
+- Do not expose credentials, tokens, cookies, JWTs, or secrets.
+
+Inspect the frontend implementation of the bulk reset control and determine:
+
+1. What exact conditions control the disabled/enabled state of "Start bulk reset".
+2. Whether the entered confirmation phrase is actually being captured in state.
+3. Whether the acknowledgement checkbox is actually being captured in state.
+4. Whether the UI expects an additional field/value such as:
+   - expected user count
+   - preview ID
+   - preview freshness
+   - confirmation text normalization
+   - explicit preview completion state
+   - Super Admin role state
+   - another confirmation flag
+5. Check browser/frontend console errors if available.
+6. Check the preview response shape and compare it with what the button handler expects.
+7. Identify any frontend/backend contract mismatch.
+
+Do NOT change the production database.
+
+If a code fix is necessary, make ONLY the minimal frontend fix required to correctly enable the button when all existing intended safety conditions are satisfied.
+
+Do NOT remove any safety condition.
+
+After the fix:
+- run typecheck/tests
+- verify the button's disabled condition logically
+- do NOT execute the button
+- do NOT call the execute endpoint
+
+Report:
+A. Exact reason the button was disabled.
+B. Relevant frontend condition/code.
+C. Whether a fix was needed.
+D. What was changed, if anything.
+E. Confirmation that bulk execution was NOT called.
