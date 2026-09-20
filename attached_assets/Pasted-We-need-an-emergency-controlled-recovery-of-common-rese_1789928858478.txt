@@ -1,0 +1,48 @@
+We need an emergency controlled recovery of common reset run cmua3jcec001wa99zi17pz29w. Do not wait for the current 15-minute lease to expire.
+
+The run has remained at 250 / 6640 for an extended period while renewing its lease, and the current implementation is taking unacceptably long.
+
+We need the fastest safe way to stop the current in-process worker and recover the existing run.
+
+Do not create a new reset run.
+
+First inspect the exact worker implementation and determine whether there is a safe cancellation point between individual user operations.
+
+Implement a SUPER_ADMIN-only emergency stop/recovery mechanism with these requirements:
+
+It applies only to run:
+cmua3jcec001wa99zi17pz29w
+It must NOT modify any User credential directly.
+It must NOT roll back the 250 users already checkpointed.
+The worker must stop at a safe boundary. Do not terminate the Node process blindly if that could interrupt an in-flight database transaction.
+
+Once the worker has stopped, atomically transition:
+
+RUNNING → FAILED
+
+with:
+
+WORKER_ADMIN_STOPPED_FOR_PERFORMANCE_RECOVERY
+
+Preserve:
+processedCount = 250
+lastUserId
+totalEligible = 6640
+artifact/run metadata
+The existing failed-run resume mechanism must remain usable.
+The Admin UI must require explicit SUPER_ADMIN confirmation.
+The recovery must not expose or store the temporary password.
+Do NOT weaken bcrypt rounds.
+After recovery, deploy the already-tested bounded-concurrency/heartbeat optimization.
+Then resume the SAME run from checkpoint 250 through the existing resume mechanism, with the temporary password re-entered by the Super Admin through the Admin UI.
+Do NOT create a second run.
+Do NOT reset users from 0.
+Add tests for the emergency stop and safe recovery.
+
+Important: Because the current worker owns the temporary password only in memory, do not terminate the process until the worker has reached a safe cancellation boundary. If the implementation cannot guarantee this, STOP and report why rather than improvising.
+
+Run all relevant tests, typecheck, Prisma validation, and builds.
+
+Do not execute the recovery in production during this implementation task.
+
+Report the exact safe stopping mechanism and whether it can recover the current run immediately without waiting for the lease.
