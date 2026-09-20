@@ -1,0 +1,329 @@
+STAGE 4B — FULL NON-PRODUCTION BULK RESET REHEARSAL
+
+The Stage 4 bulk normal-user password-reset implementation is complete.
+
+DO NOT TOUCH PRODUCTION.
+
+DO NOT connect to the production database.
+
+DO NOT use production users.
+
+DO NOT use production credentials.
+
+DO NOT use the production credential artifact storage.
+
+This task is a complete rehearsal of the bulk-reset mechanism against an isolated non-production database containing explicitly marked test users.
+
+==================================================
+1. ISOLATED DATABASE
+==================================================
+
+Use ONLY the development/test database.
+
+Before beginning:
+
+- Verify the active database connection is NOT production.
+- Report the database/environment identity in masked/non-sensitive form.
+- STOP if the connection cannot be conclusively identified as non-production.
+
+Do not modify production.
+
+==================================================
+2. TEST DATA
+==================================================
+
+Create/use explicitly marked test users only.
+
+Create at least:
+
+- 1 ACTIVE user
+- 1 INACTIVE user
+- 1 BLOCKED user
+- 1 SUSPENDED user
+- 1 additional ACTIVE user
+
+At least one test user should have representative associated business data:
+
+- wallet
+- wallet balance
+- investment
+- ROI
+- deposit
+- withdrawal
+- income
+- referral/network relationship
+
+Do NOT use real production data.
+
+Create test Admin records representing:
+
+- SUPER_ADMIN
+- STAFF_OPERATIONS
+- SUPPORT_ADMIN
+- FINANCE_ADMIN
+- REWARD_MANAGER
+
+These must verify that Admin records remain untouched.
+
+==================================================
+3. PRE-RESET SNAPSHOT
+==================================================
+
+Before execution record:
+
+- user IDs
+- user statuses
+- old password hashes
+- authVersion
+- passwordResetRequired
+- wallet balances
+- locked balances
+- investment data
+- ROI data
+- deposits
+- withdrawals
+- income
+- referral/network relationships
+- Admin records
+
+Never print password hashes.
+
+Never print plaintext test passwords in logs.
+
+==================================================
+4. PREVIEW
+==================================================
+
+Run the bulk reset preview.
+
+Verify:
+
+- correct eligible-user count
+- status counts
+- Admin count
+- unexpected authVersion count
+- existing passwordResetRequired count
+
+Verify preview performs ZERO writes.
+
+==================================================
+5. EXECUTION
+==================================================
+
+Run the bulk reset using the actual Stage 4 execution path.
+
+Verify:
+
+- exact confirmation phrase required
+- expected user count required
+- unique password generated per user
+- password hashes changed
+- authVersion incremented
+- passwordResetRequired=true
+- passwordChangedAt updated
+
+Verify ONLY these authentication fields changed.
+
+==================================================
+6. CREDENTIAL ARTIFACT
+==================================================
+
+Verify the credential artifact contains the exact mapping:
+
+user → temporary password
+
+Verify:
+
+- every successfully reset user has exactly one credential
+- no credential belongs to the wrong user
+- no duplicate temporary passwords
+- artifact is not in PostgreSQL
+- artifact is not in public/static directories
+- artifact is not in logs
+- artifact is not in audit details
+
+Verify one-time download.
+
+Verify second download is rejected.
+
+Verify expired artifact is unavailable.
+
+==================================================
+7. AUTHENTICATION TEST
+==================================================
+
+For every test user:
+
+- old password must fail
+- generated temporary password must succeed where account status permits login
+- passwordResetRequired must be enforced
+- existing JWT must fail
+- authVersion must match only newly issued JWT
+- new JWT must work after the required password-reset flow
+
+Preserve the application's existing status behavior.
+
+Do NOT silently change ACTIVE/INACTIVE/BLOCKED/SUSPENDED semantics.
+
+==================================================
+8. FINANCIAL INVARIANT
+==================================================
+
+Compare pre-reset and post-reset data.
+
+The following MUST be identical:
+
+- wallet balances
+- locked balances
+- investments
+- ROI
+- deposits
+- withdrawals
+- income
+- referral/network data
+
+Also verify:
+
+- user IDs unchanged
+- usernames unchanged
+- emails unchanged
+- phone numbers unchanged
+- statuses unchanged
+
+==================================================
+9. ADMIN INVARIANT
+==================================================
+
+Verify every Admin record is byte-for-byte equivalent in relevant fields before/after the operation.
+
+Specifically:
+
+- passwordHash unchanged
+- isActive unchanged
+- role unchanged
+- updatedAt should not be modified by the user bulk reset
+
+Verify no Admin record appears in the credential artifact.
+
+==================================================
+10. FAILURE INJECTION TESTS
+==================================================
+
+Do NOT perform these against production.
+
+Simulate failures at each point:
+
+A. Before artifact preparation
+B. After credential marked prepared
+C. After artifact write
+D. After database password update
+E. Before credential marked committed
+F. Mid-batch
+G. Between batches
+H. During resume
+I. During artifact download
+J. During artifact deletion
+
+For each failure:
+
+- verify no silent data corruption
+- verify resume behavior
+- verify credential mapping remains correct
+- verify already-completed users are not assigned a different password
+- verify failed users are clearly identifiable
+- verify no password appears in logs
+
+==================================================
+11. RESUME TEST
+==================================================
+
+Intentionally stop a run halfway through.
+
+Resume using the same run ID.
+
+Verify:
+
+- completed users keep their original generated password
+- incomplete users receive the correct generated password
+- no completed user gets a second password
+- final credential artifact exactly matches the final database state
+- processed count equals eligible count
+- failed count is accurate
+
+==================================================
+12. IDEMPOTENCY TEST
+==================================================
+
+Attempt to execute the same completed run again.
+
+It MUST be rejected.
+
+Attempt to start another run while one is active.
+
+It MUST be rejected.
+
+==================================================
+13. WRONG CONFIRMATION TESTS
+==================================================
+
+Verify execution fails for:
+
+- wrong confirmation phrase
+- missing confirmation
+- wrong expected user count
+- changed user population
+- changed Admin count
+- unexpected authVersion state
+- existing reset-required state
+
+==================================================
+14. SECURITY CHECK
+==================================================
+
+Search logs, audit records, database records, public/static directories, and application responses for:
+
+- plaintext temporary passwords
+- password hashes
+- reset tokens
+
+They must not be present where prohibited by the design.
+
+==================================================
+15. CLEANUP
+==================================================
+
+After the rehearsal:
+
+- delete all test users
+- delete test credential artifacts
+- delete test reset runs
+- remove test Admin records if created
+- verify no production data was touched
+
+==================================================
+16. FINAL REPORT
+==================================================
+
+Report:
+
+A. Non-production database identity confirmation
+B. Test users created
+C. Preview results
+D. Execution results
+E. Credential artifact results
+F. Authentication results
+G. Financial invariants
+H. Admin invariants
+I. Failure-injection results
+J. Resume results
+K. Idempotency results
+L. Security/log inspection
+M. Cleanup results
+N. Any implementation defects discovered
+O. Exact test counts
+
+CRITICAL:
+
+DO NOT TOUCH PRODUCTION.
+
+STOP AFTER THE REHEARSAL.
