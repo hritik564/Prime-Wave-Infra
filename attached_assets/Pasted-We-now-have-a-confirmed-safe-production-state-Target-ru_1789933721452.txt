@@ -1,0 +1,103 @@
+We now have a confirmed safe production state.
+
+Target run:
+cmua3jcec001wa99zi17pz3hl
+
+Production state:
+- status = FAILED
+- processedCount = 250
+- totalEligible = 6640
+- failedCount = 1
+- failureReason = Common password reset worker lease expired
+- lastUserId = cmr2ciiaj015mxm62guwhv86d
+- workerLeaseUntil = NULL
+- activeLockKey = NULL
+- no worker is active
+- no other common reset run exists
+
+The run must now be RESUMED, NOT restarted from zero.
+
+IMPORTANT:
+Do NOT create a new reset run.
+Do NOT reset the first 250 users again.
+Do NOT manually modify production DB.
+Do NOT change any User credentials yet.
+Do NOT start the resume automatically.
+Do NOT publish until we explicitly approve it.
+
+I need you to inspect the EXISTING resume implementation and make the failed target run accessible from Admin Settings after a fresh page load.
+
+Requirements:
+
+1. Locate the existing common-password-reset resume endpoint and UI flow.
+
+2. Confirm that a FAILED run can already be resumed by:
+   - re-entering the same temporary password
+   - using the existing run ID
+   - continuing from the durable checkpoint
+   - preserving idempotency for the first 250 users
+
+3. The Admin Settings preview currently only exposes active PREPARING/RUNNING runs, which causes the failed run to disappear after page reload.
+
+4. Add the MINIMUM safe UI/API change needed so the latest failed resumable common-password-reset run is visible in Admin Settings.
+
+5. The UI should clearly show:
+   - Run ID: cmua3jcec001wa99zi17pz3hl
+   - Status: FAILED
+   - Processed: 250 / 6640
+   - Failure reason: worker lease expired
+   - "Resume common-password reset" action
+
+6. Resume must require:
+   - SUPER_ADMIN authorization
+   - the temporary password
+   - password confirmation
+   - the existing exact confirmation phrase/security confirmation required by the current implementation
+
+7. Do NOT display, log, store, or return the temporary password.
+
+8. Do NOT automatically resume when the page loads.
+
+9. Do NOT allow starting a brand-new reset while this failed resumable run exists.
+
+10. Resume must use the CURRENT optimized worker implementation with bounded concurrency and independent heartbeat/lease handling.
+
+11. Verify that resume begins from the durable checkpoint:
+   processedCount = 250
+   lastUserId = cmr2ciiaj015mxm62guwhv86d
+
+12. Do NOT change the database schema unless absolutely required. Prefer the smallest application/API/UI change.
+
+13. Add tests covering:
+   - failed run is returned as resumable
+   - only the correct run can be resumed
+   - SUPER_ADMIN requirement
+   - resume preserves checkpoint
+   - no new run is created
+   - password remains in-memory only
+   - active lock is reacquired safely
+
+14. Run:
+   - common-password-reset tests
+   - full API tests
+   - typecheck
+   - Prisma validation
+   - frontend build
+   - API build
+   - git diff --check
+
+IMPORTANT:
+Do NOT publish yet.
+Do NOT resume the production run yet.
+Do NOT enter or request my temporary password.
+Do NOT mutate production.
+
+At the end report:
+- existing resume endpoint
+- exact UI/API change made
+- whether the failed run will be visible after deployment
+- confirmation that resume starts at checkpoint 250
+- test results
+- whether publishing is required
+
+STOP.
