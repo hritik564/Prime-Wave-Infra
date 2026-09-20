@@ -455,12 +455,66 @@ export default function AdminSettingsPage() {
                     ["BLOCKED", bulkPreview.blockedUsers],
                     ["SUSPENDED", bulkPreview.suspendedUsers],
                     ["Admins excluded", bulkPreview.adminCount],
+                    ["Unexpected authVersion", bulkPreview.unexpectedAuthVersionCount],
+                    ["Already requiring password reset", bulkPreview.passwordResetRequiredCount],
                   ].map(([label, value]) => (
                     <div key={label} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 11px" }}>
                       <div style={{ color: MUTED, fontSize: 10 }}>{label}</div>
                       <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 17, fontWeight: 700, marginTop: 3 }}>{value}</div>
                     </div>
                   ))}
+                </div>
+                <div
+                  role="status"
+                  style={{
+                    border: `1px solid ${
+                      bulkLoading ||
+                      bulkPreview.unexpectedAuthVersionCount > 0 ||
+                      bulkPreview.passwordResetRequiredCount > 0 ||
+                      !bulkAcknowledged ||
+                      bulkConfirmation !== "RESET ALL NORMAL USER PASSWORDS"
+                        ? "rgba(248,113,113,0.3)"
+                        : "rgba(52,211,153,0.3)"
+                    }`,
+                    background:
+                      bulkLoading ||
+                      bulkPreview.unexpectedAuthVersionCount > 0 ||
+                      bulkPreview.passwordResetRequiredCount > 0 ||
+                      !bulkAcknowledged ||
+                      bulkConfirmation !== "RESET ALL NORMAL USER PASSWORDS"
+                        ? "rgba(248,113,113,0.06)"
+                        : "rgba(52,211,153,0.06)",
+                    borderRadius: 9,
+                    padding: "10px 12px",
+                    marginBottom: 14,
+                    color: "rgba(255,255,255,0.78)",
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <strong>
+                    Reset execution eligibility:{" "}
+                    {bulkLoading ||
+                    bulkPreview.unexpectedAuthVersionCount > 0 ||
+                    bulkPreview.passwordResetRequiredCount > 0 ||
+                    !bulkAcknowledged ||
+                    bulkConfirmation !== "RESET ALL NORMAL USER PASSWORDS"
+                      ? "BLOCKED"
+                      : "READY"}
+                  </strong>
+                  {(bulkLoading ||
+                    bulkPreview.unexpectedAuthVersionCount > 0 ||
+                    bulkPreview.passwordResetRequiredCount > 0 ||
+                    !bulkAcknowledged ||
+                    bulkConfirmation !== "RESET ALL NORMAL USER PASSWORDS") && (
+                    <ul style={{ margin: "5px 0 0 18px", padding: 0 }}>
+                      {bulkLoading && <li>Preview or reset request is still loading.</li>}
+                      {bulkPreview.unexpectedAuthVersionCount > 0 && <li>Unexpected authVersion count is non-zero.</li>}
+                      {bulkPreview.passwordResetRequiredCount > 0 && <li>Users already require a password reset.</li>}
+                      {!bulkAcknowledged && <li>The acknowledgement checkbox is not checked.</li>}
+                      {bulkConfirmation !== "RESET ALL NORMAL USER PASSWORDS" && <li>The confirmation phrase does not match exactly.</li>}
+                    </ul>
+                  )}
                 </div>
                 {(bulkPreview.unexpectedAuthVersionCount > 0 || bulkPreview.passwordResetRequiredCount > 0) && (
                   <p role="alert" style={{ color: "#fca5a5", fontSize: 12, lineHeight: 1.5 }}>

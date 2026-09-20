@@ -1,0 +1,79 @@
+STAGE 5G — EXPOSE BULK RESET PREFLIGHT BLOCKERS (READ-ONLY)
+
+The production Super Admin is authenticated.
+
+The Bulk User Password Reset preview displays:
+
+- Normal users: 6,640
+- ACTIVE: 241
+- INACTIVE: 6,399
+- BLOCKED: 0
+- SUSPENDED: 0
+- Admins excluded: 4
+
+The Super Admin has:
+- entered exactly: RESET ALL NORMAL USER PASSWORDS
+- checked the acknowledgement checkbox
+
+The "Start bulk reset" button remains disabled.
+
+Stage 5F confirmed that the button is disabled when either of these hidden preview values is greater than zero:
+
+- unexpectedAuthVersionCount
+- passwordResetRequiredCount
+
+Do NOT execute the reset.
+
+Do NOT call:
+POST /api/admin/security/bulk-password-reset/execute
+
+Do NOT generate passwords.
+Do NOT create an artifact.
+Do NOT modify production data.
+Do NOT modify users, admins, financial data, wallets, investments, deposits, withdrawals, income, BV, referrals, or ledgers.
+Do NOT weaken or remove any safety condition.
+
+TASK:
+
+Make the smallest possible ADMIN UI diagnostic change so the existing bulk reset preview visibly displays these two values:
+
+1. Unexpected authVersion count
+2. Existing passwordResetRequired count
+
+Display them clearly inside the existing Bulk User Password Reset panel, for example:
+
+Unexpected authVersion: X
+Already requiring password reset: Y
+
+Also display a clear status:
+
+"Reset execution eligibility: BLOCKED"
+or
+"Reset execution eligibility: READY"
+
+based strictly on the existing conditions.
+
+Do NOT change the enable/disable logic.
+
+Do NOT change the backend endpoint.
+
+Do NOT add any bypass.
+
+Do NOT execute anything.
+
+After making the diagnostic UI change:
+1. Run frontend typecheck.
+2. Run frontend build.
+3. Confirm no production database writes occurred.
+4. Confirm execute endpoint was NOT called.
+
+Then report:
+- unexpectedAuthVersionCount
+- passwordResetRequiredCount
+- whether the UI considers execution READY or BLOCKED
+- exact reason if BLOCKED
+- files changed
+- tests/build result
+
+IMPORTANT:
+This is only a diagnostic UI change. Do not proceed to execution.
