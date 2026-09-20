@@ -1,0 +1,74 @@
+We implemented and verified the stranded-worker recovery feature for the exact common password reset run:
+
+cmua3jcec001wa99zi17pz3hl
+
+Backend endpoint:
+POST /api/admin/security/common-password-reset/:runId/recover-stranded
+
+Required confirmation phrase:
+RECOVER STRANDED COMMON PASSWORD RESET WORKER
+
+The production run is currently stranded at:
+- status: RUNNING
+- processedCount: 250
+- totalEligible: 6640
+- worker lease: expired
+- no active worker process
+- temporary password is no longer in memory
+
+However, I am logged into the production SUPER_ADMIN Admin Settings page and the recovery control is NOT visible anywhere in the UI.
+
+IMPORTANT: Do NOT execute the recovery yet.
+Do NOT modify production data.
+Do NOT publish anything yet.
+Do NOT restart production.
+Do NOT create another reset run.
+Do NOT touch User credentials or financial data.
+
+Investigate the codebase and determine why the already-implemented "Recover stranded worker" Admin Settings UI is not appearing in the current production frontend.
+
+Check specifically:
+
+1. Locate the frontend component/code that implements the stranded-worker recovery UI.
+2. Locate the backend endpoint implementation.
+3. Locate the condition that determines whether the recovery panel/button is rendered.
+4. Check whether that condition incorrectly depends on:
+   - a hardcoded stale run snapshot,
+   - the wrong run ID,
+   - the old random reset run,
+   - common reset status polling,
+   - an active worker state,
+   - frontend-only state that is never populated,
+   - a feature flag,
+   - an authorization/role condition,
+   - or a production build/version mismatch.
+5. Verify that the frontend is actually calling the correct production status endpoint and receiving the current common reset run:
+   cmua3jcec001wa99zi17pz3hl
+6. Verify the UI is designed to show recovery when:
+   - run status = RUNNING
+   - worker lease is expired
+   - no active in-process worker exists
+7. If the implementation is correct but the currently published frontend does not contain it, identify the exact reason and confirm that a new publish is required.
+8. If a code fix is required, make ONLY the minimum frontend fix necessary to expose the existing recovery action.
+9. Do NOT change the recovery backend logic unless you find an actual security/correctness defect.
+10. Do NOT change the common reset worker implementation yet.
+
+Run:
+- relevant frontend tests
+- relevant API tests if affected
+- typecheck
+- frontend build
+- API build if affected
+- git diff --check
+
+Most importantly, DO NOT publish yet.
+
+At the end report:
+- exact frontend file/component responsible
+- why the recovery control is currently invisible
+- whether the existing recovery implementation is otherwise correct
+- exact minimal change required, if any
+- test results
+- whether publishing will be required
+
+STOP after the investigation/fix. Do not perform production recovery.
