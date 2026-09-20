@@ -1,0 +1,41 @@
+We need to reconcile the Prisma migration history before publishing. Do not publish and do not modify production.
+
+This is a migration-history investigation and repair plan only.
+
+Current facts:
+
+Production schema and development schema report hasDiff: false.
+Production has the bulk-reset table/enum from 20260921000000_bulk_password_reset_operation.
+Prisma development migration status says that migration is pending.
+Stage 5N migration 20260922000000_common_temporary_password_reset is genuinely not applied yet.
+Production contains an older failed baseline migration record 20260624000000_sprint1_init.
+
+Investigate exactly why 20260921000000_bulk_password_reset_operation exists in the database schema but is not recorded as applied in the current Prisma migration history.
+
+Do not use DROP TABLE, TRUNCATE, DELETE, RESET, or destructive schema operations.
+
+Determine:
+
+Whether the bulk-reset migration SQL exactly matches the existing production/development bulk-reset tables, enum, indexes, and constraints.
+Whether the migration was previously applied outside Prisma migration history.
+Whether the correct Prisma-safe solution is to use prisma migrate resolve --applied 20260921000000_bulk_password_reset_operation.
+Whether that command can safely reconcile the history without executing the migration SQL again.
+Whether the same history mismatch exists for any other migration.
+Whether the old 20260624000000_sprint1_init failed migration record affects the ability to run prisma migrate deploy.
+
+Then produce a proposed exact reconciliation sequence.
+
+Important: Do NOT execute migrate resolve, migrate deploy, SQL, or any production write yet.
+
+The desired outcome is:
+
+Existing bulk-reset schema = preserved
+Existing production user data = preserved
+Existing 893 credential changes = preserved
+Bulk-reset migration history = correctly marked applied
+Stage 5N migration = remains unapplied
+No production schema/data mutation
+
+Also tell me whether the reconciliation should be performed in development, production, or both, and why.
+
+Stop after the investigation and proposed commands. Do not publish.
