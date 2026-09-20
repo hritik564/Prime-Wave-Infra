@@ -182,19 +182,19 @@ export async function loginUser(input: LoginInput) {
     throw new AppError("Invalid credentials", HTTP_STATUS.UNAUTHORIZED, "INVALID_CREDENTIALS");
   }
 
-  if (user.passwordResetRequired) {
-    throw new AppError(
-      "Password reset required before normal access is restored",
-      HTTP_STATUS.FORBIDDEN,
-      "PASSWORD_RESET_REQUIRED",
-    );
-  }
-
   if (user.status === "BLOCKED") {
     throw new AppError(
       "Your account has been blocked. Please contact support.",
       HTTP_STATUS.FORBIDDEN,
       "ACCOUNT_BLOCKED",
+    );
+  }
+
+  if (user.passwordResetRequired) {
+    throw new AppError(
+      "Password reset required before normal access is restored",
+      HTTP_STATUS.FORBIDDEN,
+      "PASSWORD_RESET_REQUIRED",
     );
   }
 
