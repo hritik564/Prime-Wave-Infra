@@ -43,8 +43,11 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setTokenState]             = useState<string | null>(getToken);
   const [user, setUser]                    = useState<StoredUser | null>(getStoredUser);
+  const [token, setTokenState]             = useState<string | null>(() => {
+    const storedUser = getStoredUser();
+    return storedUser?.type === "admin" ? getAdminToken() : getToken();
+  });
   const [isImpersonating, setImpersonating] = useState<boolean>(
     () => { const t = getToken(); return !!t && isImpersonationToken(t); },
   );
