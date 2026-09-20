@@ -15,6 +15,7 @@ import { runSeed23B }                                      from "./dev/seed23b.f
 import { runPhase1HealthCheck, runPhase4Reconciliation, logPhase5Report } from "./dev/reconcile23b";
 import { loadLevelRules } from "./levelIncome/level-income.service";
 import { creditMissedOrbitIncome } from "./binary/orbit-backfill";
+import { recoverStaleCommonPasswordResetRuns } from "./admin/common-password-reset.service";
 
 // ── Synchronous boot logger ───────────────────────────────────────────────────
 // Uses fs.writeSync so the write is a direct OS syscall — survives pipe
@@ -180,6 +181,9 @@ const server = app.listen(port, () => {
 
   startWithdrawalRecovery().catch((e) =>
     logger.error({ e }, "startWithdrawalRecovery failed"),
+  );
+  recoverStaleCommonPasswordResetRuns().catch((e) =>
+    logger.error({ e }, "recoverStaleCommonPasswordResetRuns failed"),
   );
 
   // One-time backfill: credit master's missed orbit income from July 28 cycle.

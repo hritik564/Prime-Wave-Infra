@@ -1,0 +1,506 @@
+import bcrypt from "bcryptjs";
+import type {
+  BulkPasswordResetRunStatus,
+  CommonTemporaryPasswordResetRunStatus,
+  PrismaClient,
+} from "@prisma/client";
+import { prisma } from "../config/prisma";
+import { env } from "../config/env";
+import { AppError } from "../middleware/error.middleware";
+import { HTTP_STATUS } from "../shared/constants";
+import { logger } from "../lib/logger";
+import {
+  COMMON_PASSWORD_RESET_CONFIRMATION,
+  type CommonPasswordResetExecuteInput,
+} from "./common-password-reset.schema";
+
+export const COMMON_PASSWORD_RESET_BATCH_SIZE = 250;
+export const COMMON_PASSWORD_RESET_WORKER_LEASE_MS = 15 * 60_000;
+export const COMMON_PASSWORD_RESET_LOCK_KEY = "COMMON_TEMPORARY_PASSWORD_RESET";
+
+type CommonResetDb = Pick<
+  PrismaClient,
+  | "user"
+  | "admin"
+  | "adminLog"
+  | "bulkPasswordResetRun"
+  | "commonTemporaryPasswordResetRun"
+>;
+
+export interface CommonPasswordResetDependencies {
+  db: CommonResetDb;
+}
+
+const defaultDependencies: CommonPasswordResetDependencies = { db: prisma };
+
+type UserStatusKey = "ACTIVE" | "INACTIVE" | "BLOCKED" | "SUSPENDED";
+type CommonRunStatus = CommonTemporaryPasswordResetRunStatus;
+
+interface CommonResetJobContext {
+  adminId: string;
+  password: string;
+}
+
+const activeJobs = new Map<string, CommonResetJobContext>();
+
+function getStatusCounts(
+  groups: Array<{ status: UserStatusKey; _count: { _all: number } }>,
+): Record<UserStatusKey, number> {
+  const counts: Record<UserStatusKey, number> = {
+    ACTIVE: 0,
+    INACTIVE: 0,
+    BLOCKED: 0,
+    SUSPENDED: 0,
+  };
+  for (const group of groups) counts[group.status] = group._count._all;
+  return counts;
+}
+
+function leaseUntil(): Date {
+  return new Date(Date.now() + COMMON_PASSWORD_RESET_WORKER_LEASE_MS);
+}
+
+function safeFailureReason(batchNumber: number): string {
+  return `Common temporary password reset stopped in batch ${batchNumber}`;
+}
+
+function serializeRun(run: {
+  id: string;
+  status: CommonRunStatus;
+  totalEligible: number;
+  processedCount: number;
+  failedCount: number;
+  lastUserId: string | null;
+  startedAt: Date;
+  completedAt: Date | null;
+  updatedAt: Date;
+  failureReason: string | null;
+}) {
+  return {
+    runId: run.id,
+    status: run.status,
+    totalEligible: run.totalEligible,
+    processedCount: run.processedCount,
+    failedCount: run.failedCount,
+    lastUserId: run.lastUserId,
+    startedAt: run.startedAt,
+    completedAt: run.completedAt,
+    updatedAt: run.updatedAt,
+    failureReason: run.failureReason,
+  };
+}
+
+async function getActiveOperation(
+  dependencies: CommonPasswordResetDependencies,
+): Promise<"RANDOM_GENERATED" | "COMMON_TEMPORARY_PASSWORD" | null> {
+  const [randomRun, commonRun] = await Promise.all([
+    dependencies.db.bulkPasswordResetRun.findFirst({
+      where: { status: { in: ["PREPARING", "RUNNING"] } },
+      select: { id: true },
+    }),
+    dependencies.db.commonTemporaryPasswordResetRun.findFirst({
+      where: { status: { in: ["PREPARING", "RUNNING"] } },
+      select: { id: true },
+    }),
+  ]);
+  if (randomRun) return "RANDOM_GENERATED";
+  if (commonRun) return "COMMON_TEMPORARY_PASSWORD";
+  return null;
+}
+
+export async function getCommonPasswordResetPreview(
+  dependencies: CommonPasswordResetDependencies = defaultDependencies,
+) {
+  const [
+    groups,
+    totalNormalUsers,
+    adminCount,
+    passwordResetRequiredCount,
+    unexpectedAuthVersionCount,
+    activeOperation,
+    activeCommonRun,
+  ] = await Promise.all([
+    dependencies.db.user.groupBy({
+      by: ["status"],
+      _count: { _all: true },
+    }),
+    dependencies.db.user.count(),
+    dependencies.db.admin.count(),
+    dependencies.db.user.count({ where: { passwordResetRequired: true } }),
+    dependencies.db.user.count({ where: { authVersion: { not: 0 } } }),
+    getActiveOperation(dependencies),
+    dependencies.db.commonTemporaryPasswordResetRun.findFirst({
+      where: { status: { in: ["PREPARING", "RUNNING"] } },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  const statuses = getStatusCounts(
+    groups as Array<{ status: UserStatusKey; _count: { _all: number } }>,
+  );
+
+  return {
+    totalNormalUsers,
+    activeUsers: statuses.ACTIVE,
+    inactiveUsers: statuses.INACTIVE,
+    blockedUsers: statuses.BLOCKED,
+    suspendedUsers: statuses.SUSPENDED,
+    adminCount,
+    adminsExcluded: adminCount,
+    passwordResetRequiredCount,
+    unexpectedAuthVersionCount,
+    activeCredentialReset: activeOperation !== null,
+    activeOperation,
+    eligibleToExecute: activeOperation === null,
+    activeRun: activeCommonRun ? serializeRun(activeCommonRun) : null,
+  };
+}
+
+export function validateCommonTemporaryPassword(password: string): void {
+  if (
+    password.length < 12 ||
+    !/[A-Z]/.test(password) ||
+    !/[a-z]/.test(password) ||
+    !/[0-9]/.test(password) ||
+    !/[^A-Za-z0-9]/.test(password)
+  ) {
+    throw new AppError(
+      "Temporary password must be at least 12 characters and include uppercase, lowercase, number, and symbol characters",
+      HTTP_STATUS.BAD_REQUEST,
+      "WEAK_PASSWORD",
+    );
+  }
+}
+
+function assertPasswordInput(input: CommonPasswordResetExecuteInput): void {
+  if (input.confirmation !== COMMON_PASSWORD_RESET_CONFIRMATION) {
+    throw new AppError(
+      "Exact common-password reset confirmation is required",
+      HTTP_STATUS.BAD_REQUEST,
+      "CONFIRMATION_REQUIRED",
+    );
+  }
+  if (input.password !== input.confirmPassword) {
+    throw new AppError(
+      "Temporary password confirmation does not match",
+      HTTP_STATUS.BAD_REQUEST,
+      "PASSWORD_CONFIRMATION_MISMATCH",
+    );
+  }
+  validateCommonTemporaryPassword(input.password);
+}
+
+async function assertNoActiveReset(
+  dependencies: CommonPasswordResetDependencies,
+): Promise<void> {
+  const activeOperation = await getActiveOperation(dependencies);
+  if (activeOperation) {
+    throw new AppError(
+      "Another bulk credential reset operation is currently running.",
+      HTTP_STATUS.CONFLICT,
+      "BULK_RESET_ALREADY_RUNNING",
+    );
+  }
+}
+
+export async function executeCommonPasswordReset(
+  adminId: string,
+  input: CommonPasswordResetExecuteInput,
+  dependencies: CommonPasswordResetDependencies = defaultDependencies,
+) {
+  assertPasswordInput(input);
+
+  let run;
+  if (input.runId) {
+    run = await dependencies.db.commonTemporaryPasswordResetRun.findUnique({
+      where: { id: input.runId },
+    });
+    if (!run || run.adminId !== adminId) {
+      throw new AppError("Common password reset run not found", HTTP_STATUS.NOT_FOUND, "NOT_FOUND");
+    }
+    if (run.status !== "FAILED") {
+      throw new AppError(
+        "Only a failed common password reset can be resumed",
+        HTTP_STATUS.CONFLICT,
+        "COMMON_RESET_NOT_RESUMABLE",
+      );
+    }
+    if (run.totalEligible !== input.expectedUserCount) {
+      throw new AppError(
+        "Expected user count does not match the original common-password run",
+        HTTP_STATUS.CONFLICT,
+        "USER_COUNT_MISMATCH",
+      );
+    }
+    await assertNoActiveReset(dependencies);
+    const claimed = await dependencies.db.commonTemporaryPasswordResetRun.updateMany({
+      where: { id: run.id, status: "FAILED", activeLockKey: null },
+      data: {
+        status: "RUNNING",
+        activeLockKey: COMMON_PASSWORD_RESET_LOCK_KEY,
+        failureReason: null,
+        workerLeaseUntil: leaseUntil(),
+        lastHeartbeatAt: new Date(),
+      },
+    });
+    if (claimed.count !== 1) {
+      throw new AppError(
+        "Another common password reset operation is currently running.",
+        HTTP_STATUS.CONFLICT,
+        "BULK_RESET_ALREADY_RUNNING",
+      );
+    }
+    run = await dependencies.db.commonTemporaryPasswordResetRun.findUniqueOrThrow({
+      where: { id: run.id },
+    });
+  } else {
+    const preview = await getCommonPasswordResetPreview(dependencies);
+    if (preview.activeCredentialReset) {
+      throw new AppError(
+        "Another bulk credential reset operation is currently running.",
+        HTTP_STATUS.CONFLICT,
+        "BULK_RESET_ALREADY_RUNNING",
+      );
+    }
+    if (preview.totalNormalUsers !== input.expectedUserCount) {
+      throw new AppError(
+        "Expected user count does not match the current normal-user count",
+        HTTP_STATUS.CONFLICT,
+        "USER_COUNT_MISMATCH",
+      );
+    }
+    try {
+      run = await dependencies.db.commonTemporaryPasswordResetRun.create({
+        data: {
+          adminId,
+          status: "RUNNING",
+          totalEligible: preview.totalNormalUsers,
+          adminCount: preview.adminCount,
+          activeLockKey: COMMON_PASSWORD_RESET_LOCK_KEY,
+          workerLeaseUntil: leaseUntil(),
+          lastHeartbeatAt: new Date(),
+        },
+      });
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "P2002") {
+        throw new AppError(
+          "Another common password reset operation is currently running.",
+          HTTP_STATUS.CONFLICT,
+          "BULK_RESET_ALREADY_RUNNING",
+        );
+      }
+      throw error;
+    }
+  }
+
+  activeJobs.set(run.id, { adminId, password: input.password });
+  queueMicrotask(() => {
+    void processCommonPasswordReset(run.id, dependencies);
+  });
+
+  return {
+    ...serializeRun(run),
+    accepted: true,
+  };
+}
+
+export async function getCommonPasswordResetStatus(
+  adminId: string,
+  runId: string,
+  dependencies: CommonPasswordResetDependencies = defaultDependencies,
+) {
+  const run = await dependencies.db.commonTemporaryPasswordResetRun.findUnique({
+    where: { id: runId },
+  });
+  if (!run || run.adminId !== adminId) {
+    throw new AppError("Common password reset run not found", HTTP_STATUS.NOT_FOUND, "NOT_FOUND");
+  }
+  return serializeRun(run);
+}
+
+export async function recoverStaleCommonPasswordResetRuns(
+  dependencies: CommonPasswordResetDependencies = defaultDependencies,
+): Promise<number> {
+  let result;
+  try {
+    result = await dependencies.db.commonTemporaryPasswordResetRun.updateMany({
+      where: {
+        status: { in: ["PREPARING", "RUNNING"] },
+        workerLeaseUntil: { lt: new Date() },
+      },
+      data: {
+        status: "FAILED",
+        failedCount: 1,
+        failureReason: "Common password reset worker lease expired",
+        activeLockKey: null,
+        workerLeaseUntil: null,
+      },
+    });
+  } catch (error) {
+    // Development workflows do not run migrations automatically. Treat the
+    // absent feature table as "migration pending" rather than a boot failure.
+    if (error instanceof Error && "code" in error && error.code === "P2021") {
+      logger.warn("Common password reset migration is pending; stale-run recovery skipped");
+      return 0;
+    }
+    throw error;
+  }
+  if (result.count > 0) {
+    logger.warn({ count: result.count }, "Recovered stale common password reset run(s)");
+  }
+  return result.count;
+}
+
+async function processCommonPasswordReset(
+  runId: string,
+  dependencies: CommonPasswordResetDependencies,
+): Promise<void> {
+  const context = activeJobs.get(runId);
+  if (!context) return;
+
+  let batchNumber = 0;
+  let processedCount = 0;
+  let checkpointedCount = 0;
+  try {
+    let run = await dependencies.db.commonTemporaryPasswordResetRun.findUnique({
+      where: { id: runId },
+    });
+    if (!run || run.status !== "RUNNING" || run.adminId !== context.adminId) return;
+
+    processedCount = run.processedCount;
+    checkpointedCount = run.processedCount;
+    let cursor = run.lastUserId;
+
+    while (true) {
+      const [currentUserCount, currentAdminCount] = await Promise.all([
+        dependencies.db.user.count(),
+        dependencies.db.admin.count(),
+      ]);
+      if (currentUserCount !== run.totalEligible || currentAdminCount !== run.adminCount) {
+        throw new Error("User or Admin population changed during the common password reset");
+      }
+
+      const users = await dependencies.db.user.findMany({
+        where: cursor ? { id: { gt: cursor } } : undefined,
+        orderBy: { id: "asc" },
+        take: COMMON_PASSWORD_RESET_BATCH_SIZE,
+        select: {
+          id: true,
+          passwordHash: true,
+          authVersion: true,
+          passwordResetRequired: true,
+          passwordChangedAt: true,
+          updatedAt: true,
+        },
+      });
+      if (users.length === 0) break;
+      batchNumber += 1;
+
+      for (const user of users) {
+        const alreadyCommitted =
+          user.passwordChangedAt !== null &&
+          user.passwordChangedAt >= run.startedAt &&
+          user.passwordResetRequired &&
+          (await bcrypt.compare(context.password, user.passwordHash));
+
+        if (!alreadyCommitted) {
+          const passwordHash = await bcrypt.hash(
+            context.password,
+            parseInt(env.BCRYPT_ROUNDS, 10),
+          );
+          await dependencies.db.user.update({
+            where: { id: user.id },
+            data: {
+              passwordHash,
+              passwordResetRequired: true,
+              authVersion: { increment: 1 },
+              passwordChangedAt: new Date(),
+              updatedAt: user.updatedAt,
+            },
+          });
+        }
+        processedCount += 1;
+
+        if (processedCount % 25 === 0) {
+          await dependencies.db.commonTemporaryPasswordResetRun.update({
+            where: { id: runId },
+            data: {
+              lastHeartbeatAt: new Date(),
+              workerLeaseUntil: leaseUntil(),
+            },
+          });
+        }
+      }
+
+      cursor = users[users.length - 1]?.id ?? cursor;
+      run = await dependencies.db.commonTemporaryPasswordResetRun.update({
+        where: { id: runId },
+        data: {
+          status: "RUNNING",
+          lastUserId: cursor,
+          processedCount,
+          lastHeartbeatAt: new Date(),
+          workerLeaseUntil: leaseUntil(),
+        },
+      });
+    }
+
+    run = await dependencies.db.commonTemporaryPasswordResetRun.update({
+      where: { id: runId },
+      data: {
+        status: "COMPLETED",
+        processedCount,
+        completedAt: new Date(),
+        activeLockKey: null,
+        workerLeaseUntil: null,
+        lastHeartbeatAt: new Date(),
+      },
+    });
+    await dependencies.db.adminLog.create({
+      data: {
+        adminId: context.adminId,
+        action: "COMMON_TEMPORARY_PASSWORD_RESET_COMPLETED",
+        details: {
+          runId,
+          operationType: "COMMON_TEMPORARY_PASSWORD",
+          targetCount: run.totalEligible,
+          processedCount,
+          failedCount: 0,
+        },
+      },
+    });
+  } catch {
+    await dependencies.db.commonTemporaryPasswordResetRun.update({
+      where: { id: runId },
+      data: {
+        status: "FAILED",
+        failedCount: 1,
+        // A batch may have changed users before its checkpoint write. Keep the
+        // durable count at the last completed checkpoint so a resume can
+        // replay that batch idempotently without double-counting it.
+        processedCount: checkpointedCount,
+        failureReason: safeFailureReason(batchNumber),
+        activeLockKey: null,
+        workerLeaseUntil: null,
+      },
+    }).catch(() => undefined);
+    await dependencies.db.adminLog.create({
+      data: {
+        adminId: context.adminId,
+        action: "COMMON_TEMPORARY_PASSWORD_RESET_FAILED",
+        details: {
+          runId,
+          operationType: "COMMON_TEMPORARY_PASSWORD",
+          processedCount,
+          failedCount: 1,
+        },
+      },
+    }).catch(() => undefined);
+    logger.error(
+      { runId, batchNumber, processedCount },
+      "Common temporary password reset stopped safely",
+    );
+  } finally {
+    activeJobs.delete(runId);
+  }
+}

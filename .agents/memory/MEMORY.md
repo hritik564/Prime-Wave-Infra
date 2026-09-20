@@ -44,3 +44,4 @@
 - [Bulk reset artifact recovery](bulk-reset-artifact-recovery.md) — persist prepared mappings before updates and reconcile them after crashes; never generate replacement passwords blindly
 - [Bulk reset timestamp invariant](bulk-reset-timestamp-invariant.md) — preserve normal-user updatedAt during the auth-only bulk reset; generic timestamp drift violates the rehearsal invariant
 - [Development rehearsal workers](development-rehearsal-workers.md) — active cron workers can mutate queued financial fixtures after snapshots; isolate or avoid worker-eligible records
+- [Common reset plaintext lifecycle](common-reset-plaintext-lifecycle.md) — keep the password process-local; restart recovery marks the run failed and requires secure re-entry

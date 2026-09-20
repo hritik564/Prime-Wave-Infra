@@ -177,6 +177,74 @@ export function executeBulkPasswordReset(confirmation: string, expectedUserCount
   });
 }
 
+export const COMMON_PASSWORD_RESET_CONFIRMATION =
+  "SET COMMON TEMPORARY PASSWORD FOR ALL NORMAL USERS";
+
+export interface CommonPasswordResetPreview {
+  totalNormalUsers: number;
+  activeUsers: number;
+  inactiveUsers: number;
+  blockedUsers: number;
+  suspendedUsers: number;
+  adminCount: number;
+  adminsExcluded: number;
+  passwordResetRequiredCount: number;
+  unexpectedAuthVersionCount: number;
+  activeCredentialReset: boolean;
+  activeOperation: "RANDOM_GENERATED" | "COMMON_TEMPORARY_PASSWORD" | null;
+  eligibleToExecute: boolean;
+  activeRun: CommonPasswordResetRunStatus | null;
+}
+
+export interface CommonPasswordResetRunStatus {
+  runId: string;
+  status: "PREPARING" | "RUNNING" | "COMPLETED" | "FAILED";
+  totalEligible: number;
+  processedCount: number;
+  failedCount: number;
+  lastUserId: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  updatedAt: string;
+  failureReason: string | null;
+  accepted?: boolean;
+}
+
+export function previewCommonPasswordReset() {
+  return request<CommonPasswordResetPreview>("/api/admin/security/common-password-reset/preview", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export function executeCommonPasswordReset(
+  password: string,
+  confirmPassword: string,
+  confirmation: string,
+  expectedUserCount: number,
+  runId?: string,
+) {
+  return request<CommonPasswordResetRunStatus>(
+    "/api/admin/security/common-password-reset/execute",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        password,
+        confirmPassword,
+        confirmation,
+        expectedUserCount,
+        ...(runId ? { runId } : {}),
+      }),
+    },
+  );
+}
+
+export function getCommonPasswordResetStatus(runId: string) {
+  return request<CommonPasswordResetRunStatus>(
+    `/api/admin/security/common-password-reset/${encodeURIComponent(runId)}/status`,
+  );
+}
+
 export async function downloadBulkPasswordResetArtifact(runId: string): Promise<Blob> {
   const token = getAdminToken() ?? getToken();
   const headers: Record<string, string> = {};

@@ -124,6 +124,13 @@ enum BulkPasswordResetRunStatus {
   EXPIRED
 }
 
+enum CommonTemporaryPasswordResetRunStatus {
+  PREPARING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -270,6 +277,7 @@ model Admin {
 
   logs                  AdminLog[]
   bulkPasswordResetRuns BulkPasswordResetRun[]
+  commonTemporaryPasswordResetRuns CommonTemporaryPasswordResetRun[]
   impersonationSessions ImpersonationSession[]
   approvedDeposits      DepositRequest[]
 
@@ -337,6 +345,33 @@ model BulkPasswordResetRun {
   @@index([status])
   @@index([adminId, createdAt])
   @@map("bulk_password_reset_runs")
+}
+
+/// Tracks progress metadata for the common temporary-password control-plane job.
+/// The plaintext password is intentionally process-local and is never stored here.
+model CommonTemporaryPasswordResetRun {
+  id                 String                                  @id @default(cuid())
+  adminId            String
+  status             CommonTemporaryPasswordResetRunStatus @default(PREPARING)
+  totalEligible      Int
+  adminCount         Int
+  processedCount     Int                                  @default(0)
+  failedCount        Int                                  @default(0)
+  lastUserId         String?
+  failureReason      String?
+  workerLeaseUntil   DateTime?
+  lastHeartbeatAt    DateTime?
+  activeLockKey      String?                                @unique
+  startedAt          DateTime                               @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime                               @default(now())
+  updatedAt          DateTime                               @updatedAt
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([status])
+  @@index([adminId, createdAt])
+  @@map("common_temporary_password_reset_runs")
 }
 
 model ImpersonationSession {

@@ -264,6 +264,12 @@ import {
   downloadBulkPasswordResetArtifactHandler,
 } from "./bulk-reset.controller";
 import { bulkPasswordResetExecuteSchema } from "./bulk-reset.schema";
+import {
+  previewCommonPasswordResetHandler,
+  executeCommonPasswordResetHandler,
+  getCommonPasswordResetStatusHandler,
+} from "./common-password-reset.controller";
+import { commonPasswordResetExecuteSchema } from "./common-password-reset.schema";
 
 const router = Router();
 
@@ -939,6 +945,25 @@ router.get(
   adminLimiter,
   superAdminGuard,
   downloadBulkPasswordResetArtifactHandler,
+);
+router.post(
+  "/security/common-password-reset/preview",
+  adminLimiter,
+  superAdminGuard,
+  previewCommonPasswordResetHandler,
+);
+router.post(
+  "/security/common-password-reset/execute",
+  adminLimiter,
+  superAdminGuard,
+  validate(commonPasswordResetExecuteSchema, "body"),
+  executeCommonPasswordResetHandler,
+);
+router.get(
+  "/security/common-password-reset/:runId/status",
+  adminLimiter,
+  superAdminGuard,
+  getCommonPasswordResetStatusHandler,
 );
 
 // ── Blockchain Gateway — SUPER_ADMIN only ─────────────────────────────────────

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Download, Eye, EyeOff, Lock, RefreshCw, ShieldCheck } from "lucide-react";
 import AdminLayout from "./AdminLayout";
 import DepositWalletManagement from "./DepositWalletManagement";
@@ -7,10 +7,16 @@ import {
   createStaffAdmin,
   downloadBulkPasswordResetArtifact,
   executeBulkPasswordReset,
+  executeCommonPasswordReset,
+  getCommonPasswordResetStatus,
   previewBulkPasswordReset,
+  previewCommonPasswordReset,
   ApiRequestError,
+  COMMON_PASSWORD_RESET_CONFIRMATION,
   type BulkPasswordResetPreview,
   type BulkPasswordResetRunResult,
+  type CommonPasswordResetPreview,
+  type CommonPasswordResetRunStatus,
 } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -98,6 +104,35 @@ export default function AdminSettingsPage() {
   const [bulkAcknowledged, setBulkAcknowledged] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [commonPreview, setCommonPreview] = useState<CommonPasswordResetPreview | null>(null);
+  const [commonRun, setCommonRun] = useState<CommonPasswordResetRunStatus | null>(null);
+  const [commonPassword, setCommonPassword] = useState("");
+  const [commonPasswordConfirm, setCommonPasswordConfirm] = useState("");
+  const [commonConfirmation, setCommonConfirmation] = useState("");
+  const [commonAcknowledged, setCommonAcknowledged] = useState(false);
+  const [commonLoading, setCommonLoading] = useState(false);
+  const [commonError, setCommonError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!commonRun || !["PREPARING", "RUNNING"].includes(commonRun.status)) return;
+    let active = true;
+    const poll = async () => {
+      try {
+        const status = await getCommonPasswordResetStatus(commonRun.runId);
+        if (active) setCommonRun(status);
+      } catch (requestError) {
+        if (active) {
+          setCommonError(requestError instanceof Error ? requestError.message : "Unable to refresh reset status.");
+        }
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 2000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [commonRun?.runId, commonRun?.status]);
 
   const submit = async () => {
     setError(null);
@@ -239,6 +274,56 @@ export default function AdminSettingsPage() {
       URL.revokeObjectURL(url);
     } catch (requestError) {
       setBulkError(requestError instanceof Error ? requestError.message : "Unable to download the credential artifact.");
+    }
+  };
+
+  const loadCommonPreview = async () => {
+    setCommonError(null);
+    setCommonLoading(true);
+    try {
+      const preview = await previewCommonPasswordReset();
+      setCommonPreview(preview);
+      if (preview.activeRun) setCommonRun(preview.activeRun);
+    } catch (requestError) {
+      setCommonError(requestError instanceof Error ? requestError.message : "Unable to load the common-password preview.");
+    } finally {
+      setCommonLoading(false);
+    }
+  };
+
+  const runCommonReset = async () => {
+    if (
+      !commonPreview ||
+      !commonAcknowledged ||
+      commonPreview.activeCredentialReset ||
+      commonPassword !== commonPasswordConfirm ||
+      commonConfirmation !== COMMON_PASSWORD_RESET_CONFIRMATION ||
+      commonPassword.length < 12 ||
+      !/[A-Z]/.test(commonPassword) ||
+      !/[a-z]/.test(commonPassword) ||
+      !/[0-9]/.test(commonPassword) ||
+      !/[^A-Za-z0-9]/.test(commonPassword)
+    ) return;
+
+    setCommonError(null);
+    setCommonLoading(true);
+    try {
+      const result = await executeCommonPasswordReset(
+        commonPassword,
+        commonPasswordConfirm,
+        commonConfirmation,
+        commonPreview.totalNormalUsers,
+        commonRun?.status === "FAILED" ? commonRun.runId : undefined,
+      );
+      setCommonRun(result);
+      setCommonPassword("");
+      setCommonPasswordConfirm("");
+      setCommonConfirmation("");
+      setCommonAcknowledged(false);
+    } catch (requestError) {
+      setCommonError(requestError instanceof Error ? requestError.message : "Unable to start the common-password reset.");
+    } finally {
+      setCommonLoading(false);
     }
   };
 
@@ -626,6 +711,134 @@ export default function AdminSettingsPage() {
                     Download one-time credential artifact
                   </button>
                 )}
+              </div>
+            )}
+          </section>
+        )}
+
+        {isSuperAdmin && (
+          <section style={{ background: CARD, border: `1px solid rgba(212,175,55,0.28)`, borderRadius: 14, padding: 20, marginTop: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <ShieldCheck size={17} style={{ color: GOLD_L }} />
+              <h2 style={{ margin: 0, color: "rgba(255,255,255,0.9)", fontSize: 15, fontWeight: 700 }}>
+                COMMON TEMPORARY PASSWORD
+              </h2>
+            </div>
+            <p style={{ margin: "0 0 16px", color: MUTED, fontSize: 12, lineHeight: 1.55 }}>
+              Super Admin only. Enter one temporary password for every normal User account. Admins are excluded,
+              user statuses and financial records are preserved, and existing JWTs are invalidated.
+            </p>
+
+            {!commonPreview && !commonRun && (
+              <button
+                type="button"
+                onClick={() => void loadCommonPreview()}
+                disabled={commonLoading}
+                style={{
+                  border: `1px solid ${GOLD}66`,
+                  background: "rgba(212,175,55,0.13)",
+                  color: GOLD_L,
+                  borderRadius: 8,
+                  padding: "10px 16px",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: commonLoading ? "wait" : "pointer",
+                }}
+              >
+                <RefreshCw size={13} style={{ verticalAlign: "middle", marginRight: 7 }} />
+                {commonLoading ? "Loading preview…" : "Load common-password preview"}
+              </button>
+            )}
+
+            {commonPreview && (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+                  {[
+                    ["Normal users", commonPreview.totalNormalUsers],
+                    ["ACTIVE", commonPreview.activeUsers],
+                    ["INACTIVE", commonPreview.inactiveUsers],
+                    ["BLOCKED", commonPreview.blockedUsers],
+                    ["SUSPENDED", commonPreview.suspendedUsers],
+                    ["Admins excluded", commonPreview.adminsExcluded],
+                    ["Already requiring reset", commonPreview.passwordResetRequiredCount],
+                    ["Nonzero authVersion", commonPreview.unexpectedAuthVersionCount],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 11px" }}>
+                      <div style={{ color: MUTED, fontSize: 10 }}>{label}</div>
+                      <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 17, fontWeight: 700, marginTop: 3 }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {commonPreview.activeCredentialReset && (
+                  <div role="alert" style={{ border: "1px solid rgba(248,113,113,0.35)", background: "rgba(248,113,113,0.08)", borderRadius: 9, padding: "10px 12px", marginBottom: 14, color: "#fca5a5", fontSize: 12, lineHeight: 1.5 }}>
+                    <strong>COMMON PASSWORD RESET BLOCKED</strong>
+                    <div style={{ marginTop: 4 }}>
+                      ANOTHER BULK CREDENTIAL RESET IS CURRENTLY RUNNING.
+                    </div>
+                  </div>
+                )}
+
+                <PasswordField label="Common temporary password" value={commonPassword} onChange={setCommonPassword} />
+                <PasswordField label="Confirm common temporary password" value={commonPasswordConfirm} onChange={setCommonPasswordConfirm} />
+                <label style={{ display: "block", marginBottom: 12 }}>
+                  <span style={{ display: "block", color: "rgba(255,255,255,0.72)", fontSize: 12, fontWeight: 600, marginBottom: 7 }}>
+                    Type the exact confirmation phrase
+                  </span>
+                  <input
+                    value={commonConfirmation}
+                    onChange={(event) => setCommonConfirmation(event.target.value)}
+                    placeholder={COMMON_PASSWORD_RESET_CONFIRMATION}
+                    autoComplete="off"
+                    style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 9, padding: "11px 12px", color: "rgba(255,255,255,0.58)", outline: "none", fontSize: 13 }}
+                  />
+                </label>
+                <label style={{ display: "flex", gap: 9, alignItems: "flex-start", color: "rgba(255,255,255,0.7)", fontSize: 12, lineHeight: 1.45, marginBottom: 14 }}>
+                  <input type="checkbox" checked={commonAcknowledged} onChange={(event) => setCommonAcknowledged(event.target.checked)} />
+                  <span>I understand this changes credentials for all normal users and forces a secure first-login password change.</span>
+                </label>
+                <p style={{ margin: "0 0 14px", color: MUTED, fontSize: 11, lineHeight: 1.45 }}>
+                  Use at least 12 characters with uppercase, lowercase, number, and symbol characters. The password is
+                  used only while the background worker is processing and is never returned or stored in the run record.
+                </p>
+                {commonError && <p role="alert" style={{ color: "#fca5a5", fontSize: 12 }}>{commonError}</p>}
+                <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => void runCommonReset()}
+                    disabled={
+                      commonLoading ||
+                      commonPreview.activeCredentialReset ||
+                      !commonAcknowledged ||
+                      commonPassword !== commonPasswordConfirm ||
+                      commonConfirmation !== COMMON_PASSWORD_RESET_CONFIRMATION ||
+                      commonPassword.length < 12 ||
+                      !/[A-Z]/.test(commonPassword) ||
+                      !/[a-z]/.test(commonPassword) ||
+                      !/[0-9]/.test(commonPassword) ||
+                      !/[^A-Za-z0-9]/.test(commonPassword)
+                    }
+                    style={{ border: `1px solid ${GOLD}66`, background: "rgba(212,175,55,0.13)", color: GOLD_L, borderRadius: 8, padding: "10px 16px", fontSize: 12, fontWeight: 700, cursor: commonLoading ? "wait" : "pointer", opacity: commonLoading ? 0.6 : 1 }}
+                  >
+                    {commonLoading ? "Submitting…" : commonRun?.status === "FAILED" ? "Resume common-password reset" : "Start common-password reset"}
+                  </button>
+                  <button type="button" onClick={() => void loadCommonPreview()} disabled={commonLoading} style={{ border: `1px solid ${BORDER}`, background: "transparent", color: MUTED, borderRadius: 8, padding: "10px 16px", fontSize: 12, cursor: "pointer" }}>
+                    Refresh preview
+                  </button>
+                </div>
+              </>
+            )}
+
+            {commonRun && (
+              <div style={{ border: `1px solid ${commonRun.status === "FAILED" ? "rgba(248,113,113,0.3)" : "rgba(52,211,153,0.3)"}`, background: commonRun.status === "FAILED" ? "rgba(248,113,113,0.06)" : "rgba(52,211,153,0.06)", borderRadius: 10, padding: 14, marginTop: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, color: commonRun.status === "FAILED" ? "#fca5a5" : "#6ee7b7", fontSize: 13, fontWeight: 700 }}>
+                  {commonRun.status === "FAILED" ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+                  Common-password reset status: {commonRun.status}
+                </div>
+                <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,0.68)", fontSize: 12, lineHeight: 1.5 }}>
+                  Processed {commonRun.processedCount} of {commonRun.totalEligible} normal users. This worker does not expose passwords.
+                </p>
+                {commonRun.failureReason && <p style={{ margin: "8px 0 0", color: "#fca5a5", fontSize: 12 }}>{commonRun.failureReason}</p>}
               </div>
             )}
           </section>
