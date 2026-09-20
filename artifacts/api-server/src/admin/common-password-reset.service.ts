@@ -11,6 +11,7 @@ import { HTTP_STATUS } from "../shared/constants";
 import { logger } from "../lib/logger";
 import {
   COMMON_PASSWORD_RESET_CONFIRMATION,
+  COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID,
   type CommonPasswordResetExecuteInput,
 } from "./common-password-reset.schema";
 
@@ -19,6 +20,8 @@ export const COMMON_PASSWORD_RESET_BCRYPT_CONCURRENCY = 4;
 export const COMMON_PASSWORD_RESET_WORKER_LEASE_MS = 15 * 60_000;
 export const COMMON_PASSWORD_RESET_HEARTBEAT_INTERVAL_MS = 60_000;
 export const COMMON_PASSWORD_RESET_LOCK_KEY = "COMMON_TEMPORARY_PASSWORD_RESET";
+export const COMMON_PASSWORD_RESET_EMERGENCY_STOP_REASON =
+  "WORKER_ADMIN_STOPPED_FOR_PERFORMANCE_RECOVERY";
 
 type CommonResetDb = Pick<
   PrismaClient,
@@ -41,9 +44,35 @@ type CommonRunStatus = CommonTemporaryPasswordResetRunStatus;
 interface CommonResetJobContext {
   adminId: string;
   password: string;
+  stopRequested: boolean;
+  stopRequestedBy: string | null;
+  safeBoundary: Promise<void>;
+  resolveSafeBoundary: () => void;
 }
 
 const activeJobs = new Map<string, CommonResetJobContext>();
+
+class CommonPasswordResetAdminStopError extends Error {
+  constructor() {
+    super(COMMON_PASSWORD_RESET_EMERGENCY_STOP_REASON);
+    this.name = "CommonPasswordResetAdminStopError";
+  }
+}
+
+function createJobContext(adminId: string, password: string): CommonResetJobContext {
+  let resolveSafeBoundary!: () => void;
+  const safeBoundary = new Promise<void>((resolve) => {
+    resolveSafeBoundary = resolve;
+  });
+  return {
+    adminId,
+    password,
+    stopRequested: false,
+    stopRequestedBy: null,
+    safeBoundary,
+    resolveSafeBoundary,
+  };
+}
 
 function getStatusCounts(
   groups: Array<{ status: UserStatusKey; _count: { _all: number } }>,
@@ -328,7 +357,7 @@ export async function executeCommonPasswordReset(
     }
   }
 
-  activeJobs.set(run.id, { adminId, password: input.password });
+  activeJobs.set(run.id, createJobContext(adminId, input.password));
   queueMicrotask(() => {
     void processCommonPasswordReset(run.id, dependencies);
   });
@@ -337,6 +366,60 @@ export async function executeCommonPasswordReset(
     ...serializeRun(run),
     accepted: true,
   };
+}
+
+export async function requestCommonPasswordResetEmergencyStop(
+  adminId: string,
+  runId: string,
+  dependencies: CommonPasswordResetDependencies = defaultDependencies,
+) {
+  if (runId !== COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID) {
+    throw new AppError(
+      "Emergency common-password reset recovery is not enabled for this run",
+      HTTP_STATUS.NOT_FOUND,
+      "COMMON_RESET_EMERGENCY_RUN_NOT_FOUND",
+    );
+  }
+
+  const run = await dependencies.db.commonTemporaryPasswordResetRun.findUnique({
+    where: { id: runId },
+  });
+  if (!run || run.status !== "RUNNING") {
+    throw new AppError(
+      "The common-password reset run is not currently running",
+      HTTP_STATUS.CONFLICT,
+      "COMMON_RESET_NOT_RUNNING",
+    );
+  }
+
+  const context = activeJobs.get(runId);
+  if (!context) {
+    throw new AppError(
+      "The worker is not active in this process; safe emergency stop is unavailable",
+      HTTP_STATUS.CONFLICT,
+      "COMMON_RESET_STOP_UNSAFE",
+    );
+  }
+
+  context.stopRequested = true;
+  context.stopRequestedBy = adminId;
+  await context.safeBoundary;
+
+  const recovered = await dependencies.db.commonTemporaryPasswordResetRun.findUnique({
+    where: { id: runId },
+  });
+  if (
+    !recovered
+    || recovered.status !== "FAILED"
+    || recovered.failureReason !== COMMON_PASSWORD_RESET_EMERGENCY_STOP_REASON
+  ) {
+    throw new AppError(
+      "The worker did not complete the safe emergency stop transition",
+      HTTP_STATUS.CONFLICT,
+      "COMMON_RESET_STOP_NOT_CONFIRMED",
+    );
+  }
+  return serializeRun(recovered);
 }
 
 export async function getCommonPasswordResetStatus(
@@ -440,6 +523,8 @@ async function processCommonPasswordReset(
     const startedAt = run.startedAt;
 
     while (true) {
+      if (context.stopRequested) throw new CommonPasswordResetAdminStopError();
+
       const [currentUserCount, currentAdminCount] = await Promise.all([
         dependencies.db.user.count(),
         dependencies.db.admin.count(),
@@ -468,35 +553,39 @@ async function processCommonPasswordReset(
         users,
         COMMON_PASSWORD_RESET_BCRYPT_CONCURRENCY,
         async (user) => {
-        const alreadyCommitted =
-          user.passwordChangedAt !== null &&
-          user.passwordChangedAt >= startedAt &&
-          user.passwordResetRequired &&
-          (await bcrypt.compare(context.password, user.passwordHash));
+          if (context.stopRequested) throw new CommonPasswordResetAdminStopError();
 
-        if (!alreadyCommitted) {
-          const passwordHash = await bcrypt.hash(
-            context.password,
-            parseInt(env.BCRYPT_ROUNDS, 10),
-          );
-          await dependencies.db.user.update({
-            where: { id: user.id },
-            data: {
-              passwordHash,
-              passwordResetRequired: true,
-              authVersion: { increment: 1 },
-              passwordChangedAt: new Date(),
-              updatedAt: user.updatedAt,
-            },
-          });
-        }
-        processedCount += 1;
+          const alreadyCommitted =
+            user.passwordChangedAt !== null &&
+            user.passwordChangedAt >= startedAt &&
+            user.passwordResetRequired &&
+            (await bcrypt.compare(context.password, user.passwordHash));
 
-        if (processedCount % 25 === 0) {
-          await refreshHeartbeat(true);
-        }
+          if (!alreadyCommitted) {
+            const passwordHash = await bcrypt.hash(
+              context.password,
+              parseInt(env.BCRYPT_ROUNDS, 10),
+            );
+            await dependencies.db.user.update({
+              where: { id: user.id },
+              data: {
+                passwordHash,
+                passwordResetRequired: true,
+                authVersion: { increment: 1 },
+                passwordChangedAt: new Date(),
+                updatedAt: user.updatedAt,
+              },
+            });
+          }
+          processedCount += 1;
+
+          if (processedCount % 25 === 0) {
+            await refreshHeartbeat(true);
+          }
         },
       );
+
+      if (context.stopRequested) throw new CommonPasswordResetAdminStopError();
 
       cursor = users[users.length - 1]?.id ?? cursor;
       run = await dependencies.db.commonTemporaryPasswordResetRun.update({
@@ -538,35 +627,76 @@ async function processCommonPasswordReset(
         },
       },
     });
-  } catch {
+  } catch (error) {
     clearInterval(heartbeatTimer);
     await settleHeartbeat();
-    await dependencies.db.commonTemporaryPasswordResetRun.update({
-      where: { id: runId },
-      data: {
-        status: "FAILED",
-        failedCount: 1,
-        // A batch may have changed users before its checkpoint write. Keep the
-        // durable count at the last completed checkpoint so a resume can
-        // replay that batch idempotently without double-counting it.
-        processedCount: checkpointedCount,
-        failureReason: safeFailureReason(batchNumber),
-        activeLockKey: null,
-        workerLeaseUntil: null,
-      },
-    }).catch(() => undefined);
-    await dependencies.db.adminLog.create({
-      data: {
-        adminId: context.adminId,
-        action: "COMMON_TEMPORARY_PASSWORD_RESET_FAILED",
-        details: {
-          runId,
-          operationType: "COMMON_TEMPORARY_PASSWORD",
-          processedCount,
-          failedCount: 1,
+
+    const adminStopped = error instanceof CommonPasswordResetAdminStopError;
+    if (adminStopped) {
+      const transition = await dependencies.db.commonTemporaryPasswordResetRun.updateMany({
+        where: {
+          id: runId,
+          status: "RUNNING",
+          activeLockKey: COMMON_PASSWORD_RESET_LOCK_KEY,
         },
-      },
-    }).catch(() => undefined);
+        data: {
+          status: "FAILED",
+          failedCount: 1,
+          // The current batch was intentionally not checkpointed. Preserve the
+          // last durable cursor so resume replays only that incomplete batch.
+          processedCount: checkpointedCount,
+          failureReason: COMMON_PASSWORD_RESET_EMERGENCY_STOP_REASON,
+          activeLockKey: null,
+          workerLeaseUntil: null,
+        },
+      });
+      if (transition.count !== 1) {
+        logger.error(
+          { runId },
+          "Common temporary password reset emergency stop could not claim the RUNNING transition",
+        );
+      }
+      await dependencies.db.adminLog.create({
+        data: {
+          adminId: context.stopRequestedBy ?? context.adminId,
+          action: "COMMON_TEMPORARY_PASSWORD_RESET_ADMIN_STOPPED",
+          details: {
+            runId,
+            operationType: "COMMON_TEMPORARY_PASSWORD",
+            checkpointedCount,
+            failureReason: COMMON_PASSWORD_RESET_EMERGENCY_STOP_REASON,
+          },
+        },
+      }).catch(() => undefined);
+    } else {
+      await dependencies.db.commonTemporaryPasswordResetRun.update({
+        where: { id: runId },
+        data: {
+          status: "FAILED",
+          failedCount: 1,
+          // A batch may have changed users before its checkpoint write. Keep the
+          // durable count at the last completed checkpoint so a resume can
+          // replay that batch idempotently without double-counting it.
+          processedCount: checkpointedCount,
+          failureReason: safeFailureReason(batchNumber),
+          activeLockKey: null,
+          workerLeaseUntil: null,
+        },
+      }).catch(() => undefined);
+      await dependencies.db.adminLog.create({
+        data: {
+          adminId: context.adminId,
+          action: "COMMON_TEMPORARY_PASSWORD_RESET_FAILED",
+          details: {
+            runId,
+            operationType: "COMMON_TEMPORARY_PASSWORD",
+            processedCount,
+            failedCount: 1,
+          },
+        },
+      }).catch(() => undefined);
+    }
+
     logger.error(
       { runId, batchNumber, processedCount },
       "Common temporary password reset stopped safely",
@@ -574,5 +704,6 @@ async function processCommonPasswordReset(
   } finally {
     clearInterval(heartbeatTimer);
     activeJobs.delete(runId);
+    context.resolveSafeBoundary();
   }
 }

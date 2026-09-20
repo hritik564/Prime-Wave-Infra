@@ -269,8 +269,12 @@ import {
   previewCommonPasswordResetHandler,
   executeCommonPasswordResetHandler,
   getCommonPasswordResetStatusHandler,
+  emergencyStopCommonPasswordResetHandler,
 } from "./common-password-reset.controller";
-import { commonPasswordResetExecuteSchema } from "./common-password-reset.schema";
+import {
+  commonPasswordResetExecuteSchema,
+  commonPasswordResetEmergencyStopSchema,
+} from "./common-password-reset.schema";
 
 const router = Router();
 
@@ -971,6 +975,13 @@ router.get(
   adminLimiter,
   superAdminGuard,
   getCommonPasswordResetStatusHandler,
+);
+router.post(
+  "/security/common-password-reset/:runId/emergency-stop",
+  adminLimiter,
+  superAdminGuard,
+  validate(commonPasswordResetEmergencyStopSchema, "body"),
+  emergencyStopCommonPasswordResetHandler,
 );
 
 // ── Blockchain Gateway — SUPER_ADMIN only ─────────────────────────────────────

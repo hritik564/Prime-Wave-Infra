@@ -45,3 +45,4 @@
 - [Bulk reset timestamp invariant](bulk-reset-timestamp-invariant.md) — preserve normal-user updatedAt during the auth-only bulk reset; generic timestamp drift violates the rehearsal invariant
 - [Development rehearsal workers](development-rehearsal-workers.md) — active cron workers can mutate queued financial fixtures after snapshots; isolate or avoid worker-eligible records
 - [Common reset plaintext lifecycle](common-reset-plaintext-lifecycle.md) — keep the password process-local; restart recovery marks the run failed and requires secure re-entry
+- [Common reset emergency stop](common-reset-emergency-stop.md) — stop in-process workers cooperatively, preserve the last durable checkpoint, and atomically fail only the approved run

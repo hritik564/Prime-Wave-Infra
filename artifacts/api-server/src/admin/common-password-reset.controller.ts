@@ -3,6 +3,7 @@ import type { AuthenticatedRequest } from "../shared/types";
 import { sendSuccess } from "../shared/response";
 import { HTTP_STATUS } from "../shared/constants";
 import {
+  requestCommonPasswordResetEmergencyStop,
   executeCommonPasswordReset,
   getCommonPasswordResetPreview,
   getCommonPasswordResetStatus,
@@ -58,6 +59,24 @@ export async function getCommonPasswordResetStatusHandler(
       res,
       await getCommonPasswordResetStatus(user.sub, runId),
       "Common temporary password reset status retrieved",
+    );
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function emergencyStopCommonPasswordResetHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    const runId = String(req.params["runId"] ?? "");
+    sendSuccess(
+      res,
+      await requestCommonPasswordResetEmergencyStop(user.sub, runId),
+      "Common temporary password reset stopped safely for performance recovery",
     );
   } catch (error) {
     next(error);

@@ -6,6 +6,7 @@ import {
   changeAdminPassword,
   createStaffAdmin,
   downloadBulkPasswordResetArtifact,
+  emergencyStopCommonPasswordReset,
   executeBulkPasswordReset,
   executeCommonPasswordReset,
   getCommonPasswordResetStatus,
@@ -14,6 +15,7 @@ import {
   previewCommonPasswordReset,
   ApiRequestError,
   COMMON_PASSWORD_RESET_CONFIRMATION,
+  COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID,
   type BulkPasswordResetPreview,
   type BulkPasswordResetRunResult,
   type CommonPasswordResetPreview,
@@ -120,6 +122,7 @@ export default function AdminSettingsPage() {
   const [commonAcknowledged, setCommonAcknowledged] = useState(false);
   const [commonLoading, setCommonLoading] = useState(false);
   const [commonRecoveryLoading, setCommonRecoveryLoading] = useState(false);
+  const [commonEmergencyStopping, setCommonEmergencyStopping] = useState(false);
   const [commonError, setCommonError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -361,6 +364,35 @@ export default function AdminSettingsPage() {
       setCommonError(requestError instanceof Error ? requestError.message : "Unable to start the common-password reset.");
     } finally {
       setCommonLoading(false);
+    }
+  };
+
+  const emergencyStopCommonReset = async () => {
+    if (
+      !isSuperAdmin ||
+      !commonRun ||
+      commonRun.runId !== COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID ||
+      commonRun.status !== "RUNNING" ||
+      commonEmergencyStopping
+    ) return;
+
+    const confirmed = window.confirm(
+      `Stop common-password reset ${commonRun.runId} for performance recovery?\n\n`
+      + "The worker will finish active user operations, skip the incomplete batch checkpoint, "
+      + "and transition only the existing run to FAILED. No user credentials will be rolled back.",
+    );
+    if (!confirmed) return;
+
+    setCommonError(null);
+    setCommonEmergencyStopping(true);
+    try {
+      const result = await emergencyStopCommonPasswordReset(commonRun.runId);
+      setCommonRun(result);
+      await loadCommonPreview();
+    } catch (requestError) {
+      setCommonError(requestError instanceof Error ? requestError.message : "Unable to stop the common-password worker safely.");
+    } finally {
+      setCommonEmergencyStopping(false);
     }
   };
 
@@ -854,6 +886,16 @@ export default function AdminSettingsPage() {
                     >
                       {commonRecoveryLoading ? "Recovering stale run…" : "Recover Stale Reset Run"}
                     </button>
+                    {commonRun?.runId === COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID && commonRun.status === "RUNNING" && (
+                      <button
+                        type="button"
+                        onClick={() => void emergencyStopCommonReset()}
+                        disabled={commonLoading || commonRecoveryLoading || commonEmergencyStopping}
+                        style={{ marginLeft: 8, border: "1px solid rgba(248,113,113,0.55)", background: "rgba(248,113,113,0.1)", color: "#fca5a5", borderRadius: 8, padding: "9px 13px", fontSize: 12, fontWeight: 700, cursor: commonEmergencyStopping ? "wait" : "pointer", opacity: commonLoading || commonRecoveryLoading || commonEmergencyStopping ? 0.6 : 1 }}
+                      >
+                        {commonEmergencyStopping ? "Stopping safely…" : "Emergency stop for performance recovery"}
+                      </button>
+                    )}
                   </div>
                 )}
 

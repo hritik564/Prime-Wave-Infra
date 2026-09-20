@@ -12,11 +12,14 @@ vi.mock("../../lib/logger", () => ({
 }));
 
 import {
+  COMMON_PASSWORD_RESET_EMERGENCY_STOP_REASON,
   executeCommonPasswordReset,
   getCommonPasswordResetPreview,
+  requestCommonPasswordResetEmergencyStop,
 } from "../common-password-reset.service";
 import {
   COMMON_PASSWORD_RESET_CONFIRMATION,
+  COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID,
   type CommonPasswordResetExecuteInput,
 } from "../common-password-reset.schema";
 import type { CommonPasswordResetDependencies } from "../common-password-reset.service";
@@ -47,6 +50,7 @@ function createFakeDependencies(
   users: FakeUser[],
   activeRandomRun = false,
   initialFailureAfterUpdates: number | null = null,
+  runIdOverride?: string,
 ) {
   const rows = new Map(users.map((user) => [user.id, structuredClone(user)]));
   const runs = new Map<string, any>();
@@ -111,7 +115,7 @@ function createFakeDependencies(
       }),
       create: vi.fn(async (args: any) => {
         const run = {
-          id: `common-run-${++sequence}`,
+          id: runIdOverride ?? `common-run-${++sequence}`,
           ...args.data,
           lastUserId: null,
           processedCount: 0,
@@ -393,5 +397,46 @@ describe("common temporary password reset", () => {
     expect(fake.rows.get("000")?.authVersion).toBe(1);
     expect(fake.rows.get("249")?.authVersion).toBe(1);
     expect(fake.rows.get("250")?.authVersion).toBe(1);
+  });
+
+  it("stops only at a safe worker boundary and preserves the durable checkpoint", async () => {
+    const fake = createFakeDependencies(
+      [createUser("1")],
+      false,
+      null,
+      COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID,
+    );
+    const started = await executeCommonPasswordReset(
+      "admin-1",
+      validInput(1),
+      fake.dependencies,
+    );
+
+    const stopped = await requestCommonPasswordResetEmergencyStop(
+      "super-admin-1",
+      started.runId,
+      fake.dependencies,
+    );
+
+    expect(stopped).toMatchObject({
+      runId: COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID,
+      status: "FAILED",
+      processedCount: 0,
+      failedCount: 1,
+      failureReason: COMMON_PASSWORD_RESET_EMERGENCY_STOP_REASON,
+    });
+    expect(fake.rows.get("1")?.authVersion).toBe(0);
+    expect(fake.logs.at(-1)).toMatchObject({
+      action: "COMMON_TEMPORARY_PASSWORD_RESET_ADMIN_STOPPED",
+    });
+  });
+
+  it("rejects emergency stop for any other run", async () => {
+    const fake = createFakeDependencies([createUser("1")]);
+    await expect(requestCommonPasswordResetEmergencyStop(
+      "super-admin-1",
+      "common-run-1",
+      fake.dependencies,
+    )).rejects.toMatchObject({ code: "COMMON_RESET_EMERGENCY_RUN_NOT_FOUND" });
   });
 });

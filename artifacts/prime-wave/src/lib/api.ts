@@ -204,6 +204,10 @@ export interface CommonPasswordResetPreview {
   activeRun: CommonPasswordResetRunStatus | null;
 }
 
+export const COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID = "cmua3jcec001wa99zi17pz3hl";
+export const COMMON_PASSWORD_RESET_EMERGENCY_STOP_CONFIRMATION =
+  "STOP COMMON TEMPORARY PASSWORD RESET FOR PERFORMANCE RECOVERY";
+
 export interface CommonPasswordResetRunStatus {
   runId: string;
   status: "PREPARING" | "RUNNING" | "COMPLETED" | "FAILED";
@@ -250,6 +254,18 @@ export function executeCommonPasswordReset(
 export function getCommonPasswordResetStatus(runId: string) {
   return request<CommonPasswordResetRunStatus>(
     `/api/admin/security/common-password-reset/${encodeURIComponent(runId)}/status`,
+  );
+}
+
+export function emergencyStopCommonPasswordReset(runId: string) {
+  return request<CommonPasswordResetRunStatus>(
+    `/api/admin/security/common-password-reset/${encodeURIComponent(runId)}/emergency-stop`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        confirmation: COMMON_PASSWORD_RESET_EMERGENCY_STOP_CONFIRMATION,
+      }),
+    },
   );
 }
 
