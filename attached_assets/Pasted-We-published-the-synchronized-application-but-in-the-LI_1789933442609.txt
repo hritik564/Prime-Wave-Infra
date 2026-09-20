@@ -1,0 +1,128 @@
+We published the synchronized application, but in the LIVE production Admin Settings UI:
+
+1. The stranded-worker recovery control is still not visible.
+2. There is no clear indication of whether the common-password-reset worker is currently running.
+
+Do NOT perform any production mutation yet.
+
+Do NOT:
+- start another common password reset
+- invoke recover-stranded
+- invoke emergency-stop
+- restart production
+- manually mutate the database
+- modify User credentials
+- touch financial/business data
+
+I want a READ-ONLY end-to-end production diagnosis.
+
+TARGET RUN:
+cmua3jcec001wa99zi17pz3hl
+
+Known expected durable state:
+- processedCount = 250
+- totalEligible = 6640
+- lastUserId = cmr2ciiaj015mxm62guwhv86d
+- failedCount = 0
+- previously RUNNING
+- worker lease had expired
+- no active worker was previously found
+
+Perform these checks in order:
+
+1. PRODUCTION DATABASE READ-ONLY
+Query the common password reset run and report:
+- runId
+- status
+- processedCount
+- totalEligible
+- failedCount
+- failureReason
+- lastUserId
+- workerLeaseUntil
+- lastHeartbeatAt
+- activeLockKey
+- updatedAt
+
+Also identify whether ANY other common temporary password reset run exists and report its runId/status only.
+
+2. PRODUCTION API ROUTE
+Call the LIVE production:
+POST /api/admin/security/common-password-reset/preview
+
+using the existing authenticated SUPER_ADMIN session/auth mechanism.
+
+Report the actual response fields relevant to:
+- activeRun
+- activeCredentialReset
+- preview counts
+- any errors
+
+Do not expose credentials, tokens, passwords, or hashes.
+
+3. PRODUCTION STATUS ROUTE
+If the preview response identifies an active run, call the existing status endpoint for:
+cmua3jcec001wa99zi17pz3hl
+
+Report the actual returned:
+- status
+- processedCount
+- totalEligible
+- failedCount
+- worker/lease/heartbeat information if exposed
+
+4. VERIFY THE DEPLOYED API CODE
+Confirm that the LIVE production server actually contains the current implementation of:
+- preview activeRun handling
+- common reset status endpoint
+- recover-stranded endpoint
+
+Do not rely only on the local source tree. Verify the deployed artifact/version.
+
+5. VERIFY FRONTEND RENDER CONDITION
+Inspect the actual production frontend logic and determine the exact boolean condition controlling the recovery UI.
+
+Report the values that production frontend is actually receiving for:
+- commonPreview.activeCredentialReset
+- commonRun.runId
+- commonRun.status
+- isSuperAdmin
+
+Do not guess these values.
+
+6. CACHE / DEPLOYMENT CHECK
+Determine whether the browser could still be serving an older frontend asset despite the successful publish.
+
+Check:
+- current production deployment/version
+- generated AdminSettingsPage chunk
+- whether index.html references the current chunk
+- whether the live response differs from the newly published artifact
+
+7. WORKER VISIBILITY
+Determine whether the application currently has any reliable way to distinguish:
+- worker actively running
+- worker process absent
+- run stranded
+- run simply waiting
+
+If there is currently NO reliable UI indicator, identify the exact code location where one should be added.
+
+IMPORTANT:
+Do NOT make code changes yet.
+Do NOT publish again.
+Do NOT execute recovery.
+Do NOT restart anything.
+
+At the end give me a concise diagnosis with:
+
+A. ACTUAL production run state
+B. ACTUAL preview API response relevant fields
+C. ACTUAL status API response
+D. Whether a worker is actually alive
+E. Why the recovery button is not visible
+F. Whether the browser is serving stale frontend code
+G. Whether the current UI has a reliable worker-status indicator
+H. The minimum next action required to safely recover the stranded run
+
+STOP after the diagnostic report.
