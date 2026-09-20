@@ -161,6 +161,7 @@ export interface BulkPasswordResetRunResult {
   processedCount: number;
   failedCount: number;
   artifactAvailable: boolean;
+  failureReason?: string | null;
 }
 
 export function previewBulkPasswordReset() {
@@ -175,6 +176,13 @@ export function executeBulkPasswordReset(confirmation: string, expectedUserCount
     method: "POST",
     body: JSON.stringify({ confirmation, expectedUserCount, ...(runId ? { runId } : {}) }),
   });
+}
+
+export function markDeadBulkPasswordResetRunFailed(runId: string) {
+  return request<BulkPasswordResetRunResult>(
+    `/api/admin/security/bulk-password-reset/${encodeURIComponent(runId)}/mark-failed`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
 }
 
 export const COMMON_PASSWORD_RESET_CONFIRMATION =

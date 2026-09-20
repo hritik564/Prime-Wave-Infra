@@ -9,6 +9,7 @@ import {
   executeBulkPasswordReset,
   executeCommonPasswordReset,
   getCommonPasswordResetStatus,
+  markDeadBulkPasswordResetRunFailed,
   previewBulkPasswordReset,
   previewCommonPasswordReset,
   ApiRequestError,
@@ -25,6 +26,13 @@ const GOLD_L = "#F3D37A";
 const MUTED = "rgba(170,179,197,0.58)";
 const BORDER = "rgba(255,255,255,0.08)";
 const CARD = "hsl(222 62% 9%)";
+const STALE_RANDOM_BULK_RESET = {
+  runId: "cmu9ppuf8005f7jayk27yz29w",
+  status: "RUNNING" as const,
+  processedCount: 750,
+  totalEligible: 6640,
+  failedCount: 0,
+};
 
 function PasswordField({
   label,
@@ -111,6 +119,7 @@ export default function AdminSettingsPage() {
   const [commonConfirmation, setCommonConfirmation] = useState("");
   const [commonAcknowledged, setCommonAcknowledged] = useState(false);
   const [commonLoading, setCommonLoading] = useState(false);
+  const [commonRecoveryLoading, setCommonRecoveryLoading] = useState(false);
   const [commonError, setCommonError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -288,6 +297,34 @@ export default function AdminSettingsPage() {
       setCommonError(requestError instanceof Error ? requestError.message : "Unable to load the common-password preview.");
     } finally {
       setCommonLoading(false);
+    }
+  };
+
+  const recoverStaleBulkReset = async () => {
+    if (!isSuperAdmin || !commonPreview?.activeCredentialReset || commonRecoveryLoading) return;
+
+    const confirmed = window.confirm(
+      `Recover stale reset run ${STALE_RANDOM_BULK_RESET.runId}?\n\n`
+      + "This only changes the stale RUNNING run to FAILED with reason "
+      + "WORKER_PROCESS_TERMINATED_EXTERNALLY. It does not modify any user credentials.",
+    );
+    if (!confirmed) return;
+
+    setCommonError(null);
+    setCommonRecoveryLoading(true);
+    try {
+      const result = await markDeadBulkPasswordResetRunFailed(STALE_RANDOM_BULK_RESET.runId);
+      if (
+        result.status !== "FAILED"
+        || result.failureReason !== "WORKER_PROCESS_TERMINATED_EXTERNALLY"
+      ) {
+        throw new Error("The stale reset run was not confirmed as safely recovered.");
+      }
+      await loadCommonPreview();
+    } catch (requestError) {
+      setCommonError(requestError instanceof Error ? requestError.message : "Unable to recover the stale reset run.");
+    } finally {
+      setCommonRecoveryLoading(false);
     }
   };
 
@@ -779,6 +816,47 @@ export default function AdminSettingsPage() {
                   </div>
                 )}
 
+                {commonPreview.activeCredentialReset && (
+                  <div style={{ border: `1px solid ${GOLD}55`, background: "rgba(212,175,55,0.06)", borderRadius: 10, padding: 14, marginBottom: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                      <div>
+                        <div style={{ color: GOLD_L, fontSize: 12, fontWeight: 700 }}>Recover stale reset run</div>
+                        <div style={{ color: "rgba(255,255,255,0.68)", fontSize: 11, marginTop: 4 }}>
+                          Run ID: <span style={{ color: "rgba(255,255,255,0.9)", fontFamily: "monospace" }}>{STALE_RANDOM_BULK_RESET.runId}</span>
+                        </div>
+                      </div>
+                      <span style={{ border: "1px solid rgba(248,113,113,0.35)", background: "rgba(248,113,113,0.1)", color: "#fca5a5", borderRadius: 999, padding: "4px 9px", fontSize: 10, fontWeight: 700 }}>
+                        {STALE_RANDOM_BULK_RESET.status}
+                      </span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, margin: "14px 0" }}>
+                      {[
+                        ["Processed", STALE_RANDOM_BULK_RESET.processedCount],
+                        ["Total eligible", STALE_RANDOM_BULK_RESET.totalEligible],
+                        ["Failed", STALE_RANDOM_BULK_RESET.failedCount],
+                        ["Current state", STALE_RANDOM_BULK_RESET.status],
+                      ].map(([label, value]) => (
+                        <div key={label} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "9px 10px" }}>
+                          <div style={{ color: MUTED, fontSize: 10 }}>{label}</div>
+                          <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 700, marginTop: 3 }}>{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p style={{ margin: "0 0 12px", color: "rgba(255,255,255,0.68)", fontSize: 11, lineHeight: 1.5 }}>
+                      The previous reset process terminated. Recovery only changes this stale run from RUNNING to FAILED;
+                      it does not modify any user credentials.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void recoverStaleBulkReset()}
+                      disabled={commonLoading || commonRecoveryLoading}
+                      style={{ border: `1px solid ${GOLD}88`, background: "rgba(212,175,55,0.13)", color: GOLD_L, borderRadius: 8, padding: "9px 13px", fontSize: 12, fontWeight: 700, cursor: commonRecoveryLoading ? "wait" : "pointer", opacity: commonLoading || commonRecoveryLoading ? 0.6 : 1 }}
+                    >
+                      {commonRecoveryLoading ? "Recovering stale run…" : "Recover Stale Reset Run"}
+                    </button>
+                  </div>
+                )}
+
                 <PasswordField label="Common temporary password" value={commonPassword} onChange={setCommonPassword} />
                 <PasswordField label="Confirm common temporary password" value={commonPasswordConfirm} onChange={setCommonPasswordConfirm} />
                 <label style={{ display: "block", marginBottom: 12 }}>
@@ -808,6 +886,7 @@ export default function AdminSettingsPage() {
                     onClick={() => void runCommonReset()}
                     disabled={
                       commonLoading ||
+                      commonRecoveryLoading ||
                       commonPreview.activeCredentialReset ||
                       !commonAcknowledged ||
                       commonPassword !== commonPasswordConfirm ||
@@ -822,7 +901,7 @@ export default function AdminSettingsPage() {
                   >
                     {commonLoading ? "Submitting…" : commonRun?.status === "FAILED" ? "Resume common-password reset" : "Start common-password reset"}
                   </button>
-                  <button type="button" onClick={() => void loadCommonPreview()} disabled={commonLoading} style={{ border: `1px solid ${BORDER}`, background: "transparent", color: MUTED, borderRadius: 8, padding: "10px 16px", fontSize: 12, cursor: "pointer" }}>
+                  <button type="button" onClick={() => void loadCommonPreview()} disabled={commonLoading || commonRecoveryLoading} style={{ border: `1px solid ${BORDER}`, background: "transparent", color: MUTED, borderRadius: 8, padding: "10px 16px", fontSize: 12, cursor: "pointer" }}>
                     Refresh preview
                   </button>
                 </div>
