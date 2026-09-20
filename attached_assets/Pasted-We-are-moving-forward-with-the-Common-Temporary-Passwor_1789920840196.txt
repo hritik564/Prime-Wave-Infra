@@ -1,0 +1,47 @@
+We are moving forward with the Common Temporary Password Reset operation.
+
+The previous random bulk reset run cmu9ppuf8005f7jayk27yz29w is confirmed dead after its production process terminated. Do not resume or retry that random run.
+
+Before we execute the common-password reset, make the minimum safe production-state correction required so the new Common Temporary Password Reset operation can proceed.
+
+Important:
+
+Do NOT reset, modify, or delete any user credentials yet.
+Do NOT change any financial/business data.
+Do NOT modify admins.
+Do NOT download, expose, print, or inspect plaintext credentials.
+Do NOT delete the old credential artifact.
+Do NOT publish yet.
+
+First inspect the existing common-password implementation and the active-run safety guard.
+
+Then implement the safest mechanism to classify the dead random reset run as a recoverable terminal state (prefer FAILED if that is the existing supported state), only if the implementation already supports this transition safely.
+
+The transition must:
+
+Verify the random reset process is no longer running.
+Verify run ID cmu9ppuf8005f7jayk27yz29w.
+Preserve all existing run metadata and artifact metadata.
+Preserve all 893 users already changed by the dead operation.
+Never roll back or alter those users.
+Never alter financial data.
+Never alter admins.
+Allow the new Common Temporary Password Reset operation to be started afterward.
+Keep the old artifact available for forensic/reconciliation purposes.
+Add an audit entry documenting that the old in-process run was terminated by production process death, if the existing audit model supports this.
+
+Do not execute the common-password reset yet.
+
+After making the change, perform read-only verification and report:
+
+old run status
+old run processedCount
+old run failedCount
+current passwordResetRequired count
+current authVersion > 0 count
+whether common-password preview is now unblocked
+whether any financial/business/admin records changed
+
+If the code does NOT safely support this transition, stop and report exactly what prevents it. Do not improvise a database update.
+
+No production credential reset should occur during this task.
