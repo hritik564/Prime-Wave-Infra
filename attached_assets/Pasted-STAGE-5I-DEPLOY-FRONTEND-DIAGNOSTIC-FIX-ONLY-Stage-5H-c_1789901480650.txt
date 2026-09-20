@@ -1,0 +1,58 @@
+STAGE 5I — DEPLOY FRONTEND DIAGNOSTIC FIX ONLY
+
+Stage 5H confirmed that production is serving the stale AdminSettingsPage bundle:
+
+OLD PRODUCTION:
+AdminSettingsPage-Cszg4LAZ.js
+
+CURRENT BUILD:
+AdminSettingsPage-BMZylrKY.js
+
+The Stage 5G diagnostic UI exists in source but has not reached the live production frontend.
+
+Deploy ONLY the existing Stage 5G frontend diagnostic change so the live Admin Settings page serves the current frontend bundle.
+
+CRITICAL SAFETY RULES:
+
+1. DO NOT execute the bulk password reset.
+2. DO NOT call:
+   POST /api/admin/security/bulk-password-reset/execute
+3. DO NOT generate temporary passwords.
+4. DO NOT create a credential artifact.
+5. DO NOT modify passwordHash.
+6. DO NOT modify passwordResetRequired.
+7. DO NOT modify authVersion.
+8. DO NOT modify passwordChangedAt.
+9. DO NOT modify any users or admins.
+10. DO NOT modify financial/business data.
+11. DO NOT change the backend bulk-reset logic.
+12. DO NOT remove or weaken any safety condition.
+13. Do not expose credentials, cookies, JWTs, tokens, or secrets.
+
+Use the normal Replit Publish/Republish process.
+
+Before publishing:
+- verify the only intended source change is the Stage 5G diagnostic display in AdminSettingsPage.tsx
+- verify the execute endpoint is unchanged
+- verify the button disabled condition is unchanged
+- run frontend typecheck
+- run frontend build
+
+After publishing:
+- verify the new AdminSettingsPage asset hash is present in the production deployment
+- verify production no longer serves the old Cszg4LAZ bundle as the current AdminSettingsPage asset
+- verify application health remains HTTP 200
+- verify POST /api/admin/security/bulk-password-reset/execute was NOT called
+
+Do not attempt to inspect or manipulate the user's authenticated browser session.
+
+STOP after the deployment verification.
+
+Final report must state:
+- new frontend asset hash
+- old asset no longer current: YES/NO
+- application health
+- execute endpoint called: NO
+- passwords generated: NO
+- credential artifact created: NO
+- production data modified: NO
