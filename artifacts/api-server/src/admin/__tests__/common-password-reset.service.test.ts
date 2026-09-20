@@ -105,9 +105,15 @@ function createFakeDependencies(
     },
     commonTemporaryPasswordResetRun: {
       findFirst: vi.fn(async (args: any) => {
-        return [...runs.values()].find((run) =>
-          args.where.status.in.includes(run.status),
-        ) ?? null;
+        const statuses = args.where.status.in ?? [args.where.status];
+        const matchingRuns = [...runs.values()].filter((run) => statuses.includes(run.status));
+        if (args.orderBy?.updatedAt === "desc") {
+          matchingRuns.sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
+        }
+        if (args.orderBy?.createdAt === "desc") {
+          matchingRuns.sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+        }
+        return matchingRuns[0] ?? null;
       }),
       findUnique: vi.fn(async (args: any) => runs.get(args.where.id) ?? null),
       findUniqueOrThrow: vi.fn(async (args: any) => {
@@ -287,6 +293,78 @@ describe("common temporary password reset", () => {
     expect(fake.rows.get("1")?.authVersion).toBe(0);
   });
 
+  it("returns the latest failed run as resumable and blocks creating a new run", async () => {
+    const fake = createFakeDependencies([createUser("1")]);
+    const failedRun = {
+      id: "cmua3jcec001wa99zi17pz3hl",
+      adminId: "admin-1",
+      status: "FAILED",
+      totalEligible: 1,
+      adminCount: 2,
+      processedCount: 1,
+      failedCount: 1,
+      lastUserId: "1",
+      failureReason: "Common password reset worker lease expired",
+      workerLeaseUntil: null,
+      lastHeartbeatAt: new Date("2026-09-20T18:20:14.164Z"),
+      activeLockKey: null,
+      startedAt: new Date("2026-09-20T17:34:43.333Z"),
+      completedAt: null,
+      createdAt: new Date("2026-09-20T17:34:43.333Z"),
+      updatedAt: new Date("2026-09-20T19:27:24.275Z"),
+    };
+    fake.runs.set(failedRun.id, failedRun);
+
+    await expect(getCommonPasswordResetPreview(fake.dependencies)).resolves.toMatchObject({
+      activeCredentialReset: false,
+      eligibleToExecute: false,
+      activeRun: null,
+      resumableRun: {
+        runId: failedRun.id,
+        status: "FAILED",
+        processedCount: 1,
+        totalEligible: 1,
+        lastUserId: "1",
+      },
+    });
+
+    await expect(executeCommonPasswordReset(
+      "admin-1",
+      validInput(1),
+      fake.dependencies,
+    )).rejects.toMatchObject({ code: "COMMON_RESET_RESUME_REQUIRED" });
+    expect(fake.db.commonTemporaryPasswordResetRun.create).not.toHaveBeenCalled();
+  });
+
+  it("only resumes the failed run explicitly named by the caller", async () => {
+    const fake = createFakeDependencies([createUser("1")]);
+    fake.runs.set("failed-run-1", {
+      id: "failed-run-1",
+      adminId: "admin-1",
+      status: "FAILED",
+      totalEligible: 1,
+      adminCount: 2,
+      processedCount: 1,
+      failedCount: 1,
+      lastUserId: "1",
+      failureReason: "worker lost",
+      workerLeaseUntil: null,
+      lastHeartbeatAt: new Date(),
+      activeLockKey: null,
+      startedAt: new Date(),
+      completedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await expect(executeCommonPasswordReset(
+      "admin-1",
+      { ...validInput(1), runId: "different-run" },
+      fake.dependencies,
+    )).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(fake.db.commonTemporaryPasswordResetRun.create).not.toHaveBeenCalled();
+  });
+
   it("checkpoints across multiple batches", async () => {
     const users = Array.from({ length: 251 }, (_, index) =>
       createUser(String(index).padStart(3, "0")),
@@ -399,6 +477,18 @@ describe("common temporary password reset", () => {
       { ...validInput(users.length), runId: first.runId },
       fake.dependencies,
     );
+    expect(fake.db.commonTemporaryPasswordResetRun.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: first.runId, status: "FAILED", activeLockKey: null },
+        data: expect.objectContaining({
+          status: "RUNNING",
+          activeLockKey: "COMMON_TEMPORARY_PASSWORD_RESET",
+        }),
+      }),
+    );
+    expect(fake.db.user.findMany.mock.calls.some(
+      ([args]: [{ where?: { id?: { gt?: string } } }]) => args.where?.id?.gt === "249",
+    )).toBe(true);
     const completed = await waitForCompletion(fake, resumed.runId);
 
     expect(completed.status).toBe("COMPLETED");

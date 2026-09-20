@@ -202,6 +202,7 @@ export interface CommonPasswordResetPreview {
   activeOperation: "RANDOM_GENERATED" | "COMMON_TEMPORARY_PASSWORD" | null;
   eligibleToExecute: boolean;
   activeRun: CommonPasswordResetRunStatus | null;
+  resumableRun: CommonPasswordResetRunStatus | null;
 }
 
 export const COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID = "cmua3jcec001wa99zi17pz3hl";

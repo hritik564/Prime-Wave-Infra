@@ -126,6 +126,10 @@ export default function AdminSettingsPage() {
   const [commonEmergencyStopping, setCommonEmergencyStopping] = useState(false);
   const [commonError, setCommonError] = useState<string | null>(null);
 
+  const resumingCommonRun =
+    commonPreview?.resumableRun?.runId === commonRun?.runId &&
+    commonRun?.status === "FAILED";
+
   useEffect(() => {
     if (!commonRun || !["PREPARING", "RUNNING"].includes(commonRun.status)) return;
     let active = true;
@@ -296,7 +300,7 @@ export default function AdminSettingsPage() {
     try {
       const preview = await previewCommonPasswordReset();
       setCommonPreview(preview);
-      if (preview.activeRun) setCommonRun(preview.activeRun);
+      setCommonRun(preview.activeRun ?? preview.resumableRun);
     } catch (requestError) {
       setCommonError(requestError instanceof Error ? requestError.message : "Unable to load the common-password preview.");
     } finally {
@@ -337,6 +341,7 @@ export default function AdminSettingsPage() {
       !commonPreview ||
       !commonAcknowledged ||
       commonPreview.activeCredentialReset ||
+      (!resumingCommonRun && !commonPreview.eligibleToExecute) ||
       commonPassword !== commonPasswordConfirm ||
       commonConfirmation !== COMMON_PASSWORD_RESET_CONFIRMATION ||
       commonPassword.length < 12 ||
@@ -354,7 +359,7 @@ export default function AdminSettingsPage() {
         commonPasswordConfirm,
         commonConfirmation,
         commonPreview.totalNormalUsers,
-        commonRun?.status === "FAILED" ? commonRun.runId : undefined,
+        resumingCommonRun ? commonRun.runId : undefined,
       );
       setCommonRun(result);
       setCommonPassword("");
@@ -870,6 +875,30 @@ export default function AdminSettingsPage() {
                   ))}
                 </div>
 
+                {commonPreview.resumableRun && commonRun?.runId === commonPreview.resumableRun.runId && (
+                  <div role="alert" style={{ border: `1px solid ${GOLD}55`, background: "rgba(212,175,55,0.06)", borderRadius: 10, padding: 14, marginBottom: 16 }}>
+                    <div style={{ color: GOLD_L, fontSize: 12, fontWeight: 700 }}>
+                      Common-password reset ready to resume
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, margin: "12px 0" }}>
+                      {[
+                        ["Run ID", commonPreview.resumableRun.runId],
+                        ["Status", commonPreview.resumableRun.status],
+                        ["Processed", `${commonPreview.resumableRun.processedCount} / ${commonPreview.resumableRun.totalEligible}`],
+                        ["Failure reason", commonPreview.resumableRun.failureReason ?? "—"],
+                      ].map(([label, value]) => (
+                        <div key={label} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "9px 10px" }}>
+                          <div style={{ color: MUTED, fontSize: 10 }}>{label}</div>
+                          <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 12, fontWeight: 700, marginTop: 3, overflowWrap: "anywhere" }}>{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p style={{ margin: 0, color: "rgba(255,255,255,0.68)", fontSize: 11, lineHeight: 1.5 }}>
+                      Enter the same temporary password and confirmation phrase below. Resume continues from the durable checkpoint and does not create a new reset run.
+                    </p>
+                  </div>
+                )}
+
                 {commonPreview.activeCredentialReset && (
                   <div role="alert" style={{ border: "1px solid rgba(248,113,113,0.35)", background: "rgba(248,113,113,0.08)", borderRadius: 9, padding: "10px 12px", marginBottom: 14, color: "#fca5a5", fontSize: 12, lineHeight: 1.5 }}>
                     <strong>COMMON PASSWORD RESET BLOCKED</strong>
@@ -971,6 +1000,7 @@ export default function AdminSettingsPage() {
                       commonLoading ||
                       commonRecoveryLoading ||
                       commonPreview.activeCredentialReset ||
+                      (!resumingCommonRun && !commonPreview.eligibleToExecute) ||
                       !commonAcknowledged ||
                       commonPassword !== commonPasswordConfirm ||
                       commonConfirmation !== COMMON_PASSWORD_RESET_CONFIRMATION ||

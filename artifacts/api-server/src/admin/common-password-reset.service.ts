@@ -185,6 +185,7 @@ export async function getCommonPasswordResetPreview(
     unexpectedAuthVersionCount,
     activeOperation,
     activeCommonRun,
+    resumableCommonRun,
   ] = await Promise.all([
     dependencies.db.user.groupBy({
       by: ["status"],
@@ -198,6 +199,10 @@ export async function getCommonPasswordResetPreview(
     dependencies.db.commonTemporaryPasswordResetRun.findFirst({
       where: { status: { in: ["PREPARING", "RUNNING"] } },
       orderBy: { createdAt: "desc" },
+    }),
+    dependencies.db.commonTemporaryPasswordResetRun.findFirst({
+      where: { status: "FAILED" },
+      orderBy: { updatedAt: "desc" },
     }),
   ]);
 
@@ -217,8 +222,9 @@ export async function getCommonPasswordResetPreview(
     unexpectedAuthVersionCount,
     activeCredentialReset: activeOperation !== null,
     activeOperation,
-    eligibleToExecute: activeOperation === null,
+    eligibleToExecute: activeOperation === null && !resumableCommonRun,
     activeRun: activeCommonRun ? serializeRun(activeCommonRun) : null,
+    resumableRun: resumableCommonRun ? serializeRun(resumableCommonRun) : null,
   };
 }
 
@@ -326,6 +332,13 @@ export async function executeCommonPasswordReset(
         "Another bulk credential reset operation is currently running.",
         HTTP_STATUS.CONFLICT,
         "BULK_RESET_ALREADY_RUNNING",
+      );
+    }
+    if (preview.resumableRun) {
+      throw new AppError(
+        "A failed common-password reset must be resumed before starting a new reset.",
+        HTTP_STATUS.CONFLICT,
+        "COMMON_RESET_RESUME_REQUIRED",
       );
     }
     if (preview.totalNormalUsers !== input.expectedUserCount) {
