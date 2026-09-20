@@ -1,0 +1,147 @@
+STAGE 5B — PRODUCTION BACKUP VERIFICATION ONLY
+
+We are blocked at the Stage 5A backup gate.
+
+DO NOT:
+- apply Prisma migrations
+- query production application data
+- call the bulk-reset preview
+- execute the bulk reset
+- modify any production user
+- modify any production financial/business data
+- modify passwords
+- increment authVersion
+- set passwordResetRequired
+- generate temporary passwords
+- create credential artifacts
+
+OBJECTIVE:
+
+Obtain concrete, independently verifiable evidence that a current production database backup or restore point exists BEFORE we perform the credential-security schema migration.
+
+==================================================
+1. IDENTIFY THE ACTUAL PRODUCTION DATABASE
+==================================================
+
+Determine which managed database is currently used by the published production deployment.
+
+Do NOT print connection strings, credentials, private keys, or secrets.
+
+You may report only safe metadata such as:
+
+- provider/type
+- database name if non-sensitive
+- masked identifier
+- environment
+- backup capability
+
+Do NOT assume the NETCUP_DATABASE_URL is the Replit production database merely because the secret exists.
+
+==================================================
+2. CHECK NATIVE BACKUP/RESTORE CAPABILITY
+==================================================
+
+Use the actual Replit production database/managed-database interface available to this project.
+
+Determine whether a current:
+
+- backup
+- snapshot
+- restore point
+- point-in-time recovery marker
+
+exists.
+
+If the platform provides a native backup/restore interface, use the supported mechanism.
+
+Do NOT create a raw SQL dump unless that is the documented/supported backup mechanism for this exact production database.
+
+==================================================
+3. IF A BACKUP EXISTS
+==================================================
+
+Report only non-sensitive metadata:
+
+- backup/restore-point identifier
+- creation timestamp
+- database/environment identity (masked if necessary)
+- backup type
+- status
+- retention information if available
+- restore capability/status
+
+Do NOT expose credentials.
+
+Do NOT restore anything.
+
+Do NOT alter production.
+
+==================================================
+4. IF NO CURRENT BACKUP EXISTS
+==================================================
+
+If the platform permits creating a fresh production backup through the supported interface:
+
+CREATE THE BACKUP ONLY.
+
+Then verify:
+
+- successful completion
+- timestamp
+- identifier
+- status
+- restore availability
+
+Do NOT perform a restore.
+
+Do NOT run migrations.
+
+Do NOT query application data.
+
+Do NOT proceed to Stage 5A after backup creation; STOP and report the backup evidence.
+
+==================================================
+5. RESTORE PROCEDURE
+==================================================
+
+Determine whether a restore procedure is available/documented.
+
+Do NOT actually restore production.
+
+Do NOT test restoration against production unless the platform explicitly provides a safe non-destructive validation mechanism.
+
+==================================================
+6. IMPORTANT SECURITY RULE
+==================================================
+
+Do not attempt to work around the backup gate by:
+
+- treating the old backup document as proof
+- treating a generic Replit daily-backup statement as proof
+- assuming a backup exists
+- using an unrelated Netcup backup
+- applying the migration first
+- running production SQL first
+
+We need project-specific evidence.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Return:
+
+A. Actual production database provider/type
+B. Masked production database identity
+C. Native backup capability
+D. Existing current backup/restore-point status
+E. If created, exact backup identifier and timestamp
+F. Backup completion status
+G. Restore capability/status
+H. Whether the Stage 5A backup gate is now satisfied
+
+MOST IMPORTANT:
+
+Do not perform any migration, production query, preview, password reset, or user mutation.
+
+STOP after backup verification.
