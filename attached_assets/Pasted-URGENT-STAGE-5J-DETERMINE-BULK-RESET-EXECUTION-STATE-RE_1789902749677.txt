@@ -1,0 +1,103 @@
+URGENT STAGE 5J — DETERMINE BULK RESET EXECUTION STATE, READ-ONLY
+
+The authenticated Super Admin just clicked "Start bulk reset" in the LIVE production PrimeWave Admin UI.
+
+The browser has remained on:
+
+"Processing..."
+"Preview or reset request is still loading."
+
+for approximately 3+ minutes.
+
+We MUST NOT assume whether execution succeeded or failed.
+
+CRITICAL:
+- DO NOT call the bulk password reset execute endpoint.
+- DO NOT retry the request.
+- DO NOT click anything in the Admin UI.
+- DO NOT generate any additional passwords.
+- DO NOT create another credential artifact.
+- DO NOT modify users.
+- DO NOT modify admins.
+- DO NOT modify financial/business data.
+- DO NOT cancel, delete, or alter an existing bulk reset run.
+- DO NOT run migrations.
+- DO NOT restore the database.
+- DO NOT expose passwords, password hashes, JWTs, cookies, private keys, or credential artifacts.
+
+Perform ONLY READ-ONLY investigation.
+
+1. Inspect the LIVE PRODUCTION application logs around the exact time the button was clicked, approximately 2026-09-20 16:38–16:42 Asia/Calcutta.
+
+Look specifically for:
+POST /api/admin/security/bulk-password-reset/execute
+
+Determine:
+- whether a request was received
+- HTTP status, if available
+- request start/end
+- whether the handler is still running
+- whether it encountered an error
+- whether it completed
+
+2. Inspect the production database READ-ONLY for bulk_password_reset_runs.
+
+Return only safe metadata:
+- total number of bulk reset runs
+- latest run ID (if one exists, ID may be partially redacted)
+- status
+- totalEligible
+- adminCount
+- processedCount
+- failedCount
+- startedAt
+- completedAt
+- failureReason, if present
+
+DO NOT modify the run.
+
+3. Determine whether a bulk reset operation is currently active.
+
+4. Check whether any user authentication fields have changed from the pre-execution baseline:
+
+- count passwordResetRequired = true
+- count authVersion != 0
+- count passwordChangedAt IS NOT NULL
+
+DO NOT output password hashes.
+
+5. Check whether a credential artifact was created.
+
+Only report safe metadata such as:
+- artifact exists: YES/NO
+- artifact expiry
+- artifact download timestamp, if available
+
+DO NOT download, expose, print, or reproduce the credential artifact.
+
+6. Check whether there is an active/unfinished run that is still processing.
+
+7. DO NOT attempt to repair, resume, retry, complete, or fail the operation.
+
+FINAL REPORT MUST CLEARLY STATE ONE OF:
+
+A. EXECUTION NOT RECEIVED
+B. EXECUTION RECEIVED AND STILL PROCESSING
+C. EXECUTION RECEIVED AND COMPLETED
+D. EXECUTION RECEIVED BUT FAILED
+E. STATE CANNOT YET BE DETERMINED
+
+Also report:
+
+- Execute endpoint called: YES/NO/UNKNOWN
+- Current run status
+- Processed count
+- Failed count
+- passwordResetRequired=true count
+- authVersion!=0 count
+- passwordChangedAt non-null count
+- credential artifact exists: YES/NO
+- Financial/business data modified by this investigation: NO
+
+IMPORTANT:
+If the operation is currently processing, STOP after reporting its state. Do not interfere with it.
