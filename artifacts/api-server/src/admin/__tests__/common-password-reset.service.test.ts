@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import bcrypt from "bcryptjs";
 
 vi.mock("../../config/env", () => ({
@@ -183,6 +183,10 @@ describe("common temporary password reset", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("previews every user status and reports the active-operation lock", async () => {
     const fake = createFakeDependencies([
       createUser("1", "ACTIVE"),
@@ -317,5 +321,77 @@ describe("common temporary password reset", () => {
     expect(fake.rows.get("1")?.authVersion).toBe(1);
     expect(fake.rows.get("2")?.authVersion).toBe(1);
     expect(fake.rows.get("3")?.authVersion).toBe(1);
+  });
+
+  it("bounds concurrent bcrypt work and never sends the plaintext to persistence or logs", async () => {
+    const fake = createFakeDependencies(
+      Array.from({ length: 12 }, (_, index) => createUser(String(index).padStart(3, "0"))),
+    );
+    let activeBcryptCalls = 0;
+    let maxBcryptCalls = 0;
+    const trackBcryptCall = async <T>(result: T): Promise<T> => {
+      activeBcryptCalls += 1;
+      maxBcryptCalls = Math.max(maxBcryptCalls, activeBcryptCalls);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      activeBcryptCalls -= 1;
+      return result;
+    };
+
+    vi.spyOn(bcrypt, "compare").mockImplementation(async () => trackBcryptCall(false));
+    vi.spyOn(bcrypt, "hash").mockImplementation(async () => trackBcryptCall("replacement-hash"));
+
+    const result = await executeCommonPasswordReset(
+      "admin-1",
+      validInput(12),
+      fake.dependencies,
+    );
+    const completed = await waitForCompletion(fake, result.runId);
+
+    expect(completed.status).toBe("COMPLETED");
+    expect(maxBcryptCalls).toBeGreaterThan(1);
+    expect(maxBcryptCalls).toBeLessThanOrEqual(4);
+
+    const persistedCalls = [
+      ...fake.db.user.update.mock.calls,
+      ...fake.db.commonTemporaryPasswordResetRun.update.mock.calls,
+      ...fake.db.adminLog.create.mock.calls,
+    ];
+    expect(JSON.stringify(persistedCalls)).not.toContain("Common-Temporary-42!");
+    expect(JSON.stringify(fake.logs)).not.toContain("Common-Temporary-42!");
+  });
+
+  it("preserves a completed checkpoint and resumes after it", async () => {
+    const users = Array.from({ length: 251 }, (_, index) =>
+      createUser(String(index).padStart(3, "0")),
+    );
+    const fake = createFakeDependencies(users, false, 250);
+
+    const first = await executeCommonPasswordReset(
+      "admin-1",
+      validInput(users.length),
+      fake.dependencies,
+    );
+    const failed = await waitForCompletion(fake, first.runId);
+
+    expect(failed.status).toBe("FAILED");
+    expect(failed.processedCount).toBe(250);
+    expect(failed.lastUserId).toBe("249");
+    expect(fake.rows.get("000")?.authVersion).toBe(1);
+    expect(fake.rows.get("249")?.authVersion).toBe(1);
+    expect(fake.rows.get("250")?.authVersion).toBe(0);
+
+    fake.setFailureAfterUpdates(null);
+    const resumed = await executeCommonPasswordReset(
+      "admin-1",
+      { ...validInput(users.length), runId: first.runId },
+      fake.dependencies,
+    );
+    const completed = await waitForCompletion(fake, resumed.runId);
+
+    expect(completed.status).toBe("COMPLETED");
+    expect(completed.processedCount).toBe(251);
+    expect(fake.rows.get("000")?.authVersion).toBe(1);
+    expect(fake.rows.get("249")?.authVersion).toBe(1);
+    expect(fake.rows.get("250")?.authVersion).toBe(1);
   });
 });

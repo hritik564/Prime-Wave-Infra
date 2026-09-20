@@ -15,7 +15,9 @@ import {
 } from "./common-password-reset.schema";
 
 export const COMMON_PASSWORD_RESET_BATCH_SIZE = 250;
+export const COMMON_PASSWORD_RESET_BCRYPT_CONCURRENCY = 4;
 export const COMMON_PASSWORD_RESET_WORKER_LEASE_MS = 15 * 60_000;
+export const COMMON_PASSWORD_RESET_HEARTBEAT_INTERVAL_MS = 60_000;
 export const COMMON_PASSWORD_RESET_LOCK_KEY = "COMMON_TEMPORARY_PASSWORD_RESET";
 
 type CommonResetDb = Pick<
@@ -58,6 +60,39 @@ function getStatusCounts(
 
 function leaseUntil(): Date {
   return new Date(Date.now() + COMMON_PASSWORD_RESET_WORKER_LEASE_MS);
+}
+
+async function forEachWithConcurrency<T>(
+  items: readonly T[],
+  concurrency: number,
+  callback: (item: T) => Promise<void>,
+): Promise<void> {
+  if (items.length === 0) return;
+
+  let nextIndex = 0;
+  let stopped = false;
+  let firstError: unknown;
+
+  const worker = async (): Promise<void> => {
+    while (!stopped) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const item = items[index];
+      if (item === undefined) return;
+
+      try {
+        await callback(item);
+      } catch (error) {
+        stopped = true;
+        firstError = error;
+        return;
+      }
+    }
+  };
+
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  if (stopped) throw firstError;
 }
 
 function safeFailureReason(batchNumber: number): string {
@@ -358,6 +393,38 @@ async function processCommonPasswordReset(
   const context = activeJobs.get(runId);
   if (!context) return;
 
+  let heartbeatInFlight: Promise<void> | null = null;
+  const refreshHeartbeat = (strict: boolean): Promise<void> => {
+    const updatePromise =
+      heartbeatInFlight ??
+      (heartbeatInFlight = dependencies.db.commonTemporaryPasswordResetRun
+        .update({
+          where: { id: runId },
+          data: {
+            lastHeartbeatAt: new Date(),
+            workerLeaseUntil: leaseUntil(),
+          },
+        })
+        .then(() => undefined)
+        .finally(() => {
+          heartbeatInFlight = null;
+        }));
+
+    if (!strict) {
+      void updatePromise.catch(() => {
+        logger.warn({ runId }, "Common temporary password reset heartbeat update failed");
+      });
+      return Promise.resolve();
+    }
+    return updatePromise;
+  };
+  const settleHeartbeat = async (): Promise<void> => {
+    await heartbeatInFlight?.catch(() => undefined);
+  };
+  const heartbeatTimer = setInterval(() => {
+    void refreshHeartbeat(false);
+  }, COMMON_PASSWORD_RESET_HEARTBEAT_INTERVAL_MS);
+
   let batchNumber = 0;
   let processedCount = 0;
   let checkpointedCount = 0;
@@ -396,7 +463,10 @@ async function processCommonPasswordReset(
       if (users.length === 0) break;
       batchNumber += 1;
 
-      for (const user of users) {
+      await forEachWithConcurrency(
+        users,
+        COMMON_PASSWORD_RESET_BCRYPT_CONCURRENCY,
+        async (user) => {
         const alreadyCommitted =
           user.passwordChangedAt !== null &&
           user.passwordChangedAt >= run.startedAt &&
@@ -422,15 +492,10 @@ async function processCommonPasswordReset(
         processedCount += 1;
 
         if (processedCount % 25 === 0) {
-          await dependencies.db.commonTemporaryPasswordResetRun.update({
-            where: { id: runId },
-            data: {
-              lastHeartbeatAt: new Date(),
-              workerLeaseUntil: leaseUntil(),
-            },
-          });
+          await refreshHeartbeat(true);
         }
-      }
+        },
+      );
 
       cursor = users[users.length - 1]?.id ?? cursor;
       run = await dependencies.db.commonTemporaryPasswordResetRun.update({
@@ -443,8 +508,11 @@ async function processCommonPasswordReset(
           workerLeaseUntil: leaseUntil(),
         },
       });
+      checkpointedCount = processedCount;
     }
 
+    clearInterval(heartbeatTimer);
+    await settleHeartbeat();
     run = await dependencies.db.commonTemporaryPasswordResetRun.update({
       where: { id: runId },
       data: {
@@ -470,6 +538,8 @@ async function processCommonPasswordReset(
       },
     });
   } catch {
+    clearInterval(heartbeatTimer);
+    await settleHeartbeat();
     await dependencies.db.commonTemporaryPasswordResetRun.update({
       where: { id: runId },
       data: {
@@ -501,6 +571,7 @@ async function processCommonPasswordReset(
       "Common temporary password reset stopped safely",
     );
   } finally {
+    clearInterval(heartbeatTimer);
     activeJobs.delete(runId);
   }
 }
