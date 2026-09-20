@@ -40,3 +40,4 @@
 - [Safe environment metadata](safe-environment-metadata.md) — viewEnvVars groups non-secrets by environment and reports secret existence as booleans; requested names alone are not presence evidence
 - [Prisma advisory lock return type](prisma-advisory-lock-return.md) — pg_advisory_xact_lock returns void; Prisma raw-query deserialization can fail before signing unless the result is safely consumed
 - [Production withdrawal verification](production-withdrawal-verification.md) — public health and read-only SQL cannot prove protected hot-wallet readiness; do not infer live-test readiness from them
+- [Password reset delivery boundary](password-reset-delivery.md) — reset tokens stay hashed and delivery fails closed until a trusted email/SMS provider is explicitly connected

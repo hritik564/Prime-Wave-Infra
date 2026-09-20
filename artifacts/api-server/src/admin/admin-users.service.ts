@@ -539,7 +539,15 @@ export async function adminResetUserPassword(
   const passwordHash = await bcrypt.hash(newPassword, 12);
 
   await prisma.$transaction(async (tx) => {
-    await tx.user.update({ where: { id: userId }, data: { passwordHash } });
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash,
+        passwordResetRequired: false,
+        authVersion: { increment: 1 },
+        passwordChangedAt: new Date(),
+      },
+    });
 
     await tx.adminLog.create({
       data: {

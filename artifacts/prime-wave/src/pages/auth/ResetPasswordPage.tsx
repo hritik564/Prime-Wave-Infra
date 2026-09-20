@@ -11,6 +11,7 @@ import { PasswordInput } from "@/components/auth/PasswordInput";
 import { FormError } from "@/components/auth/FormError";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { resetPassword } from "@/lib/api";
 
 const resetSchema = z
   .object({
@@ -87,10 +88,20 @@ export default function ResetPasswordPage() {
 
   const passwordValue = watch("password") ?? "";
 
-  const onSubmit = async (_data: ResetData) => {
+  const onSubmit = async (data: ResetData) => {
     setFormError(undefined);
-    await new Promise((r) => setTimeout(r, 1500));
-    setSuccess(true);
+    const token = new URLSearchParams(window.location.search).get("token");
+    if (!token) {
+      setFormError("This reset link is missing its token. Request a new link.");
+      return;
+    }
+
+    try {
+      await resetPassword(token, data.password);
+      setSuccess(true);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Unable to reset your password.");
+    }
   };
 
   return (

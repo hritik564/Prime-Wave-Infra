@@ -1,9 +1,22 @@
 import type { Request, Response, NextFunction } from "express";
 import { registerUser, loginUser, changePassword, endImpersonation } from "./auth.service";
+import {
+  completePasswordReset,
+  createPasswordResetRequest,
+  genericPasswordResetMessage,
+} from "./password-reset.service";
+import { deliverPasswordResetToken } from "./password-reset-delivery.service";
+import { logger } from "../lib/logger";
 import { sendCreated, sendSuccess } from "../shared/response";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
-import type { RegisterInput, LoginInput, ChangePasswordInput } from "./auth.schema";
+import type {
+  RegisterInput,
+  LoginInput,
+  ForgotPasswordInput,
+  ResetPasswordInput,
+  ChangePasswordInput,
+} from "./auth.schema";
 import type { AuthenticatedRequest } from "../shared/types";
 
 export async function register(
@@ -27,6 +40,51 @@ export async function login(
   try {
     const result = await loginUser(req.body as LoginInput);
     sendSuccess(res, result, "Login successful");
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function forgotPassword(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const request = await createPasswordResetRequest(req.body as ForgotPasswordInput);
+
+    if (request) {
+      try {
+        await deliverPasswordResetToken({
+          email: request.email,
+          username: request.username,
+          token: request.token,
+          expiresAt: request.expiresAt,
+        });
+      } catch (err) {
+        // Never include the token in logs or errors. The generic response
+        // prevents account enumeration while delivery is being configured.
+        logger.warn(
+          { userId: request.userId, reason: err instanceof Error ? err.message : "delivery failed" },
+          "password-reset delivery unavailable",
+        );
+      }
+    }
+
+    sendSuccess(res, null, genericPasswordResetMessage());
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function resetPassword(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const result = await completePasswordReset(req.body as ResetPasswordInput);
+    sendSuccess(res, result, "Password reset successfully");
   } catch (err) {
     next(err);
   }

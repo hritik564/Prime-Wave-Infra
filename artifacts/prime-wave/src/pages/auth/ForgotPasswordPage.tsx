@@ -11,6 +11,7 @@ import { FormError } from "@/components/auth/FormError";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { forgotPassword } from "@/lib/api";
 
 const forgotSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -33,7 +34,12 @@ export default function ForgotPasswordPage() {
 
   const onSubmit = async (data: ForgotData) => {
     setFormError(undefined);
-    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      await forgotPassword(data.email);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Unable to request a reset link.");
+      return;
+    }
     setSubmittedEmail(data.email);
     setSubmitted(true);
   };

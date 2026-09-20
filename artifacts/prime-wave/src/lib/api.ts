@@ -19,8 +19,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   try { body = await res.json(); } catch { body = null; }
 
   if (res.status === 401 || res.status === 403) {
-    fireUnauthorized();
-    throw new Error("Session expired. Please sign in again.");
+    const data = body as { code?: string; message?: string; error?: string } | null;
+    if (data?.code !== "PASSWORD_RESET_REQUIRED") {
+      fireUnauthorized();
+    }
+    throw new Error(data?.message ?? data?.error ?? "Session expired. Please sign in again.");
   }
 
   if (!res.ok) {
@@ -49,6 +52,24 @@ export function login(identifier: string, password: string) {
   return request<AuthResponse>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ identifier, password }),
+  });
+}
+
+export function forgotPassword(identifier: string) {
+  return request<null>("/api/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ identifier }),
+  });
+}
+
+export function resetPassword(token: string, newPassword: string) {
+  return request<AuthResponse>("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({
+      token,
+      newPassword,
+      confirmPassword: newPassword,
+    }),
   });
 }
 

@@ -8,16 +8,13 @@ import type { RegisterInput, LoginInput, ChangePasswordInput } from "./auth.sche
 import type { AuthPayload } from "../shared/types";
 import { notificationService } from "../notifications/notifications.service";
 import { placeUserTx } from "../binary/binary.service";
+import { signUserToken } from "./auth-token";
 
 function generateReferralCode(): string {
   return Math.random().toString(36).substring(2, 10).toUpperCase();
 }
 
-function signToken(payload: AuthPayload): string {
-  return jwt.sign(payload, env.JWT_SECRET, {
-    expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions["expiresIn"],
-  });
-}
+export const signToken = signUserToken;
 
 /**
  * Parse the referral code and leg from the registration input.
@@ -118,6 +115,7 @@ export async function registerUser(input: RegisterInput) {
         lastName:     true,
         referralCode: true,
         status:       true,
+        authVersion:  true,
       },
     });
 
@@ -155,9 +153,15 @@ export async function registerUser(input: RegisterInput) {
     return newUser;
   }, { timeout: 30_000 });
 
-  const token = signToken({ sub: user.id, email: user.email, type: "user" });
+  const { authVersion, ...publicUser } = user;
+  const token = signToken({
+    sub: user.id,
+    email: user.email,
+    type: "user",
+    authVersion,
+  });
 
-  return { token, user };
+  return { token, user: publicUser };
 }
 
 export async function loginUser(input: LoginInput) {
@@ -178,6 +182,14 @@ export async function loginUser(input: LoginInput) {
     throw new AppError("Invalid credentials", HTTP_STATUS.UNAUTHORIZED, "INVALID_CREDENTIALS");
   }
 
+  if (user.passwordResetRequired) {
+    throw new AppError(
+      "Password reset required before normal access is restored",
+      HTTP_STATUS.FORBIDDEN,
+      "PASSWORD_RESET_REQUIRED",
+    );
+  }
+
   if (user.status === "BLOCKED") {
     throw new AppError(
       "Your account has been blocked. Please contact support.",
@@ -191,7 +203,12 @@ export async function loginUser(input: LoginInput) {
     throw new AppError("Invalid credentials", HTTP_STATUS.UNAUTHORIZED, "INVALID_CREDENTIALS");
   }
 
-  const token = signToken({ sub: user.id, email: user.email, type: "user" });
+  const token = signToken({
+    sub: user.id,
+    email: user.email,
+    type: "user",
+    authVersion: user.authVersion,
+  });
 
   return {
     token,
@@ -230,7 +247,14 @@ export async function startImpersonation(
   // Get target user
   const target = await prisma.user.findUnique({
     where:  { id: targetUserId },
-    select: { id: true, email: true, username: true, firstName: true, lastName: true },
+    select: {
+      id: true,
+      email: true,
+      username: true,
+      firstName: true,
+      lastName: true,
+      authVersion: true,
+    },
   });
   if (!target) throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
 
@@ -257,6 +281,7 @@ export async function startImpersonation(
     impersonated:    true,
     originalAdminId: adminId,
     sessionId:       session.id,
+    authVersion:     target.authVersion,
   });
 
   return { token, sessionId: session.id, user: { id: target.id, email: target.email, username: target.username, firstName: target.firstName, lastName: target.lastName } };
@@ -310,7 +335,14 @@ export async function changePassword(userId: string, input: ChangePasswordInput)
   const rounds       = parseInt(env.BCRYPT_ROUNDS, 10);
   const passwordHash = await bcrypt.hash(input.newPassword, rounds);
 
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      passwordHash,
+      authVersion: { increment: 1 },
+      passwordChangedAt: new Date(),
+    },
+  });
 
   void notificationService.create({
     userId,

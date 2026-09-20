@@ -6,7 +6,12 @@ import { AppError } from "./error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { AuthPayload, AuthenticatedRequest } from "../shared/types";
 
-export function requireAuth(req: Request, _res: Response, next: NextFunction): void {
+function authenticateUser(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+  options: { allowPasswordReset?: boolean } = {},
+): void {
   const authHeader = req.headers["authorization"];
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -18,11 +23,61 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
 
   try {
     const payload = jwt.verify(token, env.JWT_SECRET) as AuthPayload;
-    (req as AuthenticatedRequest).user = payload;
-    next();
+
+    // Admin authentication has its own middleware and must remain unchanged.
+    // Only normal user JWTs are checked against the user auth epoch.
+    if (payload.type !== "user") {
+      (req as AuthenticatedRequest).user = payload;
+      next();
+      return;
+    }
+
+    void prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { authVersion: true, passwordResetRequired: true },
+    }).then((user) => {
+      if (!user) {
+        next(new AppError("User session is no longer valid", HTTP_STATUS.UNAUTHORIZED, "USER_SESSION_INVALID"));
+        return;
+      }
+
+      // Tokens issued before Stage 1 have no authVersion claim. Treat them as
+      // version 0 so deploying the infrastructure does not log users out.
+      const tokenVersion = payload.authVersion ?? 0;
+      if (tokenVersion !== user.authVersion) {
+        next(new AppError("User session is stale", HTTP_STATUS.UNAUTHORIZED, "USER_SESSION_STALE"));
+        return;
+      }
+
+      if (user.passwordResetRequired && !options.allowPasswordReset) {
+        next(new AppError(
+          "Password reset required before normal access is restored",
+          HTTP_STATUS.FORBIDDEN,
+          "PASSWORD_RESET_REQUIRED",
+        ));
+        return;
+      }
+
+      (req as AuthenticatedRequest).user = payload;
+      next();
+    }).catch(() => {
+      next(new AppError("Unable to validate user session", HTTP_STATUS.UNAUTHORIZED, "USER_SESSION_INVALID"));
+    });
   } catch {
     next(new AppError("Invalid or expired token", HTTP_STATUS.UNAUTHORIZED, "TOKEN_INVALID"));
   }
+}
+
+export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  authenticateUser(req, res, next);
+}
+
+export function requireAuthAllowingPasswordReset(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  authenticateUser(req, res, next, { allowPasswordReset: true });
 }
 
 export function requireAdminAuth(req: Request, res: Response, next: NextFunction): void {
