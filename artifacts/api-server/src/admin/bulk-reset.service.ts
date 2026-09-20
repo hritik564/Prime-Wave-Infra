@@ -57,6 +57,7 @@ interface BulkResetUser {
   email: string;
   passwordHash: string;
   authVersion: number;
+  updatedAt: Date;
 }
 
 export interface BulkPasswordResetPreview {
@@ -197,7 +198,11 @@ export async function executeBulkPasswordReset(
       throw new AppError("Bulk reset run is owned by another Admin", HTTP_STATUS.FORBIDDEN, "FORBIDDEN");
     }
     if (run.status === "COMPLETED") {
-      return serializeRunResult(run);
+      throw new AppError(
+        "Bulk reset run has already completed",
+        HTTP_STATUS.CONFLICT,
+        "BULK_RESET_ALREADY_COMPLETED",
+      );
     }
     if (run.status !== "FAILED") {
       throw new AppError("Bulk reset run is not resumable", HTTP_STATUS.CONFLICT, "BULK_RESET_NOT_RESUMABLE");
@@ -292,7 +297,7 @@ export async function executeBulkPasswordReset(
         where: cursor ? { id: { gt: cursor } } : undefined,
         orderBy: { id: "asc" },
         take: BULK_RESET_BATCH_SIZE,
-        select: { id: true, username: true, email: true, passwordHash: true, authVersion: true },
+        select: { id: true, username: true, email: true, passwordHash: true, authVersion: true, updatedAt: true },
       }) as BulkResetUser[];
 
       if (users.length === 0) break;
@@ -334,6 +339,7 @@ export async function executeBulkPasswordReset(
             passwordResetRequired: true,
             authVersion: { increment: 1 },
             passwordChangedAt: new Date(),
+            updatedAt: user.updatedAt,
           },
         });
 
@@ -431,6 +437,11 @@ export async function downloadBulkPasswordResetArtifact(
   try {
     return Buffer.from(`${JSON.stringify(artifact)}\n`, "utf8");
   } finally {
-    await dependencies.artifactStore.delete(run.artifactObjectPath);
+    await dependencies.artifactStore.delete(run.artifactObjectPath).catch(() => {
+      logger.error(
+        { runId: run.id },
+        "Bulk password reset artifact cleanup failed after download",
+      );
+    });
   }
 }

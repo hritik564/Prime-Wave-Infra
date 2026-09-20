@@ -29,6 +29,7 @@ type FakeUser = {
   email: string;
   passwordHash: string;
   authVersion: number;
+  updatedAt: Date;
   passwordResetRequired: boolean;
   status: "ACTIVE" | "INACTIVE" | "BLOCKED" | "SUSPENDED";
   firstName: string;
@@ -42,6 +43,7 @@ function createUser(id: string, status: FakeUser["status"] = "ACTIVE"): FakeUser
     email: `${id}@example.test`,
     passwordHash: bcrypt.hashSync(`old-password-${id}`, 4),
     authVersion: 0,
+    updatedAt: new Date("2026-01-01T00:00:00.000Z"),
     passwordResetRequired: false,
     status,
     firstName: `First ${id}`,
@@ -92,13 +94,13 @@ function createFakeDependencies(users: FakeUser[]) {
           .filter((user) => !cursor || user.id > cursor)
           .sort((a, b) => a.id.localeCompare(b.id))
           .slice(0, args.take)
-          .map(({ id, username, email, passwordHash, authVersion }) => ({
-            id, username, email, passwordHash, authVersion,
+          .map(({ id, username, email, passwordHash, authVersion, updatedAt }) => ({
+            id, username, email, passwordHash, authVersion, updatedAt,
           }));
       }),
       updateMany: vi.fn(async (args: {
         where: { id: string; authVersion: number };
-        data: { passwordHash: string; passwordResetRequired: boolean; authVersion: { increment: number }; passwordChangedAt: Date };
+        data: { passwordHash: string; passwordResetRequired: boolean; authVersion: { increment: number }; passwordChangedAt: Date; updatedAt: Date };
       }) => {
         if (failingUsers.has(args.where.id)) throw new Error("forced batch failure");
         const user = rows.get(args.where.id);
@@ -106,6 +108,7 @@ function createFakeDependencies(users: FakeUser[]) {
         user.passwordHash = args.data.passwordHash;
         user.passwordResetRequired = args.data.passwordResetRequired;
         user.authVersion += args.data.authVersion.increment;
+        user.updatedAt = args.data.updatedAt;
         return { count: 1 };
       }),
       findUnique: vi.fn(async (args: { where: { id: string } }) => {
@@ -291,7 +294,7 @@ describe("Super Admin bulk normal-user password reset", () => {
       confirmation: BULK_RESET_CONFIRMATION,
       expectedUserCount: 1,
       runId: result.runId,
-    }, fake.dependencies)).resolves.toMatchObject({ status: "COMPLETED" });
+    }, fake.dependencies)).rejects.toMatchObject({ code: "BULK_RESET_ALREADY_COMPLETED" });
     expect(fake.rows.get("1")!.passwordHash).toBe(hashAfterCompletion);
 
     const downloaded = await downloadBulkPasswordResetArtifact("admin-1", result.runId, fake.dependencies);
@@ -299,5 +302,22 @@ describe("Super Admin bulk normal-user password reset", () => {
     await expect(downloadBulkPasswordResetArtifact("admin-1", result.runId, fake.dependencies))
       .rejects.toMatchObject({ code: "ARTIFACT_EXPIRED" });
     expect(fake.objects.size).toBe(0);
+  });
+
+  it("returns the artifact when private-object cleanup fails after claiming it", async () => {
+    const fake = createFakeDependencies([createUser("1")]);
+    const result = await executeBulkPasswordReset("admin-1", {
+      confirmation: BULK_RESET_CONFIRMATION,
+      expectedUserCount: 1,
+    }, fake.dependencies);
+    fake.dependencies.artifactStore.delete = vi.fn(async () => {
+      throw new Error("forced artifact cleanup failure");
+    });
+
+    const downloaded = await downloadBulkPasswordResetArtifact("admin-1", result.runId, fake.dependencies);
+
+    expect(downloaded.toString("utf8")).toContain(result.runId);
+    await expect(downloadBulkPasswordResetArtifact("admin-1", result.runId, fake.dependencies))
+      .rejects.toMatchObject({ code: "ARTIFACT_EXPIRED" });
   });
 });

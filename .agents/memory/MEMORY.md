@@ -42,3 +42,5 @@
 - [Production withdrawal verification](production-withdrawal-verification.md) — public health and read-only SQL cannot prove protected hot-wallet readiness; do not infer live-test readiness from them
 - [Password reset delivery boundary](password-reset-delivery.md) — reset tokens stay hashed and delivery fails closed until a trusted email/SMS provider is explicitly connected
 - [Bulk reset artifact recovery](bulk-reset-artifact-recovery.md) — persist prepared mappings before updates and reconcile them after crashes; never generate replacement passwords blindly
+- [Bulk reset timestamp invariant](bulk-reset-timestamp-invariant.md) — preserve normal-user updatedAt during the auth-only bulk reset; generic timestamp drift violates the rehearsal invariant
+- [Development rehearsal workers](development-rehearsal-workers.md) — active cron workers can mutate queued financial fixtures after snapshots; isolate or avoid worker-eligible records
