@@ -933,7 +933,9 @@ model CompanyWallet {
   qrObjectPath  String         @default("/legacy/deposit-wallet-qr")
   isActive      Boolean        @default(true)
   createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  // Keep the database-level insert default created by the existing
+  // company-wallet migration; @updatedAt still refreshes it on updates.
+  updatedAt     DateTime       @default(now()) @updatedAt
 
   @@unique([network, walletAddress])
   @@index([network])
