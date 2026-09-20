@@ -1,0 +1,330 @@
+STAGE 3 — PRODUCTION DEPLOYMENT AND ONE-CONTROLLED-USER VALIDATION
+
+Stage 1 and Stage 2 are complete and passed.
+
+We are now preparing the credential-security infrastructure in production.
+
+CRITICAL:
+DO NOT perform the mass password reset.
+DO NOT reset all users.
+DO NOT change passwords for all 6,640 users.
+DO NOT increment authVersion for the existing user population.
+DO NOT set passwordResetRequired=true for the existing user population.
+DO NOT modify financial/business data.
+DO NOT modify Admin passwords or Admin records.
+
+The purpose of this stage is:
+
+1. Safely deploy the Stage 1/2 schema and code to production.
+2. Verify the production migration.
+3. Configure the trusted reset domain/delivery infrastructure if safely possible.
+4. Test the complete reset mechanism with ONE explicitly controlled normal user.
+5. Prove that the system is ready for a separately approved mass-reset operation.
+
+==================================================
+PART 1 — PRE-DEPLOYMENT SAFETY
+==================================================
+
+Before deployment:
+
+- Confirm current production database connectivity.
+- Confirm current production user count.
+- Confirm current production Admin count.
+- Confirm current production application health.
+- Confirm current financial/business baseline counts.
+- Confirm no existing user has:
+    passwordResetRequired=true
+  because the field does not yet exist in production.
+
+Do NOT print password hashes.
+
+Do NOT print secrets.
+
+Do NOT print private keys.
+
+Do NOT print reset tokens.
+
+Create/verify an appropriate production database backup before applying the migration.
+
+Do not overwrite or delete existing backups.
+
+==================================================
+PART 2 — PRODUCTION MIGRATION
+==================================================
+
+Deploy/apply ONLY the Stage 1 schema migration:
+
+20260920000000_stage1_user_credential_reset
+
+Expected additions:
+
+User:
+- passwordResetRequired
+- authVersion
+- passwordChangedAt
+
+PasswordResetToken table.
+
+Before applying, verify the migration SQL contains NO:
+
+- DROP users
+- DELETE users
+- TRUNCATE users
+- DROP financial tables
+- DELETE financial records
+- changes to existing passwordHash values
+- changes to balances
+- changes to wallets
+- changes to investments
+- changes to withdrawals
+- changes to deposits
+
+Apply the migration to production.
+
+Then verify Prisma migration status.
+
+==================================================
+PART 3 — POST-MIGRATION DATA INVARIANTS
+==================================================
+
+Immediately after migration, verify:
+
+- User count unchanged.
+- Admin count unchanged.
+- ACTIVE count unchanged.
+- INACTIVE count unchanged.
+- BLOCKED count unchanged.
+- SUSPENDED count unchanged.
+- Seeded-user count unchanged.
+
+Verify representative financial/business counts remain unchanged:
+
+- wallets
+- wallet_transactions
+- investments
+- roi_ledger
+- deposit_requests
+- deposit_verifications
+- withdrawal_requests
+- income_transfers
+- referrals/network records
+
+Do not modify these records.
+
+==================================================
+PART 4 — AUTH VERSION SAFETY
+==================================================
+
+Confirm every existing user currently has:
+
+authVersion = 0
+passwordResetRequired = false
+
+or, if any existing production values differ, STOP and report them.
+
+DO NOT automatically correct unexpected production values.
+
+This is important because we need to know exactly what the production state is before cutover.
+
+==================================================
+PART 5 — PRODUCTION RESET DOMAIN
+==================================================
+
+Configure:
+
+PASSWORD_RESET_BASE_URL
+
+ONLY if the intended production HTTPS domain is confirmed.
+
+The resulting reset URL must be based on the trusted configured domain.
+
+Do NOT derive it from Host headers.
+
+Do NOT allow arbitrary redirect URLs.
+
+Do NOT expose reset tokens in logs.
+
+If the production email/SMS provider is not yet configured, do not invent one.
+
+STOP and report the remaining delivery configuration requirement instead.
+
+==================================================
+PART 6 — CONTROLLED USER
+==================================================
+
+Select ONE explicitly controlled normal USER account.
+
+IMPORTANT:
+
+- Must NOT be an Admin.
+- Must NOT be a Staff account.
+- Must NOT be a financial/business-critical account unless explicitly approved.
+- Do NOT select randomly without reporting which account was selected.
+- Do NOT expose the user's password or password hash.
+- Prefer a dedicated test account if one exists.
+
+Before modifying the controlled account, capture:
+
+- user ID
+- masked email/username
+- status
+- wallet balance
+- locked withdrawal balance
+- investment totals/counts
+- relevant ROI totals/counts
+- deposit totals/counts
+- withdrawal totals/counts
+- income totals/counts
+- referral/network relationships/counts
+- current authVersion
+- current passwordResetRequired
+
+Do NOT print sensitive credentials.
+
+==================================================
+PART 7 — CONTROLLED PASSWORD RESET
+==================================================
+
+ONLY for the explicitly controlled test user:
+
+1. Confirm the user's existing password works before the test.
+2. Issue a reset request through the production API.
+3. Deliver the reset link through the configured approved delivery provider.
+
+If delivery is not configured:
+
+STOP BEFORE MODIFYING THE USER.
+
+Do not manually bypass the delivery mechanism by printing a production reset token.
+
+If delivery IS configured:
+
+4. Obtain the reset link through the approved delivery path.
+5. Complete the reset with a new test password.
+6. Verify the old password fails.
+7. Verify the new password works.
+8. Verify the previous JWT is rejected.
+9. Verify the new JWT works.
+10. Verify passwordResetRequired=false.
+11. Verify authVersion incremented.
+12. Verify the reset token cannot be reused.
+
+Do not expose either password.
+
+==================================================
+PART 8 — FINANCIAL INVARIANT
+==================================================
+
+After the controlled reset, compare the captured pre-reset values against post-reset values.
+
+They MUST remain unchanged for:
+
+- wallet balance
+- locked withdrawal balance
+- investments
+- ROI
+- deposits
+- withdrawals
+- income
+- referrals/network
+
+If ANY financial/business value changes:
+
+STOP immediately and report the discrepancy.
+
+==================================================
+PART 9 — ADMIN ISOLATION
+==================================================
+
+Verify:
+
+- Admin login still works.
+- Admin JWT behavior is unchanged.
+- Admin passwords were not modified.
+- Admin authVersion/session behavior remains unchanged.
+- Admin count unchanged.
+
+Do NOT reset any Admin account.
+
+==================================================
+PART 10 — PRODUCTION SMOKE TESTS
+==================================================
+
+After the controlled test:
+
+- normal user login
+- normal user authenticated API request
+- password reset flow
+- invalid reset token
+- expired reset token if testable safely
+- generic forgot-password response
+- rate limiting
+- admin login
+- staff login if a staff account exists
+- wallet read
+- withdrawal read
+- deposit read
+
+Do not perform financial transactions.
+
+==================================================
+PART 11 — BUILD/HEALTH CHECK
+==================================================
+
+Run:
+
+- Prisma migration status
+- API typecheck
+- API tests
+- frontend typecheck
+- frontend production build
+- API production build
+- git diff --check
+
+Verify production application health after deployment.
+
+==================================================
+PART 12 — ABSOLUTE STOP CONDITION
+==================================================
+
+DO NOT perform the mass reset.
+
+DO NOT execute any UPDATE resembling:
+
+UPDATE users
+SET passwordHash = ...
+WHERE ...
+
+against the production population.
+
+DO NOT increment authVersion for all users.
+
+DO NOT set passwordResetRequired for all users.
+
+The mass reset will be a separate explicitly approved stage.
+
+==================================================
+FINAL REPORT
+==================================================
+
+Report:
+
+A. Production migration result
+B. Production user count before/after
+C. Seeded-user count before/after
+D. Status counts before/after
+E. Financial/business invariant results
+F. Controlled user identifier (masked)
+G. Controlled reset result
+H. Old JWT result
+I. New JWT result
+J. Old/new password result
+K. Reset-token single-use result
+L. Admin isolation result
+M. Delivery provider status
+N. Production reset-domain status
+O. Exact tests passed
+P. Any warnings/blockers
+Q. Explicit confirmation that mass reset was NOT performed
+
+STOP after this report.
