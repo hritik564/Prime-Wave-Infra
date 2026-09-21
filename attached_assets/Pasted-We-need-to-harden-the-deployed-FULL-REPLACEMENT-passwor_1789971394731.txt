@@ -1,0 +1,35 @@
+We need to harden the deployed FULL_REPLACEMENT password-reset execution path against the intermittent production Neon P1001/direct-endpoint connectivity failures we have observed.
+
+Do NOT execute, resume, or create any password reset during this change. Do NOT modify user passwords or financial data.
+
+Implement a dedicated execution path for FULL_REPLACEMENT that is isolated from the normal autoscale API/financial worker workload as much as the current Replit architecture safely allows.
+
+Requirements:
+
+Only FULL_REPLACEMENT should use this dedicated path; do not change normal API behavior or financial workers.
+Use a dedicated Prisma client/process for the replacement worker rather than sharing the normal API worker pool.
+Keep the dedicated DB connection pool deliberately small, approximately 1–4 connections.
+Add an explicit database connection-establishment timeout appropriate for Neon.
+Retain the existing bounded retry/backoff for transient database connectivity failures.
+Retain durable checkpoints and resume strictly from the last committed checkpoint.
+Maintain the existing 250-user checkpoint/batch safety boundary unless there is a strong technical reason to reduce it.
+Generate the bcrypt hash of the supplied temporary password once per reset operation and reuse that hash for all users in that operation; never persist or log the plaintext password.
+Preserve authVersion, passwordResetRequired, passwordChangedAt, population checks, idempotency, SUPER_ADMIN authorization, audit logging, and all existing safety protections.
+Never allow more than one FULL_REPLACEMENT worker to operate concurrently.
+Do not alter or resume the historical random run cmu9ppuf8005f7jayk27yz29w.
+Do not alter or resume the historical common run cmua3jcec001wa99zi17pz3hl.
+Do not change the existing database schema unless absolutely required. If a schema change is required, stop and show me the migration before applying it.
+Do not weaken any authentication or authorization checks.
+
+Before making the change, inspect the current Replit deployment architecture and determine the safest way to isolate this worker within the existing project/deployment model.
+
+After implementation:
+
+Run the complete test suite.
+Run typecheck and production builds.
+Verify no financial/business logic was changed.
+Verify historical reset runs are untouched.
+Verify no password-reset operation was started.
+Report exactly what changed and any limitation if true process-level isolation cannot be achieved on the current Replit deployment.
+
+Do not publish automatically. Stop after the implementation/tests and show the result for review.

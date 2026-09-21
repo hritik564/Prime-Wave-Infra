@@ -17,6 +17,7 @@ async function buildAll() {
   await esbuild({
     entryPoints: [
       path.resolve(artifactDir, "src/index.ts"),
+      path.resolve(artifactDir, "src/full-replacement-worker.ts"),
       path.resolve(artifactDir, "src/admin/scripts/networkGenerator.ts"),
       path.resolve(artifactDir, "src/admin/scripts/networkFunder.ts"),
       path.resolve(artifactDir, "src/admin/scripts/credentialExporter.ts"),

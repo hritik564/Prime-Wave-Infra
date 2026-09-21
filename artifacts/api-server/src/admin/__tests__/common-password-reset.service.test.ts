@@ -327,10 +327,32 @@ describe("common temporary password reset", () => {
       await expect(bcrypt.compare("Replacement-Temporary-73!", user.passwordHash)).resolves.toBe(true);
       expect(user.passwordResetRequired).toBe(true);
     }
+    expect(new Set([...fake.rows.values()].map((user) => user.passwordHash)).size).toBe(1);
     expect(fake.rows.get("1")?.authVersion).toBe(2);
     const persisted = JSON.stringify({ runs: [...fake.runs.values()], logs: fake.logs });
     expect(persisted).not.toContain("Replacement-Temporary-73!");
     expect(persisted).not.toContain("$2");
+  });
+
+  it("dispatches full replacement work to the dedicated launcher when provided", async () => {
+    const fake = createFakeDependencies([createUser("1")]);
+    const launchWorker = vi.fn();
+    fake.dependencies.launchFullReplacementWorker = launchWorker;
+
+    const result = await executeFullReplacementPasswordReset(
+      "admin-1",
+      validReplacementInput(1),
+      fake.dependencies,
+    );
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(launchWorker).toHaveBeenCalledWith(
+      result.runId,
+      "admin-1",
+      "Replacement-Temporary-73!",
+    );
+    expect(fake.db.user.update).not.toHaveBeenCalled();
+    expect(fake.rows.get("1")?.authVersion).toBe(0);
   });
 
   it("resumes a partial full replacement only with the same password", async () => {

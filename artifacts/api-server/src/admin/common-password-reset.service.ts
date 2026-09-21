@@ -10,6 +10,7 @@ import { env } from "../config/env";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import { logger } from "../lib/logger";
+import { launchFullReplacementWorker } from "./full-replacement-worker-launcher";
 import {
   COMMON_PASSWORD_RESET_CONFIRMATION,
   COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID,
@@ -46,9 +47,17 @@ export interface CommonPasswordResetDependencies {
   db: CommonResetDb;
   sleep?: (milliseconds: number) => Promise<void>;
   random?: () => number;
+  launchFullReplacementWorker?: (
+    runId: string,
+    adminId: string,
+    password: string,
+  ) => void;
 }
 
-const defaultDependencies: CommonPasswordResetDependencies = { db: prisma };
+const defaultDependencies: CommonPasswordResetDependencies = {
+  db: prisma,
+  launchFullReplacementWorker,
+};
 
 type UserStatusKey = "ACTIVE" | "INACTIVE" | "BLOCKED" | "SUSPENDED";
 type CommonRunStatus = CommonTemporaryPasswordResetRunStatus;
@@ -648,10 +657,19 @@ export async function executeFullReplacementPasswordReset(
     }
   }
 
-  activeJobs.set(run.id, createJobContext(adminId, input.password));
-  queueMicrotask(() => {
-    void processCommonPasswordReset(run.id, dependencies);
-  });
+  if (dependencies.launchFullReplacementWorker) {
+    queueMicrotask(() => {
+      dependencies.launchFullReplacementWorker?.(run.id, adminId, input.password);
+    });
+  } else {
+    // Test and explicitly injected dependencies retain the original
+    // in-process execution path. Production FULL_REPLACEMENT uses the
+    // dedicated child process configured in defaultDependencies.
+    activeJobs.set(run.id, createJobContext(adminId, input.password));
+    queueMicrotask(() => {
+      void processCommonPasswordReset(run.id, dependencies);
+    });
+  }
 
   return {
     ...serializeRun(run),
@@ -848,8 +866,9 @@ export async function recoverStaleCommonPasswordResetRuns(
 async function processCommonPasswordReset(
   runId: string,
   dependencies: CommonPasswordResetDependencies,
+  suppliedContext?: CommonResetJobContext,
 ): Promise<void> {
-  const context = activeJobs.get(runId);
+  const context = suppliedContext ?? activeJobs.get(runId);
   if (!context) return;
 
   let heartbeatInFlight: Promise<void> | null = null;
@@ -897,6 +916,7 @@ async function processCommonPasswordReset(
   let processedCount = 0;
   let checkpointedCount = 0;
   let operationType: ResetOperationType = "COMMON_TEMPORARY_PASSWORD";
+    let fullReplacementPasswordHash: string | null = null;
   try {
     let run = await retryDb(() => dependencies.db.commonTemporaryPasswordResetRun.findUnique({
       where: { id: runId },
@@ -932,6 +952,10 @@ async function processCommonPasswordReset(
           "FULL_REPLACEMENT_PASSWORD_MISMATCH",
         );
       }
+      fullReplacementPasswordHash = await bcrypt.hash(
+        context.password,
+        parseInt(env.BCRYPT_ROUNDS, 10),
+      );
     }
 
     while (true) {
@@ -975,10 +999,16 @@ async function processCommonPasswordReset(
               || await bcrypt.compare(context.password, user.passwordHash));
 
           if (!alreadyCommitted) {
-            const passwordHash = await bcrypt.hash(
-              context.password,
-              parseInt(env.BCRYPT_ROUNDS, 10),
-            );
+            const passwordHash =
+              operationType === "FULL_REPLACEMENT"
+                ? fullReplacementPasswordHash
+                : await bcrypt.hash(
+                    context.password,
+                    parseInt(env.BCRYPT_ROUNDS, 10),
+                  );
+            if (!passwordHash) {
+              throw new Error("Full replacement password hash was not prepared");
+            }
             const updateData = {
               passwordHash,
               passwordResetRequired: true,
@@ -1160,4 +1190,21 @@ async function processCommonPasswordReset(
     activeJobs.delete(runId);
     context.resolveSafeBoundary();
   }
+}
+
+/**
+ * Entry point used only by the dedicated FULL_REPLACEMENT child process.
+ * The child imports this module after its dedicated DATABASE_URL is already
+ * present, so the default Prisma dependency belongs exclusively to that child.
+ */
+export async function runDedicatedFullReplacementWorker(
+  runId: string,
+  adminId: string,
+  password: string,
+): Promise<void> {
+  await processCommonPasswordReset(
+    runId,
+    defaultDependencies,
+    createJobContext(adminId, password),
+  );
 }
