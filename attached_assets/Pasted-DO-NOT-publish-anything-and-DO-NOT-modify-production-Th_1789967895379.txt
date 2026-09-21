@@ -1,0 +1,144 @@
+DO NOT publish anything and DO NOT modify production.
+
+The latest production evidence shows the LIVE Prisma writer is currently failing:
+
+2026-09-21 05:14:12.981 UTC
+Prisma withdrawalRequest.findMany()
+Can't reach database server
+
+Followed by:
+- BOOT FATAL-unhandledRejection
+- crash loop detected
+- healthcheck HTTP 500
+
+The read replica is reachable, but that does NOT prove the live writer is healthy.
+
+I need a READ-ONLY infrastructure diagnosis focused specifically on why the Replit production application cannot reach its Neon writer.
+
+IMPORTANT:
+- Do NOT read or expose DATABASE_URL.
+- Do NOT expose any production secrets.
+- Do NOT change secrets.
+- Do NOT restart production manually.
+- Do NOT publish.
+- Do NOT run Prisma migrations.
+- Do NOT create or execute any password-reset run.
+- Do NOT modify users.
+- Do NOT touch financial/business data.
+
+Investigate the following:
+
+1. PRODUCTION DEPLOYMENT HEALTH
+
+Inspect the current production deployment state and determine:
+- Is the application currently crash-looping?
+- Is the API process staying alive?
+- Are new deployment instances repeatedly failing to initialize Prisma?
+- Are health checks failing because the application cannot connect to Neon?
+
+Report the latest relevant timestamps.
+
+2. NEON CONNECTIVITY ERROR
+
+Inspect the most recent production logs around:
+
+2026-09-21 05:10 UTC through the latest available logs.
+
+Find every database connectivity-related error and classify it where possible:
+
+- P1001
+- P1002
+- P2024
+- ECONNREFUSED
+- ETIMEDOUT
+- ENOTFOUND
+- connection reset
+- TLS/SSL failure
+- DNS failure
+- connection pool exhaustion
+- database unavailable
+- other Prisma connection errors
+
+Do NOT guess if the underlying cause is not available.
+
+3. ERROR TARGET
+
+Report only safe, non-secret connection metadata that is already present in logs, such as:
+- database hostname
+- port
+- region/host information if visible
+
+Never expose:
+- DATABASE_URL
+- username
+- password
+- connection string
+- secret values
+
+4. TIMELINE
+
+Build a concise timeline of the latest production database failures.
+
+For example:
+
+time → database error → API consequence → recovery/restart behavior
+
+Determine whether this looks like:
+- Neon writer outage
+- Replit-to-Neon network failure
+- application connection-pool issue
+- repeated Prisma initialization failure
+- DNS/TLS issue
+- another infrastructure issue
+
+Only report what the logs support.
+
+5. NEON / PROVIDER STATUS
+
+If the available tooling has an authoritative Neon status/health source, check it read-only.
+
+Do not rely on generic web searches to claim the user's specific database is healthy.
+
+If no authoritative provider-level status is available, explicitly say so.
+
+6. PRODUCTION APPLICATION DATABASE ACCESS
+
+Determine whether any currently running production instance is successfully establishing Prisma connections.
+
+Use existing safe application telemetry/logs only.
+
+Do NOT create a diagnostic endpoint.
+Do NOT add a database-write test.
+Do NOT access protected secrets.
+
+7. IMPORTANT FINANCIAL SAFETY CHECK
+
+Because the withdrawal processor is also showing database connectivity errors, verify READ-ONLY whether any financial worker is currently:
+- running normally
+- failing
+- repeatedly restarting
+
+Do NOT restart or modify the financial worker.
+
+Do NOT change any financial records.
+
+8. FINAL ASSESSMENT
+
+Report:
+
+A. Is the production Prisma writer currently reachable?
+B. Is the production API currently stable?
+C. What is the most likely infrastructure layer involved, based strictly on evidence?
+D. Is there evidence of a Neon provider outage?
+E. Is there evidence of a Replit runtime/network issue?
+F. Is there evidence of an application connection-pool/configuration issue?
+G. Is it safe to publish the FULL_REPLACEMENT feature right now?
+H. What exact condition should be true before we publish?
+
+STOP after the diagnosis.
+
+No publish.
+No restart.
+No schema migration.
+No password reset.
+No production mutation.
