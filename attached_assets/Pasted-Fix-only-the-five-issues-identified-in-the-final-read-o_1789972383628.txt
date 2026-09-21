@@ -1,0 +1,69 @@
+Fix only the five issues identified in the final read-only review of the FULL_REPLACEMENT dedicated worker.
+
+Do NOT publish. Do NOT execute, create, resume, or recover any password reset. Do NOT modify production data.
+
+Implement these hardening fixes:
+
+1. Dedicated-worker operation invariant
+
+Inside the dedicated FULL_REPLACEMENT child-worker entrypoint itself, independently load the run and require operationType === FULL_REPLACEMENT.
+If the run is any other operation type, fail closed immediately.
+Do not rely solely on the HTTP route's operation-type check.
+
+2. Prompt worker-death handling
+
+If the dedicated child process exits unexpectedly before terminal completion, make the parent safely transition the run toward FAILED/recoverable state rather than leaving it RUNNING indefinitely.
+Preserve the existing durable checkpoint and lease semantics.
+Never mark a run completed because the child exited.
+If the database is temporarily unreachable while handling the child exit, do not corrupt the run; allow the existing lease/recovery mechanism to recover it safely.
+
+3. Full worker-lifetime single-worker protection
+
+Ensure the FULL_REPLACEMENT concurrency guard remains effective through the entire child-worker lifecycle, including completion/finalization and audit handling.
+Do not allow a second FULL_REPLACEMENT worker to launch while the previous child is still alive/finalizing.
+Preserve the existing database active-lock protection.
+
+4. Password-safe failure diagnostics
+
+Remove the dependency on keyword-based redaction as the primary protection for the FULL_REPLACEMENT plaintext password.
+For FULL_REPLACEMENT, never persist arbitrary raw exception messages that could potentially contain the supplied password.
+Failure diagnostics should contain only safe structured information such as error class/type, safe database error code, and a fixed/sanitized operational message.
+Never include the plaintext password, bcrypt hash, IPC payload, environment, argv, or arbitrary exception text in failureReason, audit details, HTTP responses, or logs.
+Preserve useful diagnostics for P1001/P1002/P2024 and retry exhaustion without exposing sensitive data.
+
+5. Safe child IPC handling
+
+Defensively handle child.send() when the child has already exited or the IPC channel is closing.
+Ensure an IPC callback/error cannot become an unhandled rejection or uncaught exception in the API process.
+Treat IPC failure as worker failure and let the normal durable checkpoint/lease recovery model handle it.
+
+Preserve all existing behavior:
+
+SUPER_ADMIN authorization
+population validation
+active-operation locking
+250-user durable checkpoints
+optimistic authVersion protection
+passwordResetRequired
+passwordChangedAt
+bounded retry/backoff
+resume from durable checkpoint
+one bcrypt hash per FULL_REPLACEMENT operation
+plaintext password only in private parent/child IPC
+historical random run cmu9ppuf8005f7jayk27yz29w untouched
+historical common run cmua3jcec001wa99zi17pz3hl untouched
+normal COMMON_TEMPORARY_PASSWORD behavior unchanged
+financial, withdrawal, deposit, ledger, and admin-authentication behavior unchanged
+
+Do not make any schema or migration changes.
+
+After implementation:
+
+Run the complete test suite.
+Run typecheck.
+Run API production build.
+Verify the dedicated worker bundle builds.
+Add/adjust tests covering all five fixes, especially worker death, IPC failure, operation-type mismatch, sensitive error handling, and finalization concurrency.
+Report the exact test results.
+Do not publish.
+Do not invoke any password-reset endpoint.
