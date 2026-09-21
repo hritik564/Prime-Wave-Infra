@@ -1,0 +1,61 @@
+Before we do anything else, perform one final READ-ONLY investigation specifically for the historical 6,640-user manifest.
+
+Do NOT:
+- apply the migration
+- execute the backfill
+- modify production data
+- modify the completed run
+- reset passwords
+- publish
+
+Target run:
+cmuaw52yf004vj1h61tpbr14w
+
+The implementation now requires an explicit AUTHORITATIVE_USER_ID_MANIFEST.
+
+Determine whether the exact 6,640 user IDs processed by this completed FULL_REPLACEMENT run can be reconstructed from ANY existing persisted or retained source that is genuinely authoritative.
+
+Investigate only sources that actually existed for this run, such as:
+- worker stdout/stderr logs, if retained and accessible
+- deployment/runtime logs
+- Replit application logs
+- process logs
+- existing worker diagnostics
+- backup/export artifacts created before/during/after the run
+- any retained job execution artifacts
+- any existing file/object storage artifact
+- any source-control/deployment artifact that captured the processed IDs
+- database records that may contain the IDs indirectly but authoritatively
+
+Do NOT consider these sufficient by themselves:
+- passwordChangedAt
+- current user population
+- final cursor
+- totalEligible
+- processedCount
+- timestamps
+- aggregate audit rows
+
+For every candidate source found, determine:
+1. Does it contain the exact user IDs?
+2. Does it prove those IDs were actually processed by run cmuaw52yf004vj1h61tpbr14w?
+3. Does it contain all 6,640 users?
+4. Can duplicates/missing IDs be detected?
+5. Is the source immutable or sufficiently trustworthy for a production security backfill?
+
+Do not expose passwords, hashes, reset tokens, or private credentials.
+
+If an authoritative 6,640-ID manifest can be reconstructed, report:
+- source
+- how it proves ownership
+- count
+- validation method
+- where the manifest would be stored for the controlled backfill
+
+If it cannot be reconstructed, state clearly:
+
+MANIFEST NOT RECOVERABLE
+
+and explain which potentially useful sources were checked and why they are insufficient.
+
+No implementation or production action is required from this investigation.
