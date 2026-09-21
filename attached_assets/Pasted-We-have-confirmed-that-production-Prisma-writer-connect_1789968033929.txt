@@ -1,0 +1,98 @@
+We have confirmed that production Prisma writer connectivity is currently unstable.
+
+DO NOT:
+- publish
+- deploy
+- restart production manually
+- run migrations
+- execute/resume any password reset
+- create any reset run
+- modify users
+- modify financial/business data
+- change production secrets
+
+I want a READ-ONLY investigation focused on identifying whether this is a persistent production infrastructure problem and whether it is recovering.
+
+### Observation window
+
+Monitor the existing production deployment for approximately 10 minutes using only existing telemetry/logs.
+
+Do NOT create a new diagnostic endpoint.
+
+### During the observation window, record:
+
+1. API deployment health:
+   - healthcheck status
+   - HTTP 500 occurrences
+   - crash-loop events
+   - process restarts
+
+2. Prisma/Neon errors:
+   - database reachability failures
+   - P1001/P1002/P2024 if explicitly present
+   - connection timeout/refusal errors
+   - any successful Prisma operations visible in existing logs
+
+3. Normal application database activity:
+   Look for existing production operations that naturally access Prisma, such as:
+   - systemSettings queries
+   - withdrawal queries
+   - user queries
+   - notification queries
+   - other existing worker activity
+
+Do not trigger new operations solely for testing.
+
+4. Financial worker health:
+   - whether withdrawal worker continues normally
+   - whether it experiences additional database failures
+   - whether it is restarting
+   - whether BSC RPC failures continue
+
+Do not modify or restart the financial worker.
+
+5. Deployment stability:
+   Determine whether the SAME production deployment becomes stable again without intervention.
+
+### Important distinction
+
+Do not conclude "Neon is down" unless authoritative provider evidence exists.
+
+Instead classify the observed state as one of:
+
+A. Production Prisma writer remains unreachable
+B. Writer connectivity has recovered and remains stable
+C. Intermittent writer connectivity continues
+D. Application/runtime instability continues independently of database connectivity
+E. Evidence is insufficient to determine the layer
+
+### Stability criterion
+
+Only declare production READY if, during the observation window:
+
+- no crash-loop events occur
+- no HTTP 500 healthcheck failures occur
+- existing application Prisma operations succeed consistently
+- no new database reachability failures appear
+- production processes remain stable
+
+If any of these continue failing, report NOT READY.
+
+### Final report
+
+Give me:
+
+- observation start/end UTC
+- number of crash-loop events
+- number of HTTP 500 healthcheck failures
+- number of database reachability errors
+- latest database error timestamp
+- examples of successful Prisma operations, if naturally present in logs
+- financial worker status
+- BSC RPC status
+- final classification A/B/C/D/E
+- READY or NOT READY for publishing
+
+Do not make any changes.
+
+STOP after the observation.
