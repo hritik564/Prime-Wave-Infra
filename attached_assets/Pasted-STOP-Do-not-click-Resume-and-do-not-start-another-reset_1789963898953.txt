@@ -1,0 +1,84 @@
+STOP. Do not click Resume and do not start another reset.
+
+The live Admin Settings UI now shows:
+
+Common temporary password reset:
+- Status: FAILED
+- Processed: 2000 / 6640
+- Failure reason: "Common temporary password reset stopped in batch 8"
+
+This is different from the previously verified production state of 250 / 6640.
+
+I need a READ-ONLY production investigation immediately.
+
+Do NOT:
+- resume the run
+- start a new reset
+- invoke any execute endpoint
+- mutate the database
+- change User credentials
+- restart production
+- publish anything
+- recover any run
+- touch financial/business data
+
+Target run:
+cmua3jcec001wa99zi17pz3hl
+
+Read production DB and report:
+
+1. Exact current state of this run:
+   - status
+   - processedCount
+   - totalEligible
+   - failedCount
+   - failureReason
+   - lastUserId
+   - workerLeaseUntil
+   - lastHeartbeatAt
+   - activeLockKey
+   - startedAt
+   - completedAt
+   - updatedAt
+
+2. Determine whether the run actually advanced from 250 to 2000.
+   Confirm using the persisted run record and relevant audit/checkpoint evidence.
+
+3. Determine exactly what "stopped in batch 8" means.
+   Inspect the current common-password-reset worker failure handling and identify the actual underlying failure if available.
+   Do not infer or guess.
+
+4. Verify how many User records currently have:
+   - passwordResetRequired = true
+   - authVersion > 0
+   - passwordChangedAt populated
+
+   Report counts only. Do not expose password hashes or credentials.
+
+5. Verify whether the users processed between checkpoint 250 and checkpoint 2000 were actually committed.
+   Use the durable database state/checkpoint logic, not frontend display.
+
+6. Determine whether checkpoint 2000 is durable and safe to resume from.
+
+7. Determine whether any users were partially processed inside batch 8 and whether the existing idempotency logic makes retry safe.
+
+8. Verify the old random run:
+   cmu9ppuf8005f7jayk27yz29w
+
+   Report its actual DB status only. The UI currently incorrectly displays it as RUNNING, so determine whether this is another frontend-state bug.
+
+9. Do not make any code changes yet.
+
+10. Do not publish anything.
+
+At the end provide:
+
+A. Actual common-reset DB state
+B. Whether 2000 is a valid durable checkpoint
+C. Exact underlying reason the worker stopped
+D. Whether resume from 2000 is safe
+E. Current count of users whose credentials were actually changed
+F. Actual status of the old random run
+G. Whether the UI is displaying stale/incorrect run information
+
+STOP after the read-only diagnosis.
