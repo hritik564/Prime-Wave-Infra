@@ -1,0 +1,69 @@
+Perform READ-ONLY investigation only.
+
+Current common password reset run:
+cmua3jcec001wa99zi17pz3hl
+
+Current known state:
+- FAILED
+- processedCount = 2500 / 6640
+- failedCount = 1
+- failure caused by Prisma P1001 / Neon database connectivity
+- 2500 is the durable checkpoint
+- approximately 2037 users have had credentials changed during this overall run
+- the original temporary password used for the run is no longer known to the administrator
+
+Two test accounts were previously provided by the system, but login with the password the administrator remembered did not work.
+
+IMPORTANT — DO NOT:
+- resume the current run
+- start a new password reset
+- change any User credentials
+- manually alter passwords/hashes
+- reveal password hashes
+- reveal the temporary password
+- expose reset tokens
+- publish or restart production
+- modify financial/business data
+
+For the TWO test accounts previously selected, verify:
+
+1. user ID
+2. login identifier/email
+3. their position/order relative to the common-reset population
+4. passwordResetRequired
+5. authVersion
+6. passwordChangedAt
+7. whether passwordChangedAt is after this run's startedAt
+8. whether each account falls:
+   - within the first 2000 durable checkpoint
+   - within the 2001–2038 already-committed range
+   - after 2038
+9. whether each account was actually updated during this common-password reset run
+
+Do NOT return password hashes or any credential material.
+
+Then determine, using only production evidence, whether the failed login is consistent with:
+- the account not actually being processed
+- the account being processed but the administrator no longer knowing the temporary password
+- the account being selected from an in-flight/non-durable batch
+- an incorrect login identifier
+- another authentication issue
+
+Do not guess.
+
+Also report current counts:
+- users changed by this run
+- users remaining unchanged
+- passwordResetRequired = true
+- authVersion > 0
+- passwordChangedAt after this run started
+
+Separately verify whether the production Neon database is currently healthy/reachable.
+
+Also inspect whether the current worker has bounded retry/backoff for transient Prisma database errors such as P1001/P1002.
+
+DO NOT implement anything.
+DO NOT publish anything.
+DO NOT resume anything.
+
+STOP after the read-only diagnosis and report the findings.
