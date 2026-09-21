@@ -1,0 +1,123 @@
+Fix only the three blocking security issues identified in the final security review of the password-reset authentication flow.
+
+DO NOT PUBLISH.
+
+DO NOT execute, resume, recover, or create any password reset.
+
+DO NOT modify any production user passwords, reset runs, authentication state, financial data, admins, or database records.
+
+The FULL_REPLACEMENT run cmuaw52yf004vj1h61tpbr14w is already COMPLETED 6,640/6,640 and must remain untouched.
+
+1. Eliminate normal-JWT access to password change
+
+POST /api/auth/change-password must require the restricted password-reset authentication state when passwordResetRequired=true.
+
+A normal user JWT must NOT be sufficient.
+
+Require all relevant restricted-token invariants:
+
+type=password_reset
+purpose=password_change
+correct user identity
+matching authVersion
+passwordResetRequired=true
+
+Preserve normal password-change behavior for users who are not in the forced-reset state if that route currently supports it, but do not weaken the forced-reset security boundary.
+
+2. Make the restricted reset authentication truly single-use under concurrency
+
+Eliminate the race where two simultaneous password-change requests can validate the same restricted authentication before either request updates the user.
+
+Use an atomic/optimistic condition so that only one request can successfully consume the reset authentication.
+
+The successful operation must atomically establish:
+
+new password hash
+passwordResetRequired=false
+authVersion increment
+passwordChangedAt
+consumption/invalidation of the restricted reset authentication
+
+A concurrent second request using the same restricted authentication must fail safely and must not change the password or issue a normal session.
+
+Do not rely only on a separate preliminary token validation followed by an unconditional user.update().
+
+3. Do not return the restricted reset token in the JSON response
+
+The current login response returns the restricted reset token in data.resetToken. Remove this.
+
+Use a secure short-lived delivery mechanism that satisfies these requirements:
+
+not included in JSON response
+not placed in URL/query parameters
+not stored in localStorage/sessionStorage
+not logged
+purpose-specific
+expires after 10 minutes
+protected against CSRF if cookies are used
+cannot be used as a normal user authentication token
+invalidated after successful password change
+
+Prefer an HttpOnly, Secure, SameSite-appropriate, short-lived cookie or an equivalent server-side mechanism consistent with the existing authentication architecture.
+
+If using a cookie, ensure the password-change endpoint validates the appropriate CSRF protection and that the cookie cannot authenticate normal protected API routes.
+
+Preserve all existing security properties
+Correct temporary password must still be verified with bcrypt.
+Incorrect temporary password must remain INVALID_CREDENTIALS.
+BLOCKED users remain blocked.
+Normal users without passwordResetRequired retain existing login behavior.
+Admin authentication remains unchanged.
+Normal JWTs cannot use the forced-reset password-change path.
+Restricted reset credentials cannot access normal protected routes.
+Restricted reset credentials cannot access impersonation-exit or unrelated privileged routes.
+authVersion invalidation remains intact.
+No plaintext password, password hash, reset token, JWT secret, or private key may be logged or persisted.
+Do not modify financial, withdrawal, deposit, ledger, or unrelated worker behavior.
+Do not modify the completed FULL_REPLACEMENT run or either historical failed run.
+Frontend
+
+Update the first-login flow to work with the new secure token-delivery mechanism.
+
+The frontend must:
+
+recognize PASSWORD_RESET_REQUIRED
+show the forced password-change screen
+not expect resetToken in the JSON response
+submit the new password through the secure reset-authentication mechanism
+transition to normal authenticated state only after successful password change
+never put the restricted credential in URL/localStorage/sessionStorage
+Tests
+
+Add tests covering at minimum:
+
+Correct temporary password → PASSWORD_RESET_REQUIRED.
+Incorrect temporary password → INVALID_CREDENTIALS.
+Restricted authentication is not returned in JSON.
+Normal JWT cannot call forced-reset password-change.
+Restricted authentication can call only password-change.
+Restricted authentication expires after 10 minutes.
+Concurrent requests using the same restricted authentication → exactly one succeeds.
+Second/replayed request cannot change the password or issue a session.
+Successful change clears passwordResetRequired.
+Successful change increments authVersion.
+Successful change invalidates the restricted authentication.
+Failed password change leaves the reset state intact.
+BLOCKED users remain blocked.
+Normal non-reset users remain unaffected.
+Admin authentication remains unaffected.
+Existing financial/authentication systems remain unaffected.
+
+Run:
+
+full API test suite
+frontend tests if present
+API typecheck
+frontend typecheck
+API production build
+frontend production build
+git diff check
+
+Do not publish.
+
+At the end, report exactly what changed, the security properties verified, and all test results.
