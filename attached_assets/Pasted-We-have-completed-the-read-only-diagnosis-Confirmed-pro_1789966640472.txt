@@ -1,0 +1,288 @@
+We have completed the read-only diagnosis.
+
+Confirmed production state:
+
+Existing run:
+cmua3jcec001wa99zi17pz3hl
+
+Status:
+FAILED
+
+Durable checkpoint:
+2500 / 6640
+
+Users currently changed by the previous reset attempts:
+2541
+
+Users remaining unchanged:
+4099
+
+The original temporary password is no longer known to the administrator.
+
+Therefore, DO NOT resume the existing run.
+
+We need a SAFE NEW FULL PASSWORD RESET operation that establishes a completely new known temporary password for ALL 6,640 normal users.
+
+This must be a NEW run and must preserve the existing failed run for audit/history.
+
+IMPORTANT:
+DO NOT execute anything in production.
+DO NOT change any production User records.
+DO NOT create the new run in production.
+DO NOT publish yet.
+DO NOT request or expose the new password.
+DO NOT modify financial/business data.
+
+IMPLEMENT AND TEST ONLY IN DEVELOPMENT.
+
+### 1. New full-reset operation
+
+Create a dedicated SUPER_ADMIN-only "Restart / Replace Temporary Password" operation.
+
+It must:
+
+- target ALL normal User records
+- exclude the Admin model completely
+- include users already changed by previous reset attempts
+- include users who have not yet been changed
+- use a NEW temporary password supplied by the SUPER_ADMIN at execution time
+- create a NEW reset-run record
+- leave:
+  cmua3jcec001wa99zi17pz3hl
+  permanently FAILED and unchanged
+- never reuse the old run ID
+- never modify the old run's checkpoint/history
+
+The new operation must explicitly communicate:
+
+"This creates a new temporary password for every normal user and overwrites credentials established by previous reset attempts."
+
+### 2. Security requirements
+
+SUPER_ADMIN only.
+
+Require:
+- new temporary password
+- password confirmation
+- exact confirmation phrase
+- explicit acknowledgement that ALL normal-user passwords will be replaced
+- expected user count = 6640
+
+The plaintext password must:
+- exist only in process memory during execution
+- never be stored in DB
+- never be stored in artifacts
+- never be returned in API responses
+- never appear in logs
+- never appear in errors
+- never appear in audit metadata
+- never appear in test persistence
+
+Never expose password hashes.
+
+### 3. New run state
+
+Use a dedicated new run record/type or otherwise clearly distinguish the new full replacement operation from the old failed run.
+
+States should support at minimum:
+
+PREPARING
+RUNNING
+FAILED
+COMPLETED
+
+Track:
+- runId
+- adminId
+- totalEligible
+- processedCount
+- failedCount
+- lastUserId
+- failureReason
+- sanitized diagnostic information
+- worker lease
+- heartbeat
+- timestamps
+- active-operation lock
+
+The new run must be resumable after an interruption.
+
+### 4. Checkpoint/idempotency design
+
+Because this is a NEW password, DO NOT use the old run's idempotency assumptions.
+
+The new run should process all users deterministically from the beginning.
+
+Each user must receive the NEW password.
+
+If the worker is interrupted after some user updates but before the checkpoint advances, resuming must safely determine whether that user was already changed by THIS new run.
+
+Do NOT rely on knowing the old password.
+
+Use safe run-specific idempotency evidence such as:
+- passwordChangedAt relative to this run's start
+- authVersion/reset state
+- run cursor/checkpoint
+- other existing fields available in the schema
+
+Do not introduce unsafe password-hash comparisons.
+
+The implementation must never assign multiple different passwords within the same new run.
+
+### 5. Transient Neon/Prisma resilience — REQUIRED
+
+The previous worker failed because of:
+
+Prisma P1001:
+database server unreachable
+
+The current worker has NO bounded retry/backoff.
+
+Implement a bounded retry mechanism for transient database connectivity failures, including at minimum:
+
+- P1001
+- P1002
+- connection/timeout errors that are clearly transient
+
+Requirements:
+
+- bounded attempts
+- exponential backoff with jitter
+- do not retry indefinitely
+- never retry non-transient validation/application errors
+- preserve heartbeat/lease while waiting
+- avoid holding a DB transaction open during backoff
+- preserve idempotency
+- after retry exhaustion, fail safely at the last durable checkpoint
+- record sanitized diagnostic information
+- never expose credentials
+
+Use sensible configurable constants rather than hardcoding unexplained delays.
+
+### 6. Batch/checkpoint behavior
+
+Keep bounded concurrency.
+
+Keep a durable checkpoint after completed batches.
+
+Do NOT advance the checkpoint for an incomplete batch.
+
+If some users in a batch are committed before a transient failure:
+- the resume path must safely recognize those users as already processed by this NEW run
+- they must not receive a second different password
+- resume must continue with remaining users
+
+The implementation must be safe against:
+- process restart
+- Neon transient outage
+- API restart
+- lease expiry
+- partial batch completion
+
+### 7. Worker status
+
+Improve Admin Settings so the operator can clearly see:
+
+- PREPARING
+- RUNNING
+- FAILED
+- COMPLETED
+- processed / total
+- last heartbeat
+- whether the worker lease is active
+- resumable state
+- sanitized failure reason
+
+Do not expose internal secrets.
+
+### 8. Prevent conflicting operations
+
+While this NEW full reset is PREPARING or RUNNING:
+
+- block another common password reset
+- block another full replacement reset
+- block the old random reset operation
+- preserve SUPER_ADMIN authorization
+
+A FAILED run should be resumable rather than allowing an accidental second concurrent reset.
+
+A COMPLETED run cannot be replayed.
+
+### 9. Existing failed runs
+
+The following runs must remain untouched:
+
+Old common reset:
+cmua3jcec001wa99zi17pz3hl
+Status: FAILED
+
+Old random reset:
+cmu9ppuf8005f7jayk27yz29w
+Status: FAILED
+
+Do not alter their records.
+
+### 10. Testing
+
+Add comprehensive tests for:
+
+- SUPER_ADMIN authorization
+- non-admin rejection
+- exact confirmation phrase
+- expected user count
+- all normal users included
+- Admin model excluded
+- users previously changed by old runs are overwritten with the new password
+- unchanged users receive the new password
+- no password/hash/token persistence
+- no plaintext password in logs/errors/audit
+- deterministic population ordering
+- checkpoint behavior
+- partial batch recovery
+- same-run idempotency
+- process restart recovery
+- lease/heartbeat
+- P1001 retry
+- P1002 retry
+- transient connection retry with backoff
+- retry exhaustion
+- non-transient errors are not retried
+- conflicting-run protection
+- failed-run resume
+- completed-run replay rejection
+- old failed runs remain untouched
+
+Run:
+
+- full API tests
+- frontend tests/source-contract tests
+- API typecheck
+- frontend typecheck
+- Prisma validation
+- API build
+- frontend build
+- git diff --check
+
+### IMPORTANT FINAL RULE
+
+Do NOT:
+
+- publish
+- deploy
+- execute a production reset
+- create a production run
+- modify production users
+- restart production
+- request my temporary password
+
+At the end report:
+
+A. exact files changed
+B. new run model/state design
+C. exact retry strategy for P1001/P1002
+D. exact idempotency strategy for partial batches
+E. UI changes
+F. test results
+G. confirmation that production was completely untouched
+
+STOP.
