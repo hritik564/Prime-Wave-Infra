@@ -2,6 +2,18 @@ import { getToken, getAdminToken, fireUnauthorized } from "./auth";
 
 const BASE = "";
 
+function getCookie(name: string): string | undefined {
+  if (typeof document === "undefined") return undefined;
+
+  const prefix = `${encodeURIComponent(name)}=`;
+  const cookie = document.cookie
+    .split("; ")
+    .find((entry) => entry.startsWith(prefix));
+  if (!cookie) return undefined;
+
+  return decodeURIComponent(cookie.slice(prefix.length));
+}
+
 export class ApiRequestError extends Error {
   constructor(
     message: string,
@@ -17,10 +29,12 @@ export class ApiRequestError extends Error {
 async function request<T>(
   path: string,
   init: RequestInit = {},
-  tokenOverride?: string,
+  tokenOverride?: string | null,
 ): Promise<T> {
   const isAdminPath = path.startsWith("/api/admin/") && path !== "/api/admin/login";
-  const token = tokenOverride ?? (isAdminPath ? (getAdminToken() ?? getToken()) : getToken());
+  const token = tokenOverride !== undefined
+    ? tokenOverride
+    : (isAdminPath ? (getAdminToken() ?? getToken()) : getToken());
   const headers: Record<string, string> = {
     ...((init.headers as Record<string, string>) ?? {}),
   };
@@ -373,12 +387,15 @@ export function resolveReferralCode(code: string) {
 export function changePassword(
   currentPassword: string,
   newPassword: string,
-  accessToken?: string,
+  usePasswordChangeCookie = false,
 ) {
   return request<AuthResponse>("/api/auth/change-password", {
     method: "POST",
+    headers: {
+      "X-Password-Change-CSRF": getCookie("pw_password_change_csrf") ?? "",
+    },
     body: JSON.stringify({ currentPassword, newPassword, confirmPassword: newPassword }),
-  }, accessToken);
+  }, usePasswordChangeCookie ? null : undefined);
 }
 
 /* ── Profile ──────────────────────────────────────────────────────── */

@@ -31,7 +31,7 @@ function isEmail(s: string) {
 
 export default function LoginPage() {
   const [formError, setFormError] = useState<string>();
-  const [resetToken, setResetToken] = useState<string>();
+  const [passwordResetRequired, setPasswordResetRequired] = useState(false);
   const { authLogin } = useAuth();
   const [, navigate] = useLocation();
   const search = useSearch();
@@ -69,11 +69,8 @@ export default function LoginPage() {
       return;
     } catch (err) {
       if (err instanceof ApiRequestError && err.code === "PASSWORD_RESET_REQUIRED") {
-        const candidate = (err.data as { resetToken?: unknown } | undefined)?.resetToken;
-        if (typeof candidate === "string" && candidate.length > 0) {
-          setResetToken(candidate);
-          return;
-        }
+        setPasswordResetRequired(true);
+        return;
       }
       /* user login failed — fall through to admin login if identifier is an email */
     }
@@ -102,10 +99,9 @@ export default function LoginPage() {
     setFormError("Invalid credentials. Please check your email/username and password.");
   };
 
-  if (resetToken) {
+  if (passwordResetRequired) {
     return (
       <FirstLoginPasswordChange
-        resetToken={resetToken}
         onComplete={(result) => {
           authLogin(result.token, { ...result.user, type: "user" });
           navigate(redirect ?? "/dashboard");

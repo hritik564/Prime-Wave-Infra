@@ -21,7 +21,9 @@ const { prisma, signUserToken } = vi.hoisted(() => ({
     user: {
       findUnique: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
+    $transaction: vi.fn(),
   },
   signUserToken: vi.fn(() => "normal-user-token"),
 }));
@@ -48,21 +50,33 @@ beforeEach(async () => {
   state.user.authVersion = 6;
   prisma.user.findUnique.mockResolvedValue({
     id: state.user.id,
+    email: state.user.email,
     passwordHash: state.user.passwordHash,
     status: state.user.status,
+    passwordResetRequired: state.user.passwordResetRequired,
   });
-  prisma.user.update.mockImplementation(async (args: {
+  const transactionUser = {
+    updateMany: vi.fn().mockImplementation(async (args: {
+      where: { authVersion: number; passwordResetRequired: boolean };
     data: {
       passwordResetRequired: boolean;
       authVersion: { increment: number };
       passwordChangedAt: Date;
       passwordHash: string;
     };
-  }) => {
-    state.user.passwordHash = args.data.passwordHash;
-    state.user.passwordResetRequired = args.data.passwordResetRequired;
-    state.user.authVersion += args.data.authVersion.increment;
-    return {
+    }) => {
+      if (
+        args.where.authVersion !== state.user.authVersion
+        || args.where.passwordResetRequired !== state.user.passwordResetRequired
+      ) {
+        return { count: 0 };
+      }
+      state.user.passwordHash = args.data.passwordHash;
+      state.user.passwordResetRequired = args.data.passwordResetRequired;
+      state.user.authVersion += args.data.authVersion.increment;
+      return { count: 1 };
+    }),
+    findUnique: vi.fn().mockImplementation(async () => ({
       id: state.user.id,
       email: state.user.email,
       username: state.user.username,
@@ -71,8 +85,13 @@ beforeEach(async () => {
       referralCode: state.user.referralCode,
       status: state.user.status,
       authVersion: state.user.authVersion,
-    };
-  });
+    })),
+  };
+  prisma.$transaction.mockImplementation(async (
+    callback: (tx: { user: typeof transactionUser }) => Promise<unknown>,
+  ) =>
+    callback({ user: transactionUser }),
+  );
 });
 
 describe("restricted first-login password change", () => {
@@ -81,7 +100,7 @@ describe("restricted first-login password change", () => {
       currentPassword: "TemporaryPassword1",
       newPassword: "NewPassword2",
       confirmPassword: "NewPassword2",
-    });
+    }, { restricted: true, authVersion: 6 });
 
     expect(result.token).toBe("normal-user-token");
     expect(state.user.passwordResetRequired).toBe(false);
@@ -99,10 +118,37 @@ describe("restricted first-login password change", () => {
       currentPassword: "WrongPassword1",
       newPassword: "NewPassword2",
       confirmPassword: "NewPassword2",
-    })).rejects.toMatchObject({ code: "INVALID_CURRENT_PASSWORD" });
+    }, { restricted: true, authVersion: 6 })).rejects.toMatchObject({
+      code: "INVALID_CURRENT_PASSWORD",
+    });
 
     expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
     expect(state.user.passwordResetRequired).toBe(true);
     expect(state.user.authVersion).toBe(6);
+  });
+
+  it("allows exactly one concurrent request to consume the restricted authentication", async () => {
+    const attempts = await Promise.allSettled([
+      changePassword(state.user.id, {
+        currentPassword: "TemporaryPassword1",
+        newPassword: "NewPassword2",
+        confirmPassword: "NewPassword2",
+      }, { restricted: true, authVersion: 6 }),
+      changePassword(state.user.id, {
+        currentPassword: "TemporaryPassword1",
+        newPassword: "AnotherPassword3",
+        confirmPassword: "AnotherPassword3",
+      }, { restricted: true, authVersion: 6 }),
+    ]);
+
+    expect(attempts.filter((attempt) => attempt.status === "fulfilled")).toHaveLength(1);
+    expect(attempts.filter((attempt) =>
+      attempt.status === "rejected"
+      && (attempt.reason as { code?: string }).code === "PASSWORD_CHANGE_TOKEN_INVALID",
+    )).toHaveLength(1);
+    expect(signUserToken).toHaveBeenCalledTimes(1);
+    expect(state.user.passwordResetRequired).toBe(false);
+    expect(state.user.authVersion).toBe(7);
   });
 });

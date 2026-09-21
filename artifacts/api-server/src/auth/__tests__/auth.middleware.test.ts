@@ -22,9 +22,24 @@ import {
   requirePasswordChangeAuth,
 } from "../../middleware/auth.middleware";
 
-function requestFor(payload: Record<string, unknown>) {
+function requestFor(
+  payload: Record<string, unknown>,
+  options: { passwordChangeCsrf?: boolean } = {},
+) {
   const token = jwt.sign(payload, "test-secret");
-  return { headers: { authorization: `Bearer ${token}` } } as never;
+  const headers: Record<string, string> = {
+    authorization: `Bearer ${token}`,
+  };
+  if (options.passwordChangeCsrf) {
+    headers.cookie = "pw_password_change_csrf=csrf-test";
+    headers["x-password-change-csrf"] = "csrf-test";
+  }
+  return {
+    headers,
+    get(name: string) {
+      return headers[name.toLowerCase()];
+    },
+  } as never;
 }
 
 beforeEach(() => {
@@ -126,7 +141,7 @@ describe("normal user auth-version middleware", () => {
         type: "password_reset",
         purpose: "password_change",
         authVersion: 0,
-      }),
+      }, { passwordChangeCsrf: true }),
       {} as never,
       next,
     );
@@ -139,6 +154,8 @@ describe("normal user auth-version middleware", () => {
 
   it("allows the restricted token only through password change", async () => {
     prisma.user.findUnique.mockResolvedValue({
+      id: "user-1",
+      email: "u@example.com",
       authVersion: 0,
       passwordResetRequired: true,
       status: "ACTIVE",
@@ -152,7 +169,7 @@ describe("normal user auth-version middleware", () => {
         type: "password_reset",
         purpose: "password_change",
         authVersion: 0,
-      }),
+      }, { passwordChangeCsrf: true }),
       {} as never,
       next,
     );
@@ -162,10 +179,53 @@ describe("normal user auth-version middleware", () => {
 
   it("invalidates the restricted token after the user auth version changes", async () => {
     prisma.user.findUnique.mockResolvedValue({
+      id: "user-1",
+      email: "u@example.com",
       authVersion: 1,
       passwordResetRequired: false,
       status: "ACTIVE",
     });
+    const next = vi.fn();
+
+    requirePasswordChangeAuth(
+      requestFor({
+        sub: "user-1",
+        email: "u@example.com",
+        type: "password_reset",
+        purpose: "password_change",
+        authVersion: 0,
+      }, { passwordChangeCsrf: true }),
+      {} as never,
+      next,
+    );
+
+    await vi.waitFor(() =>
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ code: "PASSWORD_CHANGE_TOKEN_INVALID" })),
+    );
+  });
+
+  it("rejects a normal user JWT from the forced-reset password-change path", async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: "user-1",
+      email: "u@example.com",
+      authVersion: 0,
+      passwordResetRequired: true,
+      status: "ACTIVE",
+    });
+    const next = vi.fn();
+
+    requirePasswordChangeAuth(
+      requestFor({ sub: "user-1", email: "u@example.com", type: "user", authVersion: 0 }),
+      {} as never,
+      next,
+    );
+
+    await vi.waitFor(() =>
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ code: "PASSWORD_CHANGE_TOKEN_REQUIRED" })),
+    );
+  });
+
+  it("requires CSRF proof before accepting restricted password-change authentication", async () => {
     const next = vi.fn();
 
     requirePasswordChangeAuth(
@@ -181,7 +241,8 @@ describe("normal user auth-version middleware", () => {
     );
 
     await vi.waitFor(() =>
-      expect(next).toHaveBeenCalledWith(expect.objectContaining({ code: "PASSWORD_CHANGE_TOKEN_INVALID" })),
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ code: "PASSWORD_CHANGE_CSRF_REQUIRED" })),
     );
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
 });

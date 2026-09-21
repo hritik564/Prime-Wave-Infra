@@ -5,6 +5,10 @@ import { prisma } from "../config/prisma";
 import { AppError } from "./error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { AuthPayload, AuthenticatedRequest } from "../shared/types";
+import {
+  getPasswordChangeTokenFromCookie,
+  hasPasswordChangeCsrf,
+} from "../auth/password-change-cookie";
 
 function authenticateUser(
   req: Request,
@@ -16,13 +20,22 @@ function authenticateUser(
   } = {},
 ): void {
   const authHeader = req.headers["authorization"];
+  const cookieToken = options.allowPasswordChangeToken
+    ? getPasswordChangeTokenFromCookie(req)
+    : undefined;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (!authHeader && !cookieToken) {
     next(new AppError("Authentication token required", HTTP_STATUS.UNAUTHORIZED, "TOKEN_MISSING"));
     return;
   }
 
-  const token = authHeader.slice(7);
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : cookieToken;
+  if (!token) {
+    next(new AppError("Authentication token required", HTTP_STATUS.UNAUTHORIZED, "TOKEN_MISSING"));
+    return;
+  }
 
   try {
     const payload = jwt.verify(token, env.JWT_SECRET) as AuthPayload;
@@ -31,6 +44,7 @@ function authenticateUser(
       if (
         !options.allowPasswordChangeToken
         || payload.purpose !== "password_change"
+        || typeof payload.authVersion !== "number"
       ) {
         next(new AppError(
           "This authentication token is valid only for password change",
@@ -40,9 +54,18 @@ function authenticateUser(
         return;
       }
 
+      if (!hasPasswordChangeCsrf(req)) {
+        next(new AppError(
+          "Password change verification required",
+          HTTP_STATUS.FORBIDDEN,
+          "PASSWORD_CHANGE_CSRF_REQUIRED",
+        ));
+        return;
+      }
+
       void prisma.user.findUnique({
         where: { id: payload.sub },
-        select: { authVersion: true, passwordResetRequired: true, status: true },
+        select: { id: true, email: true, authVersion: true, passwordResetRequired: true, status: true },
       }).then((user) => {
         if (!user) {
           next(new AppError("User session is no longer valid", HTTP_STATUS.UNAUTHORIZED, "USER_SESSION_INVALID"));
@@ -52,7 +75,12 @@ function authenticateUser(
           next(new AppError("Your account has been blocked", HTTP_STATUS.FORBIDDEN, "ACCOUNT_BLOCKED"));
           return;
         }
-        if ((payload.authVersion ?? 0) !== user.authVersion || !user.passwordResetRequired) {
+        if (
+          payload.sub !== user.id
+          || payload.email !== user.email
+          || payload.authVersion !== user.authVersion
+          || !user.passwordResetRequired
+        ) {
           next(new AppError("Password change session is no longer valid", HTTP_STATUS.UNAUTHORIZED, "PASSWORD_CHANGE_TOKEN_INVALID"));
           return;
         }
@@ -87,6 +115,15 @@ function authenticateUser(
       const tokenVersion = payload.authVersion ?? 0;
       if (tokenVersion !== user.authVersion) {
         next(new AppError("User session is stale", HTTP_STATUS.UNAUTHORIZED, "USER_SESSION_STALE"));
+        return;
+      }
+
+      if (user.passwordResetRequired && options.allowPasswordChangeToken) {
+        next(new AppError(
+          "Password change requires the restricted reset authentication",
+          HTTP_STATUS.FORBIDDEN,
+          "PASSWORD_CHANGE_TOKEN_REQUIRED",
+        ));
         return;
       }
 

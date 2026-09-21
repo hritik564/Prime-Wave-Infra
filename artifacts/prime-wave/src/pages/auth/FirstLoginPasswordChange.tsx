@@ -8,12 +8,10 @@ import { Button } from "@/components/ui/button";
 import { changePassword, type AuthResponse } from "@/lib/api";
 
 interface FirstLoginPasswordChangeProps {
-  resetToken: string;
   onComplete: (result: AuthResponse) => void;
 }
 
 export default function FirstLoginPasswordChange({
-  resetToken,
   onComplete,
 }: FirstLoginPasswordChangeProps) {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -45,7 +43,7 @@ export default function FirstLoginPasswordChange({
 
     setSaving(true);
     try {
-      const result = await changePassword(currentPassword, newPassword, resetToken);
+      const result = await changePassword(currentPassword, newPassword, true);
       onComplete(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to update your password.");

@@ -1,5 +1,15 @@
 import type { Request, Response, NextFunction } from "express";
-import { registerUser, loginUser, changePassword, endImpersonation } from "./auth.service";
+import {
+  registerUser,
+  loginUser,
+  changePassword,
+  endImpersonation,
+  PasswordResetRequiredError,
+} from "./auth.service";
+import {
+  clearPasswordChangeCookies,
+  setPasswordChangeCookies,
+} from "./password-change-cookie";
 import {
   completePasswordReset,
   createPasswordResetRequest,
@@ -40,6 +50,11 @@ export async function login(
     const result = await loginUser(req.body as LoginInput);
     sendSuccess(res, result, "Login successful");
   } catch (err) {
+    if (err instanceof PasswordResetRequiredError) {
+      setPasswordChangeCookies(res, err.resetToken, req.secure);
+      next(new AppError(err.message, err.statusCode, err.code));
+      return;
+    }
     next(err);
   }
 }
@@ -88,8 +103,16 @@ export async function changeUserPassword(
 ): Promise<void> {
   try {
     const { user } = req as AuthenticatedRequest;
-    await changePassword(user.sub, req.body as ChangePasswordInput);
-    sendSuccess(res, null, "Password changed successfully");
+    const result = await changePassword(
+      user.sub,
+      req.body as ChangePasswordInput,
+      {
+        restricted: user.type === "password_reset",
+        authVersion: user.authVersion,
+      },
+    );
+    clearPasswordChangeCookies(res);
+    sendSuccess(res, result, "Password changed successfully");
   } catch (err) {
     next(err);
   }

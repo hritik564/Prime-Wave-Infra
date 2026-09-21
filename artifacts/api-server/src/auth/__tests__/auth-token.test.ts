@@ -8,7 +8,7 @@ vi.mock("../../config/env", () => ({
   },
 }));
 
-import { signUserToken } from "../auth-token";
+import { signPasswordChangeToken, signUserToken } from "../auth-token";
 
 describe("signUserToken", () => {
   it("includes the current user authVersion in the JWT", () => {
@@ -24,5 +24,24 @@ describe("signUserToken", () => {
       type: "user",
       authVersion: 7,
     });
+  });
+});
+
+describe("signPasswordChangeToken", () => {
+  it("is purpose-bound and expires after ten minutes", () => {
+    const token = signPasswordChangeToken({
+      sub: "user-1",
+      email: "user@example.com",
+      authVersion: 7,
+    });
+
+    const payload = jwt.verify(token, "test-secret") as jwt.JwtPayload;
+    expect(payload).toMatchObject({
+      sub: "user-1",
+      type: "password_reset",
+      purpose: "password_change",
+      authVersion: 7,
+    });
+    expect((payload.exp ?? 0) - (payload.iat ?? 0)).toBe(10 * 60);
   });
 });

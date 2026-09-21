@@ -83,14 +83,32 @@ describe("preserved user status login behavior", () => {
       authVersion: 3,
     });
 
-    await expect(loginUser({
+    const error = await loginUser({
       identifier: "user1",
       password: "TemporaryPassword1",
-    })).rejects.toMatchObject({
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({
       code: "PASSWORD_RESET_REQUIRED",
-      data: { resetToken: "password-change-token" },
+      data: undefined,
     });
+    expect(error).toHaveProperty("resetToken", "password-change-token");
+    expect(Object.keys(error as object)).not.toContain("resetToken");
     expect(bcryptCompare).toHaveBeenCalledWith("TemporaryPassword1", "bcrypt-hash");
+  });
+
+  it("does not put the restricted token in the error response data", async () => {
+    userFindFirst.mockResolvedValue({
+      ...baseUser,
+      passwordResetRequired: true,
+    });
+
+    const error = await loginUser({
+      identifier: "user1",
+      password: "TemporaryPassword1",
+    }).catch((caught: unknown) => caught);
+
+    expect((error as { data?: unknown }).data).toBeUndefined();
   });
 
   it("keeps incorrect temporary passwords on the normal invalid-credentials path", async () => {

@@ -16,6 +16,24 @@ function generateReferralCode(): string {
 
 export const signToken = signUserToken;
 
+export class PasswordResetRequiredError extends AppError {
+  declare readonly resetToken: string;
+
+  constructor(resetToken: string) {
+    super(
+      "Password reset required before normal access is restored",
+      HTTP_STATUS.FORBIDDEN,
+      "PASSWORD_RESET_REQUIRED",
+    );
+    Object.defineProperty(this, "resetToken", {
+      value: resetToken,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    });
+  }
+}
+
 /**
  * Parse the referral code and leg from the registration input.
  *
@@ -201,12 +219,7 @@ export async function loginUser(input: LoginInput) {
       email: user.email,
       authVersion: user.authVersion,
     });
-    throw new AppError(
-      "Password reset required before normal access is restored",
-      HTTP_STATUS.FORBIDDEN,
-      "PASSWORD_RESET_REQUIRED",
-      { resetToken },
-    );
+    throw new PasswordResetRequiredError(resetToken);
   }
 
   const token = signToken({
@@ -315,10 +328,24 @@ export async function endImpersonation(sessionId: string, adminId: string): Prom
   });
 }
 
-export async function changePassword(userId: string, input: ChangePasswordInput) {
+export interface PasswordChangeAuthContext {
+  restricted: boolean;
+  authVersion?: number;
+}
+
+export async function changePassword(
+  userId: string,
+  input: ChangePasswordInput,
+  authContext: PasswordChangeAuthContext = { restricted: false },
+) {
   const user = await prisma.user.findUnique({
     where:  { id: userId },
-    select: { id: true, passwordHash: true, status: true },
+    select: {
+      id: true,
+      passwordHash: true,
+      status: true,
+      passwordResetRequired: true,
+    },
   });
 
   if (!user) {
@@ -327,6 +354,14 @@ export async function changePassword(userId: string, input: ChangePasswordInput)
 
   if (user.status === "BLOCKED") {
     throw new AppError("Your account has been blocked", HTTP_STATUS.FORBIDDEN, "ACCOUNT_BLOCKED");
+  }
+
+  if (user.passwordResetRequired && !authContext.restricted) {
+    throw new AppError(
+      "Password reset authentication required",
+      HTTP_STATUS.FORBIDDEN,
+      "PASSWORD_CHANGE_TOKEN_REQUIRED",
+    );
   }
 
   const isValid = await bcrypt.compare(input.currentPassword, user.passwordHash);
@@ -341,25 +376,75 @@ export async function changePassword(userId: string, input: ChangePasswordInput)
   const rounds       = parseInt(env.BCRYPT_ROUNDS, 10);
   const passwordHash = await bcrypt.hash(input.newPassword, rounds);
 
-  const updatedUser = await prisma.user.update({
-    where: { id: userId },
-    data: {
-      passwordHash,
-      passwordResetRequired: false,
-      authVersion: { increment: 1 },
-      passwordChangedAt: new Date(),
-    },
-    select: {
-      id: true,
-      email: true,
-      username: true,
-      firstName: true,
-      lastName: true,
-      referralCode: true,
-      status: true,
-      authVersion: true,
-    },
-  });
+  const passwordChangeData = {
+    passwordHash,
+    passwordResetRequired: false,
+    authVersion: { increment: 1 },
+    passwordChangedAt: new Date(),
+  };
+
+  let updatedUser;
+  if (authContext.restricted) {
+    if (authContext.authVersion === undefined) {
+      throw new AppError(
+        "Password change session is no longer valid",
+        HTTP_STATUS.UNAUTHORIZED,
+        "PASSWORD_CHANGE_TOKEN_INVALID",
+      );
+    }
+
+    updatedUser = await prisma.$transaction(async (tx) => {
+      const consumed = await tx.user.updateMany({
+        where: {
+          id: userId,
+          authVersion: authContext.authVersion,
+          passwordResetRequired: true,
+        },
+        data: passwordChangeData,
+      });
+
+      if (consumed.count !== 1) {
+        throw new AppError(
+          "Password change session is no longer valid",
+          HTTP_STATUS.UNAUTHORIZED,
+          "PASSWORD_CHANGE_TOKEN_INVALID",
+        );
+      }
+
+      return tx.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          firstName: true,
+          lastName: true,
+          referralCode: true,
+          status: true,
+          authVersion: true,
+        },
+      });
+    });
+  } else {
+    updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: passwordChangeData,
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        firstName: true,
+        lastName: true,
+        referralCode: true,
+        status: true,
+        authVersion: true,
+      },
+    });
+  }
+
+  if (!updatedUser) {
+    throw new AppError("User not found", HTTP_STATUS.NOT_FOUND, "USER_NOT_FOUND");
+  }
 
   void notificationService.create({
     userId,
