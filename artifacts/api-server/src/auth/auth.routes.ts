@@ -9,7 +9,11 @@ import {
   exitImpersonation,
 } from "./auth.controller";
 import { validate } from "../middleware/validate.middleware";
-import { requireAuth, requireAuthAllowingPasswordReset } from "../middleware/auth.middleware";
+import {
+  requireAuth,
+  requireAuthAllowingPasswordReset,
+  requirePasswordChangeAuth,
+} from "../middleware/auth.middleware";
 import { authLimiter } from "../middleware/rateLimiter.middleware";
 import {
   registerSchema,
@@ -30,7 +34,7 @@ router.post("/reset-password", authLimiter, validate(resetPasswordSchema), reset
 // Protected
 router.post(
   "/change-password",
-  requireAuth,
+  requirePasswordChangeAuth,
   authLimiter,
   validate(changePasswordSchema),
   changeUserPassword,

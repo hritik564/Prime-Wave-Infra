@@ -14,9 +14,13 @@ export class ApiRequestError extends Error {
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  tokenOverride?: string,
+): Promise<T> {
   const isAdminPath = path.startsWith("/api/admin/") && path !== "/api/admin/login";
-  const token = isAdminPath ? (getAdminToken() ?? getToken()) : getToken();
+  const token = tokenOverride ?? (isAdminPath ? (getAdminToken() ?? getToken()) : getToken());
   const headers: Record<string, string> = {
     ...((init.headers as Record<string, string>) ?? {}),
   };
@@ -366,11 +370,15 @@ export function resolveReferralCode(code: string) {
   );
 }
 
-export function changePassword(currentPassword: string, newPassword: string) {
-  return request<null>("/api/auth/change-password", {
+export function changePassword(
+  currentPassword: string,
+  newPassword: string,
+  accessToken?: string,
+) {
+  return request<AuthResponse>("/api/auth/change-password", {
     method: "POST",
     body: JSON.stringify({ currentPassword, newPassword, confirmPassword: newPassword }),
-  });
+  }, accessToken);
 }
 
 /* ── Profile ──────────────────────────────────────────────────────── */

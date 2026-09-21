@@ -19,6 +19,7 @@ vi.mock("../../config/env", () => ({
 import {
   requireAuth,
   requireAuthAllowingPasswordReset,
+  requirePasswordChangeAuth,
 } from "../../middleware/auth.middleware";
 
 function requestFor(payload: Record<string, unknown>) {
@@ -113,5 +114,74 @@ describe("normal user auth-version middleware", () => {
     );
 
     await vi.waitFor(() => expect(next).toHaveBeenCalledWith());
+  });
+
+  it("rejects the restricted password-change token from normal routes", async () => {
+    const next = vi.fn();
+
+    requireAuth(
+      requestFor({
+        sub: "user-1",
+        email: "u@example.com",
+        type: "password_reset",
+        purpose: "password_change",
+        authVersion: 0,
+      }),
+      {} as never,
+      next,
+    );
+
+    await vi.waitFor(() =>
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ code: "PASSWORD_CHANGE_TOKEN_ONLY" })),
+    );
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("allows the restricted token only through password change", async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      authVersion: 0,
+      passwordResetRequired: true,
+      status: "ACTIVE",
+    });
+    const next = vi.fn();
+
+    requirePasswordChangeAuth(
+      requestFor({
+        sub: "user-1",
+        email: "u@example.com",
+        type: "password_reset",
+        purpose: "password_change",
+        authVersion: 0,
+      }),
+      {} as never,
+      next,
+    );
+
+    await vi.waitFor(() => expect(next).toHaveBeenCalledWith());
+  });
+
+  it("invalidates the restricted token after the user auth version changes", async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      authVersion: 1,
+      passwordResetRequired: false,
+      status: "ACTIVE",
+    });
+    const next = vi.fn();
+
+    requirePasswordChangeAuth(
+      requestFor({
+        sub: "user-1",
+        email: "u@example.com",
+        type: "password_reset",
+        purpose: "password_change",
+        authVersion: 0,
+      }),
+      {} as never,
+      next,
+    );
+
+    await vi.waitFor(() =>
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({ code: "PASSWORD_CHANGE_TOKEN_INVALID" })),
+    );
   });
 });

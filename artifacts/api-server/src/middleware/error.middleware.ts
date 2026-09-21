@@ -8,6 +8,7 @@ export class AppError extends Error {
     public override readonly message: string,
     public readonly statusCode: number = HTTP_STATUS.INTERNAL_SERVER_ERROR,
     public readonly code?: string,
+    public readonly data?: unknown,
   ) {
     super(message);
     this.name = "AppError";
@@ -46,6 +47,7 @@ export function errorMiddleware(
       success: false,
       message: err.message,
       ...(err.code !== undefined && { code: err.code }),
+      ...(err.data !== undefined && { data: err.data }),
     });
     return;
   }

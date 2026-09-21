@@ -12,9 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { login, adminLogin } from "@/lib/api";
+import { ApiRequestError, login, adminLogin } from "@/lib/api";
 import { useAuth } from "@/providers/AuthProvider";
 import type { StoredUser } from "@/lib/auth";
+import FirstLoginPasswordChange from "./FirstLoginPasswordChange";
 
 const loginSchema = z.object({
   identifier: z.string().min(1, "Email or username is required"),
@@ -30,6 +31,7 @@ function isEmail(s: string) {
 
 export default function LoginPage() {
   const [formError, setFormError] = useState<string>();
+  const [resetToken, setResetToken] = useState<string>();
   const { authLogin } = useAuth();
   const [, navigate] = useLocation();
   const search = useSearch();
@@ -65,7 +67,14 @@ export default function LoginPage() {
       authLogin(result.token, storedUser);
       navigate(redirect ?? "/dashboard");
       return;
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiRequestError && err.code === "PASSWORD_RESET_REQUIRED") {
+        const candidate = (err.data as { resetToken?: unknown } | undefined)?.resetToken;
+        if (typeof candidate === "string" && candidate.length > 0) {
+          setResetToken(candidate);
+          return;
+        }
+      }
       /* user login failed — fall through to admin login if identifier is an email */
     }
 
@@ -92,6 +101,18 @@ export default function LoginPage() {
 
     setFormError("Invalid credentials. Please check your email/username and password.");
   };
+
+  if (resetToken) {
+    return (
+      <FirstLoginPasswordChange
+        resetToken={resetToken}
+        onComplete={(result) => {
+          authLogin(result.token, { ...result.user, type: "user" });
+          navigate(redirect ?? "/dashboard");
+        }}
+      />
+    );
+  }
 
   return (
     <AuthCard centerOnMobile>

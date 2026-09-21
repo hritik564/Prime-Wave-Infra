@@ -25,6 +25,7 @@ vi.mock("bcryptjs", () => ({
 }));
 vi.mock("../auth-token", () => ({
   signUserToken: vi.fn(() => "user-token"),
+  signPasswordChangeToken: vi.fn(() => "password-change-token"),
 }));
 vi.mock("../../notifications/notifications.service", () => ({
   notificationService: { create: vi.fn() },
@@ -73,5 +74,35 @@ describe("preserved user status login behavior", () => {
       password: "OldPassword1",
     })).rejects.toMatchObject({ code: "ACCOUNT_BLOCKED" });
     expect(bcryptCompare).not.toHaveBeenCalled();
+  });
+
+  it("verifies the temporary password before returning the restricted reset response", async () => {
+    userFindFirst.mockResolvedValue({
+      ...baseUser,
+      passwordResetRequired: true,
+      authVersion: 3,
+    });
+
+    await expect(loginUser({
+      identifier: "user1",
+      password: "TemporaryPassword1",
+    })).rejects.toMatchObject({
+      code: "PASSWORD_RESET_REQUIRED",
+      data: { resetToken: "password-change-token" },
+    });
+    expect(bcryptCompare).toHaveBeenCalledWith("TemporaryPassword1", "bcrypt-hash");
+  });
+
+  it("keeps incorrect temporary passwords on the normal invalid-credentials path", async () => {
+    userFindFirst.mockResolvedValue({
+      ...baseUser,
+      passwordResetRequired: true,
+    });
+    bcryptCompare.mockResolvedValue(false);
+
+    await expect(loginUser({
+      identifier: "user1",
+      password: "WrongPassword1",
+    })).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
   });
 });

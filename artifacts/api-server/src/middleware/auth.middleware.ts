@@ -10,7 +10,10 @@ function authenticateUser(
   req: Request,
   _res: Response,
   next: NextFunction,
-  options: { allowPasswordReset?: boolean } = {},
+  options: {
+    allowPasswordReset?: boolean;
+    allowPasswordChangeToken?: boolean;
+  } = {},
 ): void {
   const authHeader = req.headers["authorization"];
 
@@ -23,6 +26,44 @@ function authenticateUser(
 
   try {
     const payload = jwt.verify(token, env.JWT_SECRET) as AuthPayload;
+
+    if (payload.type === "password_reset") {
+      if (
+        !options.allowPasswordChangeToken
+        || payload.purpose !== "password_change"
+      ) {
+        next(new AppError(
+          "This authentication token is valid only for password change",
+          HTTP_STATUS.FORBIDDEN,
+          "PASSWORD_CHANGE_TOKEN_ONLY",
+        ));
+        return;
+      }
+
+      void prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { authVersion: true, passwordResetRequired: true, status: true },
+      }).then((user) => {
+        if (!user) {
+          next(new AppError("User session is no longer valid", HTTP_STATUS.UNAUTHORIZED, "USER_SESSION_INVALID"));
+          return;
+        }
+        if (user.status === "BLOCKED") {
+          next(new AppError("Your account has been blocked", HTTP_STATUS.FORBIDDEN, "ACCOUNT_BLOCKED"));
+          return;
+        }
+        if ((payload.authVersion ?? 0) !== user.authVersion || !user.passwordResetRequired) {
+          next(new AppError("Password change session is no longer valid", HTTP_STATUS.UNAUTHORIZED, "PASSWORD_CHANGE_TOKEN_INVALID"));
+          return;
+        }
+
+        (req as AuthenticatedRequest).user = payload;
+        next();
+      }).catch(() => {
+        next(new AppError("Unable to validate password change session", HTTP_STATUS.UNAUTHORIZED, "USER_SESSION_INVALID"));
+      });
+      return;
+    }
 
     // Admin authentication has its own middleware and must remain unchanged.
     // Only normal user JWTs are checked against the user auth epoch.
@@ -78,6 +119,17 @@ export function requireAuthAllowingPasswordReset(
   next: NextFunction,
 ): void {
   authenticateUser(req, res, next, { allowPasswordReset: true });
+}
+
+export function requirePasswordChangeAuth(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  authenticateUser(req, res, next, {
+    allowPasswordReset: true,
+    allowPasswordChangeToken: true,
+  });
 }
 
 export function requireAdminAuth(req: Request, res: Response, next: NextFunction): void {

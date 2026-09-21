@@ -8,7 +8,7 @@ import type { RegisterInput, LoginInput, ChangePasswordInput } from "./auth.sche
 import type { AuthPayload } from "../shared/types";
 import { notificationService } from "../notifications/notifications.service";
 import { placeUserTx } from "../binary/binary.service";
-import { signUserToken } from "./auth-token";
+import { signPasswordChangeToken, signUserToken } from "./auth-token";
 
 function generateReferralCode(): string {
   return Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -190,17 +190,23 @@ export async function loginUser(input: LoginInput) {
     );
   }
 
+  const isValid = await bcrypt.compare(password, user.passwordHash);
+  if (!isValid) {
+    throw new AppError("Invalid credentials", HTTP_STATUS.UNAUTHORIZED, "INVALID_CREDENTIALS");
+  }
+
   if (user.passwordResetRequired) {
+    const resetToken = signPasswordChangeToken({
+      sub: user.id,
+      email: user.email,
+      authVersion: user.authVersion,
+    });
     throw new AppError(
       "Password reset required before normal access is restored",
       HTTP_STATUS.FORBIDDEN,
       "PASSWORD_RESET_REQUIRED",
+      { resetToken },
     );
-  }
-
-  const isValid = await bcrypt.compare(password, user.passwordHash);
-  if (!isValid) {
-    throw new AppError("Invalid credentials", HTTP_STATUS.UNAUTHORIZED, "INVALID_CREDENTIALS");
   }
 
   const token = signToken({
@@ -335,12 +341,23 @@ export async function changePassword(userId: string, input: ChangePasswordInput)
   const rounds       = parseInt(env.BCRYPT_ROUNDS, 10);
   const passwordHash = await bcrypt.hash(input.newPassword, rounds);
 
-  await prisma.user.update({
+  const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: {
       passwordHash,
+      passwordResetRequired: false,
       authVersion: { increment: 1 },
       passwordChangedAt: new Date(),
+    },
+    select: {
+      id: true,
+      email: true,
+      username: true,
+      firstName: true,
+      lastName: true,
+      referralCode: true,
+      status: true,
+      authVersion: true,
     },
   });
 
@@ -350,4 +367,14 @@ export async function changePassword(userId: string, input: ChangePasswordInput)
     title:   "Password Changed",
     message: "Your account password has been changed successfully. If you did not make this change, contact support immediately.",
   });
+
+  return {
+    token: signUserToken({
+      sub: updatedUser.id,
+      email: updatedUser.email,
+      type: "user",
+      authVersion: updatedUser.authVersion,
+    }),
+    user: updatedUser,
+  };
 }
