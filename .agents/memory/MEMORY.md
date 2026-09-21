@@ -47,3 +47,4 @@
 - [Common reset plaintext lifecycle](common-reset-plaintext-lifecycle.md) — keep the password process-local; restart recovery marks the run failed and requires secure re-entry
 - [Common reset emergency stop](common-reset-emergency-stop.md) — stop in-process workers cooperatively, preserve the last durable checkpoint, and atomically fail only the approved run
 - [Password-reset first login](password-reset-first-login.md) — verify the temporary password first, then issue only a short-lived password-change token; authVersion invalidates it after completion
+- [FULL_REPLACEMENT run membership](full-replacement-run-membership.md) — completed runs retain aggregate checkpoints, not an authoritative per-user membership set
