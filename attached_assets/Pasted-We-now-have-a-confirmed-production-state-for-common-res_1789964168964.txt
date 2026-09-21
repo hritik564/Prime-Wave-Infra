@@ -1,0 +1,148 @@
+We now have a confirmed production state for common reset run:
+
+cmua3jcec001wa99zi17pz3hl
+
+Current durable state:
+- FAILED
+- processedCount = 2000
+- totalEligible = 6640
+- failedCount = 1
+- failureReason = "Common temporary password reset stopped in batch 8"
+- lastUserId = cmr2us0kn00f9ob3ne0g5ed88
+- workerLeaseUntil = NULL
+- activeLockKey = NULL
+
+Important production fact:
+- 2,037 users currently have passwordResetRequired = true
+- 2,037 have authVersion > 0
+- 2,037 have passwordChangedAt populated
+- 37 users after the durable 2,000 checkpoint were committed before the worker failed
+- Those 37 must NOT be manually rolled back.
+- Resume must rely on the existing same-password idempotency logic to skip already-updated users.
+
+DO NOT resume the production run yet.
+DO NOT create a new run.
+DO NOT manually mutate production data.
+DO NOT change any User credentials.
+DO NOT change the checkpoint manually.
+DO NOT publish yet.
+
+We need two things investigated/fixed before resuming.
+
+PART 1 — FIND THE ACTUAL BATCH 8 FAILURE
+
+Inspect the production application/deployment/runtime logs around:
+
+2026-09-21 02:30:12 UTC
+through
+2026-09-21 02:30:15 UTC
+
+The DB only stored:
+"Common temporary password reset stopped in batch 8"
+
+The audit row shows:
+processedCount = 2037
+failedCount = 1
+
+Find the actual underlying exception/error in the production runtime logs if available.
+
+Determine whether it was:
+- database connection failure
+- Prisma error
+- transaction failure
+- process/runtime error
+- timeout
+- bcrypt error
+- network/RPC issue
+- another application exception
+
+Do NOT guess.
+
+If the production runtime logs do not retain the underlying exception, explicitly say that it is unavailable.
+
+Then inspect the current worker failure handler and improve it so future failures preserve a sanitized diagnostic error type/message in the run metadata/audit log without ever exposing:
+- plaintext passwords
+- password hashes
+- reset tokens
+- private keys
+- credentials
+
+Do not make schema changes unless absolutely necessary. Prefer the existing failure metadata/audit mechanism.
+
+PART 2 — FIX THE INCORRECT OLD RANDOM-RUN UI
+
+The Admin Settings UI currently hardcodes the old random run:
+
+cmu9ppuf8005f7jayk27yz29w
+
+as:
+- RUNNING
+- 750 / 6640
+- failed 0
+
+Production DB says this run is actually:
+- FAILED
+- 750 / 6640
+- failedReason = WORKER_PROCESS_TERMINATED_EXTERNALLY
+
+Remove the hardcoded/stale RUNNING representation.
+
+The UI should obtain the actual run state from the backend/database-backed API.
+
+It must NEVER display a failed run as RUNNING.
+
+Do not alter the old run itself.
+
+PART 3 — VERIFY RESUME SAFETY
+
+Inspect the current resume implementation for this exact scenario:
+
+Durable checkpoint:
+2000
+
+Already-committed users beyond checkpoint:
+2001–2038
+
+Verify that when the SAME original temporary password is entered:
+- users already changed with that password are skipped
+- users not yet changed are processed
+- no already-changed user is assigned a different password
+- checkpoint advances correctly
+- no duplicate credential mutation occurs
+- the 37 already-committed users do not cause a failure
+- resume continues toward user 6640
+
+Do NOT request or expose my temporary password.
+
+Add/adjust tests for:
+1. checkpoint 2000 with users 2001–2038 already committed
+2. resume skips those users
+3. resume processes users after 2038
+4. checkpoint advances correctly
+5. no duplicate password mutation
+6. sanitized failure diagnostics
+7. old random-run UI reflects actual DB state
+
+Run:
+- full API tests
+- frontend tests
+- typechecks
+- Prisma validation
+- API build
+- frontend build
+- git diff --check
+
+IMPORTANT:
+Do NOT publish.
+Do NOT resume production.
+Do NOT restart production.
+Do NOT mutate production.
+
+At the end report:
+A. Actual underlying batch-8 error, if available
+B. Exact code changes
+C. Confirmation that 2000 + already-committed 2001–2038 is safely resumable
+D. Confirmation that old random-run UI is no longer hardcoded
+E. Test results
+
+STOP.
