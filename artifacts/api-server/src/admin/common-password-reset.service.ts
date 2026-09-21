@@ -126,8 +126,37 @@ async function forEachWithConcurrency<T>(
   if (stopped) throw firstError;
 }
 
-function safeFailureReason(batchNumber: number): string {
-  return `Common temporary password reset stopped in batch ${batchNumber}`;
+type CommonPasswordResetFailureDiagnostic = {
+  type: string;
+  code: string | null;
+  message: string;
+};
+
+function safeFailureDiagnostic(error: unknown): CommonPasswordResetFailureDiagnostic {
+  const rawType = error instanceof Error ? error.name : "UnknownError";
+  const type = rawType.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 64) || "UnknownError";
+  const rawCode =
+    typeof error === "object"
+    && error !== null
+    && "code" in error
+    && typeof error.code === "string"
+      ? error.code
+      : null;
+  const code = rawCode && /^[A-Z][A-Z0-9_:-]{0,31}$/.test(rawCode) ? rawCode : null;
+  const rawMessage = error instanceof Error ? error.message : String(error);
+  const message = /password|hash|token|secret|private key|credential|authorization|bearer/i.test(rawMessage)
+    ? "Sensitive error details redacted"
+    : rawMessage.replace(/\s+/g, " ").trim().slice(0, 240) || "Unknown error";
+
+  return { type, code, message };
+}
+
+function safeFailureReason(
+  batchNumber: number,
+  diagnostic: CommonPasswordResetFailureDiagnostic,
+): string {
+  const codeSuffix = diagnostic.code ? `/${diagnostic.code}` : "";
+  return `Common temporary password reset stopped in batch ${batchNumber} [${diagnostic.type}${codeSuffix}]: ${diagnostic.message}`;
 }
 
 function serializeRun(run: {
@@ -769,6 +798,7 @@ async function processCommonPasswordReset(
         },
       }).catch(() => undefined);
     } else {
+      const diagnostic = safeFailureDiagnostic(error);
       await dependencies.db.commonTemporaryPasswordResetRun.update({
         where: { id: runId },
         data: {
@@ -778,7 +808,7 @@ async function processCommonPasswordReset(
           // durable count at the last completed checkpoint so a resume can
           // replay that batch idempotently without double-counting it.
           processedCount: checkpointedCount,
-          failureReason: safeFailureReason(batchNumber),
+          failureReason: safeFailureReason(batchNumber, diagnostic),
           activeLockKey: null,
           workerLeaseUntil: null,
         },
@@ -792,15 +822,15 @@ async function processCommonPasswordReset(
             operationType: "COMMON_TEMPORARY_PASSWORD",
             processedCount,
             failedCount: 1,
+            diagnostic,
           },
         },
       }).catch(() => undefined);
+      logger.error(
+        { runId, batchNumber, processedCount, diagnostic },
+        "Common temporary password reset stopped safely",
+      );
     }
-
-    logger.error(
-      { runId, batchNumber, processedCount },
-      "Common temporary password reset stopped safely",
-    );
   } finally {
     clearInterval(heartbeatTimer);
     activeJobs.delete(runId);

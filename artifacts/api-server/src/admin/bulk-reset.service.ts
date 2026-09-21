@@ -80,6 +80,7 @@ export interface BulkPasswordResetPreview {
   usersExcluded: number;
   unexpectedAuthVersionCount: number;
   passwordResetRequiredCount: number;
+  legacyRun: ReturnType<typeof serializeRunResult> | null;
 }
 
 function getStatusCounts(
@@ -98,7 +99,7 @@ function getStatusCounts(
 export async function getBulkPasswordResetPreview(
   dependencies: BulkResetDependencies = defaultDependencies,
 ): Promise<BulkPasswordResetPreview> {
-  const [groups, totalNormalUsers, adminCount, unexpectedAuthVersionCount, passwordResetRequiredCount] =
+  const [groups, totalNormalUsers, adminCount, unexpectedAuthVersionCount, passwordResetRequiredCount, legacyRun] =
     await Promise.all([
       dependencies.db.user.groupBy({
         by: ["status"],
@@ -108,6 +109,9 @@ export async function getBulkPasswordResetPreview(
       dependencies.db.admin.count(),
       dependencies.db.user.count({ where: { authVersion: { not: 0 } } }),
       dependencies.db.user.count({ where: { passwordResetRequired: true } }),
+      dependencies.db.bulkPasswordResetRun.findUnique({
+        where: { id: DEAD_RANDOM_BULK_RESET_RUN_ID },
+      }),
     ]);
 
   const statuses = getStatusCounts(groups as Array<{ status: UserStatusKey; _count: { _all: number } }>);
@@ -122,6 +126,7 @@ export async function getBulkPasswordResetPreview(
     usersExcluded: 0,
     unexpectedAuthVersionCount,
     passwordResetRequiredCount,
+    legacyRun: legacyRun ? serializeRunResult(legacyRun) : null,
   };
 }
 
@@ -160,6 +165,7 @@ function serializeRunResult(run: {
     processedCount: run.processedCount,
     failedCount: run.failedCount,
     artifactAvailable: run.status === "COMPLETED",
+    failureReason: "failureReason" in run ? run.failureReason ?? null : null,
   };
 }
 

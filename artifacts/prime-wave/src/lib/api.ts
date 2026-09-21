@@ -152,6 +152,7 @@ export interface BulkPasswordResetPreview {
   usersExcluded: number;
   unexpectedAuthVersionCount: number;
   passwordResetRequiredCount: number;
+  legacyRun: BulkPasswordResetRunResult | null;
 }
 
 export interface BulkPasswordResetRunResult {

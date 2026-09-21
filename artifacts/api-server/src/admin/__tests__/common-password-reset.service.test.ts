@@ -53,6 +53,7 @@ function createFakeDependencies(
   activeRandomRun = false,
   initialFailureAfterUpdates: number | null = null,
   runIdOverride?: string,
+  failureError = new Error("simulated user update interruption"),
 ) {
   const rows = new Map(users.map((user) => [user.id, structuredClone(user)]));
   const runs = new Map<string, any>();
@@ -86,7 +87,7 @@ function createFakeDependencies(
         if (!user) throw new Error("user missing");
         if (failureAfterUpdates === 0) {
           failureAfterUpdates = null;
-          throw new Error("simulated user update interruption");
+          throw failureError;
         }
         if (failureAfterUpdates !== null) failureAfterUpdates -= 1;
         if (args.data.authVersion?.increment) {
@@ -412,6 +413,97 @@ describe("common temporary password reset", () => {
     expect(fake.rows.get("1")?.authVersion).toBe(1);
     expect(fake.rows.get("2")?.authVersion).toBe(1);
     expect(fake.rows.get("3")?.authVersion).toBe(1);
+  });
+
+  it("resumes from a 2000-user checkpoint without mutating 37 already-committed users", async () => {
+    const users = Array.from({ length: 2040 }, (_, index) =>
+      createUser(String(index).padStart(4, "0")),
+    );
+    const fake = createFakeDependencies(users);
+    const originalPasswordHash = bcrypt.hashSync("Common-Temporary-42!", 4);
+    const checkpointStartedAt = new Date("2026-09-20T17:34:43.333Z");
+
+    for (let index = 2000; index <= 2037; index += 1) {
+      const user = fake.rows.get(String(index).padStart(4, "0"));
+      if (!user) throw new Error(`missing fixture user ${index}`);
+      user.passwordHash = originalPasswordHash;
+      user.authVersion = 1;
+      user.passwordResetRequired = true;
+      user.passwordChangedAt = new Date("2026-09-21T02:30:12.895Z");
+    }
+
+    const runId = "checkpoint-2000-run";
+    fake.runs.set(runId, {
+      id: runId,
+      adminId: "admin-1",
+      status: "FAILED",
+      totalEligible: users.length,
+      adminCount: 2,
+      processedCount: 2000,
+      failedCount: 1,
+      lastUserId: "1999",
+      failureReason: "Common temporary password reset stopped in batch 8",
+      workerLeaseUntil: null,
+      lastHeartbeatAt: new Date("2026-09-21T02:30:12.303Z"),
+      activeLockKey: null,
+      startedAt: checkpointStartedAt,
+      completedAt: null,
+      createdAt: checkpointStartedAt,
+      updatedAt: new Date("2026-09-21T02:30:14.504Z"),
+    });
+
+    const result = await executeCommonPasswordReset(
+      "admin-1",
+      { ...validInput(users.length), runId },
+      fake.dependencies,
+    );
+    const completed = await waitForCompletion(fake, result.runId);
+
+    expect(completed).toMatchObject({
+      status: "COMPLETED",
+      processedCount: 2040,
+      lastUserId: "2039",
+    });
+    expect(fake.db.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: { gt: "1999" } },
+    }));
+
+    const userUpdates = fake.db.user.update.mock.calls
+      .map(([args]: [{ where: { id: string } }]) => args.where.id);
+    expect(userUpdates).toEqual(["2038", "2039"]);
+    for (let index = 2000; index <= 2037; index += 1) {
+      const user = fake.rows.get(String(index).padStart(4, "0"));
+      expect(user?.passwordHash).toBe(originalPasswordHash);
+      expect(user?.authVersion).toBe(1);
+    }
+  });
+
+  it("persists sanitized failure diagnostics without sensitive error details", async () => {
+    const fake = createFakeDependencies(
+      [createUser("1")],
+      false,
+      0,
+      undefined,
+      new Error("password=Common-Temporary-42! token=secret-value"),
+    );
+    const result = await executeCommonPasswordReset(
+      "admin-1",
+      validInput(1),
+      fake.dependencies,
+    );
+    const failed = await waitForCompletion(fake, result.runId);
+    const failureLog = fake.logs.find((log) => log.action === "COMMON_TEMPORARY_PASSWORD_RESET_FAILED");
+
+    expect(failed.failureReason).toContain("[Error]: Sensitive error details redacted");
+    expect(failureLog?.details).toMatchObject({
+      diagnostic: {
+        type: "Error",
+        code: null,
+        message: "Sensitive error details redacted",
+      },
+    });
+    expect(JSON.stringify(failed)).not.toContain("Common-Temporary-42!");
+    expect(JSON.stringify(fake.logs)).not.toContain("secret-value");
   });
 
   it("bounds concurrent bcrypt work and never sends the plaintext to persistence or logs", async () => {

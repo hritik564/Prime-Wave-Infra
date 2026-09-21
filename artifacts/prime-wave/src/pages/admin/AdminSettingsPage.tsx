@@ -29,13 +29,6 @@ const GOLD_L = "#F3D37A";
 const MUTED = "rgba(170,179,197,0.58)";
 const BORDER = "rgba(255,255,255,0.08)";
 const CARD = "hsl(222 62% 9%)";
-const STALE_RANDOM_BULK_RESET = {
-  runId: "cmu9ppuf8005f7jayk27yz29w",
-  status: "RUNNING" as const,
-  processedCount: 750,
-  totalEligible: 6640,
-  failedCount: 0,
-};
 
 function PasswordField({
   label,
@@ -309,28 +302,29 @@ export default function AdminSettingsPage() {
   };
 
   const recoverStaleBulkReset = async () => {
-    if (!isSuperAdmin || !commonPreview?.activeCredentialReset || commonRecoveryLoading) return;
+    const legacyRun = bulkPreview?.legacyRun;
+    if (!isSuperAdmin || legacyRun?.status !== "RUNNING" || commonRecoveryLoading) return;
 
     const confirmed = window.confirm(
-      `Recover stale reset run ${STALE_RANDOM_BULK_RESET.runId}?\n\n`
+      `Recover stale reset run ${legacyRun.runId}?\n\n`
       + "This only changes the stale RUNNING run to FAILED with reason "
       + "WORKER_PROCESS_TERMINATED_EXTERNALLY. It does not modify any user credentials.",
     );
     if (!confirmed) return;
 
-    setCommonError(null);
+    setBulkError(null);
     setCommonRecoveryLoading(true);
     try {
-      const result = await markDeadBulkPasswordResetRunFailed(STALE_RANDOM_BULK_RESET.runId);
+      const result = await markDeadBulkPasswordResetRunFailed(legacyRun.runId);
       if (
         result.status !== "FAILED"
         || result.failureReason !== "WORKER_PROCESS_TERMINATED_EXTERNALLY"
       ) {
         throw new Error("The stale reset run was not confirmed as safely recovered.");
       }
-      await loadCommonPreview();
+      await loadBulkPreview();
     } catch (requestError) {
-      setCommonError(requestError instanceof Error ? requestError.message : "Unable to recover the stale reset run.");
+      setBulkError(requestError instanceof Error ? requestError.message : "Unable to recover the stale reset run.");
     } finally {
       setCommonRecoveryLoading(false);
     }
@@ -654,6 +648,36 @@ export default function AdminSettingsPage() {
                     </div>
                   ))}
                 </div>
+                {bulkPreview.legacyRun && (
+                  <div role="status" style={{ border: `1px solid ${bulkPreview.legacyRun.status === "FAILED" ? "rgba(248,113,113,0.35)" : `${GOLD}55`}`, background: bulkPreview.legacyRun.status === "FAILED" ? "rgba(248,113,113,0.06)" : "rgba(212,175,55,0.06)", borderRadius: 10, padding: 14, marginBottom: 16 }}>
+                    <div style={{ color: bulkPreview.legacyRun.status === "FAILED" ? "#fca5a5" : GOLD_L, fontSize: 12, fontWeight: 700 }}>
+                      Tracked random reset: {bulkPreview.legacyRun.status}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, margin: "12px 0" }}>
+                      {[
+                        ["Run ID", bulkPreview.legacyRun.runId],
+                        ["Processed", `${bulkPreview.legacyRun.processedCount} / ${bulkPreview.legacyRun.totalEligible}`],
+                        ["Failed", bulkPreview.legacyRun.failedCount],
+                        ["Failure reason", bulkPreview.legacyRun.failureReason ?? "—"],
+                      ].map(([label, value]) => (
+                        <div key={label} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "9px 10px" }}>
+                          <div style={{ color: MUTED, fontSize: 10 }}>{label}</div>
+                          <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 12, fontWeight: 700, marginTop: 3, overflowWrap: "anywhere" }}>{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {bulkPreview.legacyRun.status === "RUNNING" && (
+                      <button
+                        type="button"
+                        onClick={() => void recoverStaleBulkReset()}
+                        disabled={bulkLoading || commonRecoveryLoading}
+                        style={{ border: `1px solid ${GOLD}88`, background: "rgba(212,175,55,0.13)", color: GOLD_L, borderRadius: 8, padding: "9px 13px", fontSize: 12, fontWeight: 700, cursor: commonRecoveryLoading ? "wait" : "pointer", opacity: bulkLoading || commonRecoveryLoading ? 0.6 : 1 }}
+                      >
+                        {commonRecoveryLoading ? "Recovering stale run…" : "Recover stale run"}
+                      </button>
+                    )}
+                  </div>
+                )}
                 <div
                   role="status"
                   style={{
@@ -908,64 +932,27 @@ export default function AdminSettingsPage() {
                   </div>
                 )}
 
-                {commonPreview.activeCredentialReset && (
+                {commonRun?.runId === COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID && commonRun.status === "RUNNING" && (
                   <div style={{ border: `1px solid ${GOLD}55`, background: "rgba(212,175,55,0.06)", borderRadius: 10, padding: 14, marginBottom: 16 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                      <div>
-                        <div style={{ color: GOLD_L, fontSize: 12, fontWeight: 700 }}>Recover stale reset run</div>
-                        <div style={{ color: "rgba(255,255,255,0.68)", fontSize: 11, marginTop: 4 }}>
-                          Run ID: <span style={{ color: "rgba(255,255,255,0.9)", fontFamily: "monospace" }}>{STALE_RANDOM_BULK_RESET.runId}</span>
-                        </div>
-                      </div>
-                      <span style={{ border: "1px solid rgba(248,113,113,0.35)", background: "rgba(248,113,113,0.1)", color: "#fca5a5", borderRadius: 999, padding: "4px 9px", fontSize: 10, fontWeight: 700 }}>
-                        {STALE_RANDOM_BULK_RESET.status}
-                      </span>
+                    <div style={{ color: GOLD_L, fontSize: 12, fontWeight: 700 }}>Common reset performance recovery controls</div>
+                    <div style={{ marginTop: 10 }}>
+                      <button
+                        type="button"
+                        onClick={() => void emergencyStopCommonReset()}
+                        disabled={commonLoading || commonRecoveryLoading || commonEmergencyStopping}
+                        style={{ border: "1px solid rgba(248,113,113,0.55)", background: "rgba(248,113,113,0.1)", color: "#fca5a5", borderRadius: 8, padding: "9px 13px", fontSize: 12, fontWeight: 700, cursor: commonEmergencyStopping ? "wait" : "pointer", opacity: commonLoading || commonRecoveryLoading || commonEmergencyStopping ? 0.6 : 1 }}
+                      >
+                        {commonEmergencyStopping ? "Stopping safely…" : "Emergency stop for performance recovery"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void recoverStrandedCommonReset()}
+                        disabled={commonLoading || commonRecoveryLoading || commonEmergencyStopping}
+                        style={{ marginLeft: 8, border: `1px solid ${GOLD}88`, background: "rgba(212,175,55,0.13)", color: GOLD_L, borderRadius: 8, padding: "9px 13px", fontSize: 12, fontWeight: 700, cursor: commonRecoveryLoading ? "wait" : "pointer", opacity: commonLoading || commonRecoveryLoading || commonEmergencyStopping ? 0.6 : 1 }}
+                      >
+                        {commonRecoveryLoading ? "Recovering stranded worker…" : "Recover stranded worker"}
+                      </button>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, margin: "14px 0" }}>
-                      {[
-                        ["Processed", STALE_RANDOM_BULK_RESET.processedCount],
-                        ["Total eligible", STALE_RANDOM_BULK_RESET.totalEligible],
-                        ["Failed", STALE_RANDOM_BULK_RESET.failedCount],
-                        ["Current state", STALE_RANDOM_BULK_RESET.status],
-                      ].map(([label, value]) => (
-                        <div key={label} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "9px 10px" }}>
-                          <div style={{ color: MUTED, fontSize: 10 }}>{label}</div>
-                          <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 14, fontWeight: 700, marginTop: 3 }}>{value}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <p style={{ margin: "0 0 12px", color: "rgba(255,255,255,0.68)", fontSize: 11, lineHeight: 1.5 }}>
-                      The previous reset process terminated. Recovery only changes this stale run from RUNNING to FAILED;
-                      it does not modify any user credentials.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => void recoverStaleBulkReset()}
-                      disabled={commonLoading || commonRecoveryLoading}
-                      style={{ border: `1px solid ${GOLD}88`, background: "rgba(212,175,55,0.13)", color: GOLD_L, borderRadius: 8, padding: "9px 13px", fontSize: 12, fontWeight: 700, cursor: commonRecoveryLoading ? "wait" : "pointer", opacity: commonLoading || commonRecoveryLoading ? 0.6 : 1 }}
-                    >
-                      {commonRecoveryLoading ? "Recovering stale run…" : "Recover Stale Reset Run"}
-                    </button>
-                    {commonRun?.runId === COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID && commonRun.status === "RUNNING" && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => void emergencyStopCommonReset()}
-                          disabled={commonLoading || commonRecoveryLoading || commonEmergencyStopping}
-                          style={{ marginLeft: 8, border: "1px solid rgba(248,113,113,0.55)", background: "rgba(248,113,113,0.1)", color: "#fca5a5", borderRadius: 8, padding: "9px 13px", fontSize: 12, fontWeight: 700, cursor: commonEmergencyStopping ? "wait" : "pointer", opacity: commonLoading || commonRecoveryLoading || commonEmergencyStopping ? 0.6 : 1 }}
-                        >
-                          {commonEmergencyStopping ? "Stopping safely…" : "Emergency stop for performance recovery"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void recoverStrandedCommonReset()}
-                          disabled={commonLoading || commonRecoveryLoading || commonEmergencyStopping}
-                          style={{ marginLeft: 8, border: `1px solid ${GOLD}88`, background: "rgba(212,175,55,0.13)", color: GOLD_L, borderRadius: 8, padding: "9px 13px", fontSize: 12, fontWeight: 700, cursor: commonRecoveryLoading ? "wait" : "pointer", opacity: commonLoading || commonRecoveryLoading || commonEmergencyStopping ? 0.6 : 1 }}
-                        >
-                          {commonRecoveryLoading ? "Recovering stranded worker…" : "Recover stranded worker"}
-                        </button>
-                      </>
-                    )}
                   </div>
                 )}
 

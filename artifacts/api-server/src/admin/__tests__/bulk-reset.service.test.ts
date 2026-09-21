@@ -213,6 +213,29 @@ describe("Super Admin bulk normal-user password reset", () => {
     expect([...fake.rows.values()]).toEqual(before);
   });
 
+  it("returns the database-backed state of the tracked legacy random run", async () => {
+    const fake = createFakeDependencies([createUser("1")]);
+    fake.runs.set(DEAD_RANDOM_BULK_RESET_RUN_ID, {
+      id: DEAD_RANDOM_BULK_RESET_RUN_ID,
+      status: "FAILED",
+      totalEligible: 6640,
+      processedCount: 750,
+      failedCount: 0,
+      failureReason: BULK_RESET_WORKER_TERMINATED_REASON,
+    });
+
+    await expect(getBulkPasswordResetPreview(fake.dependencies)).resolves.toMatchObject({
+      legacyRun: {
+        runId: DEAD_RANDOM_BULK_RESET_RUN_ID,
+        status: "FAILED",
+        processedCount: 750,
+        totalEligible: 6640,
+        failedCount: 0,
+        failureReason: BULK_RESET_WORKER_TERMINATED_REASON,
+      },
+    });
+  });
+
   it("resets one or many users with unique credentials and an exact artifact mapping", async () => {
     const fake = createFakeDependencies([
       createUser("1", "ACTIVE"),
