@@ -16,6 +16,53 @@ function generateReferralCode(): string {
 
 export const signToken = signUserToken;
 
+type NormalLoginUser = {
+  id: string;
+  email: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  referralCode: string;
+  status: "ACTIVE" | "INACTIVE" | "BLOCKED" | "SUSPENDED";
+  authVersion: number;
+};
+
+function createNormalUserSession(user: NormalLoginUser) {
+  return {
+    token: signToken({
+      sub: user.id,
+      email: user.email,
+      type: "user" as const,
+      authVersion: user.authVersion,
+    }),
+    user: {
+      id:           user.id,
+      email:        user.email,
+      username:     user.username,
+      firstName:    user.firstName,
+      lastName:     user.lastName,
+      referralCode: user.referralCode,
+      status:       user.status,
+    },
+  };
+}
+
+async function isFullReplacementUser(passwordChangedAt: Date | null): Promise<boolean> {
+  if (!passwordChangedAt) return false;
+
+  const run = await prisma.commonTemporaryPasswordResetRun.findFirst({
+    where: {
+      operationType: "FULL_REPLACEMENT",
+      status: "COMPLETED",
+      startedAt: { lte: passwordChangedAt },
+      completedAt: { gte: passwordChangedAt },
+    },
+    select: { id: true },
+  });
+
+  return run !== null;
+}
+
 export class PasswordResetRequiredError extends AppError {
   declare readonly resetToken: string;
 
@@ -214,6 +261,37 @@ export async function loginUser(input: LoginInput) {
   }
 
   if (user.passwordResetRequired) {
+    if (await isFullReplacementUser(user.passwordChangedAt)) {
+      // The conditional update makes the successful replacement-password login
+      // the only request allowed to clear this reset flag for this auth epoch.
+      // It changes no password data and does not issue restricted reset auth.
+      const cleared = await prisma.user.updateMany({
+        where: {
+          id: user.id,
+          authVersion: user.authVersion,
+          passwordResetRequired: true,
+          passwordChangedAt: user.passwordChangedAt,
+        },
+        data: {
+          passwordResetRequired: false,
+          authVersion: { increment: 1 },
+        },
+      });
+
+      if (cleared.count !== 1) {
+        throw new AppError(
+          "Invalid credentials",
+          HTTP_STATUS.UNAUTHORIZED,
+          "INVALID_CREDENTIALS",
+        );
+      }
+
+      return createNormalUserSession({
+        ...user,
+        authVersion: user.authVersion + 1,
+      });
+    }
+
     const resetToken = signPasswordChangeToken({
       sub: user.id,
       email: user.email,
@@ -222,25 +300,7 @@ export async function loginUser(input: LoginInput) {
     throw new PasswordResetRequiredError(resetToken);
   }
 
-  const token = signToken({
-    sub: user.id,
-    email: user.email,
-    type: "user",
-    authVersion: user.authVersion,
-  });
-
-  return {
-    token,
-    user: {
-      id:           user.id,
-      email:        user.email,
-      username:     user.username,
-      firstName:    user.firstName,
-      lastName:     user.lastName,
-      referralCode: user.referralCode,
-      status:       user.status,
-    },
-  };
+  return createNormalUserSession(user);
 }
 
 // ── Impersonation ─────────────────────────────────────────────────────────────

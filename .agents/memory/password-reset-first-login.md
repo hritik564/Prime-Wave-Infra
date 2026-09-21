@@ -3,8 +3,8 @@ name: Password-reset first login
 description: Security boundary for users whose passwordResetRequired flag is true after a bulk replacement
 ---
 
-Users with passwordResetRequired=true must prove the temporary password with bcrypt before receiving a restricted password-change credential. That credential must be short-lived, purpose-specific, rejected by normal authenticated routes, and delivered without JSON exposure (for example, an HttpOnly cookie paired with CSRF protection).
+Users with passwordResetRequired=true must prove the temporary password with bcrypt before receiving a restricted password-change credential, except for users whose password was established during a completed FULL_REPLACEMENT run. Those users authenticate normally once and clear the flag atomically.
 
-**Why:** A login gate placed before bcrypt verification deadlocks bulk-reset users, while a normal JWT would grant access before they establish a new password.
+**Why:** A login gate placed before bcrypt verification deadlocks ordinary reset users, while the completed full-replacement audit window is the only existing durable marker that distinguishes replacement users without a schema migration.
 
-**How to apply:** Keep the restricted credential accepted only by the password-change route; consume it with an atomic authVersion/passwordResetRequired condition so concurrent requests allow only one change. Return a normal user session only after the password change clears the flag and increments authVersion.
+**How to apply:** Match passwordChangedAt against a completed FULL_REPLACEMENT run's startedAt/completedAt window, then conditionally clear only passwordResetRequired and increment authVersion. Keep unrelated reset flows restricted and purpose-bound.

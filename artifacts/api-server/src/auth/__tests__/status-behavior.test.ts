@@ -3,12 +3,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { userFindFirst } = vi.hoisted(() => ({
   userFindFirst: vi.fn(),
 }));
+const { userUpdateMany } = vi.hoisted(() => ({
+  userUpdateMany: vi.fn(),
+}));
+const { fullReplacementRunFindFirst } = vi.hoisted(() => ({
+  fullReplacementRunFindFirst: vi.fn(),
+}));
 const { bcryptCompare } = vi.hoisted(() => ({
   bcryptCompare: vi.fn(),
 }));
 
 vi.mock("../../config/prisma", () => ({
-  prisma: { user: { findFirst: userFindFirst } },
+  prisma: {
+    user: { findFirst: userFindFirst, updateMany: userUpdateMany },
+    commonTemporaryPasswordResetRun: { findFirst: fullReplacementRunFindFirst },
+  },
 }));
 vi.mock("../../config/env", () => ({
   env: {
@@ -35,6 +44,7 @@ vi.mock("../../binary/binary.service", () => ({
 }));
 
 import { loginUser } from "../auth.service";
+import { signUserToken } from "../auth-token";
 
 const baseUser = {
   id: "user-1",
@@ -51,6 +61,8 @@ const baseUser = {
 beforeEach(() => {
   vi.clearAllMocks();
   bcryptCompare.mockResolvedValue(true);
+  fullReplacementRunFindFirst.mockResolvedValue(null);
+  userUpdateMany.mockResolvedValue({ count: 1 });
 });
 
 describe("preserved user status login behavior", () => {
@@ -95,6 +107,87 @@ describe("preserved user status login behavior", () => {
     expect(error).toHaveProperty("resetToken", "password-change-token");
     expect(Object.keys(error as object)).not.toContain("resetToken");
     expect(bcryptCompare).toHaveBeenCalledWith("TemporaryPassword1", "bcrypt-hash");
+  });
+
+  it("logs a FULL_REPLACEMENT user in normally and clears only the reset flag", async () => {
+    const passwordChangedAt = new Date("2026-09-21T02:30:12.895Z");
+    userFindFirst.mockResolvedValue({
+      ...baseUser,
+      passwordResetRequired: true,
+      authVersion: 6,
+      passwordChangedAt,
+    });
+    fullReplacementRunFindFirst.mockResolvedValue({ id: "full-replacement-run" });
+
+    await expect(loginUser({
+      identifier: "user1",
+      password: "ReplacementPassword1",
+    })).resolves.toMatchObject({
+      token: "user-token",
+      user: { id: "user-1" },
+    });
+
+    expect(userUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: "user-1",
+        authVersion: 6,
+        passwordResetRequired: true,
+        passwordChangedAt,
+      },
+      data: {
+        passwordResetRequired: false,
+        authVersion: { increment: 1 },
+      },
+    });
+    expect(userUpdateMany.mock.calls[0]?.[0].data).not.toHaveProperty("passwordHash");
+    expect(vi.mocked(signUserToken)).toHaveBeenCalledWith(expect.objectContaining({
+      type: "user",
+      authVersion: 7,
+    }));
+    expect(fullReplacementRunFindFirst).toHaveBeenCalledWith({
+      where: {
+        operationType: "FULL_REPLACEMENT",
+        status: "COMPLETED",
+        startedAt: { lte: passwordChangedAt },
+        completedAt: { gte: passwordChangedAt },
+      },
+      select: { id: true },
+    });
+    expect(vi.mocked((await import("../auth-token")).signPasswordChangeToken))
+      .not.toHaveBeenCalled();
+  });
+
+  it("does not authenticate a FULL_REPLACEMENT user when the replacement password is wrong", async () => {
+    userFindFirst.mockResolvedValue({
+      ...baseUser,
+      passwordResetRequired: true,
+      passwordChangedAt: new Date("2026-09-21T02:30:12.895Z"),
+    });
+    bcryptCompare.mockResolvedValue(false);
+
+    await expect(loginUser({
+      identifier: "user1",
+      password: "WrongPassword1",
+    })).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+
+    expect(fullReplacementRunFindFirst).not.toHaveBeenCalled();
+    expect(userUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("fails closed if the reset flag changes before FULL_REPLACEMENT login consumes it", async () => {
+    userFindFirst.mockResolvedValue({
+      ...baseUser,
+      passwordResetRequired: true,
+      authVersion: 6,
+      passwordChangedAt: new Date("2026-09-21T02:30:12.895Z"),
+    });
+    fullReplacementRunFindFirst.mockResolvedValue({ id: "full-replacement-run" });
+    userUpdateMany.mockResolvedValue({ count: 0 });
+
+    await expect(loginUser({
+      identifier: "user1",
+      password: "ReplacementPassword1",
+    })).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
   });
 
   it("does not put the restricted token in the error response data", async () => {
