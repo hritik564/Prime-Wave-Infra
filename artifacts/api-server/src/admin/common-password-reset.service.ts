@@ -10,7 +10,11 @@ import { env } from "../config/env";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import { logger } from "../lib/logger";
-import { launchFullReplacementWorker } from "./full-replacement-worker-launcher";
+import {
+  hasActiveFullReplacementWorker,
+  launchFullReplacementWorker,
+} from "./full-replacement-worker-launcher";
+import { FULL_REPLACEMENT_PASSWORD_RESET_LOCK_KEY as FULL_REPLACEMENT_LOCK_KEY } from "./full-replacement-worker-constants";
 import {
   COMMON_PASSWORD_RESET_CONFIRMATION,
   COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID,
@@ -29,7 +33,7 @@ export const COMMON_PASSWORD_RESET_EMERGENCY_STOP_REASON =
 export const COMMON_PASSWORD_RESET_WORKER_PROCESS_LOST_REASON =
   "COMMON_RESET_WORKER_PROCESS_LOST";
 export const FULL_REPLACEMENT_PASSWORD_RESET_LOCK_KEY =
-  "FULL_REPLACEMENT_PASSWORD_RESET";
+  FULL_REPLACEMENT_LOCK_KEY;
 export const COMMON_PASSWORD_RESET_RETRY_MAX_ATTEMPTS = 4;
 export const COMMON_PASSWORD_RESET_RETRY_BASE_DELAY_MS = 500;
 export const COMMON_PASSWORD_RESET_RETRY_MAX_DELAY_MS = 8_000;
@@ -41,7 +45,11 @@ type CommonResetDb = Pick<
   | "adminLog"
   | "bulkPasswordResetRun"
   | "commonTemporaryPasswordResetRun"
->;
+> & {
+  $transaction?: <T>(
+    callback: (transactionDb: Pick<PrismaClient, "commonTemporaryPasswordResetRun" | "adminLog">) => Promise<T>,
+  ) => Promise<T>;
+};
 
 export interface CommonPasswordResetDependencies {
   db: CommonResetDb;
@@ -52,11 +60,13 @@ export interface CommonPasswordResetDependencies {
     adminId: string,
     password: string,
   ) => void;
+  isFullReplacementWorkerActive?: () => boolean;
 }
 
 const defaultDependencies: CommonPasswordResetDependencies = {
   db: prisma,
   launchFullReplacementWorker,
+  isFullReplacementWorkerActive: hasActiveFullReplacementWorker,
 };
 
 type UserStatusKey = "ACTIVE" | "INACTIVE" | "BLOCKED" | "SUSPENDED";
@@ -220,6 +230,30 @@ function safeFailureDiagnostic(error: unknown): CommonPasswordResetFailureDiagno
     ? "Sensitive error details redacted"
     : rawMessage.replace(/\s+/g, " ").trim().slice(0, 240) || "Unknown error";
 
+  return { type, code, message };
+}
+
+function safeFullReplacementFailureDiagnostic(
+  error: unknown,
+): CommonPasswordResetFailureDiagnostic {
+  const code = getErrorCode(error);
+  const type =
+    code === "P1001" || code === "P1002" || code === "P2024"
+      ? "PrismaConnectivityError"
+      : "FullReplacementWorkerError";
+  let message = "Full replacement worker stopped after a bounded retry or operational failure";
+  if (code === "P1001") {
+    message = "Database server was unreachable after bounded retries";
+  } else if (code === "P1002") {
+    message = "Database operation timed out after bounded retries";
+  } else if (code === "P2024") {
+    message = "Database connection pool was unavailable after bounded retries";
+  } else if (
+    error instanceof Error
+    && /(?:ECONNRESET|ECONNREFUSED|ETIMEDOUT|socket hang up|connection (?:closed|reset|refused|timed out)|timed out)/i.test(error.message)
+  ) {
+    message = "Database connectivity failed after bounded retries";
+  }
   return { type, code, message };
 }
 
@@ -554,6 +588,14 @@ export async function executeFullReplacementPasswordReset(
 ) {
   assertFullReplacementPasswordInput(input);
 
+  if (dependencies.isFullReplacementWorkerActive?.()) {
+    throw new AppError(
+      "Another full replacement password reset operation is currently running.",
+      HTTP_STATUS.CONFLICT,
+      "BULK_RESET_ALREADY_RUNNING",
+    );
+  }
+
   let run;
   if (input.runId) {
     run = await dependencies.db.commonTemporaryPasswordResetRun.findUnique({
@@ -667,7 +709,12 @@ export async function executeFullReplacementPasswordReset(
     // dedicated child process configured in defaultDependencies.
     activeJobs.set(run.id, createJobContext(adminId, input.password));
     queueMicrotask(() => {
-      void processCommonPasswordReset(run.id, dependencies);
+      void processCommonPasswordReset(
+        run.id,
+        dependencies,
+        undefined,
+        "FULL_REPLACEMENT",
+      );
     });
   }
 
@@ -867,6 +914,7 @@ async function processCommonPasswordReset(
   runId: string,
   dependencies: CommonPasswordResetDependencies,
   suppliedContext?: CommonResetJobContext,
+  expectedOperationType: ResetOperationType = "COMMON_TEMPORARY_PASSWORD",
 ): Promise<void> {
   const context = suppliedContext ?? activeJobs.get(runId);
   if (!context) return;
@@ -915,8 +963,8 @@ async function processCommonPasswordReset(
   let batchNumber = 0;
   let processedCount = 0;
   let checkpointedCount = 0;
-  let operationType: ResetOperationType = "COMMON_TEMPORARY_PASSWORD";
-    let fullReplacementPasswordHash: string | null = null;
+  let operationType: ResetOperationType = expectedOperationType;
+  let fullReplacementPasswordHash: string | null = null;
   try {
     let run = await retryDb(() => dependencies.db.commonTemporaryPasswordResetRun.findUnique({
       where: { id: runId },
@@ -927,7 +975,18 @@ async function processCommonPasswordReset(
     checkpointedCount = run.processedCount;
     let cursor = run.lastUserId;
     const startedAt = run.startedAt;
-    operationType = run.operationType ?? "COMMON_TEMPORARY_PASSWORD";
+    const loadedOperationType = run.operationType ?? "COMMON_TEMPORARY_PASSWORD";
+    if (
+      expectedOperationType === "FULL_REPLACEMENT"
+      && loadedOperationType !== "FULL_REPLACEMENT"
+    ) {
+      throw new AppError(
+        "The dedicated worker can process only a full replacement reset run",
+        HTTP_STATUS.CONFLICT,
+        "FULL_REPLACEMENT_OPERATION_MISMATCH",
+      );
+    }
+    operationType = loadedOperationType;
     const operationLabel =
       operationType === "FULL_REPLACEMENT"
         ? "Full replacement password reset"
@@ -1075,32 +1134,63 @@ async function processCommonPasswordReset(
 
     clearInterval(heartbeatTimer);
     await settleHeartbeat();
-    run = await retryDb(() => dependencies.db.commonTemporaryPasswordResetRun.update({
-      where: { id: runId },
-      data: {
-        status: "COMPLETED",
-        processedCount,
-        completedAt: new Date(),
-        activeLockKey: null,
-        workerLeaseUntil: null,
-        lastHeartbeatAt: new Date(),
-      },
-    }));
-    await retryDb(() => dependencies.db.adminLog.create({
-      data: {
-        adminId: context.adminId,
-        action: operationType === "FULL_REPLACEMENT"
-          ? "FULL_REPLACEMENT_PASSWORD_RESET_COMPLETED"
-          : "COMMON_TEMPORARY_PASSWORD_RESET_COMPLETED",
-        details: {
-          runId,
-          operationType,
-          targetCount: run.totalEligible,
+    if (operationType === "FULL_REPLACEMENT" && dependencies.db.$transaction) {
+      run = await retryDb(() => dependencies.db.$transaction!(async (transactionDb) => {
+        const completedRun = await transactionDb.commonTemporaryPasswordResetRun.update({
+          where: { id: runId },
+          data: {
+            status: "COMPLETED",
+            processedCount,
+            completedAt: new Date(),
+            activeLockKey: null,
+            workerLeaseUntil: null,
+            lastHeartbeatAt: new Date(),
+          },
+        });
+        await transactionDb.adminLog.create({
+          data: {
+            adminId: context.adminId,
+            action: "FULL_REPLACEMENT_PASSWORD_RESET_COMPLETED",
+            details: {
+              runId,
+              operationType,
+              targetCount: completedRun.totalEligible,
+              processedCount,
+              failedCount: 0,
+            },
+          },
+        });
+        return completedRun;
+      }));
+    } else {
+      const targetCount = run?.totalEligible ?? 0;
+      run = await retryDb(() => dependencies.db.commonTemporaryPasswordResetRun.update({
+        where: { id: runId },
+        data: {
+          status: "COMPLETED",
           processedCount,
-          failedCount: 0,
+          completedAt: new Date(),
+          activeLockKey: null,
+          workerLeaseUntil: null,
+          lastHeartbeatAt: new Date(),
         },
-      },
-    }));
+      }));
+      await retryDb(() => dependencies.db.adminLog.create({
+        data: {
+          adminId: context.adminId,
+          action: operationType === "FULL_REPLACEMENT"
+            ? "FULL_REPLACEMENT_PASSWORD_RESET_COMPLETED"
+            : "COMMON_TEMPORARY_PASSWORD_RESET_COMPLETED",
+          details: {
+            runId,
+            operationType,
+            targetCount,
+            processedCount,
+            failedCount: 0,
+          },
+        },
+      }));
+    }
   } catch (error) {
     clearInterval(heartbeatTimer);
     await settleHeartbeat();
@@ -1145,7 +1235,10 @@ async function processCommonPasswordReset(
         },
       }).catch(() => undefined);
     } else {
-      const diagnostic = safeFailureDiagnostic(error);
+      const diagnostic =
+        operationType === "FULL_REPLACEMENT"
+          ? safeFullReplacementFailureDiagnostic(error)
+          : safeFailureDiagnostic(error);
       const failureOperationLabel =
         operationType === "FULL_REPLACEMENT"
           ? "Full replacement password reset"
@@ -1206,5 +1299,6 @@ export async function runDedicatedFullReplacementWorker(
     runId,
     defaultDependencies,
     createJobContext(adminId, password),
+    "FULL_REPLACEMENT",
   );
 }

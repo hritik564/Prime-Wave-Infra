@@ -1,3 +1,5 @@
+import { isDedicatedFullReplacementRun } from "./admin/full-replacement-worker-guard";
+
 type FullReplacementWorkerMessage = {
   runId: string;
   adminId: string;
@@ -32,6 +34,19 @@ process.on("message", (value: unknown) => {
     ]);
 
     try {
+      const run = await prisma.commonTemporaryPasswordResetRun.findUnique({
+        where: { id: value.runId },
+        select: {
+          adminId: true,
+          status: true,
+          operationType: true,
+        },
+      });
+      if (!isDedicatedFullReplacementRun(run, value.adminId)) {
+        process.exitCode = 1;
+        return;
+      }
+
       await runDedicatedFullReplacementWorker(
         value.runId,
         value.adminId,
@@ -46,7 +61,7 @@ process.on("message", (value: unknown) => {
     // Do not include the error object because an unexpected message could
     // contain sensitive connection or credential details.
     process.stderr.write(
-      `[FULL_REPLACEMENT_WORKER] ${error instanceof Error ? error.name : "WorkerError"}\n`,
+      `[FULL_REPLACEMENT_WORKER] WorkerError\n`,
     );
     process.exitCode = 1;
     process.disconnect?.();

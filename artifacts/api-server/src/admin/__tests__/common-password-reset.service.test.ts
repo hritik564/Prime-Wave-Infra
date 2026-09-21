@@ -28,6 +28,15 @@ import {
   type CommonPasswordResetExecuteInput,
 } from "../common-password-reset.schema";
 import type { CommonPasswordResetDependencies } from "../common-password-reset.service";
+import {
+  FULL_REPLACEMENT_WORKER_EXIT_FAILURE_REASON,
+  recoverUnexpectedFullReplacementWorkerExit,
+} from "../full-replacement-worker-recovery";
+import { isDedicatedFullReplacementRun } from "../full-replacement-worker-guard";
+import {
+  sendFullReplacementWorkerMessage,
+  type FullReplacementWorkerIpcChild,
+} from "../full-replacement-worker-launcher";
 
 type FakeUser = {
   id: string;
@@ -190,6 +199,9 @@ function createFakeDependencies(
       }),
     },
   };
+  (db as any).$transaction = vi.fn(async (
+    callback: (transactionDb: typeof db) => Promise<unknown>,
+  ) => callback(db));
 
   return {
     dependencies: { db } as unknown as CommonPasswordResetDependencies,
@@ -334,6 +346,32 @@ describe("common temporary password reset", () => {
     expect(persisted).not.toContain("$2");
   });
 
+  it("keeps the full replacement lock through atomic completion and audit finalization", async () => {
+    const fake = createFakeDependencies([createUser("1")]);
+    const transaction = (fake.db as any).$transaction as ReturnType<typeof vi.fn>;
+    let runId = "";
+    transaction.mockImplementation(async (callback: (transactionDb: typeof fake.db) => Promise<unknown>) => {
+      const before = fake.runs.get(runId);
+      expect(before?.status).toBe("RUNNING");
+      expect(before?.activeLockKey).toBe("FULL_REPLACEMENT_PASSWORD_RESET");
+      const result = await callback(fake.db);
+      const after = fake.runs.get(runId);
+      expect(after?.status).toBe("COMPLETED");
+      expect(after?.activeLockKey).toBeNull();
+      expect(fake.logs.at(-1)?.action).toBe("FULL_REPLACEMENT_PASSWORD_RESET_COMPLETED");
+      return result;
+    });
+
+    const result = await executeFullReplacementPasswordReset(
+      "admin-1",
+      validReplacementInput(1),
+      fake.dependencies,
+    );
+    runId = result.runId;
+    await waitForCompletion(fake, runId);
+    expect(transaction).toHaveBeenCalledTimes(1);
+  });
+
   it("dispatches full replacement work to the dedicated launcher when provided", async () => {
     const fake = createFakeDependencies([createUser("1")]);
     const launchWorker = vi.fn();
@@ -353,6 +391,102 @@ describe("common temporary password reset", () => {
     );
     expect(fake.db.user.update).not.toHaveBeenCalled();
     expect(fake.rows.get("1")?.authVersion).toBe(0);
+  });
+
+  it("fails closed for non-FULL_REPLACEMENT runs inside the dedicated worker guard", () => {
+    expect(isDedicatedFullReplacementRun({
+      adminId: "admin-1",
+      status: "RUNNING",
+      operationType: "COMMON_TEMPORARY_PASSWORD",
+    }, "admin-1")).toBe(false);
+    expect(isDedicatedFullReplacementRun({
+      adminId: "admin-1",
+      status: "RUNNING",
+      operationType: "FULL_REPLACEMENT",
+    }, "admin-1")).toBe(true);
+  });
+
+  it("rejects a historical common run through the full replacement path", async () => {
+    const fake = createFakeDependencies([createUser("1")]);
+    fake.runs.set("historical-common-run", {
+      id: "historical-common-run",
+      adminId: "admin-1",
+      operationType: "COMMON_TEMPORARY_PASSWORD",
+      status: "FAILED",
+      totalEligible: 1,
+      adminCount: 2,
+      processedCount: 0,
+      failedCount: 1,
+      activeLockKey: null,
+    });
+
+    await expect(executeFullReplacementPasswordReset(
+      "admin-1",
+      { ...validReplacementInput(1), runId: "historical-common-run" },
+      fake.dependencies,
+    )).rejects.toMatchObject({ code: "FULL_REPLACEMENT_OPERATION_MISMATCH" });
+    expect(fake.db.user.update).not.toHaveBeenCalled();
+  });
+
+  it("moves an unexpectedly exited full worker to FAILED without advancing its checkpoint", async () => {
+    const run = {
+      adminId: "admin-1",
+      operationType: "FULL_REPLACEMENT",
+      status: "RUNNING",
+      processedCount: 250,
+      totalEligible: 500,
+      activeLockKey: "FULL_REPLACEMENT_PASSWORD_RESET",
+    };
+    const updateMany = vi.fn(async () => ({ count: 1 }));
+    const adminLog = vi.fn(async () => ({ id: "log-1" }));
+    const db = {
+      commonTemporaryPasswordResetRun: {
+        findUnique: vi.fn(async () => run),
+        updateMany,
+      },
+      adminLog: { create: adminLog },
+    } as any;
+
+    await recoverUnexpectedFullReplacementWorkerExit(db, "full-run-1");
+
+    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        status: "RUNNING",
+        activeLockKey: "FULL_REPLACEMENT_PASSWORD_RESET",
+      }),
+      data: expect.objectContaining({
+        status: "FAILED",
+        failureReason: FULL_REPLACEMENT_WORKER_EXIT_FAILURE_REASON,
+        activeLockKey: null,
+      }),
+    }));
+    expect((updateMany.mock.calls as any[])[0]?.[0]?.data.processedCount).toBeUndefined();
+    expect(adminLog).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        action: "FULL_REPLACEMENT_PASSWORD_RESET_FAILED",
+      }),
+    }));
+    expect(JSON.stringify(adminLog.mock.calls)).not.toContain("Replacement-Temporary-73!");
+  });
+
+  it("contains child IPC send failures without throwing and invokes recovery", () => {
+    const onFailure = vi.fn();
+    const child = {
+      send: vi.fn(() => {
+        throw new Error("Replacement-Temporary-73!");
+      }),
+    } as unknown as FullReplacementWorkerIpcChild;
+
+    expect(() => sendFullReplacementWorkerMessage(
+      child,
+      {
+        runId: "full-run-1",
+        adminId: "admin-1",
+        password: "Replacement-Temporary-73!",
+      },
+      onFailure,
+    )).not.toThrow();
+    expect(onFailure).toHaveBeenCalledTimes(1);
   });
 
   it("resumes a partial full replacement only with the same password", async () => {
@@ -404,7 +538,8 @@ describe("common temporary password reset", () => {
 
     expect(failed.status).toBe("FAILED");
     expect(fake.rows.get("2")?.authVersion).toBe(before);
-    expect(failed.failureReason).toContain("Sensitive error details redacted");
+    expect(failed.failureReason).toContain("Full replacement password reset stopped");
+    expect(failed.failureReason).not.toContain("Different-Temporary-99!");
   });
 
   it("does not let the failed common run block a distinct full replacement preview", async () => {

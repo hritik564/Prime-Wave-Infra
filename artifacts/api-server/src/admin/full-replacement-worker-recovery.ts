@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { logger } from "../lib/logger";
-import { FULL_REPLACEMENT_PASSWORD_RESET_LOCK_KEY } from "./common-password-reset.service";
+import { FULL_REPLACEMENT_PASSWORD_RESET_LOCK_KEY } from "./full-replacement-worker-constants";
 
 export const FULL_REPLACEMENT_WORKER_EXIT_FAILURE_REASON =
   "Full replacement worker exited before terminal completion; resume from the last durable checkpoint";
@@ -11,8 +11,19 @@ type WorkerRecoveryDb = Pick<
 >;
 
 function safeErrorShape(error: unknown): { type: string; code: string | null } {
+  const knownTypes = new Set([
+    "Error",
+    "TypeError",
+    "RangeError",
+    "SyntaxError",
+    "ReferenceError",
+    "AggregateError",
+    "PrismaClientKnownRequestError",
+    "PrismaClientUnknownRequestError",
+    "PrismaClientValidationError",
+  ]);
   const type =
-    error instanceof Error && /^([A-Za-z][A-Za-z0-9_.-]{0,63})$/.test(error.name)
+    error instanceof Error && knownTypes.has(error.name)
       ? error.name
       : "WorkerRecoveryError";
   const rawCode =
