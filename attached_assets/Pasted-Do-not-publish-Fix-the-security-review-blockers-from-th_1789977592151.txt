@@ -1,0 +1,88 @@
+Do not publish.
+
+Fix the security-review blockers from the previous implementation.
+
+The reviewer identified that using only:
+
+passwordChangedAt >= FULL_REPLACEMENT.startedAt
+AND
+passwordChangedAt <= FULL_REPLACEMENT.completedAt
+
+is NOT authoritative proof that a user's password was written by FULL_REPLACEMENT.
+
+We need to make FULL_REPLACEMENT ownership of a user's replacement password authoritative.
+
+IMPORTANT PRODUCTION SAFETY:
+- Do not run any password reset.
+- Do not modify any production user passwords.
+- Do not modify the completed FULL_REPLACEMENT run:
+  cmuaw52yf004vj1h61tpbr14w
+- Do not modify the historical random/common failed runs.
+- Do not modify financial/business data.
+- Do not publish.
+- This is code/design work only.
+
+FIRST inspect the existing schema and implementation and determine the safest way to establish an authoritative per-user relationship to the FULL_REPLACEMENT operation.
+
+Preferred solution:
+
+If an existing field/table can safely and unambiguously establish that the password hash was written by this FULL_REPLACEMENT operation, use it.
+
+If there is NO existing authoritative per-user relationship, then propose the smallest additive schema change required, rather than using a timestamp heuristic.
+
+A possible clean design is a per-user marker such as:
+- fullReplacementPasswordResetRunId / passwordResetOperationId
+or an equivalent authoritative relation.
+
+If a migration is required, DO NOT apply it or publish it yet. Show me:
+1. exact schema change
+2. why it is required
+3. how it will remain backward-safe
+4. how the existing completed run will be handled WITHOUT changing its user passwords
+5. whether existing 6,640 users need any data backfill and exactly what that backfill would do
+
+CRITICAL:
+Do not assume passwordChangedAt proves operation ownership.
+
+The login logic must satisfy:
+
+A. Valid FULL_REPLACEMENT password
+   → only recognized as FULL_REPLACEMENT if the user's password was authoritatively associated with a FULL_REPLACEMENT operation.
+
+B. Random/common/other reset password
+   → must NEVER be treated as FULL_REPLACEMENT merely because its passwordChangedAt falls inside the run's time window.
+
+C. Admin password change during/after FULL_REPLACEMENT
+   → must not accidentally inherit FULL_REPLACEMENT status.
+
+D. Concurrent password/reset operation
+   → must fail closed and must not receive the normal-session path accidentally.
+
+E. Valid recognized FULL_REPLACEMENT login
+   → normal user JWT/session
+   → password unchanged
+   → passwordResetRequired cleared safely
+   → dashboard directly
+   → no restricted reset token/cookie.
+
+F. Invalid password
+   → existing INVALID_CREDENTIALS behavior.
+
+G. Existing non-FULL_REPLACEMENT reset flows
+   → remain protected and unchanged.
+
+Also verify that authVersion and the conditional update still provide race protection.
+
+Do not implement a timestamp-only workaround.
+
+Do not weaken the existing reset architecture merely to avoid a migration.
+
+After determining the solution, report:
+- proposed architecture
+- files that would change
+- whether a migration is required
+- exact migration/data-backfill implications if required
+- security reasoning
+- tests that will be added
+
+STOP there and wait for approval if a schema migration or production backfill is required.
