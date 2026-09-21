@@ -131,6 +131,11 @@ enum CommonTemporaryPasswordResetRunStatus {
   FAILED
 }
 
+enum CommonTemporaryPasswordResetOperationType {
+  COMMON_TEMPORARY_PASSWORD
+  FULL_REPLACEMENT
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -352,6 +357,7 @@ model BulkPasswordResetRun {
 model CommonTemporaryPasswordResetRun {
   id                 String                                  @id @default(cuid())
   adminId            String
+  operationType      CommonTemporaryPasswordResetOperationType @default(COMMON_TEMPORARY_PASSWORD)
   status             CommonTemporaryPasswordResetRunStatus @default(PREPARING)
   totalEligible      Int
   adminCount         Int

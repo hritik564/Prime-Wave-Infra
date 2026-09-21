@@ -9,14 +9,17 @@ import {
   emergencyStopCommonPasswordReset,
   executeBulkPasswordReset,
   executeCommonPasswordReset,
+  executeFullReplacementPasswordReset,
   getCommonPasswordResetStatus,
   markDeadBulkPasswordResetRunFailed,
   previewBulkPasswordReset,
   previewCommonPasswordReset,
+  previewFullReplacementPasswordReset,
   recoverStrandedCommonPasswordReset,
   ApiRequestError,
   COMMON_PASSWORD_RESET_CONFIRMATION,
   COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID,
+  FULL_REPLACEMENT_PASSWORD_RESET_CONFIRMATION,
   type BulkPasswordResetPreview,
   type BulkPasswordResetRunResult,
   type CommonPasswordResetPreview,
@@ -118,10 +121,16 @@ export default function AdminSettingsPage() {
   const [commonRecoveryLoading, setCommonRecoveryLoading] = useState(false);
   const [commonEmergencyStopping, setCommonEmergencyStopping] = useState(false);
   const [commonError, setCommonError] = useState<string | null>(null);
+  const [replacementPreview, setReplacementPreview] = useState<CommonPasswordResetPreview | null>(null);
+  const [replacementRun, setReplacementRun] = useState<CommonPasswordResetRunStatus | null>(null);
+  const [replacementPassword, setReplacementPassword] = useState("");
+  const [replacementPasswordConfirm, setReplacementPasswordConfirm] = useState("");
+  const [replacementConfirmation, setReplacementConfirmation] = useState("");
+  const [replacementAcknowledged, setReplacementAcknowledged] = useState(false);
+  const [replacementLoading, setReplacementLoading] = useState(false);
+  const [replacementError, setReplacementError] = useState<string | null>(null);
 
-  const resumingCommonRun =
-    commonPreview?.resumableRun?.runId === commonRun?.runId &&
-    commonRun?.status === "FAILED";
+  const resumingCommonRun = false;
 
   useEffect(() => {
     if (!commonRun || !["PREPARING", "RUNNING"].includes(commonRun.status)) return;
@@ -143,6 +152,27 @@ export default function AdminSettingsPage() {
       window.clearInterval(timer);
     };
   }, [commonRun?.runId, commonRun?.status]);
+
+  useEffect(() => {
+    if (!replacementRun || !["PREPARING", "RUNNING"].includes(replacementRun.status)) return;
+    let active = true;
+    const poll = async () => {
+      try {
+        const status = await getCommonPasswordResetStatus(replacementRun.runId);
+        if (active) setReplacementRun(status);
+      } catch (requestError) {
+        if (active) {
+          setReplacementError(requestError instanceof Error ? requestError.message : "Unable to refresh replacement reset status.");
+        }
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 2000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [replacementRun?.runId, replacementRun?.status]);
 
   const submit = async () => {
     setError(null);
@@ -301,6 +331,20 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const loadReplacementPreview = async () => {
+    setReplacementError(null);
+    setReplacementLoading(true);
+    try {
+      const preview = await previewFullReplacementPasswordReset();
+      setReplacementPreview(preview);
+      setReplacementRun(preview.activeRun ?? preview.resumableRun);
+    } catch (requestError) {
+      setReplacementError(requestError instanceof Error ? requestError.message : "Unable to load the replacement reset preview.");
+    } finally {
+      setReplacementLoading(false);
+    }
+  };
+
   const recoverStaleBulkReset = async () => {
     const legacyRun = bulkPreview?.legacyRun;
     if (!isSuperAdmin || legacyRun?.status !== "RUNNING" || commonRecoveryLoading) return;
@@ -353,7 +397,7 @@ export default function AdminSettingsPage() {
         commonPasswordConfirm,
         commonConfirmation,
         commonPreview.totalNormalUsers,
-        resumingCommonRun ? commonRun.runId : undefined,
+        resumingCommonRun && commonRun ? commonRun.runId : undefined,
       );
       setCommonRun(result);
       setCommonPassword("");
@@ -364,6 +408,48 @@ export default function AdminSettingsPage() {
       setCommonError(requestError instanceof Error ? requestError.message : "Unable to start the common-password reset.");
     } finally {
       setCommonLoading(false);
+    }
+  };
+
+  const runReplacementReset = async () => {
+    const validPassword =
+      replacementPassword.length >= 12
+      && /[A-Z]/.test(replacementPassword)
+      && /[a-z]/.test(replacementPassword)
+      && /[0-9]/.test(replacementPassword)
+      && /[^A-Za-z0-9]/.test(replacementPassword);
+    const resumingReplacementRun =
+      replacementPreview?.resumableRun?.runId === replacementRun?.runId
+      && replacementRun?.status === "FAILED";
+    if (
+      !replacementPreview
+      || !replacementAcknowledged
+      || replacementPreview.activeCredentialReset
+      || (!resumingReplacementRun && !replacementPreview.eligibleToExecute)
+      || replacementPassword !== replacementPasswordConfirm
+      || replacementConfirmation !== FULL_REPLACEMENT_PASSWORD_RESET_CONFIRMATION
+      || !validPassword
+    ) return;
+
+    setReplacementError(null);
+    setReplacementLoading(true);
+    try {
+      const result = await executeFullReplacementPasswordReset(
+        replacementPassword,
+        replacementPasswordConfirm,
+        replacementConfirmation,
+        replacementPreview.totalNormalUsers,
+        resumingReplacementRun ? replacementRun.runId : undefined,
+      );
+      setReplacementRun(result);
+      setReplacementPassword("");
+      setReplacementPasswordConfirm("");
+      setReplacementConfirmation("");
+      setReplacementAcknowledged(false);
+    } catch (requestError) {
+      setReplacementError(requestError instanceof Error ? requestError.message : "Unable to start the replacement reset.");
+    } finally {
+      setReplacementLoading(false);
     }
   };
 
@@ -846,6 +932,7 @@ export default function AdminSettingsPage() {
         )}
 
         {isSuperAdmin && (
+          <>
           <section style={{ background: CARD, border: `1px solid rgba(212,175,55,0.28)`, borderRadius: 14, padding: 20, marginTop: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <ShieldCheck size={17} style={{ color: GOLD_L }} />
@@ -902,7 +989,7 @@ export default function AdminSettingsPage() {
                 {commonPreview.resumableRun && commonRun?.runId === commonPreview.resumableRun.runId && (
                   <div role="alert" style={{ border: `1px solid ${GOLD}55`, background: "rgba(212,175,55,0.06)", borderRadius: 10, padding: 14, marginBottom: 16 }}>
                     <div style={{ color: GOLD_L, fontSize: 12, fontWeight: 700 }}>
-                      Common-password reset ready to resume
+                      Existing common-password reset preserved
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, margin: "12px 0" }}>
                       {[
@@ -918,7 +1005,7 @@ export default function AdminSettingsPage() {
                       ))}
                     </div>
                     <p style={{ margin: 0, color: "rgba(255,255,255,0.68)", fontSize: 11, lineHeight: 1.5 }}>
-                      Enter the same temporary password and confirmation phrase below. Resume continues from the durable checkpoint and does not create a new reset run.
+                      This failed historical run is preserved for audit and must not be resumed. Use the dedicated replacement operation below to establish one new known password for every normal user.
                     </p>
                   </div>
                 )}
@@ -999,7 +1086,11 @@ export default function AdminSettingsPage() {
                     }
                     style={{ border: `1px solid ${GOLD}66`, background: "rgba(212,175,55,0.13)", color: GOLD_L, borderRadius: 8, padding: "10px 16px", fontSize: 12, fontWeight: 700, cursor: commonLoading ? "wait" : "pointer", opacity: commonLoading ? 0.6 : 1 }}
                   >
-                    {commonLoading ? "Submitting…" : commonRun?.status === "FAILED" ? "Resume common-password reset" : "Start common-password reset"}
+                    {commonLoading
+                      ? "Submitting…"
+                      : commonRun?.status === "FAILED"
+                        ? "Historical run cannot be resumed"
+                        : "Start common-password reset"}
                   </button>
                   <button type="button" onClick={() => void loadCommonPreview()} disabled={commonLoading || commonRecoveryLoading} style={{ border: `1px solid ${BORDER}`, background: "transparent", color: MUTED, borderRadius: 8, padding: "10px 16px", fontSize: 12, cursor: "pointer" }}>
                     Refresh preview
@@ -1021,6 +1112,142 @@ export default function AdminSettingsPage() {
               </div>
             )}
           </section>
+
+          <section style={{ background: CARD, border: "1px solid rgba(248,113,113,0.26)", borderRadius: 14, padding: 20, marginTop: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <AlertTriangle size={17} style={{ color: "#fca5a5" }} />
+              <h2 style={{ margin: 0, color: "rgba(255,255,255,0.9)", fontSize: 15, fontWeight: 700 }}>
+                RESTART / REPLACE TEMPORARY PASSWORD
+              </h2>
+            </div>
+            <p style={{ margin: "0 0 16px", color: MUTED, fontSize: 12, lineHeight: 1.55 }}>
+              This creates a new temporary password for every normal user and overwrites credentials established by previous reset attempts.
+              Admin accounts and financial records are excluded.
+            </p>
+
+            {!replacementPreview && !replacementRun && (
+              <button
+                type="button"
+                onClick={() => void loadReplacementPreview()}
+                disabled={replacementLoading}
+                style={{ border: "1px solid rgba(248,113,113,0.5)", background: "rgba(248,113,113,0.1)", color: "#fca5a5", borderRadius: 8, padding: "10px 16px", fontSize: 12, fontWeight: 700, cursor: replacementLoading ? "wait" : "pointer" }}
+              >
+                <RefreshCw size={13} style={{ verticalAlign: "middle", marginRight: 7 }} />
+                {replacementLoading ? "Loading preview…" : "Load replacement reset preview"}
+              </button>
+            )}
+
+            {replacementPreview && (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+                  {[
+                    ["Normal users", replacementPreview.totalNormalUsers],
+                    ["Admins excluded", replacementPreview.adminsExcluded],
+                    ["Already requiring reset", replacementPreview.passwordResetRequiredCount],
+                    ["Nonzero authVersion", replacementPreview.unexpectedAuthVersionCount],
+                    ["Active operation", replacementPreview.activeOperation ?? "None"],
+                    ["Expected count", replacementPreview.totalNormalUsers],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 11px" }}>
+                      <div style={{ color: MUTED, fontSize: 10 }}>{label}</div>
+                      <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 17, fontWeight: 700, marginTop: 3 }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {replacementPreview.resumableRun && replacementRun?.runId === replacementPreview.resumableRun.runId && (
+                  <div role="alert" style={{ border: `1px solid ${GOLD}55`, background: "rgba(212,175,55,0.06)", borderRadius: 10, padding: 14, marginBottom: 16 }}>
+                    <div style={{ color: GOLD_L, fontSize: 12, fontWeight: 700 }}>Replacement reset ready to resume safely</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, margin: "12px 0" }}>
+                      {[
+                        ["Run ID", replacementPreview.resumableRun.runId],
+                        ["Status", replacementPreview.resumableRun.status],
+                        ["Processed", `${replacementPreview.resumableRun.processedCount} / ${replacementPreview.resumableRun.totalEligible}`],
+                        ["Failure reason", replacementPreview.resumableRun.failureReason ?? "—"],
+                      ].map(([label, value]) => (
+                        <div key={label} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "9px 10px" }}>
+                          <div style={{ color: MUTED, fontSize: 10 }}>{label}</div>
+                          <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 12, fontWeight: 700, marginTop: 3, overflowWrap: "anywhere" }}>{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p style={{ margin: 0, color: "rgba(255,255,255,0.68)", fontSize: 11, lineHeight: 1.5 }}>
+                      Enter the same password again. The server verifies it against an existing user password hash before resuming; the password itself is never stored.
+                    </p>
+                  </div>
+                )}
+
+                {replacementPreview.activeCredentialReset && (
+                  <div role="alert" style={{ border: "1px solid rgba(248,113,113,0.35)", background: "rgba(248,113,113,0.08)", borderRadius: 9, padding: "10px 12px", marginBottom: 14, color: "#fca5a5", fontSize: 12, lineHeight: 1.5 }}>
+                    <strong>REPLACEMENT RESET BLOCKED</strong>
+                    <div style={{ marginTop: 4 }}>Another bulk credential reset is currently running.</div>
+                  </div>
+                )}
+
+                <PasswordField label="New replacement temporary password" value={replacementPassword} onChange={setReplacementPassword} />
+                <PasswordField label="Confirm replacement temporary password" value={replacementPasswordConfirm} onChange={setReplacementPasswordConfirm} />
+                <label style={{ display: "block", marginBottom: 12 }}>
+                  <span style={{ display: "block", color: "rgba(255,255,255,0.72)", fontSize: 12, fontWeight: 600, marginBottom: 7 }}>
+                    Type the exact replacement confirmation phrase
+                  </span>
+                  <input
+                    value={replacementConfirmation}
+                    onChange={(event) => setReplacementConfirmation(event.target.value)}
+                    placeholder={FULL_REPLACEMENT_PASSWORD_RESET_CONFIRMATION}
+                    autoComplete="off"
+                    style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`, borderRadius: 9, padding: "11px 12px", color: "rgba(255,255,255,0.58)", outline: "none", fontSize: 13 }}
+                  />
+                </label>
+                <label style={{ display: "flex", gap: 9, alignItems: "flex-start", color: "rgba(255,255,255,0.7)", fontSize: 12, lineHeight: 1.45, marginBottom: 14 }}>
+                  <input type="checkbox" checked={replacementAcknowledged} onChange={(event) => setReplacementAcknowledged(event.target.checked)} />
+                  <span>I understand that this overwrites credentials for all {replacementPreview.totalNormalUsers} normal users, including users changed by previous reset attempts.</span>
+                </label>
+                <p style={{ margin: "0 0 14px", color: MUTED, fontSize: 11, lineHeight: 1.45 }}>
+                  The password exists only in process memory while the worker runs. It is not stored in the database, returned by the API, logged, or written to an artifact.
+                </p>
+                {replacementError && <p role="alert" style={{ color: "#fca5a5", fontSize: 12 }}>{replacementError}</p>}
+                <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => void runReplacementReset()}
+                    disabled={
+                      replacementLoading
+                      || replacementPreview.activeCredentialReset
+                      || (!replacementPreview.eligibleToExecute && !replacementPreview.resumableRun)
+                      || !replacementAcknowledged
+                      || replacementPassword !== replacementPasswordConfirm
+                      || replacementConfirmation !== FULL_REPLACEMENT_PASSWORD_RESET_CONFIRMATION
+                      || replacementPassword.length < 12
+                      || !/[A-Z]/.test(replacementPassword)
+                      || !/[a-z]/.test(replacementPassword)
+                      || !/[0-9]/.test(replacementPassword)
+                      || !/[^A-Za-z0-9]/.test(replacementPassword)
+                    }
+                    style={{ border: "1px solid rgba(248,113,113,0.5)", background: "rgba(248,113,113,0.1)", color: "#fca5a5", borderRadius: 8, padding: "10px 16px", fontSize: 12, fontWeight: 700, cursor: replacementLoading ? "wait" : "pointer", opacity: replacementLoading ? 0.6 : 1 }}
+                  >
+                    {replacementLoading ? "Submitting…" : replacementRun?.status === "FAILED" ? "Resume replacement reset" : "Start replacement reset"}
+                  </button>
+                  <button type="button" onClick={() => void loadReplacementPreview()} disabled={replacementLoading} style={{ border: `1px solid ${BORDER}`, background: "transparent", color: MUTED, borderRadius: 8, padding: "10px 16px", fontSize: 12, cursor: "pointer" }}>
+                    Refresh preview
+                  </button>
+                </div>
+              </>
+            )}
+
+            {replacementRun && (
+              <div style={{ border: `1px solid ${replacementRun.status === "FAILED" ? "rgba(248,113,113,0.3)" : "rgba(52,211,153,0.3)"}`, background: replacementRun.status === "FAILED" ? "rgba(248,113,113,0.06)" : "rgba(52,211,153,0.06)", borderRadius: 10, padding: 14, marginTop: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, color: replacementRun.status === "FAILED" ? "#fca5a5" : "#6ee7b7", fontSize: 13, fontWeight: 700 }}>
+                  {replacementRun.status === "FAILED" ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+                  Replacement reset status: {replacementRun.status}
+                </div>
+                <p style={{ margin: "8px 0 0", color: "rgba(255,255,255,0.68)", fontSize: 12, lineHeight: 1.5 }}>
+                  Processed {replacementRun.processedCount} of {replacementRun.totalEligible} normal users. This worker does not expose passwords.
+                </p>
+                {replacementRun.failureReason && <p style={{ margin: "8px 0 0", color: "#fca5a5", fontSize: 12 }}>{replacementRun.failureReason}</p>}
+              </div>
+            )}
+          </section>
+          </>
         )}
 
         {isSuperAdmin && <DepositWalletManagement />}

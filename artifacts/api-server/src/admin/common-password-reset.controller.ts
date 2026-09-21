@@ -6,10 +6,15 @@ import {
   recoverStrandedCommonPasswordResetRun,
   requestCommonPasswordResetEmergencyStop,
   executeCommonPasswordReset,
+  executeFullReplacementPasswordReset,
   getCommonPasswordResetPreview,
+  getFullReplacementPasswordResetPreview,
   getCommonPasswordResetStatus,
 } from "./common-password-reset.service";
-import type { CommonPasswordResetExecuteInput } from "./common-password-reset.schema";
+import type {
+  CommonPasswordResetExecuteInput,
+  FullReplacementPasswordResetExecuteInput,
+} from "./common-password-reset.schema";
 
 export async function previewCommonPasswordResetHandler(
   _req: Request,
@@ -41,6 +46,43 @@ export async function executeCommonPasswordResetHandler(
         req.body as CommonPasswordResetExecuteInput,
       ),
       "Common temporary password reset accepted for background processing",
+      HTTP_STATUS.ACCEPTED,
+    );
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function previewFullReplacementPasswordResetHandler(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    sendSuccess(
+      res,
+      await getFullReplacementPasswordResetPreview(),
+      "Full replacement password reset preview generated",
+    );
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function executeFullReplacementPasswordResetHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    sendSuccess(
+      res,
+      await executeFullReplacementPasswordReset(
+        user.sub,
+        req.body as FullReplacementPasswordResetExecuteInput,
+      ),
+      "Full replacement password reset accepted for background processing",
       HTTP_STATUS.ACCEPTED,
     );
   } catch (error) {

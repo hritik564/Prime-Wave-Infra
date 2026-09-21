@@ -15,6 +15,8 @@ import {
   COMMON_PASSWORD_RESET_EMERGENCY_STOP_REASON,
   COMMON_PASSWORD_RESET_WORKER_PROCESS_LOST_REASON,
   executeCommonPasswordReset,
+  executeFullReplacementPasswordReset,
+  getFullReplacementPasswordResetPreview,
   getCommonPasswordResetPreview,
   recoverStrandedCommonPasswordResetRun,
   requestCommonPasswordResetEmergencyStop,
@@ -22,6 +24,7 @@ import {
 import {
   COMMON_PASSWORD_RESET_CONFIRMATION,
   COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID,
+  FULL_REPLACEMENT_PASSWORD_RESET_CONFIRMATION,
   type CommonPasswordResetExecuteInput,
 } from "../common-password-reset.schema";
 import type { CommonPasswordResetDependencies } from "../common-password-reset.service";
@@ -74,13 +77,24 @@ function createFakeDependencies(
         }));
       }),
       count: vi.fn(async () => rows.size),
-      findMany: vi.fn(async (args: { where?: { id?: { gt: string } }; take: number }) => {
+      findMany: vi.fn(async (args: { where?: any; take: number }) => {
         const cursor = args.where?.id?.gt;
         return [...rows.values()]
           .filter((user) => !cursor || user.id > cursor)
+          .filter((user) =>
+            args.where?.passwordResetRequired === undefined
+            || user.passwordResetRequired === args.where.passwordResetRequired)
+          .filter((user) =>
+            !args.where?.passwordChangedAt?.gte
+            || user.passwordChangedAt !== null
+            && user.passwordChangedAt >= args.where.passwordChangedAt.gte)
           .sort((left, right) => left.id.localeCompare(right.id))
           .slice(0, args.take)
           .map((user) => ({ ...user }));
+      }),
+      findUnique: vi.fn(async (args: { where: { id: string } }) => {
+        const user = rows.get(args.where.id);
+        return user ? { ...user } : null;
       }),
       update: vi.fn(async (args: { where: { id: string }; data: any }) => {
         const user = rows.get(args.where.id);
@@ -107,7 +121,13 @@ function createFakeDependencies(
     commonTemporaryPasswordResetRun: {
       findFirst: vi.fn(async (args: any) => {
         const statuses = args.where.status.in ?? [args.where.status];
-        const matchingRuns = [...runs.values()].filter((run) => statuses.includes(run.status));
+          const expectedOperation = args.where.operationType;
+          const matchingRuns = [...runs.values()].filter((run) =>
+            statuses.includes(run.status)
+            && (
+              expectedOperation === undefined
+              || (run.operationType ?? "COMMON_TEMPORARY_PASSWORD") === expectedOperation
+            ));
         if (args.orderBy?.updatedAt === "desc") {
           matchingRuns.sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
         }
@@ -125,6 +145,7 @@ function createFakeDependencies(
       create: vi.fn(async (args: any) => {
         const run = {
           id: runIdOverride ?? `common-run-${++sequence}`,
+          operationType: "COMMON_TEMPORARY_PASSWORD",
           ...args.data,
           lastUserId: null,
           processedCount: 0,
@@ -188,6 +209,13 @@ const validInput = (expectedUserCount: number): CommonPasswordResetExecuteInput 
   confirmation: COMMON_PASSWORD_RESET_CONFIRMATION,
   expectedUserCount,
 });
+
+const validReplacementInput = (expectedUserCount: number) => ({
+  password: "Replacement-Temporary-73!",
+  confirmPassword: "Replacement-Temporary-73!",
+  confirmation: "REPLACE TEMPORARY PASSWORD FOR ALL NORMAL USERS" as const,
+  expectedUserCount,
+} as const);
 
 async function waitForCompletion(fake: ReturnType<typeof createFakeDependencies>, runId: string) {
   for (let attempt = 0; attempt < 3000; attempt += 1) {
@@ -267,6 +295,140 @@ describe("common temporary password reset", () => {
     const serialized = JSON.stringify({ runs: [...fake.runs.values()], logs: fake.logs });
     expect(serialized).not.toContain("Common-Temporary-42!");
     expect(serialized).not.toContain("$2");
+  });
+
+  it("starts a distinct full replacement run and overwrites users changed by an earlier run", async () => {
+    const fake = createFakeDependencies([
+      createUser("1", "ACTIVE"),
+      createUser("2", "BLOCKED"),
+      createUser("3", "SUSPENDED"),
+    ]);
+    const oldHash = bcrypt.hashSync("Old-Temporary-42!", 4);
+    const previous = fake.rows.get("1");
+    if (!previous) throw new Error("missing fixture user");
+    previous.passwordHash = oldHash;
+    previous.passwordResetRequired = true;
+    previous.authVersion = 1;
+    previous.passwordChangedAt = new Date("2026-01-01T00:00:00.000Z");
+
+    const result = await executeFullReplacementPasswordReset(
+      "admin-1",
+      validReplacementInput(3),
+      fake.dependencies,
+    );
+    const completed = await waitForCompletion(fake, result.runId);
+
+    expect(result.operationType).toBe("FULL_REPLACEMENT");
+    expect(completed).toMatchObject({
+      status: "COMPLETED",
+      processedCount: 3,
+    });
+    for (const user of fake.rows.values()) {
+      await expect(bcrypt.compare("Replacement-Temporary-73!", user.passwordHash)).resolves.toBe(true);
+      expect(user.passwordResetRequired).toBe(true);
+    }
+    expect(fake.rows.get("1")?.authVersion).toBe(2);
+    const persisted = JSON.stringify({ runs: [...fake.runs.values()], logs: fake.logs });
+    expect(persisted).not.toContain("Replacement-Temporary-73!");
+    expect(persisted).not.toContain("$2");
+  });
+
+  it("resumes a partial full replacement only with the same password", async () => {
+    const fake = createFakeDependencies(
+      [createUser("1"), createUser("2"), createUser("3")],
+      false,
+      1,
+    );
+    const first = await executeFullReplacementPasswordReset(
+      "admin-1",
+      validReplacementInput(3),
+      fake.dependencies,
+    );
+    const failed = await waitForCompletion(fake, first.runId);
+    expect(failed.status).toBe("FAILED");
+    expect(fake.rows.get("1")?.authVersion).toBe(1);
+
+    fake.setFailureAfterUpdates(null);
+    const resumed = await executeFullReplacementPasswordReset(
+      "admin-1",
+      { ...validReplacementInput(3), runId: first.runId },
+      fake.dependencies,
+    );
+    const completed = await waitForCompletion(fake, resumed.runId);
+    expect(completed.status).toBe("COMPLETED");
+    expect(fake.rows.get("1")?.authVersion).toBe(1);
+    expect(fake.rows.get("2")?.authVersion).toBe(1);
+    expect(fake.rows.get("3")?.authVersion).toBe(1);
+  });
+
+  it("rejects a resumed full replacement with a different password before changing users", async () => {
+    const fake = createFakeDependencies([createUser("1"), createUser("2")], false, 1);
+    const first = await executeFullReplacementPasswordReset(
+      "admin-1",
+      validReplacementInput(2),
+      fake.dependencies,
+    );
+    await waitForCompletion(fake, first.runId);
+    const before = fake.rows.get("2")?.authVersion;
+
+    const wrong = {
+      ...validReplacementInput(2),
+      password: "Different-Temporary-99!",
+      confirmPassword: "Different-Temporary-99!",
+      runId: first.runId,
+    };
+    const resumed = await executeFullReplacementPasswordReset("admin-1", wrong, fake.dependencies);
+    const failed = await waitForCompletion(fake, resumed.runId);
+
+    expect(failed.status).toBe("FAILED");
+    expect(fake.rows.get("2")?.authVersion).toBe(before);
+    expect(failed.failureReason).toContain("Sensitive error details redacted");
+  });
+
+  it("does not let the failed common run block a distinct full replacement preview", async () => {
+    const fake = createFakeDependencies([createUser("1")]);
+    fake.runs.set("old-common-run", {
+      id: "old-common-run",
+      adminId: "admin-1",
+      operationType: "COMMON_TEMPORARY_PASSWORD",
+      status: "FAILED",
+      totalEligible: 1,
+      adminCount: 2,
+      processedCount: 1,
+      failedCount: 1,
+      lastUserId: "1",
+      failureReason: "historical failure",
+      workerLeaseUntil: null,
+      lastHeartbeatAt: new Date(),
+      activeLockKey: null,
+      startedAt: new Date(),
+      completedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await expect(getFullReplacementPasswordResetPreview(fake.dependencies)).resolves.toMatchObject({
+      eligibleToExecute: true,
+      resumableRun: null,
+      totalNormalUsers: 1,
+    });
+  });
+
+  it("retries transient P1001 failures with bounded backoff", async () => {
+    const transient = Object.assign(new Error("database connection timed out"), { code: "P1001" });
+    const fake = createFakeDependencies([createUser("1")], false, 0, undefined, transient);
+    const sleeps: number[] = [];
+    fake.dependencies.sleep = async (milliseconds) => {
+      sleeps.push(milliseconds);
+    };
+
+    const result = await executeCommonPasswordReset("admin-1", validInput(1), fake.dependencies);
+    const completed = await waitForCompletion(fake, result.runId);
+
+    expect(completed.status).toBe("COMPLETED");
+    expect(sleeps.length).toBeGreaterThan(0);
+    expect(sleeps.length).toBeLessThanOrEqual(3);
+    expect(sleeps.every((milliseconds) => milliseconds > 0)).toBe(true);
   });
 
   it("rejects weak or mismatched credentials before creating a run", async () => {

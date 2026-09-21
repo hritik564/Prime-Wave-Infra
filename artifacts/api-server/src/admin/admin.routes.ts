@@ -268,6 +268,8 @@ import { bulkPasswordResetExecuteSchema } from "./bulk-reset.schema";
 import {
   previewCommonPasswordResetHandler,
   executeCommonPasswordResetHandler,
+  previewFullReplacementPasswordResetHandler,
+  executeFullReplacementPasswordResetHandler,
   getCommonPasswordResetStatusHandler,
   emergencyStopCommonPasswordResetHandler,
   recoverStrandedCommonPasswordResetHandler,
@@ -276,6 +278,7 @@ import {
   commonPasswordResetExecuteSchema,
   commonPasswordResetEmergencyStopSchema,
   commonPasswordResetStrandedRecoverySchema,
+  fullReplacementPasswordResetExecuteSchema,
 } from "./common-password-reset.schema";
 
 const router = Router();
@@ -971,6 +974,19 @@ router.post(
   superAdminGuard,
   validate(commonPasswordResetExecuteSchema, "body"),
   executeCommonPasswordResetHandler,
+);
+router.post(
+  "/security/full-replacement-password-reset/preview",
+  adminLimiter,
+  superAdminGuard,
+  previewFullReplacementPasswordResetHandler,
+);
+router.post(
+  "/security/full-replacement-password-reset/execute",
+  adminLimiter,
+  superAdminGuard,
+  validate(fullReplacementPasswordResetExecuteSchema, "body"),
+  executeFullReplacementPasswordResetHandler,
 );
 router.get(
   "/security/common-password-reset/:runId/status",

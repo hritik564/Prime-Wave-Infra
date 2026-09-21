@@ -188,6 +188,8 @@ export function markDeadBulkPasswordResetRunFailed(runId: string) {
 
 export const COMMON_PASSWORD_RESET_CONFIRMATION =
   "SET COMMON TEMPORARY PASSWORD FOR ALL NORMAL USERS";
+export const FULL_REPLACEMENT_PASSWORD_RESET_CONFIRMATION =
+  "REPLACE TEMPORARY PASSWORD FOR ALL NORMAL USERS";
 
 export interface CommonPasswordResetPreview {
   totalNormalUsers: number;
@@ -200,10 +202,12 @@ export interface CommonPasswordResetPreview {
   passwordResetRequiredCount: number;
   unexpectedAuthVersionCount: number;
   activeCredentialReset: boolean;
-  activeOperation: "RANDOM_GENERATED" | "COMMON_TEMPORARY_PASSWORD" | null;
+  activeOperation: "RANDOM_GENERATED" | "COMMON_TEMPORARY_PASSWORD" | "FULL_REPLACEMENT" | null;
   eligibleToExecute: boolean;
   activeRun: CommonPasswordResetRunStatus | null;
   resumableRun: CommonPasswordResetRunStatus | null;
+  replacementActiveRun: CommonPasswordResetRunStatus | null;
+  replacementResumableRun: CommonPasswordResetRunStatus | null;
 }
 
 export const COMMON_PASSWORD_RESET_EMERGENCY_RUN_ID = "cmua3jcec001wa99zi17pz3hl";
@@ -214,6 +218,7 @@ export const COMMON_PASSWORD_RESET_STRANDED_RECOVERY_CONFIRMATION =
 
 export interface CommonPasswordResetRunStatus {
   runId: string;
+  operationType: "COMMON_TEMPORARY_PASSWORD" | "FULL_REPLACEMENT";
   status: "PREPARING" | "RUNNING" | "COMPLETED" | "FAILED";
   totalEligible: number;
   processedCount: number;
@@ -242,6 +247,38 @@ export function executeCommonPasswordReset(
 ) {
   return request<CommonPasswordResetRunStatus>(
     "/api/admin/security/common-password-reset/execute",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        password,
+        confirmPassword,
+        confirmation,
+        expectedUserCount,
+        ...(runId ? { runId } : {}),
+      }),
+    },
+  );
+}
+
+export function previewFullReplacementPasswordReset() {
+  return request<CommonPasswordResetPreview>(
+    "/api/admin/security/full-replacement-password-reset/preview",
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    },
+  );
+}
+
+export function executeFullReplacementPasswordReset(
+  password: string,
+  confirmPassword: string,
+  confirmation: string,
+  expectedUserCount: number,
+  runId?: string,
+) {
+  return request<CommonPasswordResetRunStatus>(
+    "/api/admin/security/full-replacement-password-reset/execute",
     {
       method: "POST",
       body: JSON.stringify({
