@@ -1,0 +1,149 @@
+Proceed with implementation of the authoritative FULL_REPLACEMENT ownership design.
+
+Do NOT publish.
+Do NOT apply the migration to production.
+Do NOT perform the historical production backfill yet.
+Do NOT change any production passwords.
+Do NOT modify the completed FULL_REPLACEMENT run.
+
+Target completed run:
+
+cmuaw52yf004vj1h61tpbr14w
+
+IMPLEMENTATION:
+
+1. Add nullable User.fullReplacementPasswordResetRunId.
+
+2. Add the relation to CommonTemporaryPasswordResetRun using a named relation:
+   FullReplacementPasswordOwners
+
+3. Add the inverse relation on CommonTemporaryPasswordResetRun.
+
+4. Add an index on User.fullReplacementPasswordResetRunId.
+
+5. Create the Prisma migration, but leave it UNAPPLIED.
+
+HISTORICAL BACKFILL:
+
+Prepare a one-time backfill for the 6,640 users from the completed run.
+
+The backfill must ONLY set:
+
+fullReplacementPasswordResetRunId =
+cmuaw52yf004vj1h61tpbr14w
+
+It must NOT modify:
+- passwordHash
+- passwordChangedAt
+- authVersion
+- passwordResetRequired
+- financial data
+- wallets
+- investments
+- withdrawals
+- deposits
+- the reset run itself
+
+The backfill should target exactly the 6,640 users represented by the completed FULL_REPLACEMENT run.
+
+Before writing the backfill, encode explicit safeguards:
+- verify target run ID exists
+- verify operationType = FULL_REPLACEMENT
+- verify status = COMPLETED
+- verify totalEligible = 6640
+- verify processedCount = 6640
+- verify failedCount = 0
+- verify exactly 6640 users are selected
+- fail closed if the selected count is anything other than 6640
+- fail closed if any target user is missing
+- fail closed if any target user already has a non-null fullReplacementPasswordResetRunId
+- fail closed if the run's expected population cannot be established exactly
+
+Do NOT silently fall back to a timestamp-only selection.
+
+PASSWORD-WRITING PATHS:
+
+Update every password-changing path so that:
+
+FULL_REPLACEMENT:
+- sets fullReplacementPasswordResetRunId to its run ID atomically with the password write.
+
+ALL OTHER PASSWORD CHANGES:
+- explicitly set fullReplacementPasswordResetRunId = NULL.
+
+This includes:
+- common temporary password reset
+- random/bulk password reset
+- controlled/token-based reset
+- Admin individual password change/reset
+- self-service password change
+- any other runtime User.passwordHash write path discovered in the repository.
+
+LOGIN:
+
+Recognize the normal-session path ONLY when:
+
+1. bcrypt password verification succeeds
+2. passwordResetRequired = true
+3. fullReplacementPasswordResetRunId is non-null
+4. referenced run exists
+5. referenced run has operationType = FULL_REPLACEMENT
+6. referenced run status = COMPLETED
+7. atomic conditional update still matches:
+   - user ID
+   - current authVersion
+   - passwordResetRequired = true
+   - same fullReplacementPasswordResetRunId
+
+On successful update:
+- clear passwordResetRequired
+- increment authVersion
+- do NOT change passwordHash
+- issue normal user session
+- do NOT issue restricted reset token/cookie.
+
+If the conditional update affects zero rows, fail closed.
+
+Do NOT use passwordChangedAt timestamps for authorization/classification.
+
+REGRESSION SAFETY:
+
+Users without a valid FULL_REPLACEMENT marker must retain the existing restricted reset behavior.
+
+Tests required:
+
+- FULL_REPLACEMENT worker sets marker.
+- Historical marker backfill safeguards.
+- Backfill refuses wrong run ID.
+- Backfill refuses non-completed run.
+- Backfill refuses incorrect counts.
+- Backfill refuses ambiguous population.
+- Other reset mechanisms clear marker.
+- Admin password changes clear marker.
+- Self-service password change clears marker.
+- Valid marked FULL_REPLACEMENT login goes directly to dashboard.
+- Invalid password cannot clear reset state.
+- Concurrent password change causes login conditional update to fail closed.
+- Missing/invalid marker cannot receive normal session.
+- No restricted token/cookie for valid marked replacement login.
+- Password hash remains unchanged during replacement login.
+- Existing restricted reset flow remains intact.
+
+Run:
+- full API tests
+- targeted auth/reset/security tests
+- typechecks
+- production builds
+- git diff --check
+
+Then STOP.
+
+Report:
+1. files changed
+2. migration SQL
+3. backfill implementation and exact safeguards
+4. all password-writing paths audited
+5. tests passed/failed
+6. whether any production operation was performed
+
+Do not publish or apply anything.
