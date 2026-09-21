@@ -443,6 +443,7 @@ export async function executeBulkPasswordReset(
             passwordResetRequired: true,
             authVersion: { increment: 1 },
             passwordChangedAt: new Date(),
+            fullReplacementPasswordResetRunId: null,
             updatedAt: user.updatedAt,
           },
         });

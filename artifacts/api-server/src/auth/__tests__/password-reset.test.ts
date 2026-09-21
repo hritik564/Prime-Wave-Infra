@@ -157,6 +157,7 @@ describe("completePasswordReset", () => {
     expect(updatedData).toMatchObject({
       passwordResetRequired: false,
       authVersion: { increment: 1 },
+      fullReplacementPasswordResetRunId: null,
     });
     expect(updatedData?.passwordHash).toEqual(expect.any(String));
     await expect(bcrypt.compare("NewPassword1", updatedData?.passwordHash as string)).resolves.toBe(true);

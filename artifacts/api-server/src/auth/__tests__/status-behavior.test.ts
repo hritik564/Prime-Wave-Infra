@@ -6,8 +6,8 @@ const { userFindFirst } = vi.hoisted(() => ({
 const { userUpdateMany } = vi.hoisted(() => ({
   userUpdateMany: vi.fn(),
 }));
-const { fullReplacementRunFindFirst } = vi.hoisted(() => ({
-  fullReplacementRunFindFirst: vi.fn(),
+const { fullReplacementRunFindUnique } = vi.hoisted(() => ({
+  fullReplacementRunFindUnique: vi.fn(),
 }));
 const { bcryptCompare } = vi.hoisted(() => ({
   bcryptCompare: vi.fn(),
@@ -16,7 +16,7 @@ const { bcryptCompare } = vi.hoisted(() => ({
 vi.mock("../../config/prisma", () => ({
   prisma: {
     user: { findFirst: userFindFirst, updateMany: userUpdateMany },
-    commonTemporaryPasswordResetRun: { findFirst: fullReplacementRunFindFirst },
+    commonTemporaryPasswordResetRun: { findUnique: fullReplacementRunFindUnique },
   },
 }));
 vi.mock("../../config/env", () => ({
@@ -52,6 +52,7 @@ const baseUser = {
   username: "user1",
   passwordHash: "bcrypt-hash",
   passwordResetRequired: false,
+  fullReplacementPasswordResetRunId: null,
   authVersion: 0,
   firstName: "Test",
   lastName: "User",
@@ -61,7 +62,7 @@ const baseUser = {
 beforeEach(() => {
   vi.clearAllMocks();
   bcryptCompare.mockResolvedValue(true);
-  fullReplacementRunFindFirst.mockResolvedValue(null);
+  fullReplacementRunFindUnique.mockResolvedValue(null);
   userUpdateMany.mockResolvedValue({ count: 1 });
 });
 
@@ -110,14 +111,13 @@ describe("preserved user status login behavior", () => {
   });
 
   it("logs a FULL_REPLACEMENT user in normally and clears only the reset flag", async () => {
-    const passwordChangedAt = new Date("2026-09-21T02:30:12.895Z");
     userFindFirst.mockResolvedValue({
       ...baseUser,
       passwordResetRequired: true,
       authVersion: 6,
-      passwordChangedAt,
+      fullReplacementPasswordResetRunId: "full-replacement-run",
     });
-    fullReplacementRunFindFirst.mockResolvedValue({ id: "full-replacement-run" });
+    fullReplacementRunFindUnique.mockResolvedValue({ id: "full-replacement-run" });
 
     await expect(loginUser({
       identifier: "user1",
@@ -132,7 +132,7 @@ describe("preserved user status login behavior", () => {
         id: "user-1",
         authVersion: 6,
         passwordResetRequired: true,
-        passwordChangedAt,
+        fullReplacementPasswordResetRunId: "full-replacement-run",
       },
       data: {
         passwordResetRequired: false,
@@ -144,12 +144,11 @@ describe("preserved user status login behavior", () => {
       type: "user",
       authVersion: 7,
     }));
-    expect(fullReplacementRunFindFirst).toHaveBeenCalledWith({
+    expect(fullReplacementRunFindUnique).toHaveBeenCalledWith({
       where: {
+        id: "full-replacement-run",
         operationType: "FULL_REPLACEMENT",
         status: "COMPLETED",
-        startedAt: { lte: passwordChangedAt },
-        completedAt: { gte: passwordChangedAt },
       },
       select: { id: true },
     });
@@ -161,7 +160,7 @@ describe("preserved user status login behavior", () => {
     userFindFirst.mockResolvedValue({
       ...baseUser,
       passwordResetRequired: true,
-      passwordChangedAt: new Date("2026-09-21T02:30:12.895Z"),
+      fullReplacementPasswordResetRunId: "full-replacement-run",
     });
     bcryptCompare.mockResolvedValue(false);
 
@@ -170,7 +169,7 @@ describe("preserved user status login behavior", () => {
       password: "WrongPassword1",
     })).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
 
-    expect(fullReplacementRunFindFirst).not.toHaveBeenCalled();
+    expect(fullReplacementRunFindUnique).not.toHaveBeenCalled();
     expect(userUpdateMany).not.toHaveBeenCalled();
   });
 
@@ -179,15 +178,34 @@ describe("preserved user status login behavior", () => {
       ...baseUser,
       passwordResetRequired: true,
       authVersion: 6,
-      passwordChangedAt: new Date("2026-09-21T02:30:12.895Z"),
+      fullReplacementPasswordResetRunId: "full-replacement-run",
     });
-    fullReplacementRunFindFirst.mockResolvedValue({ id: "full-replacement-run" });
+    fullReplacementRunFindUnique.mockResolvedValue({ id: "full-replacement-run" });
     userUpdateMany.mockResolvedValue({ count: 0 });
 
     await expect(loginUser({
       identifier: "user1",
       password: "ReplacementPassword1",
     })).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+  });
+
+  it("keeps a missing or invalid FULL_REPLACEMENT marker on the restricted reset path", async () => {
+    userFindFirst.mockResolvedValue({
+      ...baseUser,
+      passwordResetRequired: true,
+      authVersion: 6,
+      fullReplacementPasswordResetRunId: "missing-run",
+    });
+    fullReplacementRunFindUnique.mockResolvedValue(null);
+
+    const error = await loginUser({
+      identifier: "user1",
+      password: "TemporaryPassword1",
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ code: "PASSWORD_RESET_REQUIRED" });
+    expect(error).toHaveProperty("resetToken", "password-change-token");
+    expect(userUpdateMany).not.toHaveBeenCalled();
   });
 
   it("does not put the restricted token in the error response data", async () => {

@@ -108,6 +108,7 @@ export async function maybeResetForLaunch(): Promise<void> {
           email: MASTER_EMAIL,
           username: MASTER_USERNAME,
           passwordHash,
+          fullReplacementPasswordResetRunId: null,
           firstName: "Master",
           lastName: "ID",
           status: "ACTIVE",

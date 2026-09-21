@@ -44,6 +44,7 @@ type FakeUser = {
   authVersion: number;
   passwordResetRequired: boolean;
   passwordChangedAt: Date | null;
+  fullReplacementPasswordResetRunId: string | null;
   updatedAt: Date;
   status: "ACTIVE" | "INACTIVE" | "BLOCKED" | "SUSPENDED";
 };
@@ -55,6 +56,7 @@ function createUser(id: string, status: FakeUser["status"] = "ACTIVE"): FakeUser
     authVersion: 0,
     passwordResetRequired: false,
     passwordChangedAt: null,
+    fullReplacementPasswordResetRunId: null,
     updatedAt: new Date("2026-01-01T00:00:00.000Z"),
     status,
   };
@@ -97,6 +99,10 @@ function createFakeDependencies(
             !args.where?.passwordChangedAt?.gte
             || user.passwordChangedAt !== null
             && user.passwordChangedAt >= args.where.passwordChangedAt.gte)
+          .filter((user) =>
+            args.where?.fullReplacementPasswordResetRunId === undefined
+            || user.fullReplacementPasswordResetRunId
+              === args.where.fullReplacementPasswordResetRunId)
           .sort((left, right) => left.id.localeCompare(right.id))
           .slice(0, args.take)
           .map((user) => ({ ...user }));
@@ -300,6 +306,7 @@ describe("common temporary password reset", () => {
       expect(user.passwordResetRequired).toBe(true);
       expect(user.authVersion).toBe(1);
       expect(user.passwordChangedAt).toBeInstanceOf(Date);
+      expect(user.fullReplacementPasswordResetRunId).toBeNull();
     }
     expect(fake.rows.get("2")?.status).toBe("BLOCKED");
     expect(fake.rows.get("3")?.status).toBe("SUSPENDED");
@@ -338,6 +345,7 @@ describe("common temporary password reset", () => {
     for (const user of fake.rows.values()) {
       await expect(bcrypt.compare("Replacement-Temporary-73!", user.passwordHash)).resolves.toBe(true);
       expect(user.passwordResetRequired).toBe(true);
+      expect(user.fullReplacementPasswordResetRunId).toBe(result.runId);
     }
     expect(new Set([...fake.rows.values()].map((user) => user.passwordHash)).size).toBe(1);
     expect(fake.rows.get("1")?.authVersion).toBe(2);

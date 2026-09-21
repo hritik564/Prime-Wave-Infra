@@ -17,6 +17,7 @@
     "activate-rds": "node --enable-source-maps ./dist/admin/scripts/rdActivation.mjs",
     "activate-mis": "node --enable-source-maps ./dist/admin/scripts/miActivation.mjs",
     "reconcile-counters": "node --enable-source-maps ./dist/admin/scripts/reconcileCounters.mjs",
+    "backfill-full-replacement-ownership": "node --enable-source-maps ./dist/admin/scripts/backfillFullReplacementOwnership.mjs",
     "generate-network": "node --enable-source-maps ./dist/admin/scripts/networkGenerator.mjs",
     "fund-network": "node --enable-source-maps ./dist/admin/scripts/networkFunder.mjs",
     "export-credentials": "node --enable-source-maps ./dist/admin/scripts/credentialExporter.mjs"

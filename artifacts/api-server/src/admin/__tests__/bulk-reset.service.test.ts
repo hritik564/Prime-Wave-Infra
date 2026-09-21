@@ -35,6 +35,7 @@ type FakeUser = {
   authVersion: number;
   updatedAt: Date;
   passwordResetRequired: boolean;
+  fullReplacementPasswordResetRunId: string | null;
   status: "ACTIVE" | "INACTIVE" | "BLOCKED" | "SUSPENDED";
   firstName: string;
   referralCode: string;
@@ -49,6 +50,7 @@ function createUser(id: string, status: FakeUser["status"] = "ACTIVE"): FakeUser
     authVersion: 0,
     updatedAt: new Date("2026-01-01T00:00:00.000Z"),
     passwordResetRequired: false,
+    fullReplacementPasswordResetRunId: "old-full-replacement-run",
     status,
     firstName: `First ${id}`,
     referralCode: `ref-${id}`,
@@ -104,13 +106,15 @@ function createFakeDependencies(users: FakeUser[]) {
       }),
       updateMany: vi.fn(async (args: {
         where: { id: string; authVersion: number };
-        data: { passwordHash: string; passwordResetRequired: boolean; authVersion: { increment: number }; passwordChangedAt: Date; updatedAt: Date };
+        data: { passwordHash: string; passwordResetRequired: boolean; authVersion: { increment: number }; passwordChangedAt: Date; fullReplacementPasswordResetRunId: null; updatedAt: Date };
       }) => {
         if (failingUsers.has(args.where.id)) throw new Error("forced batch failure");
         const user = rows.get(args.where.id);
         if (!user || user.authVersion !== args.where.authVersion) return { count: 0 };
         user.passwordHash = args.data.passwordHash;
         user.passwordResetRequired = args.data.passwordResetRequired;
+        user.fullReplacementPasswordResetRunId =
+          args.data.fullReplacementPasswordResetRunId;
         user.authVersion += args.data.authVersion.increment;
         user.updatedAt = args.data.updatedAt;
         return { count: 1 };
@@ -262,6 +266,7 @@ describe("Super Admin bulk normal-user password reset", () => {
       await expect(bcrypt.compare(record.password, user.passwordHash)).resolves.toBe(true);
       await expect(bcrypt.compare(`old-password-${record.userId}`, user.passwordHash)).resolves.toBe(false);
       expect(user.passwordResetRequired).toBe(true);
+      expect(user.fullReplacementPasswordResetRunId).toBeNull();
       expect(user.authVersion).toBe(1);
     }
     expect([...fake.rows.values()].map(({ id, status, firstName, referralCode }) => ({

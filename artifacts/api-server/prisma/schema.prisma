@@ -145,6 +145,7 @@ model User {
   passwordResetRequired Boolean  @default(false)
   authVersion          Int      @default(0)
   passwordChangedAt    DateTime?
+  fullReplacementPasswordResetRunId String?
   firstName    String
   lastName     String
   status       UserStatus @default(ACTIVE)
@@ -197,6 +198,7 @@ model User {
 
   wallet           Wallet?
   passwordResetTokens PasswordResetToken[]
+  fullReplacementPasswordResetRun CommonTemporaryPasswordResetRun? @relation("FullReplacementPasswordOwners", fields: [fullReplacementPasswordResetRunId], references: [id], onDelete: SetNull)
   adminLogs              AdminLog[]
   impersonationSessions  ImpersonationSession[]
   transactions           WalletTransaction[]
@@ -251,6 +253,7 @@ model User {
   withdrawalHoldBy     String?
   withdrawalHoldAt     DateTime?
 
+  @@index([fullReplacementPasswordResetRunId])
   @@map("users")
 }
 
@@ -374,6 +377,7 @@ model CommonTemporaryPasswordResetRun {
   updatedAt          DateTime                               @updatedAt
 
   admin Admin @relation(fields: [adminId], references: [id], onDelete: Restrict)
+  fullReplacementPasswordOwners User[] @relation("FullReplacementPasswordOwners")
 
   @@index([status])
   @@index([adminId, createdAt])

@@ -24,6 +24,10 @@ async function buildAll() {
       path.resolve(artifactDir, "src/admin/scripts/rdActivation.ts"),
       path.resolve(artifactDir, "src/admin/scripts/miActivation.ts"),
       path.resolve(artifactDir, "src/admin/scripts/reconcileCounters.ts"),
+      path.resolve(
+        artifactDir,
+        "src/admin/scripts/backfillFullReplacementOwnership.ts",
+      ),
     ],
     platform: "node",
     bundle: true,

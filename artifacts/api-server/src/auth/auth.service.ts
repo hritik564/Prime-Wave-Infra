@@ -47,15 +47,14 @@ function createNormalUserSession(user: NormalLoginUser) {
   };
 }
 
-async function isFullReplacementUser(passwordChangedAt: Date | null): Promise<boolean> {
-  if (!passwordChangedAt) return false;
+async function isFullReplacementUser(runId: string | null): Promise<boolean> {
+  if (!runId) return false;
 
-  const run = await prisma.commonTemporaryPasswordResetRun.findFirst({
+  const run = await prisma.commonTemporaryPasswordResetRun.findUnique({
     where: {
+      id: runId,
       operationType: "FULL_REPLACEMENT",
       status: "COMPLETED",
-      startedAt: { lte: passwordChangedAt },
-      completedAt: { gte: passwordChangedAt },
     },
     select: { id: true },
   });
@@ -158,6 +157,7 @@ export async function registerUser(input: RegisterInput) {
         email:        emailLower,
         username:     usernameLower,
         passwordHash,
+          fullReplacementPasswordResetRunId: null,
         firstName,
         lastName,
         phone,
@@ -261,7 +261,7 @@ export async function loginUser(input: LoginInput) {
   }
 
   if (user.passwordResetRequired) {
-    if (await isFullReplacementUser(user.passwordChangedAt)) {
+    if (await isFullReplacementUser(user.fullReplacementPasswordResetRunId)) {
       // The conditional update makes the successful replacement-password login
       // the only request allowed to clear this reset flag for this auth epoch.
       // It changes no password data and does not issue restricted reset auth.
@@ -270,7 +270,7 @@ export async function loginUser(input: LoginInput) {
           id: user.id,
           authVersion: user.authVersion,
           passwordResetRequired: true,
-          passwordChangedAt: user.passwordChangedAt,
+          fullReplacementPasswordResetRunId: user.fullReplacementPasswordResetRunId,
         },
         data: {
           passwordResetRequired: false,
@@ -441,6 +441,7 @@ export async function changePassword(
     passwordResetRequired: false,
     authVersion: { increment: 1 },
     passwordChangedAt: new Date(),
+    fullReplacementPasswordResetRunId: null,
   };
 
   let updatedUser;

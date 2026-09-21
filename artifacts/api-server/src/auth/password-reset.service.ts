@@ -143,6 +143,7 @@ export async function completePasswordReset(input: ResetPasswordInput) {
         passwordResetRequired: false,
         authVersion: { increment: 1 },
         passwordChangedAt: now,
+        fullReplacementPasswordResetRunId: null,
       },
       select: {
         id: true,

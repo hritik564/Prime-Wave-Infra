@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
     passwordHash: "",
     passwordResetRequired: true,
     authVersion: 6,
+    fullReplacementPasswordResetRunId: "full-replacement-run" as string | null,
   },
 }));
 
@@ -63,6 +64,7 @@ beforeEach(async () => {
       authVersion: { increment: number };
       passwordChangedAt: Date;
       passwordHash: string;
+      fullReplacementPasswordResetRunId: null;
     };
     }) => {
       if (
@@ -73,6 +75,8 @@ beforeEach(async () => {
       }
       state.user.passwordHash = args.data.passwordHash;
       state.user.passwordResetRequired = args.data.passwordResetRequired;
+      state.user.fullReplacementPasswordResetRunId =
+        args.data.fullReplacementPasswordResetRunId;
       state.user.authVersion += args.data.authVersion.increment;
       return { count: 1 };
     }),
@@ -105,6 +109,7 @@ describe("restricted first-login password change", () => {
     expect(result.token).toBe("normal-user-token");
     expect(state.user.passwordResetRequired).toBe(false);
     expect(state.user.authVersion).toBe(7);
+    expect(state.user.fullReplacementPasswordResetRunId).toBeNull();
     await expect(bcrypt.compare("NewPassword2", state.user.passwordHash)).resolves.toBe(true);
     await expect(bcrypt.compare("TemporaryPassword1", state.user.passwordHash)).resolves.toBe(false);
     expect(signUserToken).toHaveBeenCalledWith(expect.objectContaining({

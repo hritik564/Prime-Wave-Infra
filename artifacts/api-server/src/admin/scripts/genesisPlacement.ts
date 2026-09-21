@@ -90,6 +90,7 @@ export async function genesisInsertUser(
         email,
         username,
         passwordHash,
+        fullReplacementPasswordResetRunId: null,
         firstName,
         lastName,
         status:        "INACTIVE",

@@ -116,6 +116,7 @@ export async function seedBinaryTree(): Promise<SeedResult> {
       lastName:            "Seed",
       phone:               `+1${String(1_000_000_000 + n)}`,
       passwordHash,
+      fullReplacementPasswordResetRunId: null,
       status:              "ACTIVE",
       referralCode:        `SEED${String(n).padStart(4, "0")}`,
       referredBy:          parentId ?? undefined,

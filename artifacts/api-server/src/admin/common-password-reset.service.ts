@@ -994,10 +994,9 @@ async function processCommonPasswordReset(
     if (operationType === "FULL_REPLACEMENT") {
       const changedUser = await retryDb(() => dependencies.db.user.findMany({
         where: {
-          passwordChangedAt: { gte: startedAt },
-          passwordResetRequired: true,
+          fullReplacementPasswordResetRunId: runId,
         },
-        orderBy: { passwordChangedAt: "asc" },
+        orderBy: { id: "asc" },
         take: 1,
         select: { passwordHash: true },
       }));
@@ -1038,6 +1037,7 @@ async function processCommonPasswordReset(
           authVersion: true,
           passwordResetRequired: true,
           passwordChangedAt: true,
+          fullReplacementPasswordResetRunId: true,
           updatedAt: true,
         },
       }));
@@ -1055,7 +1055,9 @@ async function processCommonPasswordReset(
             user.passwordChangedAt >= startedAt &&
             user.passwordResetRequired &&
             (operationType === "FULL_REPLACEMENT"
-              || await bcrypt.compare(context.password, user.passwordHash));
+              ? user.fullReplacementPasswordResetRunId === runId
+              : user.fullReplacementPasswordResetRunId === null
+                && await bcrypt.compare(context.password, user.passwordHash));
 
           if (!alreadyCommitted) {
             const passwordHash =
@@ -1073,6 +1075,8 @@ async function processCommonPasswordReset(
               passwordResetRequired: true,
               authVersion: { increment: 1 },
               passwordChangedAt: new Date(),
+              fullReplacementPasswordResetRunId:
+                operationType === "FULL_REPLACEMENT" ? runId : null,
               updatedAt: user.updatedAt,
             };
             const updateMany = dependencies.db.user.updateMany;
@@ -1088,6 +1092,7 @@ async function processCommonPasswordReset(
                     passwordHash: true,
                     passwordResetRequired: true,
                     passwordChangedAt: true,
+                    fullReplacementPasswordResetRunId: true,
                   },
                 }));
                 const committedByAnotherAttempt =
@@ -1096,7 +1101,9 @@ async function processCommonPasswordReset(
                   && current.passwordChangedAt >= startedAt
                   && current.passwordResetRequired
                   && (operationType === "FULL_REPLACEMENT"
-                    || await bcrypt.compare(context.password, current.passwordHash));
+                    ? current.fullReplacementPasswordResetRunId === runId
+                    : current.fullReplacementPasswordResetRunId === null
+                      && await bcrypt.compare(context.password, current.passwordHash));
                 if (!committedByAnotherAttempt) {
                   throw new Error("User changed concurrently during the password reset");
                 }

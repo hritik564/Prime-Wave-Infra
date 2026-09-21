@@ -546,6 +546,7 @@ export async function adminResetUserPassword(
         passwordResetRequired: false,
         authVersion: { increment: 1 },
         passwordChangedAt: new Date(),
+        fullReplacementPasswordResetRunId: null,
       },
     });
 
