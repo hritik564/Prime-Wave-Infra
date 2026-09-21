@@ -1,0 +1,58 @@
+Do NOT approve or apply the migration yet.
+
+The proposed per-user FULL_REPLACEMENT ownership marker is conceptually correct, but we have one unresolved issue:
+
+The completed FULL_REPLACEMENT run
+cmuaw52yf004vj1h61tpbr14w
+already changed all 6,640 users.
+
+Those users need to be recognized as FULL_REPLACEMENT users after the new marker is introduced. We cannot leave all 6,640 markers NULL, because that would leave them in the restricted password-reset flow.
+
+However, we MUST NOT infer ownership from passwordChangedAt timestamps alone.
+
+Perform a READ-ONLY investigation only.
+
+Do not:
+- modify the database
+- apply the migration
+- backfill anything
+- change passwords
+- modify the completed run
+- publish
+
+Investigate whether there is an existing immutable/durable source that can identify the exact 6,640 users processed by run:
+
+cmuaw52yf004vj1h61tpbr14w
+
+Check the existing implementation/data structures for evidence such as:
+- the FULL_REPLACEMENT run's durable checkpoints
+- worker processing records
+- audit records
+- credential artifacts or metadata, without exposing passwords
+- any per-user operation records
+- transaction/ledger-style records
+- existing user IDs/checkpoint ordering that can be proven to correspond exactly to the completed run
+- any other persisted operation-specific evidence
+
+For each candidate source, determine:
+
+1. Does it identify the exact user IDs processed by this run?
+2. Is the relationship authoritative rather than inferred from timestamps?
+3. Can it distinguish this FULL_REPLACEMENT from the historical random/common resets?
+4. Can it safely be used for a one-time backfill?
+5. Does it contain all 6,640 users, including users whose writes occurred before/after durable checkpoints?
+6. Could any user who was NOT processed by this run be incorrectly included?
+
+Do not expose or print passwords, password hashes, reset tokens, or credential artifacts.
+
+Then report:
+
+A. Exact source(s) found.
+B. Exact evidence showing whether they can establish the 6,640-user set.
+C. Whether a safe one-time marker backfill is possible.
+D. If possible, describe the exact read-only selection criteria that would be used for the backfill.
+E. If impossible, explain precisely what information is missing.
+
+Do not implement or apply anything yet.
+
+The goal is to establish whether we can safely migrate the already-completed 6,640 users to the new authoritative marker without guessing.
