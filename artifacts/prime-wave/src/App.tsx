@@ -49,6 +49,14 @@ import { PERMISSIONS, type Permission } from "@/lib/permissions";
 import PublicHomePage from "@/pages/public/PublicHomePage";
 import PublicPage from "@/pages/public/PublicPage";
 
+// Temporary switch: set to true to restore the public marketing website.
+const MAIN_WEBSITE_ENABLED = false;
+
+function PublicWebsite({ children }: { children: React.ReactNode }) {
+  if (!MAIN_WEBSITE_ENABLED) return <Redirect to="/login" />;
+  return <>{children}</>;
+}
+
 function ComingSoon({ title }: { title: string }) {
   return (
     <AppLayout pageTitle={title} notificationCount={0}>
@@ -116,16 +124,16 @@ function AppRoutes() {
   return (
     <Switch>
       {/* ── PrimeWave public website ── */}
-      <Route path="/"><PublicHomePage /></Route>
-      <Route path="/chain"><PublicPage kind="chain" /></Route>
-      <Route path="/dex"><PublicPage kind="dex" /></Route>
-      <Route path="/swap"><PublicPage kind="swap" /></Route>
-      <Route path="/wallet"><PublicPage kind="wallet" /></Route>
-      <Route path="/developers"><PublicPage kind="developers" /></Route>
-      <Route path="/network"><PublicPage kind="network" /></Route>
-      <Route path="/security"><PublicPage kind="security" /></Route>
-      <Route path="/ecosystem"><PublicPage kind="ecosystem" /></Route>
-      <Route path="/about"><PublicPage kind="about" /></Route>
+      <Route path="/"><PublicWebsite><PublicHomePage /></PublicWebsite></Route>
+      <Route path="/chain"><PublicWebsite><PublicPage kind="chain" /></PublicWebsite></Route>
+      <Route path="/dex"><PublicWebsite><PublicPage kind="dex" /></PublicWebsite></Route>
+      <Route path="/swap"><PublicWebsite><PublicPage kind="swap" /></PublicWebsite></Route>
+      <Route path="/wallet"><PublicWebsite><PublicPage kind="wallet" /></PublicWebsite></Route>
+      <Route path="/developers"><PublicWebsite><PublicPage kind="developers" /></PublicWebsite></Route>
+      <Route path="/network"><PublicWebsite><PublicPage kind="network" /></PublicWebsite></Route>
+      <Route path="/security"><PublicWebsite><PublicPage kind="security" /></PublicWebsite></Route>
+      <Route path="/ecosystem"><PublicWebsite><PublicPage kind="ecosystem" /></PublicWebsite></Route>
+      <Route path="/about"><PublicWebsite><PublicPage kind="about" /></PublicWebsite></Route>
 
       {/* ── Auth Routes (no AppLayout) ── */}
       <Route path="/login">
