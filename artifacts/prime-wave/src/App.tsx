@@ -50,7 +50,7 @@ import PublicHomePage from "@/pages/public/PublicHomePage";
 import PublicPage from "@/pages/public/PublicPage";
 
 // Temporary switch: set to true to restore the public marketing website.
-const MAIN_WEBSITE_ENABLED = false;
+const MAIN_WEBSITE_ENABLED = true;
 
 function PublicWebsite({ children }: { children: React.ReactNode }) {
   if (!MAIN_WEBSITE_ENABLED) return <Redirect to="/login" />;
