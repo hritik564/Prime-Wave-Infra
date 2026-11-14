@@ -7,7 +7,6 @@ import {
   claimRoiHandler,
   getEarningsHandler,
   toggleAutoCompoundHandler,
-  getCapSummaryHandler,
 } from "./investments.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 import { requireBusinessAccess } from "../middleware/businessAccess.middleware";
@@ -24,7 +23,6 @@ router.post("/", requireBusinessAccess, validate(createInvestmentSchema), create
 
 // GET /api/investments — paginated list, filterable by status
 router.get("/", validate(listInvestmentsQuerySchema, "query"), list);
-router.get("/cap-account", getCapSummaryHandler);
 
 // GET /api/investments/:id — single investment
 router.get("/:id", getById);

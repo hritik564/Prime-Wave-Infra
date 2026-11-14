@@ -3,7 +3,6 @@ import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import { notificationService } from "../notifications/notifications.service";
-import { recordRoiClaim } from "./investment-cap.service";
 
 const ZERO = new Prisma.Decimal("0");
 
@@ -17,7 +16,6 @@ export async function claimRoi(userId: string, investmentId: string) {
         id:           true,
         userId:       true,
         autoCompound: true,
-        planType:     true,
         claimableROI: true,
         status:       true,
         planType:     true,
@@ -45,10 +43,6 @@ export async function claimRoi(userId: string, investmentId: string) {
     }
 
     const amount = investment.claimableROI;
-
-    if (investment.planType === "SINGLE") {
-      await recordRoiClaim(tx, userId, investmentId, amount);
-    }
 
     // Reset claimable ROI on the investment
     await tx.investment.update({

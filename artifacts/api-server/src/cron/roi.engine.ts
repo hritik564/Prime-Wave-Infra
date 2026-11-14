@@ -1,7 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { logger } from "../lib/logger";
-import { postSinglePlanRoiCycle } from "../investments/investment-cap.service";
 
 const HALF_DAY = new Prisma.Decimal("200"); // divisor: dailyROI% / 200 = per-cycle rate
 
@@ -23,10 +22,9 @@ export async function processRoiCycle(): Promise<void> {
   logger.info({ cycleStart }, "ROI cycle: starting");
 
   // Snapshot IDs of all ACTIVE investments so we have a stable list for this cycle
-  const cycleKey = `utc-12h:${Math.floor(cycleStart.getTime() / (12 * 60 * 60 * 1000))}`;
   const active = await prisma.investment.findMany({
     where: { status: "ACTIVE" },
-    select: { id: true, userId: true, planType: true },
+    select: { id: true },
     orderBy: { id: "asc" },
   });
 
@@ -40,17 +38,7 @@ export async function processRoiCycle(): Promise<void> {
   let credited = 0;
   let failed = 0;
 
-  const singleUsers = [...new Set(active.filter((inv) => inv.planType === "SINGLE").map((inv) => inv.userId))].sort();
-  for (const userId of singleUsers) {
-    try {
-      await postSinglePlanRoiCycle(userId, cycleKey);
-    } catch (err) {
-      failed++;
-      logger.error({ err, userId }, "ROI cycle: single-plan member processing failed");
-    }
-  }
-
-  for (const { id, planType } of active.filter((inv) => inv.planType !== "SINGLE")) {
+  for (const { id } of active) {
     try {
       const result = await processOne(id, cycleStart);
       if (result === "matured") matured++;
@@ -93,7 +81,7 @@ async function processOne(investmentId: string, now: Date): Promise<ProcessResul
     if (!inv || inv.status !== "ACTIVE") return "skipped";
 
     // ── Maturity check ────────────────────────────────────────────────────────
-    if (inv.maturesAt && now >= inv.maturesAt) {
+    if (now >= inv.maturesAt) {
       await tx.investment.update({
         where: { id: investmentId },
         data: {

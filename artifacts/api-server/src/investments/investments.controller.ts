@@ -11,20 +11,6 @@ import { sendSuccess, sendCreated } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
 import type { AuthenticatedRequest } from "../shared/types";
 import type { CreateInvestmentInput, ListInvestmentsQuery } from "./investments.schema";
-import { getCapSummary } from "./investment-cap.service";
-
-export async function getCapSummaryHandler(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  try {
-    const { user } = req as AuthenticatedRequest;
-    sendSuccess(res, await getCapSummary(user.sub), "Investment cap summary fetched");
-  } catch (err) {
-    next(err);
-  }
-}
 
 export async function create(
   req: Request,

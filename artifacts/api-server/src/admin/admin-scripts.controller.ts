@@ -26,7 +26,7 @@ import { createInvestment } from "../investments/investments.service";
 
 const DEPOSIT_AMOUNT = 100;
 const INVEST_AMOUNT  = 100;
-const PLAN_TYPE      = "SINGLE" as const;
+const PLAN_TYPE      = "PLAN_360" as const;
 const ACTIVATION_REASON = "RD Activation — Sprint 28N: First qualifying investment";
 
 export async function rdActivationHandler(req: AuthenticatedRequest, res: Response) {

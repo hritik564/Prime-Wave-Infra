@@ -178,7 +178,7 @@ export async function runSeed23B(): Promise<SeedSummary> {
     });
     if (!existingInv) {
       await createInvestment(masterUser.id, {
-        amount: SEED_AMOUNT, planType: "SINGLE", autoCompound: false,
+        amount: SEED_AMOUNT, planType: SEED_PLAN, autoCompound: false,
       });
       logger.info("Seed 23B: master investment created");
     }
@@ -260,7 +260,7 @@ export async function runSeed23B(): Promise<SeedSummary> {
       });
       if (!existingInv) {
         await createInvestment(uid, {
-          amount: SEED_AMOUNT, planType: "SINGLE", autoCompound: false,
+          amount: SEED_AMOUNT, planType: SEED_PLAN, autoCompound: false,
         });
       }
 

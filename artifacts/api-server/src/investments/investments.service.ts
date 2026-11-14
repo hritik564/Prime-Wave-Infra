@@ -11,7 +11,6 @@ import { logger } from "../lib/logger";
 import { processUserAchievements } from "../salary/salary-achievement.service";
 import { writeLedgerEntry } from "../ledger/ledger.service";
 import { propagateInvestmentBusiness } from "../salary/salary-business.service";
-import { recordContribution } from "./investment-cap.service";
 
 // ── Create investment ─────────────────────────────────────────────────────────
 
@@ -60,9 +59,7 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
 
     // Calculate maturity date
     const startedAt = new Date();
-    const maturesAt = plan.durationDays === null
-      ? null
-      : new Date(startedAt.getTime() + plan.durationDays * 86_400_000);
+    const maturesAt = new Date(startedAt.getTime() + plan.durationDays * 86_400_000);
 
     // Create investment record
     const inv = await tx.investment.create({
@@ -79,7 +76,6 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
       },
       select: investmentSelect,
     });
-    await recordContribution(tx, userId, inv.id, decimalAmount);
 
     // Wallet audit record
     await tx.walletTransaction.create({
@@ -89,7 +85,7 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
         type:        "INVESTMENT",
         status:      "SUCCESS",
         amount:      decimalAmount,
-        description: `Investment created — ${planType} (${plan.dailyROI}%/day)`,
+        description: `Investment created — ${planType} (${plan.durationDays} days @ ${plan.dailyROI}%/day)`,
         metadata:    { investmentId: inv.id, planType, durationDays: plan.durationDays },
       },
     });
@@ -123,7 +119,7 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
     userId,
     type:    "INVESTMENT_CREATED",
     title:   "Investment Created",
-    message: `Your ${planType} investment of $${decimalAmount.toFixed(2)} has been activated at ${plan.dailyROI}% daily ROI.`,
+    message: `Your ${planType} investment of $${decimalAmount.toFixed(2)} has been activated and will grow for ${plan.durationDays} days.`,
     metadata: { investmentId: investment.id, planType, amount: decimalAmount.toString() },
   });
 
@@ -237,7 +233,6 @@ export async function claimPrincipal(userId: string, investmentId: string) {
       select: {
         id:                true,
         userId:            true,
-        planType:          true,
         status:            true,
         claimablePrincipal: true,
         planType:          true,
@@ -246,14 +241,6 @@ export async function claimPrincipal(userId: string, investmentId: string) {
 
     if (!investment || investment.userId !== userId) {
       throw new AppError("Investment not found", HTTP_STATUS.NOT_FOUND, "INVESTMENT_NOT_FOUND");
-    }
-
-    if (investment.planType === "SINGLE") {
-      throw new AppError(
-        "Principal settlement is not enabled for the single plan",
-        HTTP_STATUS.BAD_REQUEST,
-        "PRINCIPAL_SETTLEMENT_DISABLED",
-      );
     }
 
     if (investment.status !== "MATURED") {

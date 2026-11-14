@@ -98,27 +98,12 @@ enum PlanType {
   PLAN_180
   PLAN_270
   PLAN_360
-  SINGLE
 }
 
 enum InvestmentStatus {
   ACTIVE
   MATURED
   COMPLETED
-}
-
-enum InvestmentCapTier {
-  NON_WORKING
-  WORKING
-}
-
-enum InvestmentAccountingEventType {
-  CONTRIBUTION
-  ROI_ACCRUAL
-  ROI_CLAIM
-  ROI_COMPOUND
-  PRINCIPAL_RETURN
-  TIER_UPGRADE
 }
 
 enum BinaryPosition {
@@ -219,7 +204,6 @@ model User {
   transactions           WalletTransaction[]
   investments      Investment[]
   roiLedger        RoiLedger[]
-  investmentCapAccount InvestmentCapAccount?
   referralHistory  ReferralHistory?  @relation("ReferralHistoryUser")
   givenReferrals   ReferralHistory[] @relation("ReferralHistorySponsor")
 
@@ -456,13 +440,13 @@ model Investment {
   currentPrincipal   Decimal          @db.Decimal(18, 8)
   planType           PlanType
   dailyROI           Decimal          @db.Decimal(6, 4)
-  durationDays       Int?
+  durationDays       Int
   autoCompound       Boolean          @default(false)
   claimableROI       Decimal          @default(0) @db.Decimal(18, 8)
   claimablePrincipal Decimal          @default(0) @db.Decimal(18, 8)
   status             InvestmentStatus @default(ACTIVE)
   startedAt          DateTime         @default(now())
-  maturesAt          DateTime?
+  maturesAt          DateTime
   completedAt        DateTime?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
@@ -475,7 +459,6 @@ model Investment {
   salaryBvLedger SalaryBvLedger[]
   bvHistory      BvHistory[]
   levelIncome    LevelIncome[]
-  accountingEvents InvestmentAccountingEvent[]
 
   @@index([userId])
   @@index([status])
@@ -490,7 +473,6 @@ model RoiLedger {
   investmentId  String
   amount        Decimal  @db.Decimal(18, 8)
   cycleNumber   Int
-  cycleKey      String?
   wasCompounded Boolean  @default(false)
   wasClaimed    Boolean  @default(false)
   createdAt     DateTime @default(now())
@@ -502,48 +484,7 @@ model RoiLedger {
   @@index([userId])
   @@index([wasCompounded])
   @@index([wasClaimed])
-  @@unique([investmentId, cycleKey])
   @@map("roi_ledger")
-}
-
-model InvestmentCapAccount {
-  id                    String            @id @default(cuid())
-  userId                String            @unique
-  originalCapital       Decimal           @default(0) @db.Decimal(18, 8)
-  cumulativeRoiAccrued  Decimal           @default(0) @db.Decimal(18, 8)
-  cumulativeRoiClaimed  Decimal           @default(0) @db.Decimal(18, 8)
-  cumulativeRoiCompounded Decimal         @default(0) @db.Decimal(18, 8)
-  claimableRoi          Decimal           @default(0) @db.Decimal(18, 8)
-  originalPrincipalReturned Decimal       @default(0) @db.Decimal(18, 8)
-  principalOwed         Decimal           @default(0) @db.Decimal(18, 8)
-  capTier               InvestmentCapTier @default(NON_WORKING)
-  qualifiedAt           DateTime?
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
-
-  user   User                          @relation(fields: [userId], references: [id], onDelete: Restrict)
-  events InvestmentAccountingEvent[]
-
-  @@map("investment_cap_accounts")
-}
-
-model InvestmentAccountingEvent {
-  id             String                           @id @default(cuid())
-  userId         String
-  investmentId   String?
-  eventType      InvestmentAccountingEventType
-  amount         Decimal                          @db.Decimal(18, 8)
-  referenceKey   String                           @unique
-  metadata       Json?
-  createdAt      DateTime                         @default(now())
-
-  investment Investment?           @relation(fields: [investmentId], references: [id], onDelete: Restrict)
-  account    InvestmentCapAccount  @relation(fields: [userId], references: [userId], onDelete: Restrict)
-
-  @@index([userId, createdAt])
-  @@index([investmentId])
-  @@index([eventType])
-  @@map("investment_accounting_events")
 }
 
 model ReferralHistory {
