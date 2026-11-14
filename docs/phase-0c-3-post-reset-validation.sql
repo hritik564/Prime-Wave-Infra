@@ -75,6 +75,7 @@ UNION ALL SELECT 'investments', count(*) FROM public.investments
 UNION ALL SELECT 'roi_ledger', count(*) FROM public.roi_ledger
 UNION ALL SELECT 'deposit_requests', count(*) FROM public.deposit_requests
 UNION ALL SELECT 'deposit_verifications', count(*) FROM public.deposit_verifications
+UNION ALL SELECT 'manual_deposit_idempotency', count(*) FROM public.manual_deposit_idempotency
 UNION ALL SELECT 'withdrawal_requests', count(*) FROM public.withdrawal_requests
 UNION ALL SELECT 'withdrawal_events', count(*) FROM public.withdrawal_events
 UNION ALL SELECT 'income_transfers', count(*) FROM public.income_transfers
@@ -207,6 +208,7 @@ BEGIN
     FROM (VALUES
       ('wallet_transactions'), ('investments'), ('roi_ledger'),
       ('deposit_requests'), ('deposit_verifications'), ('withdrawal_requests'),
+      ('manual_deposit_idempotency'),
       ('withdrawal_events'), ('income_transfers'), ('income_transfer_releases'),
       ('manual_deposit_idempotency'), ('referral_history'), ('level_income'),
       ('match_bv_ledger'), ('orbit_bv_ledger'), ('salary_bv_ledger'),

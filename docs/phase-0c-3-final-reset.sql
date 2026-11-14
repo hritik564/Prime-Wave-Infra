@@ -4,7 +4,7 @@
 -- This file has a commit gate set to NO. Do not change it without separate
 -- owner approval after isolated-restore testing and independent review.
 --
--- Requires psql. Use a dedicated isolated restore first. The settlement and
+-- Requires psql. Use a dedicated isolated restore first. The financial-clearance and
 -- archive CSVs are private operator files and must not be committed.
 -- No foreign keys are disabled; no DELETE ... CASCADE is used.
 --
@@ -27,9 +27,9 @@
 \else
 \set archive_verified NO
 \endif
-\if :{?settlements_verified}
+\if :{?financial_clearance_verified}
 \else
-\set settlements_verified NO
+\set financial_clearance_verified NO
 \endif
 \if :{?commit_approved}
 \else
@@ -40,7 +40,7 @@ BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '15min';
 SET LOCAL app.phase0c3_archive_verified = :'archive_verified';
-SET LOCAL app.phase0c3_settlements_verified = :'settlements_verified';
+SET LOCAL app.phase0c3_financial_clearance_verified = :'financial_clearance_verified';
 SET LOCAL app.phase0c3_commit_approved = :'commit_approved';
 SET LOCAL app.phase0c3_expected_database = :'expected_database';
 SET LOCAL app.phase0c3_expected_role = :'expected_role';
@@ -101,10 +101,18 @@ IN ACCESS EXCLUSIVE MODE;
 CREATE TEMP TABLE phase0c3_archive_manifest (
   backup_sha256 text NOT NULL CHECK (backup_sha256 ~ '^[A-Fa-f0-9]{64}$'),
   archive_reference text NOT NULL CHECK (length(trim(archive_reference)) > 0),
+  backup_created_at timestamptz NOT NULL,
   pg_restore_list_verified boolean NOT NULL,
   isolated_restore_passed boolean NOT NULL,
   row_counts_reconciled boolean NOT NULL,
-  retention_approval text NOT NULL CHECK (length(trim(retention_approval)) > 0),
+  encryption_verified boolean NOT NULL,
+  access_restricted_verified boolean NOT NULL,
+  credential_artifact_references_checked bigint NOT NULL
+    CHECK (credential_artifact_references_checked >= 0),
+  credential_artifacts_confirmed_absent bigint NOT NULL
+    CHECK (credential_artifacts_confirmed_absent >= 0),
+  retention_approval text NOT NULL
+    CHECK (retention_approval ~ '^APPROVED:.+'),
   prepared_by text NOT NULL CHECK (length(trim(prepared_by)) > 0),
   independently_verified_by text NOT NULL
     CHECK (length(trim(independently_verified_by)) > 0),
@@ -113,9 +121,9 @@ CREATE TEMP TABLE phase0c3_archive_manifest (
 ) ON COMMIT DROP;
 \copy phase0c3_archive_manifest FROM 'phase-0c-3-archive-manifest.csv' WITH (FORMAT csv, HEADER true)
 
--- One row for each nonterminal withdrawal and positive income-transfer
--- remainder. Evidence content is reviewed outside SQL; never invent rows.
-CREATE TEMP TABLE phase0c3_settlement_manifest (
+-- One owner-approved disposition for each unresolved withdrawal and internal
+-- income-transfer remainder. This script does not pay, cancel, or mutate them.
+CREATE TEMP TABLE phase0c3_financial_clearance_manifest (
   record_type text NOT NULL
     CHECK (record_type IN ('withdrawal', 'income_transfer')),
   record_id text NOT NULL,
@@ -124,18 +132,23 @@ CREATE TEMP TABLE phase0c3_settlement_manifest (
   database_fee numeric,
   database_net_amount numeric,
   database_currency text,
-  external_amount numeric NOT NULL CHECK (external_amount > 0),
-  external_currency text NOT NULL CHECK (length(trim(external_currency)) > 0),
-  external_reference text NOT NULL CHECK (length(trim(external_reference)) > 0),
+  resolution_type text NOT NULL CHECK (
+    resolution_type IN (
+      'PAID_EXTERNALLY',
+      'CANCELLED_WITH_OWNER_APPROVAL',
+      'OTHER_OWNER_APPROVED_DISPOSITION'
+    )
+  ),
+  resolution_reference text NOT NULL CHECK (length(trim(resolution_reference)) > 0),
   evidence_sha256 text NOT NULL CHECK (evidence_sha256 ~ '^[A-Fa-f0-9]{64}$'),
-  settled_at timestamptz NOT NULL,
+  resolved_at timestamptz NOT NULL,
   prepared_by text NOT NULL CHECK (length(trim(prepared_by)) > 0),
   independently_verified_by text NOT NULL
     CHECK (length(trim(independently_verified_by)) > 0),
   PRIMARY KEY (record_type, record_id),
   CHECK (prepared_by <> independently_verified_by)
 ) ON COMMIT DROP;
-\copy phase0c3_settlement_manifest FROM 'phase-0c-3-settlement-manifest.csv' WITH (FORMAT csv, HEADER true)
+\copy phase0c3_financial_clearance_manifest FROM 'phase-0c-3-financial-clearance-manifest.csv' WITH (FORMAT csv, HEADER true)
 
 -- Keep hashes/credentials private: snapshots are temporary and never selected
 -- into psql output. The Master network fields intentionally reset below.
@@ -199,17 +212,27 @@ BEGIN
   END IF;
 
   IF current_setting('app.phase0c3_archive_verified') IS DISTINCT FROM 'YES'
-     OR current_setting('app.phase0c3_settlements_verified') IS DISTINCT FROM 'YES' THEN
-    RAISE EXCEPTION 'Archive and external-settlement approvals are required';
+     OR current_setting('app.phase0c3_financial_clearance_verified') IS DISTINCT FROM 'YES' THEN
+    RAISE EXCEPTION 'Archive and owner-approved financial-clearance attestations are required';
   END IF;
-  SELECT * INTO archive_record FROM phase0c3_archive_manifest;
-  IF NOT FOUND
-     OR (SELECT count(*) FROM phase0c3_archive_manifest) <> 1
-     OR NOT archive_record.pg_restore_list_verified
+   IF (SELECT count(*) FROM phase0c3_archive_manifest) <> 1 THEN
+     RAISE EXCEPTION 'Exactly one verified archive manifest row is required';
+   END IF;
+   SELECT * INTO archive_record FROM phase0c3_archive_manifest;
+    IF NOT archive_record.pg_restore_list_verified
      OR NOT archive_record.isolated_restore_passed
      OR NOT archive_record.row_counts_reconciled
+      OR NOT archive_record.encryption_verified
+      OR NOT archive_record.access_restricted_verified
+      OR archive_record.credential_artifact_references_checked
+           <> (SELECT count(*) FROM public.bulk_password_reset_runs)
+      OR archive_record.credential_artifacts_confirmed_absent
+           <> (SELECT count(*) FROM public.bulk_password_reset_runs)
+      OR archive_record.backup_created_at > CURRENT_TIMESTAMP
+      OR archive_record.backup_created_at < CURRENT_TIMESTAMP - INTERVAL '24 hours'
+      OR archive_record.verified_at < archive_record.backup_created_at
      OR archive_record.verified_at > CURRENT_TIMESTAMP THEN
-    RAISE EXCEPTION 'A verified archive manifest is required';
+     RAISE EXCEPTION 'Fresh verified archive, retention approval, and credential-artifact reconciliation are required';
   END IF;
 
   IF (SELECT count(*) FROM public.users) <> 6689
@@ -348,17 +371,17 @@ BEGIN
          WHERE "remainingAmount" > 0) <> 2.76013842 THEN
     RAISE EXCEPTION 'Open obligations differ from owner preflight; refresh evidence';
   END IF;
-  IF (SELECT count(*) FROM phase0c3_settlement_manifest
+  IF (SELECT count(*) FROM phase0c3_financial_clearance_manifest
       WHERE record_type = 'withdrawal') <> open_withdrawals
-     OR (SELECT count(*) FROM phase0c3_settlement_manifest
+     OR (SELECT count(*) FROM phase0c3_financial_clearance_manifest
          WHERE record_type = 'income_transfer') <> positive_transfers THEN
-    RAISE EXCEPTION 'Settlement manifest must cover all 11 withdrawals and 3 transfers';
+    RAISE EXCEPTION 'Financial clearance must cover all 11 withdrawals and 3 transfers';
   END IF;
 
   IF EXISTS (
     SELECT 1
     FROM public.withdrawal_requests w
-    LEFT JOIN phase0c3_settlement_manifest m
+    LEFT JOIN phase0c3_financial_clearance_manifest m
       ON m.record_type = 'withdrawal' AND m.record_id = w.id
     WHERE w.status::text NOT IN ('COMPLETED', 'FAILED', 'REJECTED', 'CANCELLED')
       AND (
@@ -368,55 +391,51 @@ BEGIN
         OR m.database_fee IS DISTINCT FROM w.fee
         OR m.database_net_amount IS DISTINCT FROM w."netAmount"
         OR m.database_currency IS DISTINCT FROM w.currency
-        OR m.external_amount IS DISTINCT FROM w."netAmount"
-        OR m.external_currency IS DISTINCT FROM w.currency
-        OR m.settled_at > CURRENT_TIMESTAMP
+        OR m.resolved_at > CURRENT_TIMESTAMP
       )
   ) OR EXISTS (
     SELECT 1
-    FROM phase0c3_settlement_manifest m
+    FROM phase0c3_financial_clearance_manifest m
     LEFT JOIN public.withdrawal_requests w ON w.id = m.record_id
     WHERE m.record_type = 'withdrawal'
       AND (w.id IS NULL
         OR w.status::text IN ('COMPLETED', 'FAILED', 'REJECTED', 'CANCELLED'))
   ) THEN
-    RAISE EXCEPTION 'Withdrawal settlement manifest does not match current records';
+    RAISE EXCEPTION 'Withdrawal clearance manifest does not match current records';
   END IF;
 
   IF EXISTS (
     SELECT 1
     FROM public.income_transfers t
-    LEFT JOIN phase0c3_settlement_manifest m
+    LEFT JOIN phase0c3_financial_clearance_manifest m
       ON m.record_type = 'income_transfer' AND m.record_id = t.id
     WHERE t."remainingAmount" > 0
       AND (
         m.record_id IS NULL
-        OR m.database_status IS DISTINCT FROM 'REMAINING_AMOUNT'
+         OR m.database_status IS DISTINCT FROM t.status::text
         OR m.database_amount IS DISTINCT FROM t."remainingAmount"
         OR m.database_fee IS NOT NULL
         OR m.database_net_amount IS NOT NULL
         OR m.database_currency IS NOT NULL
-        OR m.external_amount IS DISTINCT FROM t."remainingAmount"
-        OR m.settled_at > CURRENT_TIMESTAMP
+         OR m.resolved_at > CURRENT_TIMESTAMP
       )
   ) OR EXISTS (
     SELECT 1
-    FROM phase0c3_settlement_manifest m
+    FROM phase0c3_financial_clearance_manifest m
     LEFT JOIN public.income_transfers t ON t.id = m.record_id
     WHERE m.record_type = 'income_transfer'
       AND (t.id IS NULL OR t."remainingAmount" <= 0)
   ) THEN
-    RAISE EXCEPTION 'Transfer settlement manifest does not match current records';
+    RAISE EXCEPTION 'Income-transfer clearance manifest does not match current records';
   END IF;
 
   IF EXISTS (
-    SELECT 1 FROM phase0c3_settlement_manifest
-    WHERE length(trim(external_reference)) = 0
-       OR length(trim(external_currency)) = 0
+    SELECT 1 FROM phase0c3_financial_clearance_manifest
+    WHERE length(trim(resolution_reference)) = 0
        OR prepared_by = independently_verified_by
-       OR settled_at > CURRENT_TIMESTAMP
+       OR resolved_at > CURRENT_TIMESTAMP
   ) THEN
-    RAISE EXCEPTION 'Settlement evidence is incomplete or not independently reviewed';
+    RAISE EXCEPTION 'Owner-approved financial disposition evidence is incomplete';
   END IF;
 END
 $preflight$;
@@ -570,6 +589,7 @@ BEGIN
      OR (SELECT count(*) FROM public.wallet_transactions) <> 0
      OR (SELECT count(*) FROM public.deposit_requests) <> 0
      OR (SELECT count(*) FROM public.deposit_verifications) <> 0
+      OR (SELECT count(*) FROM public.manual_deposit_idempotency) <> 0
      OR (SELECT count(*) FROM public.withdrawal_requests) <> 0
      OR (SELECT count(*) FROM public.withdrawal_events) <> 0
      OR (SELECT count(*) FROM public.income_transfers) <> 0
