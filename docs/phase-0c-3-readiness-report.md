@@ -4,7 +4,7 @@
 
 ## Owner-confirmed targets
 
-- Master: `pwmaster0000000000001`.
+- Master: `pwmaster0000000000000001`.
 - Sole surviving Admin: `6f67dde8-f7c6-4fff-8042-b28dd50191d7` (`SUPER_ADMIN`, active).
 - The other three Admin IDs/roles/statuses were confirmed from the owner-side read-only query and are guarded in the SQL.
 - Completed run `cmuaw52yf004vj1h61tpbr14w` is owned by the selected Super Admin; it is snapshotted and compared inside the transaction.

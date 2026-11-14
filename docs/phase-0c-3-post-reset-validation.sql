@@ -35,8 +35,9 @@ SELECT current_database() AS database_name,
 
 -- No credential values are returned.
 SELECT count(*) AS total_users,
-       count(*) FILTER (WHERE id = 'pwmaster0000000000001'
-                         AND lower(username) = 'master') AS protected_master,
+       count(*) FILTER (WHERE id = 'pwmaster0000000000000001'
+                         AND lower(username) = 'master'
+                         AND status::text = 'ACTIVE') AS protected_master,
        count(*) FILTER (WHERE lower(username) <> 'master') AS ordinary_members,
        (SELECT count(*) FROM public.admins) AS admin_accounts,
        (SELECT count(*) FROM public.admins
@@ -63,10 +64,11 @@ SELECT
   u."leftBV" = 0 AND u."rightBV" = 0
     AND u."powerLeftBV" = 0 AND u."powerRightBV" = 0
     AND u."matchingLeftBV" = 0 AND u."matchingRightBV" = 0
-    AND u."orbitLeftBV" = 0 AND u."orbitRightBV" = 0 AS master_bv_zero
+    AND u."orbitLeftBV" = 0 AND u."orbitRightBV" = 0 AS master_bv_zero,
+  u.status::text = 'ACTIVE' AS master_status_active
 FROM public.users u
 JOIN public.wallets w ON w."userId" = u.id
-WHERE u.id = 'pwmaster0000000000001'
+WHERE u.id = 'pwmaster0000000000000001'
   AND lower(u.username) = 'master';
 
 SELECT count(*) FILTER (
@@ -121,12 +123,12 @@ ORDER BY table_name;
 
 SELECT
   (SELECT count(*) FROM public.password_reset_tokens
-   WHERE "userId" <> 'pwmaster0000000000001') AS non_master_reset_tokens,
+   WHERE "userId" <> 'pwmaster0000000000000001') AS non_master_reset_tokens,
   (SELECT count(*) FROM public.impersonation_sessions) AS impersonation_sessions,
   (SELECT count(*) FROM public.notifications
-   WHERE "userId" <> 'pwmaster0000000000001') AS non_master_notifications,
+   WHERE "userId" <> 'pwmaster0000000000000001') AS non_master_notifications,
   (SELECT count(*) FROM public.wallet_addresses
-   WHERE "userId" <> 'pwmaster0000000000001') AS non_master_wallet_addresses,
+   WHERE "userId" <> 'pwmaster0000000000000001') AS non_master_wallet_addresses,
   (SELECT count(*) FROM public.common_temporary_password_reset_runs
    WHERE id <> 'cmuaw52yf004vj1h61tpbr14w') AS other_reset_runs;
 
@@ -167,8 +169,9 @@ BEGIN
 
   IF (SELECT count(*) FROM public.users) <> 1
      OR (SELECT count(*) FROM public.users
-         WHERE id = 'pwmaster0000000000001'
-           AND lower(username) = 'master') <> 1
+          WHERE id = 'pwmaster0000000000000001'
+            AND lower(username) = 'master'
+            AND status::text = 'ACTIVE') <> 1
      OR (SELECT count(*) FROM public.users
          WHERE lower(username) <> 'master') <> 0
      OR (SELECT count(*) FROM public.admins) <> 1
@@ -178,7 +181,7 @@ BEGIN
       OR (SELECT count(*) FROM public.wallets) <> 1
       OR (SELECT count(*) FROM public.salary_business_summary) <> 1
       OR (SELECT count(*) FROM public.salary_business_summary
-          WHERE "userId" = 'pwmaster0000000000001') <> 1 THEN
+           WHERE "userId" = 'pwmaster0000000000000001') <> 1 THEN
     RAISE EXCEPTION 'Expected exactly Master, selected Super Admin, and Master wallet';
   END IF;
 
@@ -186,8 +189,9 @@ BEGIN
     SELECT 1
     FROM public.users u
     JOIN public.wallets w ON w."userId" = u.id
-    WHERE u.id = 'pwmaster0000000000001'
+    WHERE u.id = 'pwmaster0000000000000001'
       AND lower(u.username) = 'master'
+      AND u.status::text = 'ACTIVE'
       AND w."depositWallet" = 0 AND w."incomeWallet" = 0
       AND w."withdrawalWallet" = 0 AND w."lockedWithdrawalBalance" = 0
       AND u."referredBy" IS NULL AND u."sponsorId" IS NULL
@@ -207,12 +211,12 @@ BEGIN
     SELECT 1 FROM public.salary_business_summary s
     WHERE NOT EXISTS (
       SELECT 1 FROM public.users u
-      WHERE u.id = s."userId" AND u.id = 'pwmaster0000000000001'
+      WHERE u.id = s."userId" AND u.id = 'pwmaster0000000000000001'
     )
   ) OR EXISTS (
     SELECT 1
     FROM public.salary_business_summary s
-    WHERE s."userId" = 'pwmaster0000000000001'
+    WHERE s."userId" = 'pwmaster0000000000000001'
       AND (s."directBusiness" <> 0
         OR s."downlineBusiness" <> 0
         OR s."powerBusiness" <> 0)
@@ -245,15 +249,15 @@ BEGIN
 
   IF EXISTS (
     SELECT 1 FROM public.password_reset_tokens
-    WHERE "userId" <> 'pwmaster0000000000001'
+    WHERE "userId" <> 'pwmaster0000000000000001'
   ) OR EXISTS (
     SELECT 1 FROM public.impersonation_sessions
   ) OR EXISTS (
     SELECT 1 FROM public.notifications
-    WHERE "userId" <> 'pwmaster0000000000001'
+    WHERE "userId" <> 'pwmaster0000000000000001'
   ) OR EXISTS (
     SELECT 1 FROM public.wallet_addresses
-    WHERE "userId" <> 'pwmaster0000000000001'
+    WHERE "userId" <> 'pwmaster0000000000000001'
   ) OR EXISTS (
     SELECT 1 FROM public.common_temporary_password_reset_runs
     WHERE id <> 'cmuaw52yf004vj1h61tpbr14w'

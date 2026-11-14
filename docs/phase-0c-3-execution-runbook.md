@@ -4,7 +4,7 @@
 
 ## Protected identities confirmed by owner
 
-- Master: `pwmaster0000000000001`.
+- Master: `pwmaster0000000000000001`.
 - Sole surviving Admin: `6f67dde8-f7c6-4fff-8042-b28dd50191d7`, role `SUPER_ADMIN`, active.
 - Other Admins to remove after all dependent records are handled:
   - `cmqt4boj5000022p27cavzwi9` — `SUPER_ADMIN`, inactive.

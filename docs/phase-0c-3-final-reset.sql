@@ -6,7 +6,7 @@
 -- All SQL changes are one transaction; any error before COMMIT rolls it back.
 -- No FK is disabled; no CASCADE is used.
 --
--- Protected Master: pwmaster0000000000001
+-- Protected Master: pwmaster0000000000000001
 -- Selected active SUPER_ADMIN: 6f67dde8-f7c6-4fff-8042-b28dd50191d7
 -- Preserved run: cmuaw52yf004vj1h61tpbr14w
 
@@ -173,20 +173,20 @@ SELECT
   "withdrawalHold", "withdrawalHoldReason", "withdrawalHoldBy",
   "withdrawalHoldAt"
 FROM public.users
-WHERE id = 'pwmaster0000000000001';
+WHERE id = 'pwmaster0000000000000001';
 
 CREATE TEMP TABLE phase0c3_master_wallet_identity_snapshot ON COMMIT DROP AS
 SELECT id, "userId", "createdAt"
 FROM public.wallets
-WHERE "userId" = 'pwmaster0000000000001';
+WHERE "userId" = 'pwmaster0000000000000001';
 CREATE TEMP TABLE phase0c3_master_wallet_addresses_snapshot ON COMMIT DROP AS
 SELECT *
 FROM public.wallet_addresses
-WHERE "userId" = 'pwmaster0000000000001';
+WHERE "userId" = 'pwmaster0000000000000001';
 CREATE TEMP TABLE phase0c3_master_salary_identity_snapshot ON COMMIT DROP AS
 SELECT id, "userId", "createdAt"
 FROM public.salary_business_summary
-WHERE "userId" = 'pwmaster0000000000001';
+WHERE "userId" = 'pwmaster0000000000000001';
 CREATE TEMP TABLE phase0c3_kept_admin_snapshot ON COMMIT DROP AS
 SELECT *
 FROM public.admins
@@ -247,8 +247,9 @@ BEGIN
 
   IF (SELECT count(*) FROM public.users) <> 6689
      OR (SELECT count(*) FROM public.users
-         WHERE id = 'pwmaster0000000000001'
-           AND lower(username) = 'master') <> 1
+          WHERE id = 'pwmaster0000000000000001'
+            AND lower(username) = 'master'
+            AND status::text = 'ACTIVE') <> 1
      OR (SELECT count(*) FROM public.admins) <> 4 THEN
     RAISE EXCEPTION 'Account counts or Master identity differ from owner preflight';
   END IF;
@@ -451,20 +452,20 @@ DELETE FROM public.salary_income;
 DELETE FROM public.referral_history;
 DELETE FROM public.manual_deposit_idempotency;
 DELETE FROM public.password_reset_tokens
-WHERE "userId" <> 'pwmaster0000000000001';
+WHERE "userId" <> 'pwmaster0000000000000001';
 DELETE FROM public.impersonation_sessions;
 DELETE FROM public.notifications
-WHERE "userId" <> 'pwmaster0000000000001';
+WHERE "userId" <> 'pwmaster0000000000000001';
 DELETE FROM public.wallet_addresses
-WHERE "userId" <> 'pwmaster0000000000001';
+WHERE "userId" <> 'pwmaster0000000000000001';
 DELETE FROM public.salary_business_summary
-WHERE "userId" <> 'pwmaster0000000000001';
+WHERE "userId" <> 'pwmaster0000000000000001';
 DELETE FROM public.deposit_requests;
 DELETE FROM public.withdrawal_requests;
 DELETE FROM public.income_transfers;
 DELETE FROM public.investments;
 DELETE FROM public.wallets
-WHERE "userId" <> 'pwmaster0000000000001';
+WHERE "userId" <> 'pwmaster0000000000000001';
 DELETE FROM public.salary_run;
 
 -- Historical financial/audit evidence must be retained in the verified
@@ -482,7 +483,7 @@ DELETE FROM public.bulk_password_reset_runs;
 -- preflight has already required Master to reference NULL or the kept run.
 UPDATE public.users
 SET "fullReplacementPasswordResetRunId" = NULL
-WHERE id <> 'pwmaster0000000000001'
+WHERE id <> 'pwmaster0000000000000001'
   AND "fullReplacementPasswordResetRunId" IS NOT NULL;
 DELETE FROM public.common_temporary_password_reset_runs
 WHERE id <> 'cmuaw52yf004vj1h61tpbr14w';
@@ -507,28 +508,28 @@ SET "referredBy" = NULL,
     "orbitLeftBV" = 0,
     "orbitRightBV" = 0,
     "updatedAt" = CURRENT_TIMESTAMP
-WHERE id = 'pwmaster0000000000001';
+WHERE id = 'pwmaster0000000000000001';
 UPDATE public.wallets
 SET "depositWallet" = 0,
     "incomeWallet" = 0,
     "withdrawalWallet" = 0,
     "lockedWithdrawalBalance" = 0,
     "updatedAt" = CURRENT_TIMESTAMP
-WHERE "userId" = 'pwmaster0000000000001';
+WHERE "userId" = 'pwmaster0000000000000001';
 UPDATE public.salary_business_summary
 SET "directBusiness" = 0,
     "downlineBusiness" = 0,
     "powerBusiness" = 0,
     "lastReconciledAt" = NULL,
     "updatedAt" = CURRENT_TIMESTAMP
-WHERE "userId" = 'pwmaster0000000000001';
+WHERE "userId" = 'pwmaster0000000000000001';
 
 -- Break the two NO ACTION self-references before deleting ordinary members.
 UPDATE public.users
 SET "sponsorId" = NULL, "binaryParentId" = NULL
-WHERE id <> 'pwmaster0000000000001';
+WHERE id <> 'pwmaster0000000000000001';
 DELETE FROM public.users
-WHERE id <> 'pwmaster0000000000001';
+WHERE id <> 'pwmaster0000000000000001';
 
 -- All observed Admin child rows are handled above; keep only the selected row.
 DELETE FROM public.admins
@@ -549,8 +550,9 @@ DECLARE
 BEGIN
   IF (SELECT count(*) FROM public.users) <> 1
      OR (SELECT count(*) FROM public.users
-         WHERE id = 'pwmaster0000000000001'
-           AND lower(username) = 'master') <> 1
+          WHERE id = 'pwmaster0000000000000001'
+            AND lower(username) = 'master'
+            AND status::text = 'ACTIVE') <> 1
      OR (SELECT count(*) FROM public.admins) <> 1
      OR (SELECT count(*) FROM public.admins
          WHERE id = '6f67dde8-f7c6-4fff-8042-b28dd50191d7'
@@ -562,7 +564,7 @@ BEGIN
     SELECT 1 FROM public.users u
     JOIN public.wallets w ON w."userId" = u.id
     JOIN public.salary_business_summary s ON s."userId" = u.id
-    WHERE u.id = 'pwmaster0000000000001'
+    WHERE u.id = 'pwmaster0000000000000001'
       AND w."depositWallet" = 0 AND w."incomeWallet" = 0
       AND w."withdrawalWallet" = 0 AND w."lockedWithdrawalBalance" = 0
       AND u."referredBy" IS NULL AND u."sponsorId" IS NULL
@@ -619,20 +621,20 @@ BEGIN
      )
      OR EXISTS (
        SELECT 1 FROM public.password_reset_tokens
-       WHERE "userId" <> 'pwmaster0000000000001'
+        WHERE "userId" <> 'pwmaster0000000000000001'
      )
      OR EXISTS (SELECT 1 FROM public.impersonation_sessions)
      OR EXISTS (
        SELECT 1 FROM public.notifications
-       WHERE "userId" <> 'pwmaster0000000000001'
+        WHERE "userId" <> 'pwmaster0000000000000001'
      )
      OR EXISTS (
        SELECT 1 FROM public.wallet_addresses
-       WHERE "userId" <> 'pwmaster0000000000001'
+        WHERE "userId" <> 'pwmaster0000000000000001'
      )
      OR EXISTS (
        SELECT 1 FROM public.salary_business_summary
-       WHERE "userId" <> 'pwmaster0000000000001'
+        WHERE "userId" <> 'pwmaster0000000000000001'
      ) THEN
     RAISE EXCEPTION 'Operational or member-history tables are not empty';
   END IF;
@@ -655,7 +657,7 @@ BEGIN
     u."withdrawalHoldReason", u."withdrawalHoldBy", u."withdrawalHoldAt"
   )) INTO identity_after
   FROM public.users u
-  WHERE u.id = 'pwmaster0000000000001';
+  WHERE u.id = 'pwmaster0000000000000001';
   IF identity_after IS DISTINCT FROM identity_before THEN
     RAISE EXCEPTION 'Master identity/authentication state changed';
   END IF;
@@ -665,10 +667,10 @@ BEGIN
     FROM phase0c3_master_wallet_identity_snapshot s
     EXCEPT
     SELECT to_jsonb(ROW(w.id, w."userId", w."createdAt"))
-    FROM public.wallets w WHERE w."userId" = 'pwmaster0000000000001'
+    FROM public.wallets w WHERE w."userId" = 'pwmaster0000000000000001'
   ) OR EXISTS (
     SELECT to_jsonb(ROW(w.id, w."userId", w."createdAt"))
-    FROM public.wallets w WHERE w."userId" = 'pwmaster0000000000001'
+    FROM public.wallets w WHERE w."userId" = 'pwmaster0000000000000001'
     EXCEPT
     SELECT to_jsonb(ROW(s.id, s."userId", s."createdAt"))
     FROM phase0c3_master_wallet_identity_snapshot s
@@ -679,10 +681,10 @@ BEGIN
     SELECT to_jsonb(s) FROM phase0c3_master_wallet_addresses_snapshot s
     EXCEPT
     SELECT to_jsonb(w) FROM public.wallet_addresses w
-    WHERE w."userId" = 'pwmaster0000000000001'
+    WHERE w."userId" = 'pwmaster0000000000000001'
   ) OR EXISTS (
     SELECT to_jsonb(w) FROM public.wallet_addresses w
-    WHERE w."userId" = 'pwmaster0000000000001'
+    WHERE w."userId" = 'pwmaster0000000000000001'
     EXCEPT
     SELECT to_jsonb(s) FROM phase0c3_master_wallet_addresses_snapshot s
   ) THEN
@@ -694,11 +696,11 @@ BEGIN
     EXCEPT
     SELECT to_jsonb(ROW(x.id, x."userId", x."createdAt"))
     FROM public.salary_business_summary x
-    WHERE x."userId" = 'pwmaster0000000000001'
+    WHERE x."userId" = 'pwmaster0000000000000001'
   ) OR EXISTS (
     SELECT to_jsonb(ROW(x.id, x."userId", x."createdAt"))
     FROM public.salary_business_summary x
-    WHERE x."userId" = 'pwmaster0000000000001'
+    WHERE x."userId" = 'pwmaster0000000000000001'
     EXCEPT
     SELECT to_jsonb(ROW(s.id, s."userId", s."createdAt"))
     FROM phase0c3_master_salary_identity_snapshot s
