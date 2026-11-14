@@ -136,3 +136,17 @@ mtime_ms = 1794618762874
 storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:f25b56ff-9e94-46c8-b6ab-2d8774ed95f6/07698c26-5cd0-45e3-9364-9a95e8f7f9ff/b57d94e3-f278-4d26-a932-5ab900269589"
 storage_version_token = "1794618792374830"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "qi7errwzP-YHXfJvuETGU"
+uri = "file://docs/phase-0c-production-reset-preparation.md"
+type = "text"
+title = "Phase 0C Production reset preparation"
+description = "Read-only Production diagnosis, reset blockers, preservation plan, and guarded SQL drafts."
+logical_id = "9d91c8e4-23b9-4fa5-b9b0-a47b51f760b2"
+content_hash = "sha256:df871991ebc33322c1da4d3505620f6435884d7049372fd01f7b52537b2ce510"
+size = 10975
+mtime_ms = 1794619949042
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:f25b56ff-9e94-46c8-b6ab-2d8774ed95f6/9d91c8e4-23b9-4fa5-b9b0-a47b51f760b2/fb388bc6-b62b-4338-b193-f654a86aba0f"
+storage_version_token = "1794620015443270"
+content_type = "text/markdown"
