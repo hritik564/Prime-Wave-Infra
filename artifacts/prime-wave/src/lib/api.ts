@@ -545,17 +545,17 @@ export function getSalaryUpcomingRun() {
 
 export interface ApiInvestment {
   id: string;
-  planType: "PLAN_90" | "PLAN_180" | "PLAN_270" | "PLAN_360";
+  planType: "PLAN_90" | "PLAN_180" | "PLAN_270" | "PLAN_360" | "SINGLE";
   amount: string;
   currentPrincipal: string;
   dailyROI: string;
-  durationDays: number;
+  durationDays: number | null;
   autoCompound: boolean;
   claimableROI: string;
   claimablePrincipal: string;
   status: "ACTIVE" | "MATURED" | "COMPLETED";
   startedAt: string;
-  maturesAt: string;
+  maturesAt: string | null;
   completedAt: string | null;
   createdAt: string;
 }
@@ -625,6 +625,25 @@ export interface EarningsSummary {
   totalCompounded: string;
   totalClaimed:    string;
   pendingClaimable: string;
+}
+
+export interface InvestmentCapSummary {
+  originalCapital: string;
+  cumulativeRoiAccrued: string;
+  cumulativeRoiClaimed: string;
+  cumulativeRoiCompounded: string;
+  claimableRoi: string;
+  originalPrincipalReturned: string;
+  principalOwed: string;
+  capTier: "NON_WORKING" | "WORKING";
+  qualifiedAt: string | null;
+  maxRoiEntitlement: string;
+  remainingRoiEntitlement: string;
+  capMultiple: 3 | 5;
+}
+
+export function getInvestmentCapSummary() {
+  return request<InvestmentCapSummary>("/api/investments/cap-account");
 }
 
 /* ── Wallets ──────────────────────────────────────────────────────── */

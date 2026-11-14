@@ -1,17 +1,14 @@
 import { z } from "zod";
 
-export const PLAN_TYPES = ["PLAN_90", "PLAN_180", "PLAN_270", "PLAN_360"] as const;
+export const PLAN_TYPES = ["SINGLE"] as const;
 export const INVESTMENT_STATUSES = ["ACTIVE", "MATURED", "COMPLETED"] as const;
 
 /**
  * Plan config: dailyROI is stored as a percentage string (e.g. "0.5" = 0.5%/day).
  */
 export const PLAN_CONFIG = {
-  PLAN_90:  { durationDays: 90,  dailyROI: "0.5000" },
-  PLAN_180: { durationDays: 180, dailyROI: "0.6000" },
-  PLAN_270: { durationDays: 270, dailyROI: "0.7000" },
-  PLAN_360: { durationDays: 360, dailyROI: "0.8000" },
-} as const satisfies Record<(typeof PLAN_TYPES)[number], { durationDays: number; dailyROI: string }>;
+  SINGLE: { durationDays: null, dailyROI: "0.8000" },
+} as const satisfies Record<(typeof PLAN_TYPES)[number], { durationDays: number | null; dailyROI: string }>;
 
 export const createInvestmentSchema = z.object({
   amount: z

@@ -37,7 +37,7 @@ import { createInvestment } from "../../investments/investments.service.js";
 const ADMIN_ID       = "6f67dde8-f7c6-4fff-8042-b28dd50191d7";
 const DEPOSIT_AMOUNT = 100;
 const INVEST_AMOUNT  = 100;
-const PLAN_TYPE      = "PLAN_360" as const;
+const PLAN_TYPE      = "SINGLE" as const;
 const REASON         = "RD Activation — Sprint 28K: First qualifying investment";
 
 // ── Logging ───────────────────────────────────────────────────────────────────

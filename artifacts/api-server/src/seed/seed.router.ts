@@ -261,7 +261,7 @@ seedRouter.post("/seed", async (req, res) => {
 
     await createInvestment(inv.userId, {
       amount:       inv.amount,
-      planType:     inv.planType,
+      planType:     "SINGLE",
       autoCompound: inv.autoCompound,
     });
     investmentCount++;

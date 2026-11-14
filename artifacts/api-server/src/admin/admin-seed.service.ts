@@ -189,7 +189,7 @@ export async function seedBinaryTree(): Promise<SeedResult> {
       }),
     ]);
 
-    await createInvestment(userId, { amount: 100, planType: "PLAN_360", autoCompound: false });
+    await createInvestment(userId, { amount: 100, planType: "SINGLE", autoCompound: false });
 
     investmentsCreated++;
     if (n % 20 === 0) logger.info({ n, investmentsCreated }, "Seed: investments progress");
