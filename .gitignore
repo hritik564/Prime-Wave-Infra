@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Disposable browser-test helpers; never checkpoint fixture credentials.
+/artifacts/api-server/.fixture-tmp/

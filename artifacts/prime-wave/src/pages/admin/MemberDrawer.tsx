@@ -1290,7 +1290,7 @@ function TxDetailRows({ tx }: { tx: AdminWalletTx }) {
     }
     case "INVESTMENT": {
       if (m["planType"])                   rows.push({ label: "Plan",             value: String(m["planType"]) });
-      if (m["durationDays"] !== undefined) rows.push({ label: "Duration",         value: `${m["durationDays"]} days` });
+      if (m["durationDays"] !== undefined) rows.push({ label: "Duration", value: m["durationDays"] === null ? "No fixed maturity" : `${m["durationDays"]} days` });
       if (m["investmentId"])               rows.push({ label: "Investment ID",    value: String(m["investmentId"]) });
       if (m["autoCompound"] !== undefined) rows.push({ label: "Auto-Compound",   value: m["autoCompound"] ? "Yes" : "No" });
       break;

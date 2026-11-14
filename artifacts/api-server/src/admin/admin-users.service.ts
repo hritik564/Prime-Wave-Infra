@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
+import { qualifySinglePlanTx } from "../investments/single-plan.service";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { UserSearchQuery } from "./admin-dashboard.schema";
@@ -243,10 +244,13 @@ export async function setUserStatus(
   }
 
   await prisma.$transaction(async (tx) => {
+    const qualificationSource = await tx.user.findUnique({ where: { id: userId }, select: { sponsorId: true } });
+    if (qualificationSource?.sponsorId) await qualifySinglePlanTx(tx, qualificationSource.sponsorId);
     await tx.user.update({
       where: { id: userId },
       data:  { status: targetStatus },
     });
+    if (targetStatus === "ACTIVE" && qualificationSource?.sponsorId) await qualifySinglePlanTx(tx, qualificationSource.sponsorId);
 
     await tx.adminLog.create({
       data: {

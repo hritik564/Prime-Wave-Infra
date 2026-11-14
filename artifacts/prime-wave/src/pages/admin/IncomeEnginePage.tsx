@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, memo } from "react";
 import AdminLayout from "./AdminLayout";
+import { SinglePlanPolicyPanel } from "@/components/investments/SinglePlanSummaryPanel";
 import { Skeleton, SkeletonRows } from "@/components/admin/Skeleton";
 import EngineDrawer, {
   EngineRecord, EngineStatus, EngineRun, RecentPayout, EngineWarning, EngineAuditEntry,
@@ -51,9 +52,11 @@ const STATIC_DEFS: Record<string, {
   roi: {
     name: "ROI Engine", shortName: "ROI", color: GOLD,
     config: [
-      { key: "roi.daily_rate",    label: "Daily ROI Rate",    value: "0.5",  unit: "%" },
-      { key: "roi.max_cap",       label: "Max ROI Cap",       value: "200",  unit: "%" },
-      { key: "roi.auto_compound", label: "Auto-Compound",     value: "true"             },
+      { key: "roi.daily_rate",    label: "SINGLE Daily ROI Rate", value: "0.8", unit: "%" },
+      { key: "roi.non_working_cap", label: "Non-working ROI Limit", value: "200", unit: "%" },
+      { key: "roi.max_cap", label: "Working ROI Limit", value: "400", unit: "%" },
+      { key: "roi.maturity", label: "Maturity", value: "No fixed maturity" },
+      { key: "roi.auto_compound", label: "Auto-Compound", value: "Optional per investment" },
       { key: "roi.window_hours",  label: "Processing Window", value: "12",   unit: "h" },
       { key: "roi.min_principal", label: "Minimum Principal", value: "100",  unit: "$" },
     ],
@@ -551,6 +554,7 @@ export default function IncomeEnginePage() {
   return (
     <AdminLayout>
       <div style={{ padding: isMobile ? "16px 12px" : "24px 28px", minHeight: "100vh", background: BG, boxSizing: "border-box" }}>
+        <div className="mb-5"><SinglePlanPolicyPanel /></div>
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, gap: 12, flexWrap: "wrap" }}>

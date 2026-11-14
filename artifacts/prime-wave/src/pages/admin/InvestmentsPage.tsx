@@ -3,6 +3,7 @@ import {
 } from "react";
 import { useResponsive } from "@/hooks/useResponsive";
 import AdminLayout from "./AdminLayout";
+import SinglePlanSummaryPanel from "@/components/investments/SinglePlanSummaryPanel";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -37,6 +38,7 @@ const CARD   = "hsl(222 62% 9%)";
 // Plan helpers
 // ─────────────────────────────────────────────────────────────────────────────
 const PLAN_LABEL: Record<AdminPlanType, string> = {
+  SINGLE: "Single",
   PLAN_90:  "90-Day",
   PLAN_180: "180-Day",
   PLAN_270: "270-Day",
@@ -44,6 +46,7 @@ const PLAN_LABEL: Record<AdminPlanType, string> = {
 };
 
 const PLAN_COLORS: Record<AdminPlanType, { color: string; bg: string }> = {
+  SINGLE: { color: GOLD, bg: "rgba(212,175,55,0.1)" },
   PLAN_90:  { color: "#60a5fa", bg: "rgba(96,165,250,0.1)"  },
   PLAN_180: { color: GOLD,      bg: "rgba(212,175,55,0.1)"  },
   PLAN_270: { color: "#a78bfa", bg: "rgba(167,139,250,0.1)" },
@@ -51,6 +54,7 @@ const PLAN_COLORS: Record<AdminPlanType, { color: string; bg: string }> = {
 };
 
 const PLAN_PIE_FILL: Record<AdminPlanType, string> = {
+  SINGLE: GOLD,
   PLAN_90:  "#60a5fa",
   PLAN_180: GOLD,
   PLAN_270: "#a78bfa",
@@ -71,8 +75,8 @@ const STATUS_CFG: Record<AdminInvStatus, { color: string; bg: string }> = {
 // ─────────────────────────────────────────────────────────────────────────────
 const $     = (n: string | number) => `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const $K    = (n: string | number) => `$${(Number(n) / 1000).toFixed(1)}K`;
-const dt    = (s: string) => new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-const dtt   = (s: string) => new Date(s).toLocaleString("en-US",    { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const dt    = (s: string | null) => s ? new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "No fixed maturity";
+const dtt   = (s: string | null) => s ? new Date(s).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "No fixed maturity";
 const initials = (f: string, l: string) => `${f[0] ?? "?"}${l[0] ?? ""}`.toUpperCase();
 const pct   = (s: string) => `${parseFloat(s)}%`;
 
@@ -237,7 +241,7 @@ const InvestmentRow = memo(function InvestmentRow({
       <td style={TD}><PlanBadge planType={inv.planType} roi={inv.dailyROI} /></td>
       <td style={{ ...TD, fontWeight: 600, color: "rgba(255,255,255,0.85)", fontFamily: "monospace" }}>{$(inv.amount)}</td>
       <td style={{ ...TD, fontSize: 11, color: "#34d399" }}>{pct(inv.dailyROI)}</td>
-      <td style={{ ...TD, fontSize: 11, color: MUTED }}>{inv.durationDays}d</td>
+      <td style={{ ...TD, fontSize: 11, color: MUTED }}>{inv.durationDays === null ? "No fixed maturity" : `${inv.durationDays}d`}</td>
       <td style={TD}><AcBadge on={inv.autoCompound} /></td>
       <td style={TD}><StatusBadge status={inv.status} /></td>
       <td style={{ ...TD, fontSize: 11, color: MUTED, whiteSpace: "nowrap" }}>{dt(inv.startedAt)}</td>
@@ -334,7 +338,8 @@ function InvestmentDrawer({ inv, onClose }: {
               <DrawerRow label="Current Principal" value={$(inv.currentPrincipal)} />
               <DrawerRow label="Plan"            value={<PlanBadge planType={inv.planType} />} />
               <DrawerRow label="Daily ROI"       value={`${pct(inv.dailyROI)} / day`} />
-              <DrawerRow label="Duration"        value={`${inv.durationDays} days`} />
+              {inv.planType === "SINGLE" && inv.capAccount && <SinglePlanSummaryPanel summary={inv.capAccount} />}
+              <DrawerRow label="Duration" value={inv.durationDays === null ? "No fixed maturity" : `${inv.durationDays} days`} />
               <DrawerRow label="Auto-Compound"   value={<AcBadge on={inv.autoCompound} />} />
               <DrawerRow label="Status"          value={<StatusBadge status={inv.status} />} />
 
@@ -488,7 +493,7 @@ function InvestmentAnalytics({
         <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "16px" }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.65)", marginBottom: 14 }}>Plan ROI Reference</div>
           {(["PLAN_90","PLAN_180","PLAN_270","PLAN_360"] as AdminPlanType[]).map(p => {
-            const roiMap: Record<AdminPlanType, string> = { PLAN_90: "0.5", PLAN_180: "0.6", PLAN_270: "0.7", PLAN_360: "0.8" };
+            const roiMap: Record<AdminPlanType, string> = { SINGLE: "0.8", PLAN_90: "0.5", PLAN_180: "0.6", PLAN_270: "0.7", PLAN_360: "0.8" };
             const c = PLAN_COLORS[p];
             return (
               <div key={p} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid rgba(255,255,255,0.04)` }}>

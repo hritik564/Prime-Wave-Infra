@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const PLAN_TYPES = ["PLAN_90", "PLAN_180", "PLAN_270", "PLAN_360"] as const;
+export const PLAN_TYPES = ["PLAN_90", "PLAN_180", "PLAN_270", "PLAN_360", "SINGLE"] as const;
 export const INVESTMENT_STATUSES = ["ACTIVE", "MATURED", "COMPLETED"] as const;
 
 /**
@@ -11,7 +11,8 @@ export const PLAN_CONFIG = {
   PLAN_180: { durationDays: 180, dailyROI: "0.6000" },
   PLAN_270: { durationDays: 270, dailyROI: "0.7000" },
   PLAN_360: { durationDays: 360, dailyROI: "0.8000" },
-} as const satisfies Record<(typeof PLAN_TYPES)[number], { durationDays: number; dailyROI: string }>;
+  SINGLE: { durationDays: null, dailyROI: "0.8000" },
+} as const satisfies Record<(typeof PLAN_TYPES)[number], { durationDays: number | null; dailyROI: string }>;
 
 export const createInvestmentSchema = z.object({
   amount: z
@@ -23,10 +24,7 @@ export const createInvestmentSchema = z.object({
     .refine((n) => Number.isInteger(n) && n % 100 === 0, {
       message: "Amount must be a whole-dollar multiple of $100 (e.g. 100, 200, 300)",
     }),
-  planType: z.enum(PLAN_TYPES, {
-    required_error: "Plan type is required",
-    invalid_type_error: "Invalid plan type",
-  }),
+  planType: z.literal("SINGLE"),
   autoCompound: z.boolean().optional().default(false),
 });
 

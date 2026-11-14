@@ -3,6 +3,7 @@ import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import { notificationService } from "../notifications/notifications.service";
+import { claimSinglePlanRoiTx, lockSinglePlanAccount } from "./single-plan.service";
 
 const ZERO = new Prisma.Decimal("0");
 
@@ -10,6 +11,8 @@ const ZERO = new Prisma.Decimal("0");
 
 export async function claimRoi(userId: string, investmentId: string) {
   const result = await prisma.$transaction(async (tx) => {
+    const initial = await tx.investment.findUnique({ where: { id: investmentId }, select: { userId: true, planType: true } });
+    if (initial?.userId === userId && initial.planType === "SINGLE") await lockSinglePlanAccount(tx, userId);
     const investment = await tx.investment.findUnique({
       where: { id: investmentId },
       select: {
@@ -26,7 +29,7 @@ export async function claimRoi(userId: string, investmentId: string) {
       throw new AppError("Investment not found", HTTP_STATUS.NOT_FOUND, "INVESTMENT_NOT_FOUND");
     }
 
-    if (investment.autoCompound) {
+    if (investment.autoCompound && investment.planType !== "SINGLE") {
       throw new AppError(
         "Auto-compound investments reinvest ROI automatically — there is nothing to claim",
         HTTP_STATUS.BAD_REQUEST,
@@ -43,6 +46,7 @@ export async function claimRoi(userId: string, investmentId: string) {
     }
 
     const amount = investment.claimableROI;
+    if (investment.planType === "SINGLE") await claimSinglePlanRoiTx(tx, userId, investmentId, amount);
 
     // Reset claimable ROI on the investment
     await tx.investment.update({

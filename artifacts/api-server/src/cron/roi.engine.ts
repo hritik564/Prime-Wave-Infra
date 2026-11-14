@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { logger } from "../lib/logger";
+import { postSinglePlanMemberCycle, qualifySinglePlanTx } from "../investments/single-plan.service";
+import { singlePlanCycleBoundary } from "../investments/single-plan.policy";
 
 const HALF_DAY = new Prisma.Decimal("200"); // divisor: dailyROI% / 200 = per-cycle rate
 
@@ -24,7 +26,7 @@ export async function processRoiCycle(): Promise<void> {
   // Snapshot IDs of all ACTIVE investments so we have a stable list for this cycle
   const active = await prisma.investment.findMany({
     where: { status: "ACTIVE" },
-    select: { id: true },
+    select: { id: true, userId: true, planType: true },
     orderBy: { id: "asc" },
   });
 
@@ -38,7 +40,15 @@ export async function processRoiCycle(): Promise<void> {
   let credited = 0;
   let failed = 0;
 
-  for (const { id } of active) {
+  for (const userId of [...new Set(active.filter(i => i.planType === "SINGLE").map(i => i.userId))].sort()) {
+    try {
+      credited += await postSinglePlanMemberCycle(userId, singlePlanCycleBoundary(cycleStart));
+    } catch (err) {
+      failed++;
+      logger.error({ err, userId }, "ROI cycle: member cap transaction rolled back");
+    }
+  }
+  for (const { id } of active.filter(i => i.planType !== "SINGLE")) {
     try {
       const result = await processOne(id, cycleStart);
       if (result === "matured") matured++;
@@ -72,16 +82,20 @@ async function processOne(investmentId: string, now: Date): Promise<ProcessResul
         currentPrincipal: true,
         dailyROI:        true,
         autoCompound:    true,
+        planType:        true,
         maturesAt:       true,
         status:          true,
       },
     });
 
     // Guard: another process may have changed status already
-    if (!inv || inv.status !== "ACTIVE") return "skipped";
+    if (!inv || inv.status !== "ACTIVE" || inv.planType === "SINGLE") return "skipped";
+    if (!inv.maturesAt) throw new Error("Legacy investment is missing its maturity date");
 
     // ── Maturity check ────────────────────────────────────────────────────────
-    if (now >= inv.maturesAt) {
+    if (inv.maturesAt && now >= inv.maturesAt) {
+      const investor = await tx.user.findUnique({ where: { id: inv.userId }, select: { sponsorId: true } });
+      if (investor?.sponsorId) await qualifySinglePlanTx(tx, investor.sponsorId);
       await tx.investment.update({
         where: { id: investmentId },
         data: {

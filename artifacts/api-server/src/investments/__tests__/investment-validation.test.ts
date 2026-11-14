@@ -33,6 +33,17 @@ vi.mock("../../config/prisma", () => ({
 vi.mock("../../binary/bv.service", () => ({
   propagateBV: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock("../single-plan.service", () => ({
+  lockSinglePlanAccount: vi.fn().mockResolvedValue({}),
+  contributeSinglePlan: vi.fn().mockResolvedValue(undefined),
+  qualifySinglePlanTx: vi.fn().mockResolvedValue({}),
+}));
+vi.mock("../../salary/salary-business.service", () => ({
+  propagateInvestmentBusiness: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("../../ledger/ledger.service", () => ({
+  writeLedgerEntry: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock("../../levelIncome", () => ({
   processLevelIncome: vi.fn().mockResolvedValue([]),
@@ -75,7 +86,7 @@ function setupTransaction(existingInvestmentCount: number, depositBalance: numbe
           id: "inv-test",
           userId: "user-test",
           amount: { toFixed: () => "100.00" },
-          planType: "PLAN_360",
+          planType: "SINGLE",
           dailyROI: { toFixed: () => "0.8000" },
           durationDays: 360,
           autoCompound: false,
@@ -94,6 +105,7 @@ function setupTransaction(existingInvestmentCount: number, depositBalance: numbe
           depositWallet: { lessThan: (v: unknown) => false, toFixed: () => depositBalance.toFixed(8) },
         }),
         update: vi.fn().mockResolvedValue({ id: "wallet-test" }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       walletTransaction: { create: vi.fn().mockResolvedValue({}) },
       levelIncome:       { create: vi.fn().mockResolvedValue({}) },
@@ -106,7 +118,7 @@ function setupTransaction(existingInvestmentCount: number, depositBalance: numbe
 // ── Part A: Schema-level validation (amount must be multiple of $100) ─────────
 
 describe("createInvestmentSchema — amount multiple of $100", () => {
-  const base = { planType: "PLAN_360" as const };
+  const base = { planType: "SINGLE" as const };
 
   it("REJECTED: $50 — not a multiple of $100", () => {
     const result = createInvestmentSchema.safeParse({ ...base, amount: 50 });
@@ -152,26 +164,26 @@ describe("createInvestment — progressive minimum rule", () => {
   });
 
   // First investment: minimum = (0+1) × $100 = $100
-  it("REJECTED: 1st investment $50 — below minimum $100", async () => {
+  it("REJECTED: $50 fails amount validation before the progressive minimum check", async () => {
     setupTransaction(0, 1000);
     await expect(
-      createInvestment("user-1", { amount: 50, planType: "PLAN_360", autoCompound: false }),
+      createInvestment("user-1", { amount: 50, planType: "SINGLE", autoCompound: false }),
     ).rejects.toMatchObject({
-      code:    "BELOW_MINIMUM_INVESTMENT",
+      name: "ZodError",
     });
   });
 
   it("ACCEPTED: 1st investment $100 — exactly minimum", async () => {
     setupTransaction(0, 1000);
     await expect(
-      createInvestment("user-1", { amount: 100, planType: "PLAN_360", autoCompound: false }),
+      createInvestment("user-1", { amount: 100, planType: "SINGLE", autoCompound: false }),
     ).resolves.toBeDefined();
   });
 
   it("ACCEPTED: 1st investment $500 — above minimum $100", async () => {
     setupTransaction(0, 5000);
     await expect(
-      createInvestment("user-1", { amount: 500, planType: "PLAN_360", autoCompound: false }),
+      createInvestment("user-1", { amount: 500, planType: "SINGLE", autoCompound: false }),
     ).resolves.toBeDefined();
   });
 
@@ -179,7 +191,7 @@ describe("createInvestment — progressive minimum rule", () => {
   it("REJECTED: 2nd investment $100 — below minimum $200", async () => {
     setupTransaction(1, 1000);
     await expect(
-      createInvestment("user-1", { amount: 100, planType: "PLAN_360", autoCompound: false }),
+      createInvestment("user-1", { amount: 100, planType: "SINGLE", autoCompound: false }),
     ).rejects.toMatchObject({
       code: "BELOW_MINIMUM_INVESTMENT",
     });
@@ -187,21 +199,21 @@ describe("createInvestment — progressive minimum rule", () => {
 
   it("REJECTED: 2nd investment $150 — below minimum $200 (also non-multiple, schema rejects first)", async () => {
     // Schema rejects $150 before reaching the service
-    const schema = createInvestmentSchema.safeParse({ amount: 150, planType: "PLAN_360" });
+    const schema = createInvestmentSchema.safeParse({ amount: 150, planType: "SINGLE" });
     expect(schema.success).toBe(false);
   });
 
   it("ACCEPTED: 2nd investment $200 — exactly minimum", async () => {
     setupTransaction(1, 2000);
     await expect(
-      createInvestment("user-1", { amount: 200, planType: "PLAN_360", autoCompound: false }),
+      createInvestment("user-1", { amount: 200, planType: "SINGLE", autoCompound: false }),
     ).resolves.toBeDefined();
   });
 
   it("ACCEPTED: 2nd investment $700 — above minimum $200", async () => {
     setupTransaction(1, 7000);
     await expect(
-      createInvestment("user-1", { amount: 700, planType: "PLAN_360", autoCompound: false }),
+      createInvestment("user-1", { amount: 700, planType: "SINGLE", autoCompound: false }),
     ).resolves.toBeDefined();
   });
 
@@ -209,7 +221,7 @@ describe("createInvestment — progressive minimum rule", () => {
   it("REJECTED: 3rd investment $200 — below minimum $300", async () => {
     setupTransaction(2, 5000);
     await expect(
-      createInvestment("user-1", { amount: 200, planType: "PLAN_360", autoCompound: false }),
+      createInvestment("user-1", { amount: 200, planType: "SINGLE", autoCompound: false }),
     ).rejects.toMatchObject({
       code: "BELOW_MINIMUM_INVESTMENT",
     });
@@ -218,14 +230,14 @@ describe("createInvestment — progressive minimum rule", () => {
   it("ACCEPTED: 3rd investment $300 — exactly minimum", async () => {
     setupTransaction(2, 3000);
     await expect(
-      createInvestment("user-1", { amount: 300, planType: "PLAN_360", autoCompound: false }),
+      createInvestment("user-1", { amount: 300, planType: "SINGLE", autoCompound: false }),
     ).resolves.toBeDefined();
   });
 
   it("ACCEPTED: 3rd investment $1000 — well above minimum $300", async () => {
     setupTransaction(2, 10000);
     await expect(
-      createInvestment("user-1", { amount: 1000, planType: "PLAN_360", autoCompound: false }),
+      createInvestment("user-1", { amount: 1000, planType: "SINGLE", autoCompound: false }),
     ).resolves.toBeDefined();
   });
 });
@@ -238,7 +250,7 @@ describe("Progressive minimum — error message accuracy", () => {
   it("error message states the correct minimum for the nth investment", async () => {
     setupTransaction(3, 1000); // 4th investment, minimum = $400
     await expect(
-      createInvestment("user-1", { amount: 100, planType: "PLAN_360", autoCompound: false }),
+      createInvestment("user-1", { amount: 100, planType: "SINGLE", autoCompound: false }),
     ).rejects.toMatchObject({
       message: expect.stringContaining("$400"),
     });

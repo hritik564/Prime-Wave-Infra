@@ -7,6 +7,7 @@ import {
   updateAutoCompound,
 } from "./investments.service";
 import { claimRoi, getEarnings } from "./roi.service";
+import { getSinglePlanSummary } from "./single-plan.service";
 import { sendSuccess, sendCreated } from "../shared/response";
 import { getParsed } from "../middleware/validate.middleware";
 import type { AuthenticatedRequest } from "../shared/types";
@@ -24,6 +25,13 @@ export async function create(
   } catch (err) {
     next(err);
   }
+}
+
+export async function singlePlanSummary(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { user } = req as AuthenticatedRequest;
+    sendSuccess(res, await getSinglePlanSummary(user.sub), "Single-plan accounting");
+  } catch (err) { next(err); }
 }
 
 export async function list(

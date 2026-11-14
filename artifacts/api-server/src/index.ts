@@ -170,6 +170,13 @@ const server = app.listen(port, () => {
       process.exit(1);
     });
 
+  // Development financial rehearsals must not start background payouts,
+  // recovery, seeds, password resets or historical backfills implicitly.
+  // Production startup and the existing scheduler cadence are unchanged.
+  if (process.env["NODE_ENV"] !== "production") {
+    logger.info("Development: background financial jobs and startup mutations are paused; explicit test/API actions only");
+    return;
+  }
   maybeResetAdminPassword().catch((e) => logger.error({ e }, "maybeResetAdminPassword failed"));
   maybeGenerateNetwork();
   maybeResetForLaunch().catch((e) => {

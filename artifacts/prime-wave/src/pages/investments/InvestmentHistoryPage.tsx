@@ -11,6 +11,7 @@ const PLAN_LABELS: Record<string, string> = {
   PLAN_180: "Prime Wave 180",
   PLAN_270: "Prime Wave 270",
   PLAN_360: "Prime Wave 360",
+  SINGLE: "Prime Wave Single",
 };
 
 function fmt(n: number | string) {
@@ -24,14 +25,7 @@ function fmtDate(iso: string | null | undefined) {
 }
 
 function roiEarned(inv: ApiInvestment): number {
-  const daily = parseFloat(inv.dailyROI) / 100;
-  const principal = parseFloat(inv.amount);
-  const start = new Date(inv.startedAt).getTime();
-  const now = Date.now();
-  const matured = new Date(inv.maturesAt).getTime();
-  const end = inv.status === "ACTIVE" ? Math.min(now, matured) : matured;
-  const days = Math.max(0, Math.floor((end - start) / 86_400_000));
-  return principal * daily * days;
+  return Number(inv.totalRoiEarned ?? 0);
 }
 
 export default function InvestmentHistoryPage() {
@@ -131,7 +125,7 @@ export default function InvestmentHistoryPage() {
                       {[
                         { label: "Invested",   value: fmt(inv.amount),  color: "rgba(255,255,255,0.85)" },
                         { label: "ROI Earned", value: fmt(earned),       color: "#34d399" },
-                        { label: "End Date",   value: fmtDate(inv.maturesAt), color: "rgba(170,179,197,0.7)" },
+                        { label: "End Date", value: inv.planType === "SINGLE" ? "No fixed maturity" : fmtDate(inv.maturesAt), color: "rgba(170,179,197,0.7)" },
                       ].map((s) => (
                         <div key={s.label} className="text-center">
                           <p className="text-[9px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(170,179,197,0.45)" }}>
@@ -191,7 +185,7 @@ export default function InvestmentHistoryPage() {
                         <td className="px-5 py-4 font-mono font-semibold text-foreground">{fmt(inv.amount)}</td>
                         <td className="px-5 py-4 font-mono font-semibold" style={{ color: "#34d399" }}>+{fmt(earned)}</td>
                         <td className="px-5 py-4" style={{ color: "hsl(var(--muted-foreground))" }}>{fmtDate(inv.startedAt)}</td>
-                        <td className="px-5 py-4" style={{ color: "hsl(var(--muted-foreground))" }}>{fmtDate(inv.maturesAt)}</td>
+                        <td className="px-5 py-4" style={{ color: "hsl(var(--muted-foreground))" }}>{inv.planType === "SINGLE" ? "No fixed maturity" : fmtDate(inv.maturesAt)}</td>
                         <td className="px-5 py-4">
                           <Badge variant={isCompleted ? "success" : "secondary"}>
                             {isCompleted ? "Completed" : "Active"}

@@ -7,26 +7,24 @@ import { Link } from "wouter";
 import AppLayout from "@/components/layout/AppLayout";
 import PageContainer from "@/components/shared/PageContainer";
 import InvestmentTabs from "@/components/investments/InvestmentTabs";
+import SinglePlanSummaryPanel from "@/components/investments/SinglePlanSummaryPanel";
 import { Badge } from "@/components/ui/badge";
 import {
   listInvestments, createInvestment, claimRoi, claimPrincipal, toggleAutoCompound,
-  getWallets, getInvestmentEarnings, type ApiInvestment, type EarningsSummary,
+  getWallets, getInvestmentEarnings, getSinglePlanSummary, type SinglePlanSummary, type ApiInvestment, type EarningsSummary,
 } from "@/lib/api";
 
 /* ─── Plan config ─── */
 interface PlanInfo {
-  key: "PLAN_90" | "PLAN_180" | "PLAN_270" | "PLAN_360";
+  key: "SINGLE";
   name: string;
   dailyRoi: number;
-  duration: number;
+  duration: null;
   label: string;
 }
 
 const PLANS: PlanInfo[] = [
-  { key: "PLAN_90",  name: "Prime Wave 90",  dailyRoi: 0.5, duration: 90,  label: "90-day lock"  },
-  { key: "PLAN_180", name: "Prime Wave 180", dailyRoi: 0.6, duration: 180, label: "180-day lock" },
-  { key: "PLAN_270", name: "Prime Wave 270", dailyRoi: 0.7, duration: 270, label: "270-day lock" },
-  { key: "PLAN_360", name: "Prime Wave 360", dailyRoi: 0.8, duration: 360, label: "360-day lock" },
+  { key: "SINGLE", name: "Prime Wave Single", dailyRoi: 0.8, duration: null, label: "No fixed maturity" },
 ];
 
 const PLAN_MAP: Record<string, PlanInfo> = Object.fromEntries(PLANS.map(p => [p.key, p]));
@@ -127,10 +125,11 @@ function InvestmentCard({
   acLoading: boolean;
 }) {
   const plan = PLAN_MAP[inv.planType];
+  const isSingle = inv.planType === "SINGLE";
   const days = daysElapsed(inv.startedAt);
-  const daysCompleted = Math.min(days, inv.durationDays);
-  const daysRemaining = Math.max(0, inv.durationDays - days);
-  const pct = Math.round((daysCompleted / inv.durationDays) * 100);
+  const daysCompleted = Math.min(days, inv.durationDays ?? 0);
+  const daysRemaining = Math.max(0, (inv.durationDays ?? 0) - days);
+  const pct = inv.durationDays ? Math.round((daysCompleted / inv.durationDays) * 100) : 0;
   const claimableRoi = parseFloat(inv.claimableROI);
   const isCompleted = inv.status === "COMPLETED";
   const isMatured = inv.status === "MATURED";
@@ -167,9 +166,9 @@ function InvestmentCard({
             <TrendingUp className="h-5 w-5" style={{ color: isCompleted ? "#34d399" : "#D4AF37" }} />
           </div>
           <div>
-            <p className="text-base font-semibold font-heading text-foreground">{plan?.name ?? inv.planType}</p>
+            <p className="text-base font-semibold font-heading text-foreground">{plan?.name ?? `Prime Wave ${inv.planType.replace("PLAN_", "")} (legacy)`}</p>
             <p className="text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
-              {plan?.dailyRoi ?? parseFloat(inv.dailyROI)}% Daily ROI · {inv.durationDays}-day plan
+              {parseFloat(inv.dailyROI)}% Daily ROI · {isSingle ? "No fixed maturity" : `${inv.durationDays}-day legacy plan`}
             </p>
           </div>
         </div>
@@ -192,7 +191,7 @@ function InvestmentCard({
                   {[
                     { label: "Original",      value: fmt(original), color: "rgba(255,255,255,0.7)" },
                     { label: "Current Value", value: fmt(current),  color: "#D4AF37" },
-                    { label: "Days Left",     value: `${daysRemaining}d`, color: "#D4AF37" },
+                    { label: isSingle ? "Maturity" : "Days Left", value: isSingle ? "None fixed" : `${daysRemaining}d`, color: "#D4AF37" },
                   ].map((s) => (
                     <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
                       <p className="text-[10px] font-medium uppercase tracking-wide mb-1" style={{ color: "rgba(170,179,197,0.5)" }}>{s.label}</p>
@@ -217,7 +216,7 @@ function InvestmentCard({
             {[
               { label: "Invested",   value: fmt(parseFloat(inv.amount)),       color: "rgba(255,255,255,0.9)" },
               { label: "Claimable",  value: fmt(claimableRoi),                 color: "#34d399" },
-              { label: "Days Left",  value: isCompleted ? "Done" : `${daysRemaining}d`, color: isCompleted ? "#34d399" : "#D4AF37" },
+              { label: isSingle ? "Maturity" : "Days Left", value: isSingle ? "None fixed" : isCompleted ? "Done" : `${daysRemaining}d`, color: isCompleted ? "#34d399" : "#D4AF37" },
             ].map((s) => (
               <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
                 <p className="text-[10px] font-medium uppercase tracking-wide mb-1" style={{ color: "rgba(170,179,197,0.5)" }}>{s.label}</p>
@@ -231,9 +230,9 @@ function InvestmentCard({
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-medium" style={{ color: "hsl(var(--muted-foreground))" }}>Progress</span>
-            <span className="text-xs font-semibold" style={{ color: "#D4AF37" }}>{daysCompleted}/{inv.durationDays} days · {pct}%</span>
+            <span className="text-xs font-semibold" style={{ color: "#D4AF37" }}>{isSingle ? "Uses shared member ROI cap above" : `${daysCompleted}/${inv.durationDays} days · ${pct}%`}</span>
           </div>
-          <ProgressBar pct={pct} />
+          {!isSingle && <ProgressBar pct={pct} />}
         </div>
 
         {/* Per-investment Auto Compound toggle */}
@@ -344,24 +343,25 @@ function InvestmentCard({
         <div className="flex gap-3">
           <ClaimBtn
             label="Claim ROI"
-            available={!inv.autoCompound && claimableRoi > 0 && !isCompleted && !isMatured}
+            available={(isSingle || !inv.autoCompound) && claimableRoi > 0 && !isCompleted && !isMatured}
             loading={roiLoading}
             hint={
               isCompleted || isMatured
                 ? "Plan completed"
-                : inv.autoCompound
-                ? "ROI compounds automatically every 12 hours"
                 : claimableRoi > 0
                 ? `${fmt(claimableRoi)} available`
+                : inv.autoCompound
+                ? "ROI compounds automatically every 12 hours"
                 : "Available after next ROI cycle"
             }
             onClaim={onClaimRoi}
           />
           <ClaimBtn
-            label={isMatured ? "Claim Principal" : isCompleted ? "✓ Claimed" : "Principal Locked"}
-            available={isMatured}
+            label={isSingle ? "Settlement Disabled" : isMatured ? "Claim Principal" : isCompleted ? "✓ Claimed" : "Principal Locked"}
+            available={!isSingle && isMatured}
             loading={principalLoading}
             hint={
+              isSingle ? "Principal policy awaiting approval" :
               isCompleted ? "Principal already claimed" :
               isMatured ? "Plan complete — claim now" :
               `Unlocks after day ${inv.durationDays}`
@@ -391,7 +391,7 @@ function CreateInvestmentModal({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string>();
 
-  const amount = parseInt(rawAmount, 10) || 0;
+  const amount = Number(rawAmount) || 0;
   const minAmount = (existingCount + 1) * 100;
   const dailyEarnings = amount * (selectedPlan.dailyRoi / 100);
 
@@ -512,8 +512,8 @@ function CreateInvestmentModal({
               <p className="text-[10px] font-semibold uppercase tracking-wide mb-3" style={{ color: "rgba(212,175,55,0.6)" }}>Projection</p>
               {[
                 { label: "Daily Earnings",   value: fmt(dailyEarnings) },
-                { label: "30-Day Earnings",  value: fmt(dailyEarnings * 30) },
-                { label: "Total ROI (plan)", value: fmt(dailyEarnings * selectedPlan.duration) },
+                { label: "Non-working ROI entitlement added", value: fmt(amount * 2) },
+                { label: "Working ROI entitlement added", value: fmt(amount * 4) },
               ].map((s) => (
                 <div key={s.label} className="flex items-center justify-between">
                   <span className="text-xs" style={{ color: "rgba(170,179,197,0.6)" }}>{s.label}</span>
@@ -558,6 +558,7 @@ function ordinalSuffix(n: number): string {
 export default function InvestmentsPage() {
   const [investments, setInvestments] = useState<ApiInvestment[]>([]);
   const [depositBalance, setDepositBalance] = useState(0);
+  const [capSummary, setCapSummary] = useState<SinglePlanSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState<string>();
   const [modalOpen, setModalOpen] = useState(false);
@@ -574,12 +575,15 @@ export default function InvestmentsPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [invResult, wallets] = await Promise.all([
+      const [invResult, wallets, summary] = await Promise.all([
         listInvestments({ limit: 100 }),
         getWallets(),
+        getSinglePlanSummary(),
       ]);
       setInvestments(invResult.data);
       setDepositBalance(parseFloat(wallets.depositWallet));
+      setCapSummary(summary);
+      setPageError(undefined);
     } catch (err) {
       setPageError(err instanceof Error ? err.message : "Failed to load investments");
     } finally {
@@ -587,7 +591,13 @@ export default function InvestmentsPage() {
     }
   }, []);
 
-  useEffect(() => { void loadData(); }, [loadData]);
+  useEffect(() => {
+    void loadData();
+    const interval = window.setInterval(() => void loadData(), 30_000);
+    const refresh = () => void loadData();
+    window.addEventListener("focus", refresh);
+    return () => { window.clearInterval(interval); window.removeEventListener("focus", refresh); };
+  }, [loadData]);
 
   const handleClaimRoi = useCallback(async (inv: ApiInvestment) => {
     setRoiLoading((m) => ({ ...m, [inv.id]: true }));
@@ -633,7 +643,8 @@ export default function InvestmentsPage() {
     setInvestments((prev) => [newInv, ...prev]);
     setDepositBalance((b) => b - amount);
     addToast("Investment created successfully");
-  }, [addToast]);
+    await loadData();
+  }, [addToast, loadData]);
 
   /* ── Derived stats ── */
   const totalActiveInvested = useMemo(
@@ -641,18 +652,24 @@ export default function InvestmentsPage() {
     [investments],
   );
   const activePlanCount = useMemo(() => investments.filter(i => i.status === "ACTIVE").length, [investments]);
-  const dailyEarnings = useMemo(
-    () => investments.filter(i => i.status === "ACTIVE" && !i.autoCompound)
-      .reduce((s, i) => s + parseFloat(i.currentPrincipal) * (parseFloat(i.dailyROI) / 100), 0),
-    [investments],
-  );
-  const monthlyProjection = dailyEarnings * 30;
+  const projections = useMemo(() => {
+    let legacy = 0, single = 0;
+    for (const inv of investments.filter(i => i.status === "ACTIVE" && !i.autoCompound)) {
+      const daily = Number(inv.currentPrincipal) * Number(inv.dailyROI) / 100;
+      if (inv.planType === "SINGLE") single += daily; else legacy += daily;
+    }
+    const remaining = Number(capSummary?.remainingRoi ?? 0);
+    return { daily: legacy + Math.min(single, remaining), monthly: legacy * 30 + Math.min(single * 30, remaining) };
+  }, [investments, capSummary]);
+  const dailyEarnings = projections.daily;
+  const monthlyProjection = projections.monthly;
   const hasInvestments = investments.length > 0;
 
   return (
     <AppLayout pageTitle="Investments" notificationCount={0}>
       <PageContainer>
         <InvestmentTabs />
+        {!loading && !pageError && capSummary && <SinglePlanSummaryPanel summary={capSummary} />}
 
         {/* ── New Investment CTA ── */}
         <div
@@ -762,7 +779,7 @@ export default function InvestmentsPage() {
       {modalOpen && (
         <CreateInvestmentModal
           depositBalance={depositBalance}
-          existingCount={investments.length}
+          existingCount={capSummary?.investmentCount ?? investments.length}
           onClose={() => setModalOpen(false)}
           onCreate={handleCreate}
         />

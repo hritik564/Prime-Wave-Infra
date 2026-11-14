@@ -656,10 +656,10 @@ function ROIView() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">{inv.planType}</p>
                   <p className="text-xs mt-0.5" style={{ color: MUTED }}>
-                    {(parseFloat(inv.dailyROI) * 100).toFixed(2)}% daily · {inv.durationDays} days
+                    {parseFloat(inv.dailyROI).toFixed(2)}% daily · {inv.durationDays === null ? "No fixed maturity" : `${inv.durationDays} days`}
                     {inv.autoCompound && " · Auto Compound ON"}
                   </p>
-                  <p className="text-[11px] mt-1" style={{ color: MUTED }}>Matures {fmtDate(inv.maturesAt)}</p>
+                  <p className="text-[11px] mt-1" style={{ color: MUTED }}>{inv.maturesAt ? `Matures ${fmtDate(inv.maturesAt)}` : "No fixed maturity; principal settlement disabled"}</p>
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-base font-bold" style={{ color: meta.color, fontFamily: "Cormorant Garamond, serif" }}>

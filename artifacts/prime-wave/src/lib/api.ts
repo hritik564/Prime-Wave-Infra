@@ -545,17 +545,18 @@ export function getSalaryUpcomingRun() {
 
 export interface ApiInvestment {
   id: string;
-  planType: "PLAN_90" | "PLAN_180" | "PLAN_270" | "PLAN_360";
+  planType: "PLAN_90" | "PLAN_180" | "PLAN_270" | "PLAN_360" | "SINGLE";
   amount: string;
   currentPrincipal: string;
   dailyROI: string;
-  durationDays: number;
+  durationDays: number | null;
   autoCompound: boolean;
   claimableROI: string;
   claimablePrincipal: string;
   status: "ACTIVE" | "MATURED" | "COMPLETED";
   startedAt: string;
-  maturesAt: string;
+  maturesAt: string | null;
+  totalRoiEarned?: string;
   completedAt: string | null;
   createdAt: string;
 }
@@ -617,7 +618,7 @@ export function getInvestmentEarnings(id: string) {
 export interface EarningsSummary {
   planType:        string;
   dailyROI:        string;
-  durationDays:    number;
+  durationDays:    number | null;
   status:          string;
   autoCompound:    boolean;
   cyclesCompleted: number;
@@ -1125,12 +1126,12 @@ export interface RoiDetail {
     planType:    string;
     principal:   string;
     dailyROI:    string;
-    durationDays: number;
+    durationDays: number | null;
     autoCompound: boolean;
     claimableROI: string;
     status:      string;
     startedAt:   string;
-    maturesAt:   string;
+    maturesAt:   string | null;
   }>;
 }
 
@@ -2042,7 +2043,7 @@ export function adminRemovePowerBV(userId: string, body: { side: "LEFT" | "RIGHT
 /* ── Admin Investments ─────────────────────────────────────────────────────── */
 
 export type AdminInvStatus = "ACTIVE" | "MATURED" | "COMPLETED";
-export type AdminPlanType  = "PLAN_90" | "PLAN_180" | "PLAN_270" | "PLAN_360";
+export type AdminPlanType  = "PLAN_90" | "PLAN_180" | "PLAN_270" | "PLAN_360" | "SINGLE";
 
 export interface AdminInvestmentItem {
   id:                string;
@@ -2056,16 +2057,27 @@ export interface AdminInvestmentItem {
   amount:            string;
   currentPrincipal:  string;
   dailyROI:          string;
-  durationDays:      number;
+  durationDays:      number | null;
   autoCompound:      boolean;
   claimableROI:      string;
   claimablePrincipal: string;
   status:            AdminInvStatus;
   startedAt:         string;
-  maturesAt:         string;
+  maturesAt:         string | null;
   completedAt:       string | null;
   createdAt:         string;
+  capAccount: SinglePlanSummary;
 }
+
+export interface SinglePlanSummary {
+  originalCapital: string; roiAccrued: string; roiClaimed: string; roiCompounded: string;
+  claimableRoi: string; principalReturned: string; principalOwed: string;
+  tier: 3 | 5; qualifiedAt: string | null; maxRoi: string; totalEntitlement: string; remainingRoi: string;
+  settlement: { eligible: false; reason: string };
+  investmentCount?: number;
+  qualificationHistory?: { createdAt: string; metadata: unknown }[];
+}
+export const getSinglePlanSummary = () => request<SinglePlanSummary>("/api/investments/single-plan-summary");
 
 export interface AdminInvestmentStats {
   totalCount:        number;

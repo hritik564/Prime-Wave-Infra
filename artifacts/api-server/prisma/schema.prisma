@@ -98,6 +98,7 @@ enum PlanType {
   PLAN_180
   PLAN_270
   PLAN_360
+  SINGLE
 }
 
 enum InvestmentStatus {
@@ -204,6 +205,7 @@ model User {
   transactions           WalletTransaction[]
   investments      Investment[]
   roiLedger        RoiLedger[]
+  singlePlanAccount SinglePlanAccount?
   referralHistory  ReferralHistory?  @relation("ReferralHistoryUser")
   givenReferrals   ReferralHistory[] @relation("ReferralHistorySponsor")
 
@@ -440,13 +442,13 @@ model Investment {
   currentPrincipal   Decimal          @db.Decimal(18, 8)
   planType           PlanType
   dailyROI           Decimal          @db.Decimal(6, 4)
-  durationDays       Int
+  durationDays       Int?
   autoCompound       Boolean          @default(false)
   claimableROI       Decimal          @default(0) @db.Decimal(18, 8)
   claimablePrincipal Decimal          @default(0) @db.Decimal(18, 8)
   status             InvestmentStatus @default(ACTIVE)
   startedAt          DateTime         @default(now())
-  maturesAt          DateTime
+  maturesAt          DateTime?
   completedAt        DateTime?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
@@ -459,6 +461,7 @@ model Investment {
   salaryBvLedger SalaryBvLedger[]
   bvHistory      BvHistory[]
   levelIncome    LevelIncome[]
+  singlePlanEvents SinglePlanEvent[]
 
   @@index([userId])
   @@index([status])
@@ -473,6 +476,7 @@ model RoiLedger {
   investmentId  String
   amount        Decimal  @db.Decimal(18, 8)
   cycleNumber   Int
+  cycleKey      String?
   wasCompounded Boolean  @default(false)
   wasClaimed    Boolean  @default(false)
   createdAt     DateTime @default(now())
@@ -484,7 +488,51 @@ model RoiLedger {
   @@index([userId])
   @@index([wasCompounded])
   @@index([wasClaimed])
+  @@unique([investmentId, cycleKey])
   @@map("roi_ledger")
+}
+
+// SINGLE only. Legacy capital/ROI never enters this account.
+model SinglePlanAccount {
+  userId            String   @id
+  originalCapital   Decimal  @default(0) @db.Decimal(18, 8)
+  roiAccrued        Decimal  @default(0) @db.Decimal(18, 8)
+  roiClaimed        Decimal  @default(0) @db.Decimal(18, 8)
+  roiCompounded     Decimal  @default(0) @db.Decimal(18, 8)
+  claimableRoi      Decimal  @default(0) @db.Decimal(18, 8)
+  principalReturned Decimal  @default(0) @db.Decimal(18, 8)
+  tier              Int      @default(3)
+  qualifiedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  events            SinglePlanEvent[]
+  cycles            SinglePlanCycle[]
+  @@map("single_plan_accounts")
+}
+
+model SinglePlanEvent {
+  id           String   @id @default(cuid())
+  userId       String
+  investmentId String?
+  kind         String
+  amount       Decimal  @db.Decimal(18, 8)
+  key          String   @unique
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  account      SinglePlanAccount @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  investment   Investment? @relation(fields: [investmentId], references: [id], onDelete: Restrict)
+  @@index([userId, createdAt])
+  @@map("single_plan_events")
+}
+
+model SinglePlanCycle {
+  userId    String
+  cycleKey  String
+  createdAt DateTime @default(now())
+  account   SinglePlanAccount @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  @@id([userId, cycleKey])
+  @@map("single_plan_cycles")
 }
 
 model ReferralHistory {

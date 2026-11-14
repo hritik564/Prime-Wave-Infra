@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
-import { PLAN_CONFIG } from "./investments.schema";
+import { PLAN_CONFIG, createInvestmentSchema } from "./investments.schema";
 import type { CreateInvestmentInput, ListInvestmentsQuery } from "./investments.schema";
 import { propagateBV } from "../binary/bv.service";
 import { processLevelIncome } from "../levelIncome";
@@ -11,15 +11,17 @@ import { logger } from "../lib/logger";
 import { processUserAchievements } from "../salary/salary-achievement.service";
 import { writeLedgerEntry } from "../ledger/ledger.service";
 import { propagateInvestmentBusiness } from "../salary/salary-business.service";
+import { contributeSinglePlan, lockSinglePlanAccount, qualifySinglePlanTx } from "./single-plan.service";
 
 // ── Create investment ─────────────────────────────────────────────────────────
 
-export async function createInvestment(userId: string, input: CreateInvestmentInput) {
-  const { amount, planType, autoCompound } = input;
+export async function createInvestment(userId: string, input: { amount: number; planType: string; autoCompound?: boolean }) {
+  const { amount, planType, autoCompound } = createInvestmentSchema.parse(input);
   const plan = PLAN_CONFIG[planType];
   const decimalAmount = new Prisma.Decimal(amount.toString());
 
   const { investment, levelIncomeTargets } = await prisma.$transaction(async (tx) => {
+    await lockSinglePlanAccount(tx, userId);
     // Count ALL existing investments for this user (any status)
     const existingCount = await tx.investment.count({ where: { userId } });
 
@@ -52,14 +54,15 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
     }
 
     // Deduct from deposit wallet
-    await tx.wallet.update({
-      where: { userId },
+    const funded = await tx.wallet.updateMany({
+      where: { userId, depositWallet: { gte: decimalAmount } },
       data: { depositWallet: { decrement: decimalAmount } },
     });
+    if (funded.count !== 1) throw new AppError("Insufficient deposit balance", HTTP_STATUS.BAD_REQUEST, "INSUFFICIENT_BALANCE");
 
     // Calculate maturity date
     const startedAt = new Date();
-    const maturesAt = new Date(startedAt.getTime() + plan.durationDays * 86_400_000);
+    const maturesAt = null;
 
     // Create investment record
     const inv = await tx.investment.create({
@@ -76,6 +79,8 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
       },
       select: investmentSelect,
     });
+    await contributeSinglePlan(tx, userId, inv.id, decimalAmount);
+    await qualifySinglePlanTx(tx, userId);
 
     // Wallet audit record
     await tx.walletTransaction.create({
@@ -85,7 +90,7 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
         type:        "INVESTMENT",
         status:      "SUCCESS",
         amount:      decimalAmount,
-        description: `Investment created — ${planType} (${plan.durationDays} days @ ${plan.dailyROI}%/day)`,
+        description: `Investment created — ${planType} (${plan.dailyROI}%/day; no fixed maturity)`,
         metadata:    { investmentId: inv.id, planType, durationDays: plan.durationDays },
       },
     });
@@ -95,6 +100,8 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
 
     // ── Level income — walk sponsor chain, pay 5 levels at 1% each ──────────
     const levelTargets = await processLevelIncome(tx, userId, inv.id, decimalAmount);
+    const sponsor = await tx.user.findUnique({ where: { id: userId }, select: { sponsorId: true } });
+    if (sponsor?.sponsorId) await qualifySinglePlanTx(tx, sponsor.sponsorId);
 
     return { investment: inv, levelIncomeTargets: levelTargets };
   }, { timeout: 30_000 });
@@ -119,7 +126,7 @@ export async function createInvestment(userId: string, input: CreateInvestmentIn
     userId,
     type:    "INVESTMENT_CREATED",
     title:   "Investment Created",
-    message: `Your ${planType} investment of $${decimalAmount.toFixed(2)} has been activated and will grow for ${plan.durationDays} days.`,
+    message: `Your investment of $${decimalAmount.toFixed(2)} is active at 0.8% daily ROI, subject to your member-level ROI cap.`,
     metadata: { investmentId: investment.id, planType, amount: decimalAmount.toString() },
   });
 
@@ -190,9 +197,13 @@ export async function listInvestments(userId: string, query: ListInvestmentsQuer
   ]);
 
   const totalPages = Math.ceil(total / limit);
+  const earned = await prisma.roiLedger.groupBy({
+    by: ["investmentId"], where: { investmentId: { in: investments.map(i => i.id) } }, _sum: { amount: true },
+  });
+  const totals = new Map(earned.map(e => [e.investmentId, e._sum.amount?.toFixed(8) ?? "0"]));
 
   return {
-    data: investments,
+    data: investments.map(i => ({ ...i, totalRoiEarned: totals.get(i.id) ?? "0" })),
     meta: {
       total,
       page,
@@ -241,6 +252,10 @@ export async function claimPrincipal(userId: string, investmentId: string) {
 
     if (!investment || investment.userId !== userId) {
       throw new AppError("Investment not found", HTTP_STATUS.NOT_FOUND, "INVESTMENT_NOT_FOUND");
+    }
+
+    if (investment.planType === "SINGLE") {
+      throw new AppError("Principal settlement is not enabled for this plan", HTTP_STATUS.BAD_REQUEST, "PRINCIPAL_SETTLEMENT_DISABLED");
     }
 
     if (investment.status !== "MATURED") {
@@ -313,7 +328,10 @@ export async function claimPrincipal(userId: string, investmentId: string) {
 // ── Toggle auto-compound ──────────────────────────────────────────────────────
 
 export async function updateAutoCompound(userId: string, investmentId: string, autoCompound: boolean) {
-  const investment = await prisma.investment.findUnique({
+  return prisma.$transaction(async tx => {
+  const initial = await tx.investment.findUnique({ where: { id: investmentId }, select: { userId: true, planType: true } });
+  if (initial?.userId === userId && initial.planType === "SINGLE") await lockSinglePlanAccount(tx, userId);
+  const investment = await tx.investment.findUnique({
     where: { id: investmentId },
     select: { id: true, userId: true, status: true },
   });
@@ -330,10 +348,11 @@ export async function updateAutoCompound(userId: string, investmentId: string, a
     );
   }
 
-  return prisma.investment.update({
+  return tx.investment.update({
     where: { id: investmentId },
     data: { autoCompound },
     select: investmentSelect,
+  });
   });
 }
 

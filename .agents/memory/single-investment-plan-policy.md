@@ -9,8 +9,10 @@ Working qualification requires a personally referred active member in each binar
 
 Auto-compounding is optional and may grow the ROI calculation base, but never the original-capital cap basis. Preserve progressive minimum investments and existing deposit-wallet funding rules.
 
+Legacy accounting stays separate: legacy investments retain their existing capital, ROI, maturity, and claim rules. Only new SINGLE contributions and their ROI enter the new member-level entitlement account.
+
 Automatic principal release must remain disabled until individual/member settlement, later contributions, post-settlement tier upgrades, and duplicate-claim handling are explicitly approved.
 
-**Why:** The user approved these business rules in the Phase 1B implementation brief and explicitly prohibited inventing principal-settlement policy.
+**Why:** The user approved these business rules in the Phase 1B implementation brief, explicitly chose “Keep legacy accounting separate,” and prohibited inventing principal-settlement policy.
 
 **How to apply:** Use these terms for V1 single-plan design and tests. Keep historical investment data and legacy enum values readable; do not assume that preserving history authorizes retroactive financial-policy changes.

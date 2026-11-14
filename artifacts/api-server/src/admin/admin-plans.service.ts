@@ -1,4 +1,7 @@
 import { prisma } from "../config/prisma";
+import { AppError } from "../middleware/error.middleware";
+import { HTTP_STATUS } from "../shared/constants";
+import { SINGLE_PLAN_POLICY } from "../investments/single-plan.policy";
 import { Prisma } from "@prisma/client";
 import { clearSettingsCache } from "../config/settings";
 
@@ -62,11 +65,12 @@ interface ConfigDef {
 
 const CONFIG_DEFS: ConfigDef[] = [
   // ── ROI Engine ─────────────────────────────────────────────────────────────
-  { section:"roi",    key:"roi.default_rate",      value:"0.5",   unit:"%/day",  type:"number", label:"Daily ROI %",              description:"Base daily ROI applied automatically to all eligible plans." },
-  { section:"roi",    key:"roi.max_cap",           value:"200",   unit:"%",      type:"number", label:"Maximum ROI Cap",           description:"Total lifetime ROI cap as a percentage of principal invested." },
-  { section:"roi",    key:"roi.duration",          value:"365",   unit:"days",   type:"number", label:"Duration",                  description:"Number of days in the ROI earning period." },
-  { section:"roi",    key:"roi.exec_time",         value:"00:00", unit:"UTC",    type:"text",   label:"Execution Time",            description:"Daily cron time for automatic ROI distribution." },
-  { section:"roi",    key:"roi.exec_freq",         value:"Daily",               type:"text",   label:"Execution Frequency",       description:"How often the ROI engine distributes earnings." },
+  { section:"roi", key:"roi.default_rate", value:"0.8000", unit:"%/day", type:"number", label:"SINGLE Daily ROI %", description:"Code-owned rate for new SINGLE investments; legacy terms remain separate." },
+  { section:"roi", key:"roi.max_cap", value:"400", unit:"%", type:"number", label:"Working ROI limit", description:"4× ROI plus original principal = 5× total entitlement." },
+  { section:"roi", key:"roi.non_working_cap", value:"200", unit:"%", type:"number", label:"Non-working ROI limit", description:"2× ROI plus original principal = 3× total entitlement." },
+  { section:"roi", key:"roi.duration", value:"0", type:"number", label:"Fixed duration (0 = none)", description:"No fixed maturity for new SINGLE investments." },
+  { section:"roi", key:"roi.exec_time", value:"00:00 and 12:00 Europe/London", type:"text", label:"Execution times", description:"Existing London scheduler boundaries." },
+  { section:"roi", key:"roi.exec_freq", value:"Twice daily", type:"text", label:"Execution frequency", description:"0.4% each cycle before compounding, subject to member cap." },
   // ── Binary Matching ────────────────────────────────────────────────────────
   { section:"binary", key:"bin.match_rate",        value:"10",    unit:"%",      type:"number", label:"Matching Percentage",       description:"% of the weaker leg BV awarded as binary matching bonus." },
   { section:"binary", key:"bin.daily_cap",         value:"10000", unit:"$",      type:"number", label:"Daily Match Cap",           description:"Maximum daily binary matching reward per member." },
@@ -132,7 +136,11 @@ export async function getAllPlanConfig() {
     sections[def.section]?.push({
       key:         def.key,
       label:       def.label,
-      value:       byKey[def.key] ?? def.value,
+      value:       def.section === "roi" ? ({
+        "roi.default_rate": SINGLE_PLAN_POLICY.dailyROI,
+        "roi.max_cap": "400", "roi.duration": "0",
+        "roi.exec_time": "00:00 and 12:00 Europe/London", "roi.exec_freq": "Twice daily",
+      }[def.key] ?? def.value) : (byKey[def.key] ?? def.value),
       ...(def.unit && { unit: def.unit }),
       type:        def.type,
       description: def.description,
@@ -152,6 +160,7 @@ export async function saveConfigField(
   adminId:    string,
   adminEmail: string,
 ) {
+  if (key.startsWith("roi.") || key === "plans.catalog") assertPlanPolicyWritable();
   await prisma.systemSettings.upsert({
     where:  { key },
     update: { value },
@@ -232,30 +241,21 @@ const PLANS_KEY = "plans.catalog";
 const FIXED_PLAN_IDS = new Set(["plan-90", "plan-180", "plan-270", "plan-360"]);
 
 export async function getPlans(): Promise<PlanCatalogItem[]> {
-  const row = await prisma.systemSettings.findUnique({ where: { key: PLANS_KEY } });
-  if (!row) {
-    const withCounts = await attachMemberCounts(DEFAULT_PLANS);
-    await prisma.systemSettings.create({
-      data: { key: PLANS_KEY, value: JSON.stringify(withCounts), description: "Investment plans catalog" },
-    });
-    return withCounts;
-  }
-  try {
-    const plans = JSON.parse(row.value) as PlanCatalogItem[];
-    // Migration: if the catalog doesn't contain any of the 4 fixed plan IDs, reset to defaults.
-    const hasFixedPlans = plans.some(p => FIXED_PLAN_IDS.has(p.id));
-    if (!hasFixedPlans) {
-      const withCounts = await attachMemberCounts(DEFAULT_PLANS);
-      await prisma.systemSettings.update({
-        where: { key: PLANS_KEY },
-        data: { value: JSON.stringify(withCounts) },
-      });
-      return withCounts;
-    }
-    return attachMemberCounts(plans);
-  } catch {
-    return DEFAULT_PLANS;
-  }
+  const members = await prisma.investment.findMany({ where: { planType: "SINGLE", status: "ACTIVE" },
+    distinct: ["userId"], select: { userId: true } });
+  return [{
+    id: "single", name: "Prime Wave Single", color: "#D4AF37", minInvest: 100,
+    maxInvest: null, roi: Number(SINGLE_PLAN_POLICY.dailyROI), duration: 0,
+    autoCompound: true, status: "ACTIVE", members: members.length,
+    benefits: ["0.8% daily ROI", "No fixed maturity", "Shared member ROI cap"],
+    notes: "Progressive minimum: (all prior investments + 1) × $100. Total entitlement 3× / 5× includes principal. Principal settlement disabled.",
+    claimWindow: "ROI claimable; principal settlement disabled",
+  }];
+}
+
+function assertPlanPolicyWritable(): void {
+  throw new AppError("Investment policy is code-owned and locked: 0.8% daily; ROI limit 2×/4×; no fixed maturity",
+    HTTP_STATUS.CONFLICT, "INVESTMENT_POLICY_LOCKED");
 }
 
 async function attachMemberCounts(plans: PlanCatalogItem[]): Promise<PlanCatalogItem[]> {
@@ -281,6 +281,7 @@ export async function createPlan(
   adminId:    string,
   adminEmail: string,
 ): Promise<PlanCatalogItem> {
+  assertPlanPolicyWritable();
   const current = await getPlans();
   const newPlan: PlanCatalogItem = {
     ...data,
@@ -310,6 +311,7 @@ export async function updatePlanStatus(
   adminId:    string,
   adminEmail: string,
 ): Promise<PlanCatalogItem> {
+  assertPlanPolicyWritable();
   const current = await getPlans();
   const plan = current.find(p => p.id === planId);
   if (!plan) throw new Error(`Plan ${planId} not found`);
@@ -337,6 +339,7 @@ export async function updatePlanConfig(
   adminId:    string,
   adminEmail: string,
 ): Promise<PlanCatalogItem> {
+  assertPlanPolicyWritable();
   const current = await getPlans();
   const plan = current.find(p => p.id === planId);
   if (!plan) throw new Error(`Plan ${planId} not found`);

@@ -552,9 +552,9 @@ export default function FinancialTransparencyPage() {
                   <DataRow label="Plan" value={activeInv.planType.replace("_", " ")} />
                   <DataRow label="Invested Amount" value={`$${fmt(activeInv.amount)}`} />
                   <DataRow label="Daily ROI Rate" value={`${fmt(activeInv.dailyROI, 4)}%`} />
-                  <DataRow label="Investment Duration" value={`${activeInv.durationDays} days`} />
+                  <DataRow label="Investment Duration" value={activeInv.durationDays === null ? "No fixed maturity" : `${activeInv.durationDays} days`} />
                   <DataRow label="Started" value={fmtDate(activeInv.startedAt)} />
-                  <DataRow label="Matures" value={fmtDate(activeInv.maturesAt)} />
+                  <DataRow label="Matures" value={activeInv.maturesAt ? fmtDate(activeInv.maturesAt) : "No fixed maturity"} />
                   {earningsData(data)}
                   <DataRow
                     label="Claimable ROI Now"

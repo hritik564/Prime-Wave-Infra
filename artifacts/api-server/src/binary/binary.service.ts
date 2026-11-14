@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { qualifySinglePlanTx } from "../investments/single-plan.service";
 import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
@@ -366,6 +367,7 @@ export async function placeUserTx(
     await propagateCacheUp(tx, placementTargetId, position, userId);
   }
 
+  await qualifySinglePlanTx(tx, sponsorId);
   return { placementTargetId };
 }
 

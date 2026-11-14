@@ -103,7 +103,7 @@ logical_id = "3a28f119-d564-48dd-8d4f-f7dd35034948"
 [[outputs]]
 id = "9FjyO_W7o6lCA4fz5WAaL"
 uri = "file://screenshots/rd0018-binary-tree.html"
-type = "text"
+type = "html"
 title = "@rd0018 Binary Tree — Production"
 description = "Full binary tree from production DB · 23 nodes · 12 levels deep"
 logical_id = "dd4f5ce3-c62c-453b-9b6c-194d216a3c20"
@@ -122,3 +122,17 @@ mtime_ms = 1789527717278
 storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:f25b56ff-9e94-46c8-b6ab-2d8774ed95f6/1d3a351a-d0a9-4ed1-9556-5f3b45945558/1a2b0e75-a5cf-4334-9209-1a12b8683f86"
 storage_version_token = "1789527804780545"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "kClbVY6-d9puo5g7yLnVL"
+uri = "file://docs/single-plan-development-implementation.md"
+type = "text"
+title = "PrimeWave Phase 1B — Development implementation report"
+description = "Architecture, changed files, migration verification, 438 passing tests, browser results and remaining policy decisions."
+logical_id = "07698c26-5cd0-45e3-9364-9a95e8f7f9ff"
+content_hash = "sha256:a187a56a3997e550e7c30eea33d4a297a0e73b549110a11eaeb5e9dd0e4c68b3"
+size = 13597
+mtime_ms = 1794618762874
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:f25b56ff-9e94-46c8-b6ab-2d8774ed95f6/07698c26-5cd0-45e3-9364-9a95e8f7f9ff/b57d94e3-f278-4d26-a932-5ab900269589"
+storage_version_token = "1794618792374830"
+content_type = "text/markdown"

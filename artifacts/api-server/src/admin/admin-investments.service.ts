@@ -3,6 +3,7 @@ import { prisma } from "../config/prisma";
 import { AppError } from "../middleware/error.middleware";
 import { HTTP_STATUS } from "../shared/constants";
 import type { AdminInvestmentListQuery } from "./admin-investments.schema";
+import { singlePlanAccountSummary } from "../investments/single-plan.service";
 
 const investmentSelect = {
   id:               true,
@@ -27,6 +28,7 @@ const investmentSelect = {
       lastName:  true,
       email:     true,
       sponsor: { select: { username: true } },
+      singlePlanAccount: true,
     },
   },
 } as const;
@@ -52,9 +54,10 @@ function serializeInvestment(
     claimablePrincipal: r.claimablePrincipal.toFixed(2),
     status:             r.status,
     startedAt:          r.startedAt.toISOString(),
-    maturesAt:          r.maturesAt.toISOString(),
+    maturesAt:          r.maturesAt?.toISOString() ?? null,
     completedAt:        r.completedAt?.toISOString() ?? null,
     createdAt:          r.createdAt.toISOString(),
+    capAccount: singlePlanAccountSummary(r.user.singlePlanAccount),
   };
 }
 

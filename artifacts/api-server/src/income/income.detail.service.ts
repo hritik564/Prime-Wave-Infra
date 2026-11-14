@@ -123,7 +123,7 @@ export async function getRoiDetail(userId: string) {
       claimableROI: d2s(i.claimableROI),
       status:      i.status,
       startedAt:   i.startedAt.toISOString(),
-      maturesAt:   i.maturesAt.toISOString(),
+      maturesAt:   i.maturesAt?.toISOString() ?? null,
     })),
   };
 }

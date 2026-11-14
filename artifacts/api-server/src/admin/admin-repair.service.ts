@@ -91,7 +91,7 @@ export async function repairSeedInvestments(): Promise<RepairReport> {
   for (const inv of investments) {
     try {
       // ── Repair 1: Plan fix ──────────────────────────────────────────────────
-      if (inv.planType !== "PLAN_360") {
+      if (inv.planType !== "PLAN_360" && inv.planType !== "SINGLE") {
         const maturesAt = new Date(inv.startedAt.getTime() + PLAN_360.durationDays * 86_400_000);
         await prisma.investment.update({
           where: { id: inv.id },

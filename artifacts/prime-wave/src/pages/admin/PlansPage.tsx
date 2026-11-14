@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import AdminLayout from "./AdminLayout";
+import { SinglePlanPolicyPanel } from "@/components/investments/SinglePlanSummaryPanel";
 import { useToast, ToastContainer } from "@/components/admin/Toast";
 import { Skeleton, SkeletonRows } from "@/components/admin/Skeleton";
 import {
@@ -1074,8 +1075,7 @@ export default function PlansPage() {
 
           {/* Main content */}
           <div>
-            {active === "plans"  && <InvestmentPlansSection plans={plans} loading={loadingPlans} onView={p => setPlanDrawer(p)} />}
-            {active === "roi"    && <ConfigSection title="ROI Engine" subtitle="Automatic daily ROI distribution. No manual claim required." fields={config.roi} loading={loadingConfig} onEdit={makeEditHandler("roi")} />}
+            {(active === "plans" || active === "roi") && <SinglePlanPolicyPanel />}
             {active === "binary" && <ConfigSection title="Binary Matching" subtitle="Configure binary network matching rules and caps." fields={config.binary} loading={loadingConfig} onEdit={makeEditHandler("binary")} />}
             {active === "orbit"  && <ConfigSection title="Binary Orbit" subtitle="Configure the binary orbit reward system." fields={config.orbit} loading={loadingConfig} onEdit={makeEditHandler("orbit")} />}
             {active === "level"  && <LevelIncomeSection rows={levels} loading={loadingLevel} onChange={setLevels} onRequestConfirm={requestConfirm} onToast={toast} refreshSidebar={refreshSidebar} />}

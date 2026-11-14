@@ -49,3 +49,4 @@
 - [Password-reset first login](password-reset-first-login.md) — verify the temporary password first, then issue only a short-lived password-change token; authVersion invalidates it after completion
 - [FULL_REPLACEMENT run membership](full-replacement-run-membership.md) — completed runs retain aggregate checkpoints, not an authoritative per-user membership set
 - [Single investment plan policy](single-investment-plan-policy.md) — approved ROI-only member cap, permanent working upgrade, and guarded principal settlement.
+- [Generated Zod compatibility](generated-zod-compatibility.md) — check generated builders against the installed Zod major before changing API numeric schemas.
