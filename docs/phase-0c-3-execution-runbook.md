@@ -37,7 +37,7 @@ The transaction explicitly clears:
 - Other `common_temporary_password_reset_runs` rows, except the named completed `FULL_REPLACEMENT` run.
 - The three non-selected Admin rows, after their dependent rows are removed.
 
-The Master wallet and Master wallet-address rows are preserved; only the Master wallet balances, tree fields, BV counters, referral counters, `referredBy`, and salary-business counters are reset. The selected Super Admin row, completed FULL_REPLACEMENT run, `system_settings`, `company_wallets`, `withdrawal_settings`, `salary_rank_config`, and `_prisma_migrations` are preserved. Foreign keys remain enabled; deletions are child-first and never use `CASCADE`.
+The Master wallet and Master wallet-address rows are preserved; only the Master wallet balances, tree fields, BV counters, referral counters, `referredBy`, and salary-business counters are reset. The selected Super Admin row, completed FULL_REPLACEMENT run, `system_settings`, `company_wallets`, `withdrawal_settings`, `salary_rank_config`, and `_prisma_migrations` are preserved. Foreign keys remain enabled; deletions are child-first and never use `CASCADE`. Ordinary users’ `fullReplacementPasswordResetRunId` references are explicitly cleared before non-preserved reset-run rows are deleted; the Master is asserted to reference only NULL or the preserved run.
 
 `admin_logs` are cleared from the active database after archive verification. Any legally required log history must remain in the approved restricted archive.
 
@@ -54,7 +54,37 @@ The Master wallet and Master wallet-address rows are preserved; only the Master 
 
 ## Required isolated restore test
 
-Do not point this command at Production. Restore the verified backup to a dedicated isolated database first. Use the owner’s locally secured database configuration and keep the populated CSVs and SQL in a private working directory.
+Do not point this command at Production. Restore the verified backup to a dedicated isolated database whose name starts with `v1_reset_test_` and is not `neondb`. The reset SQL refuses every other database before it locks any table. Use the owner’s locally secured database configuration and keep the populated CSVs and SQL in a private working directory.
+
+First inspect the custom-format backup without connecting to a database:
+
+```bash
+pg_restore --list "$V1_VERIFIED_BACKUP" > "$V1_PRIVATE_BACKUP_LIST"
+```
+
+Create an empty database on a dedicated local/isolated PostgreSQL instance, not the Production cluster. Set `V1_RESET_TEST_DATABASE_NAME` to a unique `v1_reset_test_*` name and verify the connection target before restoring:
+
+```bash
+case "$V1_RESET_TEST_DATABASE_NAME" in
+  v1_reset_test_*) ;;
+  *) echo "Refusing non-test database name" >&2; exit 1 ;;
+esac
+test "$V1_RESET_TEST_DATABASE_NAME" != "neondb"
+test "$(psql "$V1_RESET_TEST_DATABASE_URL" -XAt -v ON_ERROR_STOP=1 \
+  -c 'SELECT current_database()')" = "$V1_RESET_TEST_DATABASE_NAME"
+```
+
+Restore the verified dump to that isolated database only:
+
+```bash
+pg_restore --single-transaction --exit-on-error --no-owner --no-privileges \
+  --dbname="$V1_RESET_TEST_DATABASE_URL" \
+  "$V1_VERIFIED_BACKUP"
+```
+
+Keep the backup, restore output, and both populated CSV manifests outside the repository. Do not use `--clean` or `--create`.
+
+After confirming the restored target identity, run the complete guarded transaction:
 
 ```bash
 psql "$V1_RESET_TEST_DATABASE_URL" \
@@ -62,7 +92,7 @@ psql "$V1_RESET_TEST_DATABASE_URL" \
   -v expected_database="$V1_RESET_TEST_DATABASE_NAME" \
   -v expected_role="$V1_RESET_TEST_DATABASE_ROLE" \
   -v archive_verified=YES \
--v financial_clearance_verified=YES \
+  -v financial_clearance_verified=YES \
   -v commit_approved=YES \
   -f ./phase-0c-3-final-reset.sql
 ```

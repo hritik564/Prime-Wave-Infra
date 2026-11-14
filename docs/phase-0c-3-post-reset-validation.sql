@@ -1,19 +1,33 @@
 -- PrimeWave V1 Phase 0C.3 — READ-ONLY post-reset validation.
--- Run only after a separately approved reset on the intended Production DB.
--- This file performs no writes and does not verify external archive custody.
+-- Isolated restore only. This file is barred from Production `neondb`.
+-- It performs no writes and does not verify external archive custody.
 
 \set ON_ERROR_STOP on
 \if :{?expected_database}
 \else
-\set expected_database neondb
+\echo 'ERROR: pass expected_database for an isolated v1_reset_test_* database'
+\quit 1
 \endif
 \if :{?expected_role}
 \else
-\set expected_role neondb_owner
+\echo 'ERROR: pass expected_role for the isolated restore'
+\quit 1
 \endif
 BEGIN TRANSACTION READ ONLY;
 SET LOCAL app.phase0c3_expected_database = :'expected_database';
 SET LOCAL app.phase0c3_expected_role = :'expected_role';
+DO $target_guard$
+BEGIN
+  IF current_database() = 'neondb'
+     OR current_database() !~ '^v1_reset_test_[a-z0-9_]+$'
+     OR current_database() IS DISTINCT FROM
+          current_setting('app.phase0c3_expected_database')
+     OR current_user IS DISTINCT FROM
+          current_setting('app.phase0c3_expected_role') THEN
+    RAISE EXCEPTION 'Validation SQL is restricted to the named isolated test database';
+  END IF;
+END
+$target_guard$;
 
 SELECT current_database() AS database_name,
        current_user AS connected_role,
@@ -29,7 +43,8 @@ SELECT count(*) AS total_users,
         WHERE id = '6f67dde8-f7c6-4fff-8042-b28dd50191d7'
           AND role::text = 'SUPER_ADMIN' AND "isActive" = true)
          AS selected_super_admin,
-       (SELECT count(*) FROM public.wallets) AS user_wallets;
+  (SELECT count(*) FROM public.wallets) AS user_wallets,
+  (SELECT count(*) FROM public.salary_business_summary) AS salary_business_summaries;
 
 SELECT
   w."depositWallet" = 0 AS master_deposit_zero,
@@ -75,7 +90,6 @@ UNION ALL SELECT 'investments', count(*) FROM public.investments
 UNION ALL SELECT 'roi_ledger', count(*) FROM public.roi_ledger
 UNION ALL SELECT 'deposit_requests', count(*) FROM public.deposit_requests
 UNION ALL SELECT 'deposit_verifications', count(*) FROM public.deposit_verifications
-UNION ALL SELECT 'manual_deposit_idempotency', count(*) FROM public.manual_deposit_idempotency
 UNION ALL SELECT 'withdrawal_requests', count(*) FROM public.withdrawal_requests
 UNION ALL SELECT 'withdrawal_events', count(*) FROM public.withdrawal_events
 UNION ALL SELECT 'income_transfers', count(*) FROM public.income_transfers
@@ -148,7 +162,7 @@ BEGIN
           current_setting('app.phase0c3_expected_database')
      OR current_user IS DISTINCT FROM
           current_setting('app.phase0c3_expected_role') THEN
-    RAISE EXCEPTION 'Wrong Production target or transaction mode';
+    RAISE EXCEPTION 'Wrong isolated-test target or transaction mode';
   END IF;
 
   IF (SELECT count(*) FROM public.users) <> 1
@@ -161,7 +175,10 @@ BEGIN
      OR (SELECT count(*) FROM public.admins
          WHERE id = '6f67dde8-f7c6-4fff-8042-b28dd50191d7'
            AND role::text = 'SUPER_ADMIN' AND "isActive" = true) <> 1
-     OR (SELECT count(*) FROM public.wallets) <> 1 THEN
+      OR (SELECT count(*) FROM public.wallets) <> 1
+      OR (SELECT count(*) FROM public.salary_business_summary) <> 1
+      OR (SELECT count(*) FROM public.salary_business_summary
+          WHERE "userId" = 'pwmaster0000000000001') <> 1 THEN
     RAISE EXCEPTION 'Expected exactly Master, selected Super Admin, and Master wallet';
   END IF;
 
@@ -208,7 +225,6 @@ BEGIN
     FROM (VALUES
       ('wallet_transactions'), ('investments'), ('roi_ledger'),
       ('deposit_requests'), ('deposit_verifications'), ('withdrawal_requests'),
-      ('manual_deposit_idempotency'),
       ('withdrawal_events'), ('income_transfers'), ('income_transfer_releases'),
       ('manual_deposit_idempotency'), ('referral_history'), ('level_income'),
       ('match_bv_ledger'), ('orbit_bv_ledger'), ('salary_bv_ledger'),
