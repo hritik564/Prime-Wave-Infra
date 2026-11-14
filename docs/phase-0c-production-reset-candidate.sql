@@ -3,6 +3,8 @@
 -- Default approval is NO; the final statement is ROLLBACK.
 -- Do not change either safety gate without separate explicit approval.
 -- Requires psql. All production writers must already be stopped and verified.
+-- Snapshot counts below are from the earlier read-only inspection. Do not refresh
+-- them until a separate final read-only preflight is explicitly approved.
 
 \set ON_ERROR_STOP on
 
@@ -79,6 +81,87 @@ CREATE TEMP TABLE phase0c_member_ids ON COMMIT DROP AS
 SELECT id
 FROM public.users
 WHERE lower(username) <> 'master';
+
+-- Populate only from a separately approved final preflight and verified
+-- out-of-database evidence manifest. Do not update any original database status.
+CREATE TEMP TABLE phase0c_settlement_manifest (
+  record_type text NOT NULL CHECK (record_type IN ('withdrawal', 'income_transfer')),
+  record_id text NOT NULL,
+  database_status text NOT NULL,
+  database_amount numeric NOT NULL,
+  database_fee numeric,
+  database_net_amount numeric,
+  database_currency text,
+  external_settlement_status text NOT NULL
+    CHECK (external_settlement_status = 'SETTLED_EXTERNALLY'),
+  external_amount numeric NOT NULL,
+  external_currency text NOT NULL,
+  external_reference text NOT NULL CHECK (length(trim(external_reference)) > 0),
+  evidence_sha256 text NOT NULL
+    CHECK (evidence_sha256 ~ '^[A-Fa-f0-9]{64}$'),
+  settled_at timestamptz NOT NULL,
+  prepared_by text NOT NULL,
+  independently_verified_by text NOT NULL,
+  PRIMARY KEY (record_type, record_id),
+  CHECK (prepared_by <> independently_verified_by)
+) ON COMMIT DROP;
+
+-- These snapshots remain private to this transaction and are never selected
+-- into output. The Master/admin password hashes are compared internally only.
+CREATE TEMP TABLE phase0c_master_identity_snapshot ON COMMIT DROP AS
+SELECT
+  id, email, phone, username, "passwordHash", "passwordResetRequired",
+  "authVersion", "passwordChangedAt", "fullReplacementPasswordResetRunId",
+  "firstName", "lastName", "referralCode", "referredBy", "walletAddress",
+  "telegramId", "profileImage", "createdAt", "isTestUser", status,
+  "withdrawalHold", "withdrawalHoldReason", "withdrawalHoldBy", "withdrawalHoldAt"
+FROM public.users
+WHERE id IN (SELECT id FROM phase0c_master_ids);
+
+CREATE TEMP TABLE phase0c_admins_snapshot ON COMMIT DROP AS
+SELECT * FROM public.admins;
+CREATE TEMP TABLE phase0c_system_settings_snapshot ON COMMIT DROP AS
+SELECT * FROM public.system_settings;
+CREATE TEMP TABLE phase0c_salary_rank_config_snapshot ON COMMIT DROP AS
+SELECT * FROM public.salary_rank_config;
+CREATE TEMP TABLE phase0c_withdrawal_settings_snapshot ON COMMIT DROP AS
+SELECT * FROM public.withdrawal_settings;
+CREATE TEMP TABLE phase0c_company_wallets_snapshot ON COMMIT DROP AS
+SELECT * FROM public.company_wallets;
+CREATE TEMP TABLE phase0c_prisma_migrations_snapshot ON COMMIT DROP AS
+SELECT * FROM public._prisma_migrations;
+CREATE TEMP TABLE phase0c_bulk_reset_runs_snapshot ON COMMIT DROP AS
+SELECT * FROM public.bulk_password_reset_runs;
+CREATE TEMP TABLE phase0c_common_reset_runs_snapshot ON COMMIT DROP AS
+SELECT * FROM public.common_temporary_password_reset_runs;
+CREATE TEMP TABLE phase0c_financial_discrepancies_snapshot ON COMMIT DROP AS
+SELECT * FROM public.financial_discrepancies;
+CREATE TEMP TABLE phase0c_reconciliation_reports_snapshot ON COMMIT DROP AS
+SELECT * FROM public.reconciliation_reports;
+CREATE TEMP TABLE phase0c_wallet_change_audit_snapshot ON COMMIT DROP AS
+SELECT * FROM public.wallet_change_audit_logs;
+CREATE TEMP TABLE phase0c_job_logs_snapshot ON COMMIT DROP AS
+SELECT * FROM public.job_execution_logs;
+CREATE TEMP TABLE phase0c_salary_runs_snapshot ON COMMIT DROP AS
+SELECT * FROM public.salary_run;
+CREATE TEMP TABLE phase0c_salary_run_audit_snapshot ON COMMIT DROP AS
+SELECT * FROM public.salary_run_audit;
+
+-- A deleted ordinary-user target is expected to become NULL due to the
+-- existing admin_logs.targetUserId ON DELETE SET NULL constraint. Everything
+-- else in each audit row, including details JSON, must remain identical.
+CREATE TEMP TABLE phase0c_admin_logs_snapshot ON COMMIT DROP AS
+SELECT
+  id,
+  "adminId",
+  action,
+  CASE
+    WHEN "targetUserId" IN (SELECT id FROM phase0c_member_ids) THEN NULL
+    ELSE "targetUserId"
+  END AS "targetUserId",
+  details,
+  "createdAt"
+FROM public.admin_logs;
 
 CREATE TEMP TABLE phase0c_preserved_counts ON COMMIT DROP AS
 SELECT
